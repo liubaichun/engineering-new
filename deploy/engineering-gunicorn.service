@@ -1,0 +1,23 @@
+[Unit]
+Description=Enterprise Information System Gunicorn
+After=network.target postgresql.service
+
+[Service]
+User=root
+WorkingDirectory=/root/engineering-new
+# 启动前先彻底清理残留进程，防止孤儿进程占用端口
+ExecStartPre=/bin/sh -c 'pkill -9 gunicorn 2>/dev/null; sleep 1'
+ExecStart=/root/engineering-new/venv/bin/gunicorn config.wsgi:application \
+    --bind 0.0.0.0:8001 \
+    --workers 4 \
+    --timeout 300 \
+    --keep-alive 10 \
+    --error-logfile /root/engineering-new/logs/error.log \
+    --access-logfile /root/engineering-new/logs/access.log
+# KillMode=process: 只杀master不杀workers，避免OOM时workers变孤儿
+KillMode=process
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

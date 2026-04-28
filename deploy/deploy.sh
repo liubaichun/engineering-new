@@ -32,20 +32,31 @@ python manage.py collectstatic --noinput
 echo "[4/6] 检查数据库迁移..."
 python manage.py migrate --run-syncdb
 
-# 5. 重启 gunicorn
-echo "[5/6] 重启 gunicorn..."
-pkill -f "gunicorn.*config.wsgi" 2>/dev/null || true
-sleep 2
-cd "$PROJECT_DIR"
-nohup venv/bin/gunicorn config.wsgi \
-    --bind 0.0.0.0:8001 \
-    --workers 4 \
-    --timeout 120 \
-    --daemon \
-    -p "$PROJECT_DIR/gunicorn.pid"
+# 5. 安装 systemd 服务（首次部署或服务文件更新时）
+echo "[5/6] 配置 systemd 服务..."
+if [ -f "$PROJECT_DIR/deploy/engineering-gunicorn.service" ]; then
+    cp "$PROJECT_DIR/deploy/engineering-gunicorn.service" /etc/systemd/system/engineering-gunicorn.service
+    systemctl daemon-reload
+    systemctl enable engineering-gunicorn
+    echo "  systemd 服务已配置"
+else
+    echo "  警告: 未找到 systemd 服务文件，跳过"
+fi
 
-echo "[6/6] 验证服务..."
-sleep 2
+# 清理可能冲突的旧服务文件
+for old_svc in engineering.service gunicorn.service engineering-new.service; do
+    if [ -f "/etc/systemd/system/$old_svc" ]; then
+        echo "  发现残留服务文件 $old_svc，已清理"
+        rm -f "/etc/systemd/system/$old_svc"
+    fi
+done
+
+# 6. 重启 gunicorn（通过 systemd）
+echo "[6/6] 重启 gunicorn..."
+pkill -9 gunicorn 2>/dev/null || true
+sleep 1
+systemctl restart engineering-gunicorn
+sleep 3
 if curl -sf http://127.0.0.1:8001/api/core/auth/login/ > /dev/null 2>&1; then
     echo "✅ 服务启动成功: http://43.156.139.37:8001"
 else
