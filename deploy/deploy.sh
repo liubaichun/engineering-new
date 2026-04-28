@@ -17,11 +17,15 @@ if [ ! -f "$PROJECT_DIR/.env" ]; then
     echo "  SECRET_KEY=$(python3 -c 'import secrets; print(secrets.token_urlsafe(64))')"
 fi
 
-# 2. 安装依赖
-echo "[2/6] 安装 Python 依赖..."
+# 2. 创建虚拟环境并安装依赖
+echo "[2/6] 创建虚拟环境并安装依赖..."
 cd "$PROJECT_DIR"
+if [ ! -f "venv/bin/activate" ]; then
+    python3 -m venv venv
+fi
+source venv/bin/activate
 if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt -q
+    pip install -q -r requirements.txt
 fi
 
 # 3. 收集静态文件
