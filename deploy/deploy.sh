@@ -53,8 +53,7 @@ done
 
 # 6. 重启 gunicorn（通过 systemd）
 echo "[6/6] 重启 gunicorn..."
-pkill -9 gunicorn 2>/dev/null || true
-sleep 1
+pkill -9 -f "gunicorn.*engineering" 2>/dev/null || true; sleep 2
 systemctl restart engineering-gunicorn
 sleep 3
 if curl -sf http://127.0.0.1:8001/api/core/auth/login/ > /dev/null 2>&1; then
