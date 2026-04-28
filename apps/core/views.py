@@ -9,6 +9,12 @@ from django.middleware.csrf import get_token
 from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.contrib.auth.tokens import default_token_generator
+from django.template.loader import render_to_string
+from django.core.mail import send_mail
+from django.conf import settings
 
 from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting
 from apps.finance.models import Company as FinanceCompany
@@ -36,6 +42,84 @@ def get_csrf_token(request):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+class PasswordResetRequestView(APIView):
+    """请求密码重置 - 发送邮件"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request):
+        email = request.data.get('email', '').strip()
+        if not email:
+            return Response({'status': 'error', 'message': '邮箱不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+        users = User.objects.filter(email=email)
+        # 即使邮箱不存在也返回成功，防止暴力猜测试探
+        if users.exists():
+            user = users.first()
+            token = default_token_generator.make_token(user)
+            uidb64 = urlsafe_base64_encode(force_bytes(user.pk))
+            reset_url = f"http://{request.get_host()}/password-reset/{uidb64}/{token}/"
+
+            try:
+                subject = '【企业信息化管理系统】密码重置验证码'
+                message = f'''您好！
+
+您申请了密码重置，请点击以下链接重置密码：
+
+{reset_url}
+
+如果这不是您本人操作，请忽略此邮件。
+
+此链接30分钟内有效。'''
+                send_mail(subject, message, settings.DEFAULT_FROM_EMAIL, [email], fail_silently=False)
+                return Response({
+                    'status': 'success',
+                    'message': '重置链接已发送到您的邮箱，请查收。'
+                })
+            except Exception as e:
+                return Response({
+                    'status': 'error',
+                    'message': f'邮件发送失败: {str(e)}'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({
+            'status': 'success',
+            'message': '如果该邮箱已注册，重置链接已发送。'
+        })
+
+
+class PasswordResetConfirmView(APIView):
+    """确认密码重置 - 设置新密码"""
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def post(self, request, uidb64, token):
+        new_password = request.data.get('new_password', '')
+        confirm_password = request.data.get('confirm_password', '')
+
+        if not new_password or not confirm_password:
+            return Response({'status': 'error', 'message': '密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if new_password != confirm_password:
+            return Response({'status': 'error', 'message': '两次密码不一致'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 8:
+            return Response({'status': 'error', 'message': '密码至少8个字符'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            user = User.objects.get(pk=uid)
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({'status': 'error', 'message': '无效的重置链接'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not default_token_generator.check_token(user, token):
+            return Response({'status': 'error', 'message': '链接已过期，请重新申请'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        return Response({'status': 'success', 'message': '密码重置成功，请使用新密码登录。'})
+
+
 class RegisterView(APIView):
     """用户注册视图"""
     permission_classes = [AllowAny]
