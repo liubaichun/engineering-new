@@ -1,0 +1,613 @@
+{% extends "base.html" %}
+
+{% block title %}财务管理 - 公司管理{% endblock %}
+
+{% block styles %}
+<style>
+.company-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.primary { color: var(--primary); }
+.company-table td { vertical-align: middle; }
+.company-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.company-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+.company-name { font-weight: 600; }
+.company-code { font-size: 0.75rem; color: var(--text-muted); }
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.status-badge.active { background: #d1fae5; color: #065f46; }
+.status-badge.inactive { background: #fee2e2; color: #991b1b; }
+.status-badge.pending { background: #fef3c7; color: #92400e; }
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+}
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-secondary);
+}
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    color: var(--text-muted);
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-building me-2"></i>公司管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理合作公司信息</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" style="width: auto;" id="statusFilter" onchange="loadCompanies()">
+            <option value="">全部状态</option>
+            <option value="active">启用</option>
+            <option value="inactive">停用</option>
+            <option value="pending">待审核</option>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="exportCompanies()">
+            <i class="bi bi-download me-1"></i>导出
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="showAddCompanyModal()" data-perm="company.add">
+            <i class="bi bi-plus-lg me-1"></i>新建公司
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="company-summary">
+    <div class="summary-card">
+        <div class="label">公司总数</div>
+        <div class="value primary" id="totalCount">-</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalNum">0</span> 家</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">启用中</div>
+        <div class="value success" id="activeCount">-</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">正常合作</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">停用</div>
+        <div class="value danger" id="inactiveCount">-</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">暂停合作</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">待审核</div>
+        <div class="value warning" id="pendingCount">-</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">待处理</div>
+    </div>
+</div>
+
+<!-- 公司列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>公司明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table company-table mb-0">
+                <thead>
+                    <tr>
+                        <th>公司信息</th>
+                        <th>公司代码</th>
+                        <th>联系人</th>
+                        <th>联系电话</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th style="width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="companyTableBody">
+                    <tr>
+                        <td colspan="7" class="loading-spinner">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">加载中...</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0-0 条，共 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 新增/编辑公司 Modal -->
+<div class="modal fade" id="companyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-building me-2"></i><span id="companyModalTitle">新建公司</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="companyId">
+                <div class="row g-3 mb-3">
+                    <div class="col-12">
+                        <label class="form-label">公司名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="companyName" placeholder="请输入公司名称">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">公司代码 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="companyCode" placeholder="如：GS-001">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="companyStatus">
+                            <option value="active">启用</option>
+                            <option value="inactive">停用</option>
+                            <option value="pending">待审核</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">联系人</label>
+                        <input type="text" class="form-control" id="contactPerson" placeholder="联系人姓名">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">联系电话</label>
+                        <input type="tel" class="form-control" id="contactPhone" placeholder="手机号码">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">公司地址</label>
+                    <textarea class="form-control" id="companyAddress" rows="2" placeholder="详细地址"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="companyRemark" rows="2" placeholder="备注信息（可选）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveCompany()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认 Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除公司 <strong id="deleteCompanyName"></strong> 吗？此操作不可恢复。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="company.delete">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var companyModal;
+var deleteModal;
+var currentPage = 1;
+var pageSize = 10;
+var deleteTargetId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    companyModal = new bootstrap.Modal(document.getElementById('companyModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    loadCompanies();
+});
+
+async function loadCompanies() {
+    const tbody = document.getElementById('companyTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="loading-spinner"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div></td></tr>';
+    
+    const status = document.getElementById('statusFilter').value;
+    let url = '/api/finance/companies/?page=' + currentPage + '&page_size=' + pageSize;
+    if (status) {
+        url += '&status=' + status;
+    }
+    
+    try {
+        const response = await fetch(url, {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('获取公司列表失败');
+        }
+        
+        const data = await response.json();
+        renderCompanies(data);
+        updateSummary(data);
+    } catch (error) {
+        console.error('Error:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="bi bi-exclamation-circle"></i><p>加载失败，请重试</p><button class="btn btn-sm btn-primary" onclick="loadCompanies()">重新加载</button></td></tr>';
+        showToast('获取公司列表失败: ' + error.message, 'error');
+    }
+}
+
+function renderCompanies(data) {
+    const tbody = document.getElementById('companyTableBody');
+    const results = data.results || data;
+    
+    if (!results || results.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="bi bi-building"></i><p>暂无公司信息</p><button class="btn btn-sm btn-primary" onclick="showAddCompanyModal()">新建公司</button></td></tr>';
+        document.getElementById('recordCount').textContent = '0';
+        document.getElementById('paginationInfo').textContent = '显示 0-0 条，共 0 条';
+        return;
+    }
+    
+    const start = (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, data.count || results.length);
+    document.getElementById('recordCount').textContent = data.count || results.length;
+    document.getElementById('paginationInfo').textContent = '显示 ' + start + '-' + end + ' 条，共 ' + (data.count || results.length) + ' 条';
+    
+    let html = '';
+    results.forEach(function(company) {
+        const firstChar = company.name ? company.name.charAt(0).toUpperCase() : '?';
+        const statusClass = company.status === 'active' ? 'active' : (company.status === 'inactive' ? 'inactive' : 'pending');
+        const statusText = company.status === 'active' ? '启用' : (company.status === 'inactive' ? '停用' : '待审核');
+        const createdTime = company.created_at ? new Date(company.created_at).toLocaleDateString('zh-CN') : '-';
+        
+        html += '<tr data-id="' + company.id + '">';
+        html += '<td>';
+        html += '<div class="company-info">';
+        // 圆形头像已显示首字符，name去掉第一位避免重复显示"深深"
+        const displayName = company.name ? company.name.substring(1) : '-';
+        html += '<div class="company-avatar">' + firstChar + '</div>';
+        html += '<div>';
+        html += '<div class="company-name">' + (displayName || '-') + '</div>';
+        html += '</div>';
+        html += '</div>';
+        html += '</td>';
+        html += '<td>' + (company.code || '-') + '</td>';
+        html += '<td>' + (company.contact_person || '-') + '</td>';
+        html += '<td>' + (company.contact_phone || '-') + '</td>';
+        html += '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>';
+        html += '<td>' + createdTime + '</td>';
+        html += '<td>';
+        html += '<button class="btn btn-sm btn-outline-secondary me-1" onclick="editCompany(' + company.id + ')" title="编辑"><i class="bi bi-pencil"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-secondary" onclick="deleteCompany(' + company.id + ', \'' + (company.name || '') + '\')" title="删除" data-perm="company.delete"><i class="bi bi-trash"></i></button>';
+        html += '</td>';
+        html += '</tr>';
+    });
+    
+    tbody.innerHTML = html;
+    renderPagination(data);
+}
+
+function updateSummary(data) {
+    const results = data.results || data;
+    const total = data.count || results.length;
+    let active = 0, inactive = 0, pending = 0;
+    
+    results.forEach(function(company) {
+        if (company.status === 'active') active++;
+        else if (company.status === 'inactive') inactive++;
+        else pending++;
+    });
+    
+    document.getElementById('totalCount').textContent = total;
+    document.getElementById('totalNum').textContent = total;
+    document.getElementById('activeCount').textContent = active;
+    document.getElementById('inactiveCount').textContent = inactive;
+    document.getElementById('pendingCount').textContent = pending;
+}
+
+function renderPagination(data) {
+    const pagination = document.getElementById('pagination');
+    const total = data.count || 0;
+    const totalPages = Math.ceil(total / pageSize);
+    
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        return;
+    }
+    
+    let html = '';
+    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (currentPage - 1) + ')">上一页</a></li>';
+    
+    const maxVisible = 5;
+    let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    
+    if (endPage - startPage < maxVisible - 1) {
+        startPage = Math.max(1, endPage - maxVisible + 1);
+    }
+    
+    if (startPage > 1) {
+        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1)">1</a></li>';
+        if (startPage > 2) {
+            html += '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
+        }
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
+    }
+    
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            html += '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
+        }
+        html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + totalPages + ')">' + totalPages + '</a></li>';
+    }
+    
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (currentPage + 1) + ')">下一页</a></li>';
+    
+    pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadCompanies();
+}
+
+function showAddCompanyModal() {
+    document.getElementById('companyModalTitle').textContent = '新建公司';
+    document.getElementById('companyId').value = '';
+    document.getElementById('companyName').value = '';
+    document.getElementById('companyCode').value = '';
+    document.getElementById('companyStatus').value = 'active';
+    document.getElementById('contactPerson').value = '';
+    document.getElementById('contactPhone').value = '';
+    document.getElementById('companyAddress').value = '';
+    document.getElementById('companyRemark').value = '';
+    companyModal.show();
+}
+
+async function editCompany(id) {
+    try {
+        const response = await fetch('/api/finance/companies/' + id + '/', {
+            method: 'GET',
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('获取公司信息失败');
+        }
+        
+        const company = await response.json();
+        
+        document.getElementById('companyModalTitle').textContent = '编辑公司';
+        document.getElementById('companyId').value = company.id;
+        document.getElementById('companyName').value = company.name || '';
+        document.getElementById('companyCode').value = company.code || '';
+        document.getElementById('companyStatus').value = company.status || 'active';
+        document.getElementById('contactPerson').value = company.contact_person || '';
+        document.getElementById('contactPhone').value = company.contact_phone || '';
+        document.getElementById('companyAddress').value = company.address || '';
+        document.getElementById('companyRemark').value = company.remark || '';
+        
+        companyModal.show();
+    } catch (error) {
+        showToast('获取公司信息失败: ' + error.message, 'error');
+    }
+}
+
+async function saveCompany() {
+    const id = document.getElementById('companyId').value;
+    const name = document.getElementById('companyName').value.trim();
+    const code = document.getElementById('companyCode').value.trim();
+    const status = document.getElementById('companyStatus').value;
+    const contactPerson = document.getElementById('contactPerson').value.trim();
+    const contactPhone = document.getElementById('contactPhone').value.trim();
+    const address = document.getElementById('companyAddress').value.trim();
+    const remark = document.getElementById('companyRemark').value.trim();
+    
+    if (!name) {
+        showToast('请输入公司名称', 'warning');
+        return;
+    }
+    
+    if (!code) {
+        showToast('请输入公司代码', 'warning');
+        return;
+    }
+    
+    const data = {
+        name: name,
+        code: code,
+        status: status,
+        contact_person: contactPerson,
+        contact_phone: contactPhone,
+        address: address,
+        remark: remark
+    };
+    
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? '/api/finance/companies/' + id + '/' : '/api/finance/companies/';
+    
+    try {
+        const response = await fetch(url, {
+            method: method,
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (!response.ok) {
+            throw new Error(id ? '更新公司失败' : '创建公司失败');
+        }
+        
+        showToast(id ? '公司更新成功' : '公司创建成功', 'success');
+        companyModal.hide();
+        document.getElementById('companyModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('companyModal').removeEventListener('hidden.bs.modal', handler);
+            loadCompanies();
+        });
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+function deleteCompany(id, name) {
+    deleteTargetId = id;
+    document.getElementById('deleteCompanyName').textContent = name;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    if (!deleteTargetId) return;
+    
+    try {
+        const response = await fetch('/api/finance/companies/' + deleteTargetId + '/', {
+            method: 'DELETE',
+            credentials: 'include',
+            
+            'X-CSRFToken': getCookie('csrftoken'),
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        });
+        
+        if (!response.ok) {
+            throw new Error('删除公司失败');
+        }
+        
+        showToast('公司删除成功', 'success');
+        deleteModal.hide();
+        document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('deleteModal').removeEventListener('hidden.bs.modal', handler);
+            deleteTargetId = null;
+            loadCompanies();
+        });
+    } catch (error) {
+        showToast(error.message, 'error');
+    }
+}
+
+function exportCompanies() {
+    var rows = [
+        ['公司名称', '公司代码', '联系人', '联系电话', '地址', '状态', '创建时间']
+    ];
+    companies.forEach(function(c) {
+        rows.push([
+            c.name || '',
+            c.code || '',
+            c.contact_person || '',
+            c.contact_phone || '',
+            c.address || '',
+            {'active': '启用', 'inactive': '停用', 'pending': '待审核'}[c.status] || c.status || '',
+            c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : ''
+        ]);
+    });
+
+    var csvContent = rows.map(function(r) {
+        return r.map(function(cell) {
+            var str = String(cell);
+            if (str.match(/[,\n"]/)) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }).join(',');
+    }).join('\n');
+
+    var BOM = '\uFEFF';
+    var blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = '公司列表_' + new Date().toISOString().slice(0,10) + '.csv';
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('导出成功，共 ' + companies.length + ' 条记录', 'success');
+}
+
+function showToast(message, type) {
+    const container = document.querySelector('.toast-container') || createToastContainer();
+    const toast = document.createElement('div');
+    toast.className = 'toast-msg ' + (type || 'info');
+    toast.innerHTML = '<i class="bi bi-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : type === 'warning' ? 'exclamation-circle' : 'info-circle') + '"></i><span>' + message + '</span>';
+    container.appendChild(toast);
+    
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(30px)';
+        setTimeout(function() {
+            toast.remove();
+        }, 300);
+    }, 3000);
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+{% endblock %}

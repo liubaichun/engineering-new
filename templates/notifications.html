@@ -1,0 +1,195 @@
+{% extends "base.html" %}
+
+{% block title %}通知消息 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.notification-list { max-width: 800px; margin: 0 auto; }
+.notification-item {
+    background: #fff;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 4px solid transparent;
+}
+.notification-item:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); transform: translateX(4px); }
+.notification-item.unread { background: #f0f9ff; border-left-color: #3b82f6; }
+.notification-item.type-project { border-left-color: #3b82f6; }
+.notification-item.type-task { border-left-color: #10b981; }
+.notification-item.type-finance { border-left-color: #f59e0b; }
+.notification-item.type-approval { border-left-color: #8b5cf6; }
+.notification-item.type-info { border-left-color: #64748b; }
+.ntf-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.2rem;
+}
+.ntf-title { font-weight: 600; color: #1e293b; margin-bottom: 4px; }
+.ntf-msg { font-size: 0.85rem; color: #64748b; }
+.ntf-time { font-size: 0.75rem; color: #94a3b8; }
+.filter-tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+.filter-tab {
+    padding: 8px 16px; border-radius: 20px;
+    border: 1px solid #e2e8f0; background: #fff;
+    cursor: pointer; transition: all 0.2s; font-size: 0.85rem;
+}
+.filter-tab:hover { border-color: #3b82f6; color: #3b82f6; }
+.filter-tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; }
+.badge-unread { background: #ef4444; color: #fff; font-size: 0.7rem; padding: 2px 6px; border-radius: 10px; margin-left: 8px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-bell me-2"></i>通知消息</h4>
+            <p class="text-muted mb-0">系统通知和消息提醒</p>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" onclick="markAllRead()">
+            <i class="bi bi-check-all me-1"></i>全部已读
+        </button>
+    </div>
+</div>
+
+<div class="notification-list">
+    <div class="filter-tabs">
+        <button class="filter-tab active" data-filter="all" onclick="filterNotifications('all')">全部</button>
+        <button class="filter-tab" data-filter="unread" onclick="filterNotifications('unread')">未读 <span class="badge-unread" id="unreadBadge">0</span></button>
+        <button class="filter-tab" data-filter="read" onclick="filterNotifications('read')">已读</button>
+    </div>
+
+    <div id="notificationList">
+        <div class="text-center py-5 text-muted">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2">加载中...</p>
+        </div>
+    </div>
+
+    <div class="d-flex justify-content-center mt-4" id="pagination"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+let currentPage = 1;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadNotifications();
+    updateUnreadCount();
+});
+
+async function loadNotifications(page = 1) {
+    currentPage = page;
+    const container = document.getElementById('notificationList');
+    container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm"></div><p class="mt-2">加载中...</p></div>';
+    
+    try {
+        const params = new URLSearchParams({page: page, page_size: 20});
+        if (currentFilter === 'unread') params.set('is_read', 'false');
+        if (currentFilter === 'read') params.set('is_read', 'true');
+        
+        const resp = await fetch('/api/notifications/?' + params.toString(), {credentials: 'include'});
+        const data = await resp.json();
+        
+        if (!data.results || data.results.length === 0) {
+            container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-bell-slash fs-1"></i><p class="mt-2">暂无通知</p></div>';
+            return;
+        }
+        
+        container.innerHTML = data.results.map(n => `
+            <div class="notification-item type-${n.type} ${n.is_read ? '' : 'unread'}" data-id="${n.id}" onclick="markRead(${n.id})">
+                <div class="d-flex">
+                    <div class="ntf-icon bg-${getColor(n.type)} bg-opacity-10 text-${getColor(n.type)} me-3">
+                        <i class="bi bi-${getIcon(n.type)}"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <div class="ntf-title">${escapeHtml(n.title)} ${n.is_read ? '' : '<span class="badge-unread">新</span>'}</div>
+                        <div class="ntf-msg">${escapeHtml(n.message)}</div>
+                        <div class="ntf-time mt-1">${formatTime(n.created_at)}</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        renderPagination(data);
+    } catch (err) {
+        container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-exclamation-triangle"></i><p class="mt-2">加载失败</p></div>';
+    }
+}
+
+function getIcon(type) {
+    const m = {'project':'briefcase','task':'kanban','finance':'wallet2','approval':'check-circle','info':'info-circle'};
+    return m[type] || 'bell';
+}
+function getColor(type) {
+    const m = {'project':'primary','task':'success','finance':'warning','approval':'purple','info':'secondary'};
+    return m[type] || 'secondary';
+}
+function escapeHtml(text) {
+    const d = document.createElement('div'); d.textContent = text; return d.innerHTML;
+}
+function formatTime(t) {
+    if (!t) return '';
+    const diff = new Date() - new Date(t);
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return Math.floor(diff/60000) + '分钟前';
+    if (diff < 86400000) return Math.floor(diff/3600000) + '小时前';
+    if (diff < 604800000) return Math.floor(diff/86400000) + '天前';
+    return new Date(t).toLocaleDateString('zh-CN');
+}
+function renderPagination(data) {
+    const p = document.getElementById('pagination');
+    const total = Math.ceil((data.count || 0) / 20);
+    if (total <= 1) { p.innerHTML = ''; return; }
+    let html = '<ul class="pagination pagination-sm">';
+    for (let i = 1; i <= total; i++) {
+        html += `<li class="page-item ${i===currentPage?'active':''}"><a class="page-link" href="#" onclick="loadNotifications(${i});return false;">${i}</a></li>`;
+    }
+    p.innerHTML = html + '</ul>';
+}
+function filterNotifications(f) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-tab').forEach(t => t.classList.toggle('active', t.dataset.filter === f));
+    loadNotifications(1);
+}
+async function markRead(id) {
+    try {
+        await fetch('/api/notifications/' + id + '/read/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+        });
+        const item = document.querySelector('.notification-item[data-id="'+id+'"]');
+        if (item) { item.classList.remove('unread'); item.querySelector('.badge-unread')?.remove(); }
+        updateUnreadCount();
+    } catch (e) {}
+}
+async function markAllRead() {
+    try {
+        await fetch('/api/notifications/read-all/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+        });
+        loadNotifications(currentPage);
+        updateUnreadCount();
+    } catch (e) {}
+}
+async function updateUnreadCount() {
+    try {
+        const resp = await fetch('/api/notifications/?is_read=false', {credentials: 'include'});
+        const data = await resp.json();
+        const badge = document.getElementById('unreadBadge');
+        if (badge) {
+            badge.textContent = data.count || 0;
+            badge.style.display = data.count > 0 ? 'inline' : 'none';
+        }
+    } catch (e) {}
+}
+</script>
+{% endblock %}

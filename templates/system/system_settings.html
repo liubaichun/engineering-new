@@ -1,0 +1,611 @@
+{% extends "base.html" %}
+
+{% block title %}系统参数配置 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.settings-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+.settings-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.settings-section-title i { color: var(--primary); }
+.setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid #f3f4f6;
+    transition: background 0.15s;
+}
+.setting-item:last-child { border-bottom: none; }
+.setting-item:hover { background: #f9fafb; }
+.setting-info { flex: 1; min-width: 0; }
+.setting-name {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    margin-bottom: 2px;
+}
+.setting-desc {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+}
+.setting-value-wrap { display: flex; align-items: center; gap: 8px; }
+.setting-value-text {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--primary);
+    cursor: pointer;
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: #f0fdf4;
+    transition: all 0.15s;
+    min-width: 80px;
+    text-align: center;
+}
+.setting-value-text:hover {
+    background: #dcfce7;
+    border-color: #86efac;
+}
+.setting-value-text.number {
+    background: #eff6ff;
+    color: #2563eb;
+}
+.setting-value-text.number:hover {
+    background: #dbeafe;
+    border-color: #93c5fd;
+}
+.setting-value-text.text {
+    background: #fefce8;
+    color: #ca8a04;
+}
+.setting-value-text.text:hover {
+    background: #fef9c3;
+    border-color: #fde047;
+}
+.setting-value-text i { font-size: 0.75rem; margin-left: 4px; }
+.form-control.setting-input {
+    width: 120px;
+    font-size: 0.875rem;
+    padding: 4px 8px;
+    text-align: center;
+}
+
+/* 公司卡片 */
+.company-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 20px;
+    padding: 20px;
+}
+.company-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    border-top: 4px solid var(--primary);
+}
+.company-card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--bs-border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.company-card-name {
+    font-weight: 700;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+.company-card-code {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+.company-card-body { padding: 16px 20px; }
+.company-field {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    font-size: 0.85rem;
+}
+.company-field .label { color: var(--text-secondary); }
+.company-field .value { font-weight: 600; color: var(--text-primary); }
+.company-card-footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--bs-border-color);
+    display: flex;
+    gap: 8px;
+}
+.status-badge {
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.status-badge.active { background: #dcfce7; color: #16a34a; }
+.status-badge.inactive { background: #fee2e2; color: #dc2626; }
+.status-badge.pending { background: #fef3c7; color: #d97706; }
+.loading-spinner { text-align: center; padding: 60px; color: var(--text-muted); }
+.empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+.modal-field { margin-bottom: 14px; }
+.modal-field label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px; }
+.modal-field input, .modal-field select, .modal-field textarea { width: 100%; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-gear-wide-connected me-2"></i>系统参数配置</h4>
+        <p class="text-muted mb-0" style="font-size: 0.85rem;">配置审批流程、工资规则等系统全局参数</p>
+    </div>
+</div>
+
+<!-- Tab 导航 -->
+<ul class="nav nav-tabs mb-0" id="settingsTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="settings-tab" data-bs-toggle="tab" data-bs-target="#tabSettings" type="button" role="tab">
+            <i class="bi bi-gear me-1"></i>系统参数
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="companies-tab" data-bs-toggle="tab" data-bs-target="#tabCompanies" type="button" role="tab">
+            <i class="bi bi-building me-1"></i>公司信息
+        </button>
+    </li>
+</ul>
+
+<!-- Tab 内容 -->
+<div class="tab-content" id="settingsTabContent">
+    <!-- ===== 系统参数 Tab ===== -->
+    <div class="tab-pane fade show active" id="tabSettings" role="tabpanel">
+        <!-- 审批参数 -->
+        <div class="settings-card">
+            <div class="settings-section-title">
+                <i class="bi bi-git-branch"></i>审批流程配置
+                <span class="badge bg-primary ms-auto" style="font-size: 0.7rem;">{{ approval_settings|length }} 项</span>
+            </div>
+            <div id="settingsApprovalList">
+                {% for s in approval_settings %}
+                <div class="setting-item" id="setting-row-{{ s.key }}">
+                    <div class="setting-info">
+                        <div class="setting-name">{{ s.key_display }}</div>
+                        <div class="setting-desc">{{ s.description }}</div>
+                    </div>
+                    <div class="setting-value-wrap">
+                        {% if s.value_type == 'boolean' %}
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                id="switch-{{ s.key }}"
+                                {% if s.value == 'true' %}checked{% endif %}
+                                onchange="toggleSetting('{{ s.key }}', this.checked)">
+                        </div>
+                        {% elif s.value_type == 'number' %}
+                        <input type="number" class="form-control setting-input number"
+                            id="input-{{ s.key }}" value="{{ s.value }}"
+                            style="width: 100px;"
+                            onblur="saveNumberSetting('{{ s.key }}', this.value)"
+                            onkeyup="if(event.key==='Enter')this.blur()">
+                        {% else %}
+                        <span class="setting-value-text text" onclick="editTextSetting('{{ s.key }}', this)"
+                            id="text-{{ s.key }}">{{ s.value }} <i class="bi bi-pencil"></i></span>
+                        {% endif %}
+                        <small class="text-muted">{{ s.updated_at|date:"Y-m-d H:i" }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- 工资参数 -->
+        <div class="settings-card">
+            <div class="settings-section-title">
+                <i class="bi bi-wallet2"></i>工资配置
+                <span class="badge bg-primary ms-auto" style="font-size: 0.7rem;">{{ wage_settings|length }} 项</span>
+            </div>
+            <div id="settingsWageList">
+                {% for s in wage_settings %}
+                <div class="setting-item" id="setting-row-{{ s.key }}">
+                    <div class="setting-info">
+                        <div class="setting-name">{{ s.key_display }}</div>
+                        <div class="setting-desc">{{ s.description }}</div>
+                    </div>
+                    <div class="setting-value-wrap">
+                        {% if s.value_type == 'boolean' %}
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                id="switch-{{ s.key }}"
+                                {% if s.value == 'true' %}checked{% endif %}
+                                onchange="toggleSetting('{{ s.key }}', this.checked)">
+                        </div>
+                        {% elif s.value_type == 'number' %}
+                        <input type="number" class="form-control setting-input number"
+                            id="input-{{ s.key }}" value="{{ s.value }}"
+                            style="width: 100px;"
+                            onblur="saveNumberSetting('{{ s.key }}', this.value)"
+                            onkeyup="if(event.key==='Enter')this.blur()">
+                        {% else %}
+                        <span class="setting-value-text text" onclick="editTextSetting('{{ s.key }}', this)"
+                            id="text-{{ s.key }}">{{ s.value }} <i class="bi bi-pencil"></i></span>
+                        {% endif %}
+                        <small class="text-muted">{{ s.updated_at|date:"Y-m-d H:i" }}</small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 公司信息 Tab ===== -->
+    <div class="tab-pane fade" id="tabCompanies" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
+            <div>
+                <h5 class="mb-1"><i class="bi bi-building me-2"></i>公司信息</h5>
+                <p class="text-muted mb-0" style="font-size:0.85rem;">管理系统所属的公司主体信息</p>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="showCompanyModal()">
+                <i class="bi bi-plus-lg me-1"></i>添加公司
+            </button>
+        </div>
+        <div class="company-grid" id="companyGrid">
+            <div class="loading-spinner"><div class="spinner-border text-primary"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== 公司编辑弹窗 ===== -->
+<div class="modal fade" id="companyModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="companyModalTitle"><i class="bi bi-building me-2"></i>编辑公司</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="companyId">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="modal-field">
+                            <label>公司名称 *</label>
+                            <input type="text" id="companyName" class="form-control" placeholder="例如：深圳市龙晟科技贸易有限公司">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>公司代码 *</label>
+                            <input type="text" id="companyCode" class="form-control" placeholder="LSKJ" maxlength="20">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>状态</label>
+                            <select id="companyStatus" class="form-select">
+                                <option value="active">启用</option>
+                                <option value="inactive">停用</option>
+                                <option value="pending">待审核</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>联系人</label>
+                            <input type="text" id="companyContact" class="form-control" placeholder="联系人姓名">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>联系电话</label>
+                            <input type="text" id="companyPhone" class="form-control" placeholder="手机或座机">
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="modal-field">
+                            <label>地址</label>
+                            <input type="text" id="companyAddress" class="form-control" placeholder="公司注册地址">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>税务登记号</label>
+                            <input type="text" id="companyTaxId" class="form-control" placeholder="统一社会信用代码">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>开户银行</label>
+                            <input type="text" id="companyBankName" class="form-control" placeholder="例如：招商银行深圳分行">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>银行账号</label>
+                            <input type="text" id="companyBankAccount" class="form-control" placeholder="对公账户">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>备注</label>
+                            <input type="text" id="companyRemark" class="form-control" placeholder="备注信息">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveCompany()">
+                    <i class="bi bi-check-lg me-1"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 文本编辑弹窗 -->
+<div class="modal fade" id="textEditModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h6 class="modal-title"><i class="bi bi-pencil me-2"></i>编辑参数值</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="textEditKey">
+                <div class="modal-field">
+                    <label id="textEditLabel">设置值</label>
+                    <input type="text" id="textEditValue" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-primary btn-sm" onclick="saveTextSetting()"><i class="bi bi-check-lg me-1"></i>保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ===== 系统参数编辑 =====
+
+// 开关切换（布尔值）
+function toggleSetting(key, checked) {
+    const value = checked ? 'true' : 'false';
+    fetch(`/api/core/settings/${key}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ value: value })
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'success') {
+            showToast('设置已更新', 'success');
+        } else {
+            showToast(data.message || '更新失败', 'error');
+            // 恢复原状态
+            document.getElementById('switch-' + key).checked = !checked;
+        }
+    }).catch(() => {
+        showToast('网络错误', 'error');
+        document.getElementById('switch-' + key).checked = !checked;
+    });
+}
+
+// 数字参数保存（失焦或回车）
+function saveNumberSetting(key, value) {
+    fetch(`/api/core/settings/${key}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ value: String(value) })
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'success') {
+            showToast('设置已保存', 'success');
+        } else {
+            showToast(data.message || '保存失败', 'error');
+        }
+    }).catch(() => showToast('网络错误', 'error'));
+}
+
+// 文本参数编辑
+function editTextSetting(key, el) {
+    document.getElementById('textEditKey').value = key;
+    document.getElementById('textEditValue').value = el.textContent.trim();
+    document.getElementById('textEditLabel').textContent = el.closest('.setting-item').querySelector('.setting-name').textContent;
+    new bootstrap.Modal(document.getElementById('textEditModal')).show();
+}
+
+function saveTextSetting() {
+    const key = document.getElementById('textEditKey').value;
+    const value = document.getElementById('textEditValue').value;
+    if (!value) { showToast('值不能为空', 'error'); return; }
+    fetch(`/api/core/settings/${key}/`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify({ value: value })
+    }).then(r => r.json()).then(data => {
+        if (data.status === 'success') {
+            bootstrap.Modal.getInstance(document.getElementById('textEditModal')).hide();
+            const textEl = document.getElementById('text-' + key);
+            if (textEl) textEl.innerHTML = value + ' <i class="bi bi-pencil"></i>';
+            showToast('设置已保存', 'success');
+        } else {
+            showToast(data.message || '保存失败', 'error');
+        }
+    }).catch(() => showToast('网络错误', 'error'));
+}
+
+// ===== 公司信息 =====
+
+function loadCompanies() {
+    fetch('/api/core/companies/').then(r => r.json()).then(data => {
+        const grid = document.getElementById('companyGrid');
+        if (!data.results || data.results.length === 0) {
+            grid.innerHTML = '<div class="empty-state col-12"><i class="bi bi-building" style="font-size:2.5rem"></i><p class="mt-2 mb-0">暂无公司数据</p></div>';
+            return;
+        }
+        grid.innerHTML = data.results.map(c => `
+            <div class="company-card">
+                <div class="company-card-header">
+                    <div>
+                        <div class="company-card-name">${c.name}</div>
+                        <div class="company-card-code">${c.code}</div>
+                    </div>
+                    <span class="status-badge ${c.status}">${c.status_display || c.status}</span>
+                </div>
+                <div class="company-card-body">
+                    ${c.contact_person ? `<div class="company-field"><span class="label">联系人</span><span class="value">${c.contact_person}</span></div>` : ''}
+                    ${c.contact_phone ? `<div class="company-field"><span class="label">电话</span><span class="value">${c.contact_phone}</span></div>` : ''}
+                    ${c.address ? `<div class="company-field"><span class="label">地址</span><span class="value" style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.address}</span></div>` : ''}
+                </div>
+                <div class="company-card-footer">
+                    <button class="btn btn-outline-primary btn-sm flex-fill" onclick="editCompany(${c.id})">
+                        <i class="bi bi-pencil me-1"></i>编辑
+                    </button>
+                    <button class="btn btn-outline-danger btn-sm" onclick="deleteCompany(${c.id}, '${c.name}')">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `).join('');
+    }).catch(() => {
+        document.getElementById('companyGrid').innerHTML = '<div class="empty-state col-12 text-danger">加载失败</div>';
+    });
+}
+
+function showCompanyModal(id) {
+    document.getElementById('companyId').value = id || '';
+    document.getElementById('companyModalTitle').innerHTML = id ? '<i class="bi bi-building me-2"></i>编辑公司' : '<i class="bi bi-building me-2"></i>新增公司';
+    if (!id) {
+        document.getElementById('companyName').value = '';
+        document.getElementById('companyCode').value = '';
+        document.getElementById('companyStatus').value = 'active';
+        document.getElementById('companyContact').value = '';
+        document.getElementById('companyPhone').value = '';
+        document.getElementById('companyAddress').value = '';
+    }
+    new bootstrap.Modal(document.getElementById('companyModal')).show();
+}
+
+function editCompany(id) {
+    fetch(`/api/core/companies/${id}/`).then(r => r.json()).then(data => {
+        const c = data;
+        document.getElementById('companyId').value = c.id;
+        document.getElementById('companyName').value = c.name;
+        document.getElementById('companyCode').value = c.code;
+        document.getElementById('companyStatus').value = c.status;
+        document.getElementById('companyContact').value = c.contact_person || '';
+        document.getElementById('companyPhone').value = c.contact_phone || '';
+        document.getElementById('companyAddress').value = c.address || '';
+        document.getElementById('companyTaxId').value = c.tax_id || '';
+        document.getElementById('companyBankName').value = c.bank_name || '';
+        document.getElementById('companyBankAccount').value = c.bank_account || '';
+        document.getElementById('companyRemark').value = c.remark || '';
+        document.getElementById('companyModalTitle').innerHTML = '<i class="bi bi-building me-2"></i>编辑公司';
+        new bootstrap.Modal(document.getElementById('companyModal')).show();
+    }).catch(() => showToast('加载失败', 'error'));
+}
+
+function saveCompany() {
+    const id = document.getElementById('companyId').value;
+    const payload = {
+        name: document.getElementById('companyName').value.trim(),
+        code: document.getElementById('companyCode').value.trim(),
+        status: document.getElementById('companyStatus').value,
+        contact_person: document.getElementById('companyContact').value.trim(),
+        contact_phone: document.getElementById('companyPhone').value.trim(),
+        address: document.getElementById('companyAddress').value.trim(),
+        tax_id: document.getElementById('companyTaxId').value.trim(),
+        bank_name: document.getElementById('companyBankName').value.trim(),
+        bank_account: document.getElementById('companyBankAccount').value.trim(),
+        remark: document.getElementById('companyRemark').value.trim(),
+    };
+    if (!payload.name || !payload.code) { showToast('公司名称和代码不能为空', 'error'); return; }
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/core/companies/${id}/` : '/api/core/companies/';
+    fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify(payload)
+    }).then(r => r.json()).then(data => {
+        if (data.id || data.status === 'success') {
+            try {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('companyModal'));
+                if (modal) modal.hide();
+            } catch(e) {
+                document.getElementById('companyModal').style.display = 'none';
+                document.querySelectorAll('.modal-backdrop').forEach(el => el.remove());
+            }
+            showToast('保存成功', 'success');
+            loadCompanies();
+        } else {
+            showToast(data.message || Object.values(data).join(', ') || '保存失败', 'error');
+        }
+    }).catch(e => showToast('网络错误', 'error'));
+}
+
+function deleteCompany(id, name) {
+    if (!confirm(`确定删除公司「${name}」？`)) return;
+    fetch(`/api/core/companies/${id}/`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': getCsrfToken() }
+    }).then(r => {
+        if (r.ok) {
+            showToast('已删除', 'success');
+            loadCompanies();
+        } else {
+            r.json().then(d => showToast(d.message || '删除失败', 'error'));
+        }
+    }).catch(() => showToast('网络错误', 'error'));
+}
+
+// Toast提示（无bootstrap原生toast，用alert替代）
+function showToast(msg, type) {
+    const id = 'toast-' + Date.now();
+    const bg = type === 'success' ? 'bg-success' : 'bg-danger';
+    const div = document.createElement('div');
+    div.id = id;
+    div.className = `toast align-items-center text-white ${bg} border-0`;
+    div.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;min-width:200px';
+    div.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" onclick="document.getElementById('${id}').remove()"></button></div>`;
+    document.body.appendChild(div);
+    const t = new bootstrap.Toast(div, { delay: 2500 });
+    t.show();
+    t._element.addEventListener('hidden.bs.toast', () => div.remove());
+}
+
+function getCsrfToken() {
+    return document.querySelector('[name=csrfmiddlewaretoken]')?.value ||
+           document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+// Bootstrap Tab: loadCompanies when "公司信息" tab is first shown
+let companiesLoaded = false;
+document.getElementById('settingsTab').addEventListener('shown.bs.tab', function(e) {
+    if (e.target.id === 'companies-tab' && !companiesLoaded) {
+        companiesLoaded = true;
+        loadCompanies();
+    }
+});
+// Pre-load if coming back to page with hash
+if (window.location.hash === '#companies') {
+    setTimeout(() => {
+        document.getElementById('companies-tab').click();
+    }, 100);
+}
+</script>
+{% endblock %}

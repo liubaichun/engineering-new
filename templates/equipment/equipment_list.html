@@ -1,0 +1,765 @@
+{% extends "base.html" %}
+
+{% block title %}设备管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.equipment-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.warning { color: var(--warning); }
+.summary-card .value.primary { color: var(--primary); }
+.equipment-table td { vertical-align: middle; }
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.status-badge.idle { background: #d1fae5; color: #065f46; }
+.status-badge.in_use { background: #dbeafe; color: #1e40af; }
+.status-badge.repair { background: #fef3c7; color: #92400e; }
+.status-badge.scraped { background: #f3f4f6; color: #6b7280; }
+.mgmt-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #e0e7ff;
+    color: #3730a3;
+}
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-tools me-2"></i>设备管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理工程设备仪器，支持批次/序列号/数量管理</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" id="filterCategory" style="width: auto;" onchange="loadEquipments()">
+            <option value="">全部分类</option>
+            <option value="network">网络设备</option>
+            <option value="server">服务器/存储</option>
+            <option value="monitor">监控设备</option>
+            <option value="cable">线缆/配件</option>
+            <option value="cabinet">机柜/工具</option>
+        </select>
+        <select class="form-select form-select-sm" id="filterStatus" style="width: auto;" onchange="loadEquipments()">
+            <option value="">全部状态</option>
+            <option value="idle">闲置</option>
+            <option value="in_use">使用中</option>
+            <option value="repair">维修中</option>
+            <option value="scraped">报废</option>
+        </select>
+        <input type="text" class="form-control form-control-sm" id="filterSearch" style="width: 200px;" placeholder="搜索编码/名称/序列号" onkeyup="if(event.key==='Enter')loadEquipments()">
+        <button class="btn btn-primary btn-sm" onclick="showAddEquipmentModal()" data-perm="equipment.add">
+            <i class="bi bi-plus-lg me-1"></i>新建设备
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="equipment-summary">
+    <div class="summary-card">
+        <div class="label">设备总数</div>
+        <div class="value primary" id="totalCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">使用中</div>
+        <div class="value primary" id="inUseCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">闲置</div>
+        <div class="value success" id="idleCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">维修中</div>
+        <div class="value warning" id="repairCount">0</div>
+    </div>
+</div>
+
+<!-- 设备列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>设备明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table equipment-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input class="form-check-input" type="checkbox">
+                        </th>
+                        <th>编码</th>
+                        <th>名称</th>
+                        <th>规格</th>
+                        <th>分类</th>
+                        <th>管理方式</th>
+                        <th>序列号/批次</th>
+                        <th>状态</th>
+                        <th>存放地点</th>
+                        <th>关联项目</th>
+                        <th style="width: 150px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="equipmentTableBody">
+                    <tr>
+                        <td colspan="11" class="text-center text-muted py-4">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 新增/编辑设备 Modal -->
+<div class="modal fade" id="equipmentModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-tools me-2"></i><span id="equipmentModalTitle">新建设备</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="equipmentId">
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">设备名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="equipmentName" placeholder="请输入设备名称" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">规格型号</label>
+                        <input type="text" class="form-control" id="equipmentSpec" placeholder="如：RG-S5750-28GT-S">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">分类 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="equipmentCategory" required>
+                            <option value="">选择分类</option>
+                            <option value="network">网络设备</option>
+                            <option value="server">服务器/存储</option>
+                            <option value="monitor">监控设备</option>
+                            <option value="cable">线缆/配件</option>
+                            <option value="cabinet">机柜/工具</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">管理方式</label>
+                        <select class="form-select" id="equipmentManagementType">
+                            <option value="">选择方式</option>
+                            <option value="serial">序列号管理</option>
+                            <option value="batch">批次管理</option>
+                            <option value="quantity">数量管理</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="equipmentStatus">
+                            <option value="idle">闲置</option>
+                            <option value="in_use">使用中</option>
+                            <option value="repair">维修中</option>
+                            <option value="scraped">报废</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">序列号</label>
+                        <input type="text" class="form-control" id="equipmentSerialNumber" placeholder="设备序列号">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">批次号</label>
+                        <input type="text" class="form-control" id="equipmentBatchNumber" placeholder="批次号">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">单位</label>
+                        <input type="text" class="form-control" id="equipmentUnit" placeholder="个/台">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">采购日期</label>
+                        <input type="date" class="form-control" id="equipmentPurchaseDate">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">采购价格(¥)</label>
+                        <input type="number" class="form-control" id="equipmentPurchasePrice" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">保修截止</label>
+                        <input type="date" class="form-control" id="equipmentWarrantyEnd">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">存放地点</label>
+                        <input type="text" class="form-control" id="equipmentLocation" placeholder="仓库/机房位置">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">关联项目</label>
+                        <select class="form-select" id="equipmentProject">
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="equipmentRemark" rows="2" placeholder="备注信息"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveEquipment()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 领用 Modal -->
+<div class="modal fade" id="borrowModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-right me-2"></i>设备领用</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="borrowEquipmentId">
+                <div class="mb-3">
+                    <div class="form-control" id="borrowEquipmentName" style="background:#f8f9fa;">-</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">用途 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="borrowPurpose" rows="2" placeholder="领用用途说明" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="borrowRemark" rows="2" placeholder="附加说明"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="recordBorrow()">确认领用</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 归还 Modal -->
+<div class="modal fade" id="returnModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-left me-2"></i>设备归还</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="returnEquipmentId">
+                <div class="mb-3">
+                    <div class="form-control" id="returnEquipmentName" style="background:#f8f9fa;">-</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="returnRemark" rows="2" placeholder="归还说明/设备状态"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="recordReturn()">确认归还</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 维修 Modal -->
+<div class="modal fade" id="repairModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-wrench me-2"></i>设备维修</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="repairEquipmentId">
+                <div class="mb-3">
+                    <div class="form-control" id="repairEquipmentName" style="background:#f8f9fa;">-</div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">维修日期 <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="repairDate" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">维修费用(¥)</label>
+                        <input type="number" class="form-control" id="repairCost" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">维修单位</label>
+                    <input type="text" class="form-control" id="repairCompany" placeholder="维修服务商">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">故障描述 <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="repairDescription" rows="2" placeholder="故障说明" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">维修结果</label>
+                    <textarea class="form-control" id="repairResult" rows="2" placeholder="维修结果"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-warning" onclick="recordRepair()">提交维修</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 使用记录 Modal -->
+<div class="modal fade" id="usageLogModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>使用/维修记录</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-tabs mb-3" id="logTabs">
+                    <li class="nav-item">
+                        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#usageLogs" type="button">领用/归还记录</button>
+                    </li>
+                    <li class="nav-item">
+                        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#repairLogs" type="button">维修记录</button>
+                    </li>
+                </ul>
+                <div class="tab-content">
+                    <div class="tab-pane fade show active" id="usageLogs">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>时间</th><th>操作</th><th>经办人</th><th>用途</th><th>备注</th></tr></thead>
+                                <tbody id="usageLogTableBody"><tr><td colspan="5" class="text-center text-muted py-3">加载中...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="repairLogs">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>日期</th><th>故障描述</th><th>维修结果</th><th>费用</th><th>维修单位</th><th>经办人</th></tr></thead>
+                                <tbody id="repairLogTableBody"><tr><td colspan="6" class="text-center text-muted py-3">加载中...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let pageSize = 15;
+let currentEquipmentId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadProjects();
+    loadEquipments();
+});
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/tasks/projects/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const opts = (data.results || data).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            document.getElementById('equipmentProject').innerHTML = '<option value="">选择项目</option>' + opts;
+        }
+    } catch (e) { console.error('加载项目失败', e); }
+}
+
+async function loadEquipments() {
+    const category = document.getElementById('filterCategory').value;
+    const status = document.getElementById('filterStatus').value;
+    const search = document.getElementById('filterSearch').value;
+    
+    let url = `/api/equipment/?page=${currentPage}&page_size=${pageSize}`;
+    if (category) url += `&category=${category}`;
+    if (status) url += `&status=${status}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            renderEquipmentTable(data.results || data);
+            renderPagination(data);
+            updateSummary(data.results || data);
+        } else {
+            document.getElementById('equipmentTableBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
+        }
+    } catch (e) {
+        console.error('加载设备失败', e);
+        document.getElementById('equipmentTableBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
+    }
+}
+
+function getCategoryText(cat) {
+    const map = { network:'网络设备', server:'服务器/存储', monitor:'监控设备', cable:'线缆/配件', cabinet:'机柜/工具' };
+    return map[cat] || cat;
+}
+
+function getMgmtText(mgmt) {
+    const map = { serial:'序列号', batch:'批次', quantity:'数量' };
+    return map[mgmt] || mgmt;
+}
+
+function getStatusText(status) {
+    const map = { idle:'闲置', in_use:'使用中', repair:'维修中', scraped:'报废' };
+    return map[status] || status;
+}
+
+function getStatusClass(status) {
+    const map = { idle:'idle', in_use:'in_use', repair:'repair', scraped:'scraped' };
+    return map[status] || '';
+}
+
+function renderEquipmentTable(items) {
+    const tbody = document.getElementById('equipmentTableBody');
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无设备记录</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(eq => {
+        const sn = eq.serial_number || eq.batch_number || '-';
+        return `<tr>
+            <td><input class="form-check-input" type="checkbox" value="${eq.id}"></td>
+            <td><strong>${eq.code}</strong></td>
+            <td>${eq.name}</td>
+            <td>${eq.spec || '-'}</td>
+            <td><span class="category-badge">${getCategoryText(eq.category)}</span></td>
+            <td><span class="mgmt-badge">${getMgmtText(eq.management_type)}</span></td>
+            <td><code style="font-size:0.75rem;">${sn}</code></td>
+            <td><span class="status-badge ${getStatusClass(eq.status)}">${getStatusText(eq.status)}</span></td>
+            <td>${eq.location || '-'}</td>
+            <td>${eq.project_name || '-'}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="showBorrowModal(${eq.id}, '${eq.name}')" title="领用" ${eq.status !== 'idle' ? 'disabled' : ''}>
+                        <i class="bi bi-box-arrow-right"></i>
+                    </button>
+                    <button class="btn btn-outline-success" onclick="showReturnModal(${eq.id}, '${eq.name}')" title="归还" ${eq.status !== 'in_use' ? 'disabled' : ''}>
+                        <i class="bi bi-box-arrow-left"></i>
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="showRepairModal(${eq.id}, '${eq.name}')" title="维修">
+                        <i class="bi bi-wrench"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="showAllLogs(${eq.id})" title="记录">
+                        <i class="bi bi-clock-history"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="editEquipment(${eq.id})" title="编辑">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteEquipment(${eq.id})" title="删除" data-perm="equipment.delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function renderPagination(data) {
+    const totalPages = Math.ceil(data.count / pageSize);
+    document.getElementById('recordCount').textContent = data.count;
+    document.getElementById('paginationInfo').textContent = `显示 ${((currentPage - 1) * pageSize) + 1}-${Math.min(currentPage * pageSize, data.count)} 条，共 ${data.count} 条`;
+    
+    let html = '';
+    if (currentPage > 1) html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage - 1})">上一页</a></li>`;
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    if (start > 1) { html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(1)">1</a></li>`; if (start > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`; }
+    for (let i = start; i <= end; i++) html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${i})">${i}</a></li>`;
+    if (end < totalPages) { if (end < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`; html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${totalPages})">${totalPages}</a></li>`; }
+    if (currentPage < totalPages) html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage + 1})">下一页</a></li>`;
+    document.getElementById('pagination').innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadEquipments();
+}
+
+function updateSummary(items) {
+    document.getElementById('totalCount').textContent = items.length;
+    let idle = 0, inUse = 0, repair = 0;
+    items.forEach(eq => {
+        if (eq.status === 'idle') idle++;
+        else if (eq.status === 'in_use') inUse++;
+        else if (eq.status === 'repair') repair++;
+    });
+    document.getElementById('idleCount').textContent = idle;
+    document.getElementById('inUseCount').textContent = inUse;
+    document.getElementById('repairCount').textContent = repair;
+}
+
+function showAddEquipmentModal() {
+    document.getElementById('equipmentModalTitle').textContent = '新建设备';
+    document.getElementById('equipmentId').value = '';
+    document.getElementById('equipmentName').value = '';
+    document.getElementById('equipmentSpec').value = '';
+    document.getElementById('equipmentCategory').value = '';
+    document.getElementById('equipmentManagementType').value = '';
+    document.getElementById('equipmentStatus').value = 'idle';
+    document.getElementById('equipmentSerialNumber').value = '';
+    document.getElementById('equipmentBatchNumber').value = '';
+    document.getElementById('equipmentUnit').value = '';
+    document.getElementById('equipmentPurchaseDate').value = '';
+    document.getElementById('equipmentPurchasePrice').value = '';
+    document.getElementById('equipmentWarrantyEnd').value = '';
+    document.getElementById('equipmentLocation').value = '';
+    document.getElementById('equipmentProject').value = '';
+    document.getElementById('equipmentRemark').value = '';
+    new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+}
+
+async function editEquipment(id) {
+    try {
+        const response = await fetch(`/api/equipment/${id}/`, { credentials: 'include' });
+        if (response.ok) {
+            const eq = await response.json();
+            document.getElementById('equipmentModalTitle').textContent = '编辑设备';
+            document.getElementById('equipmentId').value = eq.id;
+            document.getElementById('equipmentName').value = eq.name;
+            document.getElementById('equipmentSpec').value = eq.spec || '';
+            document.getElementById('equipmentCategory').value = eq.category;
+            document.getElementById('equipmentManagementType').value = eq.management_type || '';
+            document.getElementById('equipmentStatus').value = eq.status;
+            document.getElementById('equipmentSerialNumber').value = eq.serial_number || '';
+            document.getElementById('equipmentBatchNumber').value = eq.batch_number || '';
+            document.getElementById('equipmentUnit').value = eq.unit || '';
+            document.getElementById('equipmentPurchaseDate').value = eq.purchase_date || '';
+            document.getElementById('equipmentPurchasePrice').value = eq.purchase_price || '';
+            document.getElementById('equipmentWarrantyEnd').value = eq.warranty_end || '';
+            document.getElementById('equipmentLocation').value = eq.location || '';
+            document.getElementById('equipmentProject').value = eq.project || '';
+            document.getElementById('equipmentRemark').value = eq.remarks || '';
+            new bootstrap.Modal(document.getElementById('equipmentModal')).show();
+        }
+    } catch (e) { alert('加载失败'); }
+}
+
+async function saveEquipment() {
+    const id = document.getElementById('equipmentId').value;
+    const data = {
+        name: document.getElementById('equipmentName').value,
+        spec: document.getElementById('equipmentSpec').value,
+        category: document.getElementById('equipmentCategory').value,
+        management_type: document.getElementById('equipmentManagementType').value,
+        status: document.getElementById('equipmentStatus').value,
+        serial_number: document.getElementById('equipmentSerialNumber').value,
+        batch_number: document.getElementById('equipmentBatchNumber').value,
+        unit: document.getElementById('equipmentUnit').value,
+        purchase_date: document.getElementById('equipmentPurchaseDate').value || null,
+        purchase_price: parseFloat(document.getElementById('equipmentPurchasePrice').value) || 0,
+        warranty_end: document.getElementById('equipmentWarrantyEnd').value || null,
+        location: document.getElementById('equipmentLocation').value,
+        project: document.getElementById('equipmentProject').value || null,
+        remarks: document.getElementById('equipmentRemark').value
+    };
+    if (!data.name || !data.category) { alert('请填写必填项'); return; }
+    try {
+        const url = id ? `/api/equipment/${id}/` : '/api/equipment/';
+        const response = await fetch(url, {
+            method: id ? 'PUT' : 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('equipmentModal')).hide();
+            document.getElementById('equipmentModal').addEventListener('hidden.bs.modal', function h() {
+                document.getElementById('equipmentModal').removeEventListener('hidden.bs.modal', h);
+                loadEquipments();
+            });
+        } else { const e = await response.json(); alert(e.detail || e.message || '保存失败'); }
+    } catch (e) { alert('保存失败'); }
+}
+
+async function deleteEquipment(id) {
+    if (!confirm('确定要删除该设备吗？')) return;
+    try {
+        const response = await fetch(`/api/equipment/${id}/`, { method: 'DELETE', credentials: 'include' });
+        if (response.ok) { loadEquipments(); } else { alert('删除失败'); }
+    } catch (e) { alert('删除失败'); }
+}
+
+function showBorrowModal(id, name) {
+    currentEquipmentId = id;
+    document.getElementById('borrowEquipmentId').value = id;
+    document.getElementById('borrowEquipmentName').textContent = name;
+    document.getElementById('borrowPurpose').value = '';
+    document.getElementById('borrowRemark').value = '';
+    new bootstrap.Modal(document.getElementById('borrowModal')).show();
+}
+
+async function recordBorrow() {
+    const purpose = document.getElementById('borrowPurpose').value;
+    const remark = document.getElementById('borrowRemark').value;
+    if (!purpose) { alert('请填写用途'); return; }
+    try {
+        const response = await fetch(`/api/equipment/${currentEquipmentId}/record_usage/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ purpose, remarks: remark })
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('borrowModal')).hide();
+            loadEquipments();
+        } else { const e = await response.json(); alert(e.detail || '操作失败'); }
+    } catch (e) { alert('操作失败'); }
+}
+
+function showReturnModal(id, name) {
+    currentEquipmentId = id;
+    document.getElementById('returnEquipmentId').value = id;
+    document.getElementById('returnEquipmentName').textContent = name;
+    document.getElementById('returnRemark').value = '';
+    new bootstrap.Modal(document.getElementById('returnModal')).show();
+}
+
+async function recordReturn() {
+    const remark = document.getElementById('returnRemark').value;
+    try {
+        const response = await fetch(`/api/equipment/${currentEquipmentId}/record_return/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ remarks: remark })
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('returnModal')).hide();
+            loadEquipments();
+        } else { const e = await response.json(); alert(e.detail || '操作失败'); }
+    } catch (e) { alert('操作失败'); }
+}
+
+function showRepairModal(id, name) {
+    currentEquipmentId = id;
+    document.getElementById('repairEquipmentId').value = id;
+    document.getElementById('repairEquipmentName').textContent = name;
+    document.getElementById('repairDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('repairCost').value = '';
+    document.getElementById('repairCompany').value = '';
+    document.getElementById('repairDescription').value = '';
+    document.getElementById('repairResult').value = '';
+    new bootstrap.Modal(document.getElementById('repairModal')).show();
+}
+
+async function recordRepair() {
+    const data = {
+        repair_date: document.getElementById('repairDate').value,
+        description: document.getElementById('repairDescription').value,
+        result: document.getElementById('repairResult').value,
+        cost: parseFloat(document.getElementById('repairCost').value) || 0,
+        repair_company: document.getElementById('repairCompany').value
+    };
+    if (!data.repair_date || !data.description) { alert('请填写必填项'); return; }
+    try {
+        const response = await fetch(`/api/equipment/${currentEquipmentId}/record_repair/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('repairModal')).hide();
+            loadEquipments();
+        } else { const e = await response.json(); alert(e.detail || '操作失败'); }
+    } catch (e) { alert('操作失败'); }
+}
+
+async function showAllLogs(id) {
+    currentEquipmentId = id;
+    try {
+        const [usageRes, repairRes] = await Promise.all([
+            fetch(`/api/equipment/${id}/get_usage_logs/`, { credentials: 'include' }),
+            fetch(`/api/equipment/${id}/get_repair_logs/`, { credentials: 'include' })
+        ]);
+        const usageLogs = usageRes.ok ? await usageRes.json() : [];
+        const repairLogs = repairRes.ok ? await repairRes.json() : [];
+        
+        document.getElementById('usageLogTableBody').innerHTML = !usageLogs.length
+            ? '<tr><td colspan="5" class="text-center text-muted py-3">暂无记录</td></tr>'
+            : usageLogs.map(l => `<tr>
+                <td>${l.operated_at ? new Date(l.operated_at).toLocaleString('zh-CN') : '-'}</td>
+                <td><span class="badge bg-${l.action === 'borrow' ? 'primary' : 'success'}">${l.action_display}</span></td>
+                <td>${l.user_name || '-'}</td>
+                <td>${l.purpose || '-'}</td>
+                <td>${l.remarks || '-'}</td>
+            </tr>`).join('');
+        
+        document.getElementById('repairLogTableBody').innerHTML = !repairLogs.length
+            ? '<tr><td colspan="6" class="text-center text-muted py-3">暂无记录</td></tr>'
+            : repairLogs.map(l => `<tr>
+                <td>${l.repair_date || '-'}</td>
+                <td>${l.description || '-'}</td>
+                <td>${l.result || '-'}</td>
+                <td>${l.cost > 0 ? '¥' + parseFloat(l.cost).toLocaleString('zh-CN') : '-'}</td>
+                <td>${l.repair_company || '-'}</td>
+                <td>${l.operator_name || '-'}</td>
+            </tr>`).join('');
+        
+        new bootstrap.Modal(document.getElementById('usageLogModal')).show();
+    } catch (e) { alert('加载记录失败'); }
+}
+</script>
+{% endblock %}

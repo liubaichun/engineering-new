@@ -1,0 +1,759 @@
+{% extends "base.html" %}
+
+{% block title %}支出管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.expense-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.warning { color: var(--warning); }
+.summary-card .value.primary { color: var(--primary); }
+.expense-table td { vertical-align: middle; }
+.expense-type-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.expense-type-badge.expense { background: #dbeafe; color: #1e40af; }
+.expense-type-badge.advance { background: #fef3c7; color: #92400e; }
+.expense-type-badge.deposit { background: #ede9fe; color: #7c3aed; }
+.expense-type-badge.wage { background: #d1fae5; color: #065f46; }
+.expense-company {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.company-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+.company-name { font-weight: 600; }
+.project-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    background: var(--primary-light);
+    color: var(--primary);
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-cash-stack me-2"></i>支出管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理各类支出包括费用报销、预付款、押金和工资支出</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" id="filterCompany" style="width: auto;" onchange="loadExpenses()">
+            <option value="">全部公司</option>
+        </select>
+        <select class="form-select form-select-sm" id="filterExpenseType" style="width: auto;" onchange="loadExpenses()">
+            <option value="">全部类型</option>
+            <option value="expense">费用报销</option>
+            <option value="advance">预付款</option>
+            <option value="deposit">押金</option>
+            <option value="wage">工资支出</option>
+        </select>
+        <input type="date" class="form-control form-control-sm" id="filterDateFrom" style="width: auto;" placeholder="开始日期" onchange="loadExpenses()">
+        <input type="date" class="form-control form-control-sm" id="filterDateTo" style="width: auto;" placeholder="结束日期" onchange="loadExpenses()">
+        <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()" data-perm="expense.add">
+            <i class="bi bi-plus-lg me-1"></i>新建支出
+        </button>
+        <button class="btn btn-success btn-sm" onclick="exportExpenses()">
+            <i class="bi bi-download me-1"></i>导出
+        </button>
+        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('expense')" data-perm="expense.add">
+            <i class="bi bi-upload me-1"></i>导入
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="expense-summary">
+    <div class="summary-card">
+        <div class="label">本月支出总额</div>
+        <div class="value danger" id="totalExpense">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="totalCount">0</span> 笔支出</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">费用报销</div>
+        <div class="value primary" id="expenseTotal">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="expenseCount">0</span> 笔</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">预付款</div>
+        <div class="value warning" id="advanceTotal">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="advanceCount">0</span> 笔</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">押金/工资支出</div>
+        <div class="value success" id="otherTotal">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="otherCount">0</span> 笔</div>
+    </div>
+</div>
+
+<!-- 支出列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>支出明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table expense-table mb-0">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>支出类型</th>
+                        <th>金额</th>
+                        <th>状态</th>
+                        <th>日期</th>
+                        <th>供应商</th>
+                        <th>关联项目</th>
+                        <th>备注</th>
+                        <th>审批状态</th>
+                        <th style="width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="expenseTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 新增/编辑支出 Modal -->
+<div class="modal fade" id="expenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-cash-stack me-2"></i><span id="expenseModalTitle">新建支出</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="expenseId">
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">公司 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="expenseCompany" required>
+                            <option value="">选择公司</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">支出类型 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="expenseType" required>
+                            <option value="">选择类型</option>
+                            <option value="expense">费用报销</option>
+                            <option value="advance">预付款</option>
+                            <option value="deposit">押金</option>
+                            <option value="wage">工资支出</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">金额 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="expenseAmount" placeholder="¥0.00" step="0.01" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">日期 <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="expenseDate" required>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">供应商</label>
+                        <input type="text" class="form-control" id="expenseSupplier" placeholder="供应商名称">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">关联项目</label>
+                        <select class="form-select" id="expenseProject">
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="expenseNote" rows="2" placeholder="备注信息（可选）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveExpense()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认 Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除这条支出记录吗？此操作无法撤销。</p>
+                <input type="hidden" id="deleteExpenseId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="expense.delete">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导入弹窗 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalTitle"><i class="bi bi-upload me-2"></i>导入数据</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="importStep1">
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>导入说明</strong>
+                        <ul class="mb-0 mt-2" id="importGuide"></ul>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">选择 Excel 文件（.xlsx）</label>
+                        <input type="file" class="form-control" id="importFileInput" accept=".xlsx,.xls">
+                    </div>
+                    <div class="text-center">
+                        <button type="button" class="btn btn-outline-secondary" onclick="downloadTemplate()">
+                            <i class="bi bi-file-earmark-arrow-down me-1"></i>下载模板
+                        </button>
+                    </div>
+                </div>
+                <div id="importStep2" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span>正在导入，请稍候…</span>
+                    </div>
+                </div>
+                <div id="importStep3" style="display:none;">
+                    <div id="importResultMsg" class="mb-3"></div>
+                    <div id="importErrors" class="small text-muted" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer" id="importModalFooter">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="importConfirmBtn" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i>开始导入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var expenseModal, deleteModal;
+var currentPage = 1;
+var pageSize = 10;
+
+document.addEventListener('DOMContentLoaded', function() {
+    expenseModal = new bootstrap.Modal(document.getElementById('expenseModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    
+    loadCompanies();
+    loadProjects();
+    loadExpenses();
+});
+
+async function loadCompanies() {
+    try {
+        const response = await fetch('/api/finance/companies/', {
+            credentials: 'include',
+        });
+        if (response.ok) {
+            const data = await response.json();
+            const results = data.results || data;
+            const select = document.getElementById('filterCompany');
+            const modalSelect = document.getElementById('expenseCompany');
+
+            results.forEach(company => {
+                select.innerHTML += `<option value="${company.id}">${company.name}</option>`;
+                modalSelect.innerHTML += `<option value="${company.id}">${company.name}</option>`;
+            });
+        }
+    } catch (error) {
+        console.error('加载公司数据失败:', error);
+    }
+}
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/tasks/projects/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const results = data.results || data;
+            const select = document.getElementById('expenseProject');
+
+            results.forEach(project => {
+                select.innerHTML += `<option value="${project.id}">${project.name}</option>`;
+            });
+        }
+    } catch (error) {
+        console.error('加载项目数据失败:', error);
+    }
+}
+
+async function loadExpenses() {
+    const company = document.getElementById('filterCompany').value;
+    const expenseType = document.getElementById('filterExpenseType').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    
+    let url = `/api/finance/expenses/?page=${currentPage}&page_size=${pageSize}`;
+    if (company) url += `&company_id=${company}`;
+    if (expenseType) url += `&expense_type=${expenseType}`;
+    if (dateFrom) url += `&date_from=${dateFrom}`;
+    if (dateTo) url += `&date_to=${dateTo}`;
+    
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            renderExpenses(data.results || data);
+            renderPagination(data.count || 0);
+            updateSummary(data.results || data);
+        } else {
+            showToast('加载支出数据失败', 'error');
+        }
+    } catch (error) {
+        console.error('加载支出数据失败:', error);
+        showToast('加载支出数据失败', 'error');
+    }
+}
+
+function renderExpenses(expenses) {
+    const tbody = document.getElementById('expenseTableBody');
+    
+    if (!expenses || expenses.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>`;
+        return;
+    }
+    
+    const typeMap = {
+        'expense': '费用报销',
+        'advance': '预付款',
+        'deposit': '押金',
+        'wage': '工资支出'
+    };
+    
+    tbody.innerHTML = expenses.map(expense => `
+        <tr>
+            <td>
+                <div class="expense-company">
+                    <div class="company-avatar">${expense.company_name ? (expense.company_name.length > 3 ? expense.company_name.charAt(3) : expense.company_name.charAt(0)) : '未'}</div>
+                    <div class="company-name">${expense.company_name ? (expense.company_name.length > 3 ? expense.company_name.substring(3) : expense.company_name) : '-'}</div>
+                </div>
+            </td>
+            <td><span class="expense-type-badge ${expense.expense_type}">${typeMap[expense.expense_type] || expense.expense_type}</span></td>
+            <td class="fw-bold text-danger">¥${formatNumber(expense.amount)}</td>
+            <td><span class="badge ${expense.status === 'draft' ? 'bg-secondary' : expense.status === 'pending' ? 'bg-warning' : expense.status === 'approved' ? 'bg-success' : expense.status === 'rejected' ? 'bg-danger' : 'bg-secondary'}">${expense.status === 'draft' ? '草稿' : expense.status === 'pending' ? '待审核' : expense.status === 'approved' ? '已批准' : expense.status === 'rejected' ? '已拒绝' : expense.status}</span></td>
+            <td>${expense.expense_date || '-'}</td>
+            <td>${expense.supplier || '-'}</td>
+            <td>${expense.project_name ? `<span class="project-tag"><i class="bi bi-folder"></i>${expense.project_name}</span>` : '-'}</td>
+            <td>${expense.note || '-'}</td>
+            <td>${expense.approval_status ? `<span class="badge ${expense.approval_status === 'approved' ? 'bg-success' : expense.approval_status === 'rejected' ? 'bg-danger' : expense.approval_status === 'pending' ? 'bg-warning' : 'bg-secondary'}">${expense.approval_status === 'approved' ? '已批准' : expense.approval_status === 'rejected' ? '已拒绝' : expense.approval_status === 'pending' ? '待审批' : expense.approval_status}</span>` : '<span class="text-muted">—</span>'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-secondary" onclick="editExpense(${expense.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense(${expense.id})" data-perm="expense.delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderPagination(totalCount) {
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const pagination = document.getElementById('pagination');
+    const paginationInfo = document.getElementById('paginationInfo');
+    const start = (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, totalCount);
+    
+    paginationInfo.textContent = `显示 ${start}-${end} 条，共 ${totalCount} 条`;
+    document.getElementById('recordCount').textContent = totalCount;
+    
+    let html = `
+        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="goToPage(${currentPage - 1})">上一页</a>
+        </li>
+    `;
+    
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="goToPage(${i})">${i}</a>
+            </li>`;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+    }
+    
+    html += `
+        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
+            <a class="page-link" href="#" onclick="goToPage(${currentPage + 1})">下一页</a>
+        </li>
+    `;
+    
+    pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadExpenses();
+}
+
+function updateSummary(expenses) {
+    let total = 0, expenseTotal = 0, advanceTotal = 0, otherTotal = 0;
+    let expenseCount = 0, advanceCount = 0, otherCount = 0;
+    
+    expenses.forEach(exp => {
+        const amt = parseFloat(exp.amount) || 0;
+        total += amt;
+        
+        if (exp.expense_type === 'expense') {
+            expenseTotal += amt;
+            expenseCount++;
+        } else if (exp.expense_type === 'advance') {
+            advanceTotal += amt;
+            advanceCount++;
+        } else {
+            otherTotal += amt;
+            otherCount++;
+        }
+    });
+    
+    document.getElementById('totalExpense').textContent = `¥${formatNumber(total)}`;
+    document.getElementById('totalCount').textContent = expenses.length;
+    document.getElementById('expenseTotal').textContent = `¥${formatNumber(expenseTotal)}`;
+    document.getElementById('expenseCount').textContent = expenseCount;
+    document.getElementById('advanceTotal').textContent = `¥${formatNumber(advanceTotal)}`;
+    document.getElementById('advanceCount').textContent = advanceCount;
+    document.getElementById('otherTotal').textContent = `¥${formatNumber(otherTotal)}`;
+    document.getElementById('otherCount').textContent = otherCount;
+}
+
+function formatNumber(num) {
+    return parseFloat(num || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function showAddExpenseModal() {
+    document.getElementById('expenseModalTitle').textContent = '新建支出';
+    document.getElementById('expenseId').value = '';
+    document.getElementById('expenseCompany').value = '';
+    document.getElementById('expenseType').value = '';
+    document.getElementById('expenseAmount').value = '';
+    document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('expenseSupplier').value = '';
+    document.getElementById('expenseProject').value = '';
+    document.getElementById('expenseNote').value = '';
+    expenseModal.show();
+}
+
+async function editExpense(id) {
+    try {
+        const response = await fetch(`/api/finance/expenses/${id}/`, { credentials: 'include' });
+        if (response.ok) {
+            const expense = await response.json();
+            document.getElementById('expenseModalTitle').textContent = '编辑支出';
+            document.getElementById('expenseId').value = expense.id;
+            document.getElementById('expenseCompany').value = expense.company || '';
+            document.getElementById('expenseType').value = expense.expense_type || '';
+            document.getElementById('expenseAmount').value = expense.amount || '';
+            document.getElementById('expenseDate').value = expense.expense_date || '';
+            document.getElementById('expenseSupplier').value = expense.supplier || '';
+            document.getElementById('expenseProject').value = expense.project || '';
+            document.getElementById('expenseNote').value = expense.note || '';
+            expenseModal.show();
+        } else {
+            showToast('获取支出数据失败', 'error');
+        }
+    } catch (error) {
+        console.error('获取支出数据失败:', error);
+        showToast('获取支出数据失败', 'error');
+    }
+}
+
+async function saveExpense() {
+    const id = document.getElementById('expenseId').value;
+    const company = document.getElementById('expenseCompany').value;
+    const expense_type = document.getElementById('expenseType').value;
+    const amount = document.getElementById('expenseAmount').value;
+    const expense_date = document.getElementById('expenseDate').value;
+    const supplier = document.getElementById('expenseSupplier').value;
+    const project = document.getElementById('expenseProject').value;
+    const note = document.getElementById('expenseNote').value;
+    
+    if (!company || !expense_type || !amount || !expense_date) {
+        showToast('请填写必填项', 'warning');
+        return;
+    }
+    
+    const data = {
+        company: parseInt(company),
+        expense_type: expense_type,
+        amount: parseFloat(amount),
+        expense_date: expense_date,
+        supplier: supplier,
+        project: project ? parseInt(project) : null,
+        note: note
+    };
+    
+    try {
+        const url = id ? `/api/finance/expenses/${id}/` : '/api/finance/expenses/';
+        const method = id ? 'PUT' : 'POST';
+        
+        const response = await fetch(url, {
+            method: method,
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+            
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            showToast(id ? '支出更新成功' : '支出创建成功', 'success');
+            expenseModal.hide();
+            document.getElementById('expenseModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('expenseModal').removeEventListener('hidden.bs.modal', handler);
+                loadExpenses();
+            });
+        } else {
+            const error = await response.json();
+            showToast(error.message || '保存失败', 'error');
+        }
+    } catch (error) {
+        console.error('保存支出失败:', error);
+        showToast('保存支出失败', 'error');
+    }
+}
+
+function deleteExpense(id) {
+    document.getElementById('deleteExpenseId').value = id;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    const id = document.getElementById('deleteExpenseId').value;
+    
+    try {
+        const response = await fetch(`/api/finance/expenses/${id}/`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+        });
+        
+        if (response.ok) {
+            showToast('支出删除成功', 'success');
+            deleteModal.hide();
+            document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('deleteModal').removeEventListener('hidden.bs.modal', handler);
+                loadExpenses();
+            });
+        } else {
+            showToast('删除失败', 'error');
+        }
+    } catch (error) {
+        console.error('删除支出失败:', error);
+        showToast('删除支出失败', 'error');
+    }
+}
+
+// ===== 导出功能 =====
+const EXPENSE_COLUMNS = [
+    { key: 'id', label: 'ID' },
+    { key: 'company_name', label: '公司' },
+    { key: 'project_name', label: '项目' },
+    { key: 'expense_type_display', label: '支出类型' },
+    { key: 'amount', label: '金额（元）' },
+    { key: 'expense_date', label: '支出日期' },
+    { key: 'supplier', label: '供应商/收款方' },
+    { key: 'status_display', label: '状态' },
+    { key: 'approval_status', label: '审批状态' },
+    { key: 'operator_name', label: '操作人' },
+    { key: 'description', label: '备注' },
+    { key: 'created_at', label: '创建时间' }
+];
+
+async function exportExpenses() {
+    const params = new URLSearchParams();
+    const companyId = document.getElementById('filterCompany')?.value;
+    const expenseType = document.getElementById('filterExpenseType')?.value;
+    const dateFrom = document.getElementById('filterDateFrom')?.value;
+    const dateTo = document.getElementById('filterDateTo')?.value;
+    if (companyId) params.set('company_id', companyId);
+    if (expenseType) params.set('expense_type', expenseType);
+    if (dateFrom) params.set('date_start', dateFrom);
+    if (dateTo) params.set('date_end', dateTo);
+
+    try {
+        showToast('正在导出…', 'info');
+        const response = await fetch(`/api/finance/expenses/export/?${params}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('导出失败');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `支出记录_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('导出成功', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('导出失败', 'error');
+    }
+}
+
+function downloadBlob(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ===== 批量导入 =====
+var currentImportModule = null;
+var importModal = null;
+
+var importGuides = {
+    expense: [
+        '必需列：<strong>金额</strong>、<strong>日期</strong>（格式如 2026-04-26）',
+        '可选列：公司名称、支出类型、项目名称、供应商/收款方、付款方式、备注',
+        '公司/项目按名称自动匹配',
+    ]
+};
+
+function showImportModal(module) {
+    currentImportModule = module;
+    if (!importModal) importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    document.getElementById('importModalTitle').textContent = '导入支出记录';
+    document.getElementById('importGuide').innerHTML = (importGuides[module] || []).map(function(s) { return '<li>' + s + '</li>'; }).join('');
+    document.getElementById('importFileInput').value = '';
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = '';
+    importModal.show();
+}
+
+async function doImport() {
+    var fileInput = document.getElementById('importFileInput');
+    var file = fileInput.files[0];
+    if (!file) { showToast('请先选择 Excel 文件', 'warning'); return; }
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importStep2').style.display = 'block';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = 'none';
+    var formData = new FormData();
+    formData.append('file', file);
+    try {
+        var response = await fetch('/api/finance/expenses/import_records/', {
+            method: 'POST', credentials: 'include',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }, body: formData,
+        });
+        var result = await response.json();
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importStep3').style.display = 'block';
+        if (result.success !== false) {
+            document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-1"></i>' + (result.message || '导入完成') + '</div>';
+            document.getElementById('importErrors').innerHTML = '';
+            setTimeout(function() { importModal.hide(); loadExpenses && loadExpenses(); }, 1500);
+        } else {
+            document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle me-1"></i>' + (result.message || '导入失败') + '</div>';
+            document.getElementById('importErrors').innerHTML = (result.errors || []).map(function(e) { return '<div>' + e + '</div>'; }).join('');
+        }
+    } catch (err) {
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importStep3').style.display = 'block';
+        document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle me-1"></i>请求失败：' + err.message + '</div>';
+    }
+}
+
+function downloadTemplate() {
+    var headers = ['金额', '日期', '公司', '支出类型', '项目', '供应商/收款方', '付款方式', '备注'];
+    var rows = [[12000, '2026-04-26', '深圳市龙晟科技贸易有限公司', '材料费', '城市综合体', '建材公司', '银行转账', '示例支出']];
+    var xls = '\uFEFF' + headers.join('\t') + '\n' + rows.map(function(r) { return r.join('\t'); }).join('\n');
+    var blob = new Blob([xls], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = '支出记录导入模板.xls';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

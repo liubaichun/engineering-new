@@ -1,0 +1,548 @@
+{% extends "base.html" %}
+
+{% block title %}财务报表 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.report-header {
+    margin-bottom: 24px;
+}
+.report-filters {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 24px;
+}
+.report-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.report-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--card-shadow);
+    cursor: pointer;
+    transition: all 0.3s;
+    border: 2px solid transparent;
+}
+.report-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    border-color: var(--primary);
+}
+.report-card.active {
+    border-color: var(--primary);
+    background: linear-gradient(135deg, #eff6ff 0%, #fff 100%);
+}
+.report-card .icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 16px;
+}
+.report-card .icon.blue { background: #dbeafe; color: var(--primary); }
+.report-card .icon.green { background: #d1fae5; color: var(--success); }
+.report-card .icon.orange { background: #fed7aa; color: var(--warning); }
+.report-card .icon.purple { background: #ede9fe; color: #8b5cf6; }
+.report-card h5 { font-weight: 700; margin-bottom: 8px; }
+.report-card p { color: var(--text-secondary); font-size: 0.85rem; margin: 0; }
+.report-content {
+    background: #fff;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: var(--card-shadow);
+    min-height: 400px;
+}
+.report-table th {
+    background: #f8fafc;
+    font-weight: 600;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+.report-table td {
+    vertical-align: middle;
+    padding: 12px 16px;
+}
+.balance-positive { color: var(--success); font-weight: 600; }
+.balance-negative { color: var(--danger); font-weight: 600; }
+.summary-row {
+    background: #f8fafc;
+    font-weight: 700;
+}
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    color: var(--text-secondary);
+}
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid #e2e8f0;
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-right: 12px;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div>
+        <h4><i class="bi bi-bar-chart me-2"></i>财务报表</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">查看各公司收入、支出和工资汇总报表</p>
+    </div>
+</div>
+
+<!-- 筛选条件 -->
+<div class="report-filters">
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label">公司</label>
+            <select class="form-select" id="filterCompany">
+                <option value="">全部公司</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">年份</label>
+            <select class="form-select" id="filterYear">
+                <option value="2026">2026</option>
+                <option value="2025">2025</option>
+                <option value="2024">2024</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label">月份</label>
+            <select class="form-select" id="filterMonth">
+                <option value="">全部月份</option>
+                <option value="1">1月</option>
+                <option value="2">2月</option>
+                <option value="3">3月</option>
+                <option value="4">4月</option>
+                <option value="5">5月</option>
+                <option value="6">6月</option>
+                <option value="7">7月</option>
+                <option value="8">8月</option>
+                <option value="9">9月</option>
+                <option value="10">10月</option>
+                <option value="11">11月</option>
+                <option value="12">12月</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button class="btn btn-primary w-100" onclick="loadReport()">
+                <i class="bi bi-search me-2"></i>查询报表
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 报表卡片 -->
+<div class="report-cards">
+    <div class="report-card" onclick="showReport('monthly', this)">
+        <div class="icon blue"><i class="bi bi-calendar-month"></i></div>
+        <h5>月度报表</h5>
+        <p>按月份统计各公司收入、支出和结余情况</p>
+    </div>
+    <div class="report-card" onclick="showReport('yearly', this)">
+        <div class="icon green"><i class="bi bi-calendar3"></i></div>
+        <h5>年度报表</h5>
+        <p>按年份统计各公司年度收支汇总</p>
+    </div>
+    <div class="report-card" onclick="showReport('wage_summary', this)">
+        <div class="icon orange"><i class="bi bi-wallet2"></i></div>
+        <h5>工资汇总</h5>
+        <p>按公司/月份汇总员工工资和个税</p>
+    </div>
+    <div class="report-card" onclick="showReport('invoice_summary', this)">
+        <div class="icon purple"><i class="bi bi-receipt"></i></div>
+        <h5>发票汇总</h5>
+        <p>按公司统计发票开具和收取情况</p>
+    </div>
+</div>
+
+<!-- 报表内容 -->
+<div class="report-content" id="reportContent">
+    <div class="loading">
+        <div class="spinner"></div>
+        <span>请选择一个报表类型查看</span>
+    </div>
+</div>
+
+<!-- 导出按钮 -->
+<div class="d-flex justify-content-end gap-2 mt-3" id="exportButtons" style="display: none;">
+    <button class="btn btn-success" onclick="exportExcel()">
+        <i class="bi bi-file-earmark-excel me-1"></i>导出Excel
+    </button>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentReport = 'monthly';
+let currentReportData = null;
+const API_BASE = '/api/finance';
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text || '');
+    return div.innerHTML;
+}
+
+// 页面加载时获取公司列表
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    // 默认选中月度报表
+    showReport('monthly');
+    document.querySelector('.report-card[onclick*="monthly"]').classList.add('active');
+});
+
+async function loadCompanies() {
+    try {
+        const res = await fetch(`${API_BASE}/companies/`, { credentials: 'include' });
+        const data = await res.json();
+        const select = document.getElementById('filterCompany');
+        const companies = data.results || data;
+        if (Array.isArray(companies)) {
+            companies.forEach(company => {
+                const opt = document.createElement('option');
+                opt.value = company.id;
+                opt.textContent = company.name;
+                select.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error('加载公司列表失败', err);
+    }
+}
+
+function showReport(type, el) {
+    currentReport = type;
+    document.querySelectorAll('.report-card').forEach(c => c.classList.remove('active'));
+    if (el && el.classList) el.classList.add('active');
+    document.getElementById('exportButtons').style.display = 'flex';
+    loadReport();
+}
+
+async function loadReport() {
+    const company = document.getElementById('filterCompany').value;
+    const year = document.getElementById('filterYear').value;
+    const month = document.getElementById('filterMonth').value;
+    
+    const content = document.getElementById('reportContent');
+    content.innerHTML = '<div class="loading"><div class="spinner"></div><span>加载中...</span></div>';
+    
+    let url = '';
+    switch (currentReport) {
+        case 'monthly':
+            url = `${API_BASE}/reports/monthly/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
+            break;
+        case 'yearly':
+            url = `${API_BASE}/reports/yearly/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        case 'wage_summary':
+            url = `${API_BASE}/reports/wage_summary/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
+            break;
+        case 'invoice_summary':
+            url = `${API_BASE}/reports/invoice_summary/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        default:
+            content.innerHTML = '<div class="loading"><span>请选择一个报表类型查看</span></div>';
+            return;
+    }
+    
+    try {
+        const res = await fetch(url, { credentials: 'include' });
+        const data = await res.json();
+        currentReportData = data;  // 保存数据用于导出
+        renderReport(data);
+    } catch (err) {
+        content.innerHTML = `<div class="alert alert-danger">加载报表失败: ${escapeHtml(err.message)}</div>`;
+    }
+}
+
+function renderReport(data) {
+    const content = document.getElementById('reportContent');
+    
+    switch (currentReport) {
+        case 'monthly':
+        case 'yearly':
+            renderIncomeExpenseReport(data, content);
+            break;
+        case 'wage_summary':
+            renderWageReport(data, content);
+            break;
+        case 'invoice_summary':
+            renderInvoiceReport(data, content);
+            break;
+    }
+}
+
+function renderIncomeExpenseReport(data, container) {
+    const year = data.year || '';
+    const month = data.month || '';
+    const title = currentReport === 'monthly' ? `${year}年${month ? month + '月' : ''} 月度报表` : `${year}年 年度报表`;
+    
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-table me-2"></i>${title}</h5>
+        <div class="table-responsive">
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>收入</th>
+                        <th>支出</th>
+                        <th>结余</th>
+                        <th>收入笔数</th>
+                        <th>支出笔数</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.results?.forEach(r => {
+        const balance = r.balance;
+        const balanceClass = balance >= 0 ? 'balance-positive' : 'balance-negative';
+        html += `
+            <tr>
+                <td><strong>${r.company_name}</strong><br><small class="text-muted">${r.company_code}</small></td>
+                <td class="text-success">¥${formatNumber(r.total_income)}</td>
+                <td class="text-danger">¥${formatNumber(r.total_expense)}</td>
+                <td class="${balanceClass}">¥${formatNumber(balance)}</td>
+                <td>${r.income_count || 0}</td>
+                <td>${r.expense_count || 0}</td>
+            </tr>
+        `;
+    });
+    
+    if (data.results?.length > 0) {
+        html += `
+            <tr class="summary-row">
+                <td><strong>合计</strong></td>
+                <td class="text-success">¥${formatNumber(data.summary?.total_income || 0)}</td>
+                <td class="text-danger">¥${formatNumber(data.summary?.total_expense || 0)}</td>
+                <td class="${data.summary?.total_balance >= 0 ? 'balance-positive' : 'balance-negative'}">¥${formatNumber(data.summary?.total_balance || 0)}</td>
+                <td>-</td>
+                <td>-</td>
+            </tr>
+        `;
+    }
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function renderWageReport(data, container) {
+    const year = data.year || '';
+    const month = data.month || '';
+    const title = `${year}年${month ? month + '月' : ''} 工资汇总`;
+    
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-wallet2 me-2"></i>${title}</h5>
+        <div class="table-responsive">
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>人数</th>
+                        <th>应发合计</th>
+                        <th>社保公积金</th>
+                        <th>个税</th>
+                        <th>实发合计</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.results?.forEach(r => {
+        html += `
+            <tr>
+                <td><strong>${r.company_name}</strong></td>
+                <td>${r.employee_count} 人</td>
+                <td>¥${formatNumber(r.total_gross)}</td>
+                <td>¥${formatNumber((r.total_social_insurance || 0) + (r.total_housing_fund || 0))}</td>
+                <td>¥${formatNumber(r.total_tax)}</td>
+                <td class="text-success"><strong>¥${formatNumber(r.total_net)}</strong></td>
+            </tr>
+        `;
+    });
+    
+    if (data.results?.length > 0) {
+        html += `
+            <tr class="summary-row">
+                <td><strong>合计</strong></td>
+                <td>${data.summary?.total_employees || 0} 人</td>
+                <td>¥${formatNumber(data.summary?.total_gross || 0)}</td>
+                <td>-</td>
+                <td>¥${formatNumber(data.summary?.total_tax || 0)}</td>
+                <td class="text-success"><strong>¥${formatNumber(data.summary?.total_net || 0)}</strong></td>
+            </tr>
+        `;
+    }
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function renderInvoiceReport(data, container) {
+    const year = data.year || '';
+    const title = `${year}年 发票汇总`;
+    
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-receipt me-2"></i>${title}</h5>
+        <div class="table-responsive">
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>已开票</th>
+                        <th>待开票</th>
+                        <th>已支付</th>
+                        <th>已作废</th>
+                        <th>发票总额</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    data.results?.forEach(r => {
+        html += `
+            <tr>
+                <td><strong>${r.company_name}</strong></td>
+                <td><span class="badge bg-success">${r.issued_count}</span></td>
+                <td><span class="badge bg-warning">${r.pending_count}</span></td>
+                <td><span class="badge bg-primary">${r.paid_count}</span></td>
+                <td><span class="badge bg-secondary">${r.cancelled_count}</span></td>
+                <td><strong>¥${formatNumber(r.total_amount)}</strong></td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+}
+
+function formatNumber(num) {
+    return parseFloat(num || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function exportExcel() {
+    if (!currentReportData || !currentReportData.results) {
+        showToast('请先加载报表数据', 'warning');
+        return;
+    }
+    
+    const year = document.getElementById('filterYear').value;
+    const month = document.getElementById('filterMonth').value;
+    const company = document.getElementById('filterCompany');
+    const companyName = company.options[company.selectedIndex]?.text || '全部';
+    
+    let filename = '';
+    let headers = [];
+    let rows = [];
+    
+    if (currentReport === 'monthly' || currentReport === 'yearly') {
+        filename = `${year}年${month ? month + '月_' : ''}收支报表_${companyName}.xls`;
+        headers = ['公司', '公司代码', '收入', '支出', '结余', '收入笔数', '支出笔数'];
+        currentReportData.results.forEach(r => {
+            rows.push([
+                r.company_name,
+                r.company_code,
+                r.total_income,
+                r.total_expense,
+                r.balance,
+                r.income_count || 0,
+                r.expense_count || 0
+            ]);
+        });
+        if (currentReportData.summary) {
+            rows.push([
+                '合计', '',
+                currentReportData.summary.total_income || 0,
+                currentReportData.summary.total_expense || 0,
+                currentReportData.summary.total_balance || 0, '', ''
+            ]);
+        }
+    } else if (currentReport === 'wage_summary') {
+        filename = `${year}年${month ? month + '月_' : ''}工资汇总_${companyName}.xls`;
+        headers = ['公司', '人数', '应发合计', '社保公积金', '个税', '实发合计'];
+        currentReportData.results.forEach(r => {
+            rows.push([
+                r.company_name,
+                r.employee_count + '人',
+                r.total_gross,
+                (r.total_social_insurance || 0) + (r.total_housing_fund || 0),
+                r.total_tax,
+                r.total_net
+            ]);
+        });
+    } else if (currentReport === 'invoice_summary') {
+        filename = `${year}年发票汇总_${companyName}.xls`;
+        headers = ['公司', '已开票', '待开票', '已支付', '已作废', '发票总额'];
+        currentReportData.results.forEach(r => {
+            rows.push([
+                r.company_name,
+                r.issued_count,
+                r.pending_count,
+                r.paid_count,
+                r.cancelled_count,
+                r.total_amount
+            ]);
+        });
+    }
+    
+    // 生成XML格式的Excel文件
+    let xml = '<xml version="1.0" encoding="UTF-8">';
+    xml += '<ss:Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
+    xml += '<ss:Worksheet ss:Name="Report"><ss:Table>';
+    
+    // 表头
+    xml += '<ss:Row>';
+    headers.forEach(h => {
+        xml += '<ss:Cell><ss:Data ss:Type="String">' + h + '</ss:Data></ss:Cell>';
+    });
+    xml += '</ss:Row>';
+    
+    // 数据行
+    rows.forEach(row => {
+        xml += '<ss:Row>';
+        row.forEach(cell => {
+            const val = String(cell);
+            const isNum = !isNaN(parseFloat(cell)) && isFinite(cell);
+            xml += '<ss:Cell><ss:Data ss:Type="' + (isNum ? 'Number' : 'String') + '">' + val + '</ss:Data></ss:Cell>';
+        });
+        xml += '</ss:Row>';
+    });
+    
+    xml += '</ss:Table></ss:Worksheet></ss:Workbook></xml>';
+    
+    // 创建Blob并下载
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showToast('导出成功', 'success');
+}
+</script>
+{% endblock %}

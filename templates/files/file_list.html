@@ -1,0 +1,633 @@
+{% extends "base.html" %}
+
+{% block title %}文件管理 - 企业信息化管理系统{% endblock %}
+
+{% block content %}
+<style>
+.batch-toolbar {
+    background: #e7f1ff;
+    border: 1px solid #b3d7ff;
+    border-radius: 8px;
+    padding: 8px 16px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.batch-count { font-weight: 600; color: #1e40af; }
+</style>
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-folder me-2"></i>文件管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理公司文件和文档</p>
+    </div>
+    <div class="d-flex gap-2">
+        <select class="form-select form-select-sm" id="companyFilter" onchange="loadFiles()" style="width: auto;">
+            <option value="">全部公司</option>
+        </select>
+        <select class="form-select form-select-sm" id="categoryFilter" onchange="loadFiles()" style="width: auto;">
+            <option value="">全部分类</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="showUploadModal()" data-perm="file.add">
+            <i class="bi bi-upload me-1"></i>上传文件
+        </button>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-folder-s tree me-2"></i>文件夹</h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" id="folderTree">
+                    <a href="#" class="list-group-item list-group-item-action active" onclick="setCategory(null); return false;">
+                        <i class="bi bi-folder2-open me-2"></i>全部文件
+                    </a>
+                    <div class="text-center py-3">
+                        <div class="spinner-border text-primary spinner-border-sm"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <input type="text" class="form-control" id="searchFile" placeholder="搜索文件名" onkeyup="loadFiles()">
+                        </div>
+                        <div class="col-md-2">
+                            <select class="form-select" id="sortBy" onchange="loadFiles()">
+                                <option value="-created_at">最新上传</option>
+                                <option value="name">名称</option>
+                                <option value="file_size">大小</option>
+                            </select>
+                        </div>
+                    </div>
+
+                <!-- 批量操作工具栏 -->
+                <div id="batchToolbar" class="batch-toolbar" style="display:none;">
+                    <span id="batchCount" class="batch-count"></span>
+                    <button class="btn btn-sm btn-danger" onclick="batchDeleteFiles()"><i class="bi bi-trash me-1"></i>批量删除</button>
+                    <button class="btn btn-sm btn-secondary" onclick="clearSelection()"><i class="bi bi-x-lg me-1"></i>取消选择</button>
+                </div>
+                
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;"><input type="checkbox" id="selectAllFiles" onchange="toggleSelectAll()"></th>
+                                <th>文件名</th>
+                                <th>分类</th>
+                                <th>公司</th>
+                                <th>关联项目</th>
+                                <th>大小</th>
+                                <th>上传人</th>
+                                <th>上传时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fileTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center py-4">
+                                    <div class="spinner-border text-primary"></div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 上传Modal -->
+<div class="modal fade" id="uploadModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>上传文件</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">选择文件</label>
+                    <input type="file" class="form-control" id="fileInput" onchange="selectFile()">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">文件分类</label>
+                    <select class="form-select" id="fileCategory">
+                        <option value="">选择分类</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">所属公司</label>
+                    <select class="form-select" id="fileCompany">
+                        <option value="">选择公司</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">关联项目</label>
+                    <select class="form-select" id="fileProject">
+                        <option value="">无关联项目</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="fileRemark" rows="2" placeholder="可选备注"></textarea>
+                </div>
+                <div class="progress" id="uploadProgress" style="display: none;">
+                    <div class="progress-bar" role="progressbar" style="width: 0%;"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="uploadFile()" id="btnUpload">上传</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var uploadModal;
+var allFiles = [];
+var allCategories = [];
+var allCompanies = [];
+var allProjects = [];
+var selectedFile = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    loadCompanies();
+    loadCategories();
+    loadProjects();
+    loadFiles();
+});
+
+async function loadProjects() {
+    try {
+        var response = await fetch('/api/tasks/projects/?page_size=200', { credentials: 'include' });
+        var data = await response.json();
+        allProjects = data.results || data;
+        var select = document.getElementById('fileProject');
+        select.innerHTML = '<option value="">无关联项目</option>';
+        allProjects.forEach(function(p) {
+            select.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载项目失败:', error);
+    }
+}
+
+async function loadCompanies() {
+    try {
+        var response = await fetch('/api/finance/companies/', { credentials: 'include' });
+        var data = await response.json();
+        allCompanies = data.results || data;
+        
+        var selects = ['companyFilter', 'fileCompany'];
+        selects.forEach(function(selId) {
+            var select = document.getElementById(selId);
+            if (selId === 'fileCompany') {
+                select.innerHTML = '<option value="">选择公司</option>';
+            }
+            allCompanies.forEach(function(c) {
+                select.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+            });
+        });
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
+}
+
+async function loadCategories() {
+    try {
+        var response = await fetch('/api/files/categories/', { credentials: 'include' });
+        var data = await response.json();
+        allCategories = data.results || data;
+        
+        var selects = ['categoryFilter', 'fileCategory'];
+        selects.forEach(function(selId) {
+            var select = document.getElementById(selId);
+            if (selId === 'fileCategory') {
+                select.innerHTML = '<option value="">选择分类</option>';
+            }
+            allCategories.forEach(function(cat) {
+                select.innerHTML += '<option value="' + cat.id + '">' + escapeHtml(cat.name) + '</option>';
+            });
+        });
+        
+        renderFolderTree();
+    } catch (error) {
+        console.error('加载分类失败:', error);
+    }
+}
+
+function renderFolderTree() {
+    var container = document.getElementById('folderTree');
+    if (allCategories.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-3">暂无分类</div>';
+        return;
+    }
+    
+    var html = '<a href="#" class="list-group-item list-group-item-action ' + 
+               (!window.currentCategory ? 'active' : '') + '" onclick="setCategory(null); return false;">' +
+               '<i class="bi bi-folder2-open me-2"></i>全部文件</a>';
+    
+    allCategories.forEach(function(cat) {
+        var isActive = window.currentCategory == cat.id;
+        html += '<a href="#" class="list-group-item list-group-item-action ' + (isActive ? 'active' : '') + '" ' +
+                'onclick="setCategory(' + cat.id + '); return false;">' +
+                '<i class="bi bi-folder me-2"></i>' + escapeHtml(cat.name) + '</a>';
+    });
+    
+    container.innerHTML = html;
+}
+
+function setCategory(catId) {
+    window.currentCategory = catId;
+    document.getElementById('categoryFilter').value = catId || '';
+    renderFolderTree();
+    loadFiles();
+}
+
+async function loadFiles() {
+    try {
+        var companyId = document.getElementById('companyFilter').value;
+        var categoryId = document.getElementById('categoryFilter').value || window.currentCategory;
+        var search = document.getElementById('searchFile').value.trim();
+        var sortBy = document.getElementById('sortBy').value;
+        
+        var url = '/api/files/files/?';
+        if (companyId) url += 'company=' + companyId + '&';
+        if (categoryId) url += 'category=' + categoryId + '&';
+        if (search) url += 'search=' + encodeURIComponent(search) + '&';
+        url += 'ordering=' + sortBy + '&page_size=100';
+        
+        var response = await fetch(url, { credentials: 'include' });
+        var data = await response.json();
+        allFiles = data.results || data;
+        renderFiles();
+    } catch (error) {
+        console.error('加载文件失败:', error);
+        document.getElementById('fileTableBody').innerHTML = 
+            '<tr><td colspan="8" class="text-center text-muted py-4">加载失败</td></tr>';
+    }
+}
+
+function renderFiles() {
+    var tbody = document.getElementById('fileTableBody');
+    
+    if (allFiles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无文件</td></tr>';
+        return;
+    }
+    
+    var categoryMap = {};
+    allCategories.forEach(function(c) { categoryMap[c.id] = c.name; });
+    var companyMap = {};
+    allCompanies.forEach(function(c) { companyMap[c.id] = c.name; });
+    
+    var html = '';
+    allFiles.forEach(function(f) {
+        var icon = getFileIcon(f.file_name);
+        html += '<tr data-id="' + f.id + '">';
+        html += '<td><input type="checkbox" class="file-checkbox" value="' + f.id + '" onchange="updateBatchBar()"></td>';
+        html += '<td><i class="' + icon + ' me-2"></i>' + escapeHtml(f.file_name);
+        if (f.version > 1) html += ' <span class="badge bg-secondary" style="font-size:0.65rem;">v' + f.version + '</span>';
+        html += '</td>';
+        html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryMap[f.category] || '-') + '</span></td>';
+        html += '<td>' + escapeHtml(companyMap[f.company] || '-') + '</td>';
+        html += '<td>' + escapeHtml(f.project_name || '-') + '</td>';
+        html += '<td>' + formatFileSize(f.file_size) + '</td>';
+        html += '<td>' + escapeHtml(f.uploaded_by_name || '-') + '</td>';
+        html += '<td>' + formatDate(f.created_at) + '</td>';
+        html += '<td>';
+        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="previewFile(' + f.id + ')"><i class="bi bi-eye"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="downloadFile(' + f.id + ')"><i class="bi bi-download"></i></button>';
+        if (f.version_count > 1) html += '<button class="btn btn-sm btn-outline-info me-1" onclick="showFileVersions(' + f.id + ')"><i class="bi bi-clock-history"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteFile(' + f.id + ')" data-perm="file.delete"><i class="bi bi-trash"></i></button>';
+        html += '</td></tr>';
+    });
+    
+    tbody.innerHTML = html;
+}
+
+function getFileIcon(filename) {
+    var ext = filename.split('.').pop().toLowerCase();
+    var icons = {
+        'pdf': 'bi bi-file-earmark-pdf text-danger',
+        'doc': 'bi bi-file-earmark-word text-primary',
+        'docx': 'bi bi-file-earmark-word text-primary',
+        'xls': 'bi bi-file-earmark-excel text-success',
+        'xlsx': 'bi bi-file-earmark-excel text-success',
+        'jpg': 'bi bi-file-earmark-image text-info',
+        'jpeg': 'bi bi-file-earmark-image text-info',
+        'png': 'bi bi-file-earmark-image text-info',
+        'zip': 'bi bi-file-earmark-zip text-warning',
+        'rar': 'bi bi-file-earmark-zip text-warning'
+    };
+    return icons[ext] || 'bi bi-file-earmark text-secondary';
+}
+
+function formatFileSize(bytes) {
+    if (!bytes) return '-';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function toggleSelectAll() {
+    var checked = document.getElementById('selectAllFiles').checked;
+    document.querySelectorAll('.file-checkbox').forEach(function(cb) { cb.checked = checked; });
+    updateBatchBar();
+}
+
+function updateBatchBar() {
+    var selected = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(function(cb) { return cb.value; });
+    var toolbar = document.getElementById('batchToolbar');
+    if (selected.length > 0) {
+        toolbar.style.display = 'flex';
+        document.getElementById('batchCount').textContent = '已选择 ' + selected.length + ' 个文件';
+    } else {
+        toolbar.style.display = 'none';
+    }
+    // sync selectAll checkbox
+    var total = document.querySelectorAll('.file-checkbox').length;
+    document.getElementById('selectAllFiles').checked = selected.length === total && total > 0;
+}
+
+function clearSelection() {
+    document.querySelectorAll('.file-checkbox').forEach(function(cb) { cb.checked = false; });
+    document.getElementById('selectAllFiles').checked = false;
+    updateBatchBar();
+}
+
+async function batchDeleteFiles() {
+    var selected = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(function(cb) { return cb.value; });
+    if (selected.length === 0) return;
+    if (!confirm('确定要删除选中的 ' + selected.length + ' 个文件吗？此操作不可恢复。')) return;
+    var errors = 0;
+    for (var i = 0; i < selected.length; i++) {
+        try {
+            var resp = await fetch('/api/files/files/' + selected[i] + '/', {
+                method: 'DELETE',
+                credentials: 'include'
+            });
+            if (!resp.ok) errors++;
+        } catch(e) { errors++; }
+    }
+    if (errors === 0) {
+        showToast('成功删除 ' + selected.length + ' 个文件', 'success');
+        clearSelection();
+        loadFiles();
+    } else {
+        showToast('删除完成，' + errors + ' 个文件删除失败', 'warning');
+        loadFiles();
+    }
+}
+
+function showUploadModal() {
+    document.getElementById('fileInput').value = '';
+    document.getElementById('fileCategory').value = window.currentCategory || '';
+    document.getElementById('fileRemark').value = '';
+    document.getElementById('uploadProgress').style.display = 'none';
+    document.getElementById('btnUpload').disabled = false;
+    uploadModal.show();
+}
+
+function selectFile() {
+    var input = document.getElementById('fileInput');
+    selectedFile = input.files[0];
+}
+
+async function uploadFile() {
+    if (!selectedFile) {
+        showToast('请选择文件', 'warning');
+        return;
+    }
+    
+    var category = document.getElementById('fileCategory').value;
+    var company = document.getElementById('fileCompany').value;
+    var project = document.getElementById('fileProject').value;
+    var remark = document.getElementById('fileRemark').value.trim();
+    
+    if (!category) {
+        showToast('请选择文件分类', 'warning');
+        return;
+    }
+    
+    document.getElementById('btnUpload').disabled = true;
+    var progress = document.getElementById('uploadProgress');
+    progress.style.display = 'block';
+    
+    var formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('category', category);
+    if (company) formData.append('company', company);
+    if (project) formData.append('project', project);
+    if (remark) formData.append('remark', remark);
+    
+    try {
+        var xhr = new XMLHttpRequest();
+        xhr.upload.onprogress = function(e) {
+            if (e.lengthComputable) {
+                var percent = Math.round((e.loaded / e.total) * 100);
+                progress.querySelector('.progress-bar').style.width = percent + '%';
+            }
+        };
+        
+        xhr.onload = function() {
+            if (xhr.status === 201 || xhr.status === 200) {
+                showToast('文件上传成功', 'success');
+                uploadModal.hide();
+                document.getElementById('uploadModal').addEventListener('hidden.bs.modal', function handler() {
+                    document.getElementById('uploadModal').removeEventListener('hidden.bs.modal', handler);
+                    loadFiles();
+                });
+            } else {
+                throw new Error('上传失败');
+            }
+        };
+        
+        xhr.onerror = function() {
+            showToast('上传失败', 'error');
+        };
+        
+        xhr.open('POST', '/api/files/files/');
+        xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
+        xhr.send(formData);
+    } catch (error) {
+        console.error('上传文件失败:', error);
+        showToast('上传失败', 'error');
+        document.getElementById('btnUpload').disabled = false;
+    }
+}
+
+async function downloadFile(fileId) {
+    window.open('/api/files/files/' + fileId + '/download/', '_blank');
+}
+
+async function previewFile(fileId) {
+    try {
+        var resp = await fetch('/api/files/files/' + fileId + '/', { credentials: 'include' });
+        if (!resp.ok) { showToast('文件不存在', 'danger'); return; }
+        var f = await resp.json();
+        var url = f.file_url || '/api/files/files/' + fileId + '/download/';
+        var ext = (f.file_name || '').split('.').pop().toLowerCase();
+        var isImage = ['jpg','jpeg','png','gif','bmp','webp'].includes(ext);
+        var isPdf = ext === 'pdf';
+
+        // Build preview modal
+        var previewBody = document.getElementById('previewBody');
+        if (!previewBody) {
+            var modal = document.createElement('div');
+            modal.id = 'previewModal';
+            modal.className = 'modal fade';
+            modal.tabIndex = -1;
+            modal.innerHTML = `
+                <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="previewTitle">文件预览</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="previewBody" style="text-align:center;background:#f5f5f5;min-height:400px;display:flex;align-items:center;justify-content:center;"></div>
+                        <div class="modal-footer">
+                            <button class="btn btn-outline-primary" onclick="downloadFile(${fileId})"><i class="bi bi-download me-1"></i>下载</button>
+                        </div>
+                    </div>
+                </div>`;
+            document.body.appendChild(modal);
+            window._previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+        }
+
+        document.getElementById('previewTitle').textContent = f.file_name || '文件预览';
+        var body = document.getElementById('previewBody');
+
+        if (isImage) {
+            body.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:75vh;" />';
+        } else if (isPdf) {
+            body.innerHTML = '<iframe src="' + url + '" style="width:100%;height:75vh;border:none;"></iframe>';
+        } else {
+            body.innerHTML = '<div style="text-align:center;padding:60px 20px;"><i class="bi bi-file-earmark" style="font-size:4rem;color:#ccc;"></i><p style="margin-top:16px;color:#666;">此文件类型不支持在线预览</p><button class="btn btn-primary mt-3" onclick="downloadFile(' + fileId + ')"><i class="bi bi-download me-1"></i>下载文件</button></div>';
+        }
+
+        window._previewModal.show();
+    } catch(e) {
+        showToast('预览失败: ' + e.message, 'danger');
+    }
+}
+
+async function deleteFile(fileId) {
+    if (!confirm('确定要删除此文件吗？')) return;
+    
+    try {
+        var response = await fetch('/api/files/files/' + fileId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('删除失败');
+        showToast('文件已删除', 'success');
+        loadFiles();
+    } catch (error) {
+        showToast('删除失败', 'error');
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+async function showFileVersions(fileId) {
+    try {
+        var resp = await fetch('/api/files/files/' + fileId + '/', { credentials: 'include' });
+        if (!resp.ok) return;
+        var current = await resp.json();
+
+        var container = document.getElementById('versionListContainer');
+        container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
+        document.getElementById('versionModalTitle').textContent = '历史版本 - ' + current.file_name;
+
+        // Fetch all versions of same file through previous_file chain
+        var versions = [current];
+        var vid = current.previous_version_id;
+        while (vid) {
+            var r = await fetch('/api/files/files/' + vid + '/', { credentials: 'include' });
+            if (!r.ok) break;
+            var v = await r.json();
+            versions.push(v);
+            vid = v.previous_version_id;
+        }
+
+        if (versions.length <= 1) {
+            container.innerHTML = '<div class="text-center text-muted py-3">无历史版本</div>';
+        } else {
+            var html = '<div class="list-group list-group-flush">';
+            versions.forEach(function(v) {
+                var isCurrent = v.is_current ? '<span class="badge bg-success ms-2">当前</span>' : '';
+                html += '<div class="list-group-item d-flex justify-content-between align-items-center">' +
+                    '<div><div class="fw-bold">v' + v.version + isCurrent + '</div>' +
+                    '<div class="text-muted small">上传人: ' + escapeHtml(v.uploaded_by_name || '-') + ' | ' + formatDate(v.created_at) + ' | ' + formatFileSize(v.file_size) + '</div>' +
+                    '</div>' +
+                    '<div>' +
+                    '<button class="btn btn-sm btn-outline-primary me-1" onclick="downloadFile(' + v.id + ')"><i class="bi bi-download"></i></button>' +
+                    '</div>';
+            });
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        var modalEl = document.getElementById('versionModal');
+        var modal = new bootstrap.Modal(modalEl);
+        modal.show();
+    } catch(e) {
+        console.error(e);
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function getCookie(name) {
+    var value = '; ' + document.cookie;
+    var parts = value.split('; ' + name + '=');
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+}
+
+// 版本历史 Modal
+(function() {
+    var modal = document.createElement('div');
+    modal.id = 'versionModal';
+    modal.className = 'modal fade';
+    modal.tabIndex = -1;
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="versionModalTitle">历史版本</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="versionListContainer">
+                    <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
+                </div>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+})();
+</script>
+{% endblock %}

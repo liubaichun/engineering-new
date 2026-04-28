@@ -1,0 +1,1443 @@
+{% extends "base.html" %}
+
+{% block title %}工资列表 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.wage-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.warning { color: var(--warning); }
+.summary-card .value.primary { color: var(--primary); }
+.wage-table td { vertical-align: middle; font-size: 0.85rem; }
+.worker-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.worker-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+.worker-name { font-weight: 600; }
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.status-badge.draft { background: #f1f5f9; color: #64748b; }
+.status-badge.pending { background: #fef3c7; color: #92400e; }
+.status-badge.approved { background: #dbeafe; color: #1e40af; }
+.status-badge.paid { background: #d1fae5; color: #065f46; }
+.wage-month {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--primary-light);
+    color: var(--primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.calc-result {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 12px;
+    margin-top: 12px;
+}
+.calc-result .row { margin-bottom: 8px; }
+.calc-result .label { color: var(--text-secondary); font-size: 0.85rem; }
+.calc-result .value { font-weight: 600; text-align: right; }
+.calc-result .total { font-size: 1.2rem; color: var(--success); font-weight: 700; }
+.calc-result .tax-row { border-top: 1px dashed #ccc; padding-top: 8px; margin-top: 8px; }
+.section-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    letter-spacing: 0.5px;
+    margin: 16px 0 8px 0;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #eee;
+}
+.section-title:first-of-type { margin-top: 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-wallet2 me-2"></i>工资管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">
+            <span class="wage-month" id="currentMonth"><i class="bi bi-calendar3"></i>2026年4月</span>
+        </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" style="width: auto;" id="companyFilter" onchange="loadWages()">
+            <option value="">全部公司</option>
+        </select>
+        <select class="form-select form-select-sm" style="width: auto;" id="yearFilter" onchange="loadWages()">
+            <option value="2026">2026年</option>
+            <option value="2025">2025年</option>
+        </select>
+        <select class="form-select form-select-sm" style="width: auto;" id="monthFilter" onchange="loadWages()">
+            <option value="">全部月份</option>
+            {% for m in "xxxxxxxxxxxx"|make_list %}
+            <option value="{{ forloop.counter }}">{{ forloop.counter }}月</option>
+            {% endfor %}
+        </select>
+        <select class="form-select form-select-sm" style="width: auto;" id="statusFilter" onchange="loadWages()">
+            <option value="">全部状态</option>
+            <option value="draft">草稿</option>
+            <option value="pending">待审核</option>
+            <option value="approved">已批准</option>
+            <option value="paid">已发放</option>
+        </select>
+        <button class="btn btn-outline-secondary btn-sm" onclick="showExportOptions()">
+            <i class="bi bi-download me-1"></i>导出
+        </button>
+        <button class="btn btn-outline-info btn-sm" onclick="showSendWageSlipModal()" data-perm="wage.add">
+            <i class="bi bi-envelope me-1"></i>发送工资条邮件
+        </button>
+        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('wage')" data-perm="wage.add">
+            <i class="bi bi-upload me-1"></i>导入
+        </button>
+        <button class="btn btn-primary btn-sm" onclick="showAddWageModal()">
+            <i class="bi bi-plus-lg me-1"></i>录入工资
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="wage-summary" id="wageSummary">
+    <div class="summary-card">
+        <div class="label">应发合计</div>
+        <div class="value primary" id="totalGross">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalCount">0</span> 人</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">扣款合计</div>
+        <div class="value danger" id="totalDeduction">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">社保+公积金+请假等</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">个税总额</div>
+        <div class="value warning" id="totalTax">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">已扣除</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">实发总额</div>
+        <div class="value success" id="totalNet">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">应发工资</div>
+    </div>
+</div>
+
+<!-- 工资列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>工资明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table wage-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;"><input class="form-check-input" type="checkbox"></th>
+                        <th>员工信息</th>
+                        <th>公司</th>
+                        <th>部门/职位</th>
+                        <th>基本工资</th>
+                        <th>岗位工资</th>
+                        <th>加班费</th>
+                        <th>奖金</th>
+                        <th>提成</th>
+                        <th>补贴合计</th>
+                        <th>应发合计</th>
+                        <th>社保/公积金</th>
+                        <th>请假扣款</th>
+                        <th>其他扣款</th>
+                        <th>扣款合计</th>
+                        <th>个税前工资</th>
+                        <th>个税</th>
+                        <th>累计税额</th>
+                        <th>实发工资</th>
+                        <th>状态</th>
+                        <th style="width: 80px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="wageTableBody">
+                    <tr><td colspan="20" class="text-center text-muted py-4">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 7级超额累进税率
+function calculateTax(taxable) {
+    if (taxable <= 0) return 0;
+    var thresholds = [0, 3000, 12000, 25000, 35000, 55000, 80000];
+    var rates = [3, 10, 20, 25, 30, 35, 45];
+    var quickDeductions = [0, 210, 1410, 2660, 4410, 7160, 15160];
+    var tax = 0;
+    for (var i = 0; i < thresholds.length - 1; i++) {
+        if (taxable <= thresholds[i + 1]) {
+            tax = taxable * rates[i] / 100 - quickDeductions[i];
+            break;
+        }
+    }
+    if (taxable > thresholds[thresholds.length - 1]) {
+        tax = taxable * 45 / 100 - 15160;
+    }
+    return Math.round(tax * 100) / 100;
+}
+
+// 收集表单数据计算工资
+function collectWageData() {
+    var base = parseFloat(document.getElementById('id_base_salary').value) || 0;
+    var pos = parseFloat(document.getElementById('id_position_salary').value) || 0;
+    var ot = parseFloat(document.getElementById('id_overtime_pay').value) || 0;
+    var bonus = parseFloat(document.getElementById('id_bonus').value) || 0;
+    var comm = parseFloat(document.getElementById('id_commission').value) || 0;
+    var meal = parseFloat(document.getElementById('id_meal_allowance').value) || 0;
+    var transport = parseFloat(document.getElementById('id_transport_allowance').value) || 0;
+    var commAllowance = parseFloat(document.getElementById('id_communication_allowance').value) || 0;
+    var otherAllow = parseFloat(document.getElementById('id_other_allowance').value) || 0;
+    var social = parseFloat(document.getElementById('id_social_insurance').value) || 0;
+    var fund = parseFloat(document.getElementById('id_housing_fund').value) || 0;
+    var leaveDed = parseFloat(document.getElementById('id_leave_deduction').value) || 0;
+    var sickDed = parseFloat(document.getElementById('id_sick_leave_deduction').value) || 0;
+    var loanRepay = parseFloat(document.getElementById('id_employee_loan_repayment').value) || 0;
+    var otherLoan = parseFloat(document.getElementById('id_other_loan').value) || 0;
+    var otherDed = parseFloat(document.getElementById('id_other_deductions').value) || 0;
+
+    var gross = base + pos + ot + bonus + comm + meal + transport + commAllowance + otherAllow;
+    var specialDed = social + fund;
+    var totalDed = specialDed + leaveDed + sickDed + loanRepay + otherLoan + otherDed;
+    var taxable = gross - specialDed - 5000;
+    var tax = calculateTax(taxable);
+    var net = gross - totalDed - tax;
+
+    return {
+        gross: Math.round(gross * 100) / 100,
+        totalDed: Math.round(totalDed * 100) / 100,
+        taxable: Math.round(Math.max(taxable, 0) * 100) / 100,
+        tax: tax,
+        net: Math.round(net * 100) / 100
+    };
+}
+
+var currentPage = 1;
+var pageSize = 20;
+var companies = [];
+var employees = [];
+var socialConfigs = {};  // company_id -> config
+var wageModal;
+
+document.addEventListener('DOMContentLoaded', function() {
+    wageModal = new bootstrap.Modal(document.getElementById('wageModal'));
+    loadCompanies();
+    loadEmployees();
+    loadSocialConfigs();
+    loadWages();
+    bindAutoCalc();
+});
+
+function bindAutoCalc() {
+    var fields = ['id_base_salary','id_position_salary','id_overtime_pay','id_bonus',
+                  'id_commission','id_meal_allowance','id_transport_allowance',
+                  'id_communication_allowance','id_other_allowance',
+                  'id_social_insurance','id_housing_fund',
+                  'id_leave_deduction','id_sick_leave_deduction',
+                  'id_employee_loan_repayment','id_other_loan','id_other_deductions'];
+    fields.forEach(function(f) {
+        var el = document.getElementById(f);
+        if (el) el.addEventListener('input', autoCalc);
+    });
+}
+
+function getCsrfToken() {
+    return document.cookie.split(';').find(row => row.trim().startsWith('csrftoken='))?.split('=')[1];
+}
+
+function loadCompanies() {
+    fetch('/api/finance/companies/', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+        if (!data) { console.error('加载公司失败: 空数据'); return; }
+        var list = Array.isArray(data) ? data : (data.results ? data.results : (data.data ? data.data : []));
+        if (!Array.isArray(list)) { console.error('加载公司失败: 数据格式错误', data); return; }
+        companies = list;
+        var select = document.getElementById('companyFilter');
+        list.forEach(c => {
+            var opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name;
+            select.appendChild(opt);
+        });
+    })
+    .catch(err => console.error('加载公司失败:', err));
+}
+
+// 加载员工列表
+function loadEmployees() {
+    fetch('/api/finance/employees/', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+        if (!data) { console.error('加载员工失败: 空数据'); return; }
+        employees = Array.isArray(data) ? data : (data.results || data.data || []);
+        if (!Array.isArray(employees)) { console.error('加载员工失败: 数据格式错误', data); }
+    })
+    .catch(err => console.error('加载员工失败:', err));
+}
+
+// 加载社保配置
+function loadSocialConfigs() {
+    fetch('/api/finance/social-configs/', { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+        if (!data) { console.error('加载社保配置失败: 空数据'); return; }
+        var configs = Array.isArray(data) ? data : (data.results || data.data || []);
+        if (!Array.isArray(configs)) { console.error('加载社保配置失败: 数据格式错误', data); return; }
+        socialConfigs = {};
+        configs.forEach(cfg => {
+            socialConfigs[cfg.company] = cfg;
+        });
+        // configs 加载完成后，重新触发当前已选员工和公司的社保联动（解决竞态）
+        var companySelect = document.getElementById('id_company');
+        var empSelect = document.getElementById('id_employee_select');
+        if (companySelect && empSelect && companySelect.value && empSelect.value) {
+            var emp = employees.find(e => e.id == empSelect.value);
+            if (emp) {
+                var primary = emp.companies && emp.companies.find(c => c.is_primary);
+                var first = emp.companies && emp.companies[0];
+                var co = primary || first || {};
+                autoFillSocialInsurance(emp, co);
+            }
+        }
+    })
+    .catch(err => console.error('加载社保配置失败:', err));
+}
+function loadWages(page) {
+    if (page) currentPage = page;
+    var company = document.getElementById('companyFilter').value;
+    var year = document.getElementById('yearFilter').value;
+    var month = document.getElementById('monthFilter').value;
+    var status = document.getElementById('statusFilter').value;
+    var params = new URLSearchParams({ page: currentPage, page_size: pageSize });
+    if (company) params.append('company_id', company);
+    if (year) params.append('year', year);
+    if (month) params.append('month', month);
+    if (status) params.append('status', status);
+    fetch('/api/finance/wages/?' + params.toString(), { credentials: 'include' })
+    .then(r => r.json())
+    .then(data => {
+        renderWages(data.results || data);
+        renderPagination(data);
+        updateSummary(data.results || data);
+    })
+    .catch(err => {
+        document.getElementById('wageTableBody').innerHTML = '<tr><td colspan="20" class="text-center text-danger py-4">加载失败</td></tr>';
+    });
+}
+
+function renderWages(wages) {
+    var tbody = document.getElementById('wageTableBody');
+    if (!wages || wages.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="20" class="text-center text-muted py-4">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = wages.map(w => {
+        var initials = w.employee_name ? w.employee_name.charAt(0) : '?';
+        var statusClass = w.status || 'draft';
+        var statusText = {'draft':'草稿','pending':'待审核','approved':'已批准','paid':'已发放'}[statusClass] || statusClass;
+        var allowances = (parseFloat(w.meal_allowance||0) + parseFloat(w.transport_allowance||0) + parseFloat(w.communication_allowance||0) + parseFloat(w.other_allowance||0)).toLocaleString();
+        var sickInfo = (parseFloat(w.sick_leave_days||0) > 0) ? '<br><small class="text-danger">病假'+w.sick_leave_days+'天</small>' : '';
+        return '<tr>' +
+            '<td><input class="form-check-input" type="checkbox" value="' + w.id + '"></td>' +
+            '<td><div class="worker-info"><div class="worker-avatar">' + initials + '</div>' +
+            '<div><div class="worker-name">' + (w.employee_name || '') + '</div>' +
+            '<div style="font-size:0.75rem; color:var(--text-muted);">' + (w.bank_card || '') + '</div></div></div></td>' +
+            '<td>' + (w.company_name || w.company || '') + '</td>' +
+            '<td>' + (w.department || '') + '<br><small class="text-muted">' + (w.position || '') + '</small></td>' +
+            '<td>¥' + parseFloat(w.base_salary||0).toLocaleString() + '</td>' +
+            '<td>¥' + parseFloat(w.position_salary||0).toLocaleString() + '</td>' +
+            '<td>¥' + parseFloat(w.overtime_pay||0).toLocaleString() + '</td>' +
+            '<td>¥' + parseFloat(w.bonus||0).toLocaleString() + '</td>' +
+            '<td>¥' + parseFloat(w.commission||0).toLocaleString() + '</td>' +
+            '<td>¥' + allowances + '</td>' +
+            '<td class="fw-bold">¥' + parseFloat(w.gross_salary||0).toLocaleString() + '</td>' +
+            '<td class="text-danger">-¥' + (parseFloat(w.social_insurance||0)+parseFloat(w.housing_fund||0)).toLocaleString() + '</td>' +
+            '<td class="text-danger">-¥' + (parseFloat(w.leave_deduction||0)+parseFloat(w.sick_leave_deduction||0)).toLocaleString() + sickInfo + '</td>' +
+            '<td class="text-danger">-¥' + (parseFloat(w.employee_loan_repayment||0)+parseFloat(w.other_loan||0)+parseFloat(w.other_deductions||0)).toLocaleString() + '</td>' +
+            '<td class="text-danger">-¥' + parseFloat(w.total_deduction||0).toLocaleString() + '</td>' +
+            '<td>¥' + parseFloat(w.taxable_salary||0).toLocaleString() + '</td>' +
+            '<td class="text-warning">¥' + parseFloat(w.tax||0).toLocaleString() + '</td>' +
+            '<td>¥' + parseFloat(w.cumulative_tax||0).toLocaleString() + '</td>' +
+            '<td class="fw-bold text-success">¥' + parseFloat(w.net_salary||0).toLocaleString() + '</td>' +
+            '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
+            '<td>' +
+            (w.status === 'draft' ? '<button class="btn btn-sm btn-primary me-1" onclick="submitWage(' + w.id + ')" title="提交审核"><i class="bi bi-send"></i></button>' : '') +
+            (w.status === 'pending' ? '<button class="btn btn-sm btn-success me-1" onclick="approveWage(' + w.id + ')" title="批准"><i class="bi bi-check-lg"></i></button>' : '') +
+            (w.status === 'approved' ? '<button class="btn btn-sm btn-warning me-1" onclick="payWage(' + w.id + ')" title="发放"><i class="bi bi-currency-yen"></i></button>' : '') +
+            '<button class="btn btn-sm btn-outline-secondary" onclick="editWage(' + w.id + ')" title="编辑"><i class="bi bi-pencil"></i></button> ' +
+            (w.status === 'draft' ? '<button class="btn btn-sm btn-outline-danger" onclick="deleteWage(' + w.id + ')" title="删除" data-perm="wage.delete"><i class="bi bi-trash"></i></button>' : '') +
+            '</td></tr>';
+    }).join('');
+    document.getElementById('recordCount').textContent = wages.length;
+}
+
+function renderPagination(data) {
+    var total = data.count || 0;
+    var totalPages = Math.ceil(total / pageSize);
+    var pagination = document.getElementById('pagination');
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        document.getElementById('paginationInfo').textContent = '显示 ' + total + ' 条';
+        return;
+    }
+    var html = '';
+    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadWages(' + (currentPage - 1) + '); return false;">上一页</a></li>';
+    for (var i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '"><a class="page-link" href="#" onclick="loadWages(' + i + '); return false;">' + i + '</a></li>';
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadWages(' + (currentPage + 1) + '); return false;">下一页</a></li>';
+    pagination.innerHTML = html;
+    document.getElementById('paginationInfo').textContent = '显示 ' + ((currentPage - 1) * pageSize + 1) + '-' + Math.min(currentPage * pageSize, total) + ' 条，共 ' + total + ' 条';
+}
+
+function updateSummary(wages) {
+    var totalGross = 0, totalDed = 0, totalTax = 0, totalNet = 0;
+    wages.forEach(w => {
+        totalGross += parseFloat(w.gross_salary || 0);
+        totalDed += parseFloat(w.total_deduction || 0);
+        totalTax += parseFloat(w.tax || 0);
+        totalNet += parseFloat(w.net_salary || 0);
+    });
+    document.getElementById('totalGross').textContent = '¥' + totalGross.toLocaleString();
+    document.getElementById('totalDeduction').textContent = '¥' + totalDed.toLocaleString();
+    document.getElementById('totalTax').textContent = '¥' + totalTax.toLocaleString();
+    document.getElementById('totalNet').textContent = '¥' + totalNet.toLocaleString();
+    document.getElementById('totalCount').textContent = wages.length;
+}
+
+function autoCalc() {
+    var r = collectWageData();
+    document.getElementById('calc_gross').textContent = '¥' + r.gross.toLocaleString();
+    document.getElementById('calc_total_ded').textContent = '¥' + r.totalDed.toLocaleString();
+    document.getElementById('calc_taxable').textContent = '¥' + r.taxable.toLocaleString();
+    document.getElementById('calc_tax').textContent = '¥' + r.tax.toLocaleString();
+    document.getElementById('calc_net').textContent = '¥' + r.net.toLocaleString();
+}
+
+async function submitWage(id) {
+    if (!confirm('确定要提交此工资单进行审核吗？')) return;
+    try {
+        var response = await fetch('/api/finance/wages/' + id + '/submit/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        var result = await response.json();
+        if (response.ok) {
+            showToast('工资单已提交', 'success');
+            loadWages();
+        } else {
+            showToast(result.message || '提交失败', 'error');
+        }
+    } catch (e) {
+        showToast('提交失败', 'error');
+    }
+}
+
+async function approveWage(id) {
+    if (!confirm('确定要批准此工资单吗？')) return;
+    try {
+        var response = await fetch('/api/finance/wages/' + id + '/approve/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        var result = await response.json();
+        if (response.ok) {
+            showToast('工资单已批准', 'success');
+            loadWages();
+        } else {
+            showToast(result.message || '批准失败', 'error');
+        }
+    } catch (e) {
+        showToast('批准失败', 'error');
+    }
+}
+
+async function payWage(id) {
+    if (!confirm('确定要标记此工资单为已发放吗？')) return;
+    try {
+        var response = await fetch('/api/finance/wages/' + id + '/pay/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        var result = await response.json();
+        if (response.ok) {
+            showToast('工资已发放', 'success');
+            loadWages();
+        } else {
+            showToast(result.message || '发放失败', 'error');
+        }
+    } catch (e) {
+        showToast('发放失败', 'error');
+    }
+}
+
+function showAddWageModal() {
+    // 清空所有输入字段
+    document.getElementById('wageId').value = '';
+    document.getElementById('id_company').value = '';
+    document.getElementById('id_employee_name').value = '';
+    document.getElementById('id_bank_card').value = '';
+    document.getElementById('id_department').value = '';
+    document.getElementById('id_position').value = '';
+    document.getElementById('id_base_salary').value = '0';
+    document.getElementById('id_position_salary').value = '0';
+    document.getElementById('id_overtime_pay').value = '0';
+    document.getElementById('id_bonus').value = '0';
+    document.getElementById('id_commission').value = '0';
+    document.getElementById('id_meal_allowance').value = '0';
+    document.getElementById('id_transport_allowance').value = '0';
+    document.getElementById('id_communication_allowance').value = '0';
+    document.getElementById('id_other_allowance').value = '0';
+    document.getElementById('id_social_insurance').value = '0';
+    document.getElementById('id_housing_fund').value = '0';
+    document.getElementById('id_leave_days').value = '0';
+    document.getElementById('id_leave_deduction').value = '0';
+    document.getElementById('id_sick_leave_days').value = '0';
+    document.getElementById('id_sick_leave_deduction').value = '0';
+    document.getElementById('id_employee_loan_repayment').value = '0';
+    document.getElementById('id_other_loan').value = '0';
+    document.getElementById('id_other_deductions').value = '0';
+    document.getElementById('id_remarks').value = '';
+    document.getElementById('wageModalTitle').textContent = '录入工资';
+    var companySelect = document.getElementById('id_company');
+    companySelect.innerHTML = '<option value="">选择公司</option>';
+    companies.forEach(c => {
+        companySelect.innerHTML += '<option value="' + c.id + '">' + c.name + '</option>';
+    });
+    // 填充员工下拉
+    var empSelect = document.getElementById('id_employee_select');
+    empSelect.innerHTML = '<option value="">选择员工（可选）</option>';
+    employees.forEach(emp => {
+        var label = emp.name + (emp.department ? ' / ' + emp.department : '') + (emp.position ? ' / ' + emp.position : '');
+        empSelect.innerHTML += '<option value="' + emp.id + '">' + label + '</option>';
+    });
+    document.getElementById('id_employee_name').value = '';
+    var now = new Date();
+    document.getElementById('id_year').value = now.getFullYear();
+    document.getElementById('id_month').value = now.getMonth() + 1;
+    resetCalcResult();
+    wageModal.show();
+}
+
+function resetCalcResult() {
+    document.getElementById('calc_gross').textContent = '¥0';
+    document.getElementById('calc_total_ded').textContent = '¥0';
+    document.getElementById('calc_taxable').textContent = '¥0';
+    document.getElementById('calc_tax').textContent = '¥0';
+    document.getElementById('calc_net').textContent = '¥0';
+}
+
+// 公司切换时过滤员工下拉
+function onCompanyChange(companyId) {
+    var empSelect = document.getElementById('id_employee_select');
+    empSelect.innerHTML = '<option value="">选择员工（可选）</option>';
+    // 优先按主公司匹配，其次按任一公司匹配（支持多公司任职）
+    var filtered = companyId ? employees.filter(e => {
+        if (!e.companies || e.companies.length === 0) return false;
+        // 优先找主公司匹配
+        var primaryMatch = e.companies.find(c => String(c.company) === String(companyId) && c.is_primary);
+        if (primaryMatch) return true;
+        // 其次找任一公司匹配
+        return e.companies.some(c => String(c.company) === String(companyId));
+    }) : employees;
+    filtered.forEach(function(emp) {
+        // 优先用主公司的部门/职位展示
+        var primary = emp.companies && emp.companies.find(c => c.is_primary);
+        var first = emp.companies && emp.companies[0];
+        var co = primary || first || {};
+        var label = emp.name + (co.department ? ' / ' + co.department : '') + (co.position ? ' / ' + co.position : '');
+        empSelect.innerHTML += '<option value="' + emp.id + '">' + label + '</option>';
+    });
+    // 清空已选员工相关信息
+    document.getElementById('id_employee_name').value = '';
+    document.getElementById('id_employee_company').value = '';
+    document.getElementById('id_department').value = '';
+    document.getElementById('id_position').value = '';
+    document.getElementById('id_bank_card').value = '';
+    document.getElementById('id_social_insurance').value = '0';
+    document.getElementById('id_housing_fund').value = '0';
+    resetCalcResult();
+}
+
+// 选中员工后自动填充信息并计算社保扣款
+function onEmployeeSelect(empId) {
+    if (!empId) return;
+    var emp = employees.find(e => e.id == empId);
+    if (!emp) return;
+    document.getElementById('id_employee_name').value = emp.name;
+    document.getElementById('id_bank_card').value = emp.bank_card || '';
+    // 优先取主公司的部门/职位/公司，其次取第一个
+    var primary = emp.companies && emp.companies.find(c => c.is_primary);
+    var first = emp.companies && emp.companies[0];
+    var co = primary || first || {};
+    document.getElementById('id_department').value = co.department || '';
+    document.getElementById('id_position').value = co.position || '';
+    // 存储当前选中的 employee_company_id（用于多公司任职场景）
+    var selectedCompany = document.getElementById('id_company').value;
+    var matchedEC = selectedCompany && emp.companies
+        ? (emp.companies.find(c => String(c.company) === String(selectedCompany)) || emp.companies[0])
+        : (emp.companies && emp.companies[0]);
+    document.getElementById('id_employee_company').value = matchedEC ? matchedEC.id : '';
+    // 自动计算社保扣款（传入任职记录对象）
+    autoFillSocialInsurance(emp, co);
+    autoCalc();
+}
+
+// 选中员工后触发社保联动（编辑时直接指定任职记录，绕过公司下拉）
+function onEmployeeSelectWithEC(empId, ec) {
+    if (!empId) return;
+    var emp = employees.find(e => e.id == empId);
+    if (!emp) return;
+    var co = ec || {};
+    document.getElementById('id_employee_name').value = emp.name;
+    document.getElementById('id_bank_card').value = emp.bank_card || '';
+    document.getElementById('id_department').value = co.department || '';
+    document.getElementById('id_position').value = co.position || '';
+    document.getElementById('id_employee_company').value = ec && ec.id ? ec.id : '';
+    // 自动计算社保扣款
+    autoFillSocialInsurance(emp, co);
+    autoCalc();
+}
+
+// 根据员工任职信息和公司社保配置自动填充社保/公积金扣款
+// emp: 员工对象, co: 任职记录对象（来自 companies 数组）
+function autoFillSocialInsurance(emp, co) {
+    // 优先用任职记录的公司ID，其次用员工主公司
+    var companyId = (co && co.company) ? co.company : emp.company;
+    var cfg = socialConfigs[companyId];
+    if (!cfg) {
+        // 没有配置则用员工自己的基数
+        var siBase = parseFloat(emp.social_insurance_base) || 0;
+        var hfBase = parseFloat(emp.housing_fund_base) || 0;
+        // 默认8%养老+2%医疗+0.3%失业 = 10.3%，公积金5%
+        document.getElementById('id_social_insurance').value = (siBase * 0.103).toFixed(2);
+        document.getElementById('id_housing_fund').value = emp.has_housing_fund ? (hfBase * 0.05).toFixed(2) : '0';
+        return;
+    }
+    // 有配置：使用公司配置的费率和员工的社保基数
+    var siBase = parseFloat(emp.social_insurance_base) || parseFloat(cfg.social_base) || 0;
+    var hfBase = parseFloat(emp.housing_fund_base) || parseFloat(cfg.housing_fund_base) || 0;
+    var pensionEmp = parseFloat(cfg.pension_rate_employee) || 0;
+    var medicalEmp = parseFloat(cfg.medical_rate_employee) || 0;
+    var unempEmp = parseFloat(cfg.unemployment_rate_employee) || 0;
+    var hfEmp = parseFloat(cfg.housing_fund_rate_employee) || 0;
+    var socialIns = siBase * (pensionEmp + medicalEmp + unempEmp);
+    var housingFund = emp.has_housing_fund ? hfBase * hfEmp : 0;
+    document.getElementById('id_social_insurance').value = socialIns.toFixed(2);
+    document.getElementById('id_housing_fund').value = housingFund.toFixed(2);
+}
+
+function editWage(id) {
+    fetch('/api/finance/wages/' + id + '/', { credentials: 'include' })
+    .then(r => r.json())
+    .then(w => {
+        document.getElementById('wageId').value = w.id;
+        document.getElementById('wageModalTitle').textContent = '编辑工资';
+        var companySelect = document.getElementById('id_company');
+        companySelect.innerHTML = '<option value="">选择公司</option>';
+        companies.forEach(c => {
+            companySelect.innerHTML += '<option value="' + c.id + '">' + c.name + '</option>';
+        });
+        companySelect.value = w.company;
+        // 填充员工下拉并按公司过滤（使用 companies 数组匹配）
+        var empSelect = document.getElementById('id_employee_select');
+        empSelect.innerHTML = '<option value="">选择员工（可选）</option>';
+        var filtered = w.company ? employees.filter(e => {
+            if (!e.companies || e.companies.length === 0) return false;
+            var primaryMatch = e.companies.find(c => String(c.company) === String(w.company) && c.is_primary);
+            if (primaryMatch) return true;
+            return e.companies.some(c => String(c.company) === String(w.company));
+        }) : employees;
+        filtered.forEach(function(emp) {
+            var primary = emp.companies && emp.companies.find(c => c.is_primary);
+            var first = emp.companies && emp.companies[0];
+            var co = primary || first || {};
+            var label = emp.name + (co.department ? ' / ' + co.department : '') + (co.position ? ' / ' + co.position : '');
+            empSelect.innerHTML += '<option value="' + emp.id + '">' + label + '</option>';
+        });
+        // 选中同名员工并触发社保联动（传入工资对应的公司记录）
+        var matched = employees.find(e => e.name === w.employee_name);
+        if (matched) {
+            empSelect.value = matched.id;
+            // 找到该员工在当前工资公司下的任职记录，传入社保联动
+            var matchedEC = matched.companies && matched.companies.find(c => String(c.company) === String(w.company));
+            onEmployeeSelectWithEC(matched.id, matchedEC);
+        }
+        document.getElementById('id_employee_name').value = w.employee_name || '';
+        document.getElementById('id_bank_card').value = w.bank_card || '';
+        document.getElementById('id_department').value = w.department || '';
+        document.getElementById('id_position').value = w.position || '';
+        document.getElementById('id_base_salary').value = w.base_salary || 0;
+        document.getElementById('id_position_salary').value = w.position_salary || 0;
+        document.getElementById('id_overtime_pay').value = w.overtime_pay || 0;
+        document.getElementById('id_bonus').value = w.bonus || 0;
+        document.getElementById('id_commission').value = w.commission || 0;
+        document.getElementById('id_meal_allowance').value = w.meal_allowance || 0;
+        document.getElementById('id_transport_allowance').value = w.transport_allowance || 0;
+        document.getElementById('id_communication_allowance').value = w.communication_allowance || 0;
+        document.getElementById('id_other_allowance').value = w.other_allowance || 0;
+        document.getElementById('id_social_insurance').value = w.social_insurance || 0;
+        document.getElementById('id_housing_fund').value = w.housing_fund || 0;
+        document.getElementById('id_leave_days').value = w.leave_days || 0;
+        document.getElementById('id_leave_deduction').value = w.leave_deduction || 0;
+        document.getElementById('id_sick_leave_days').value = w.sick_leave_days || 0;
+        document.getElementById('id_sick_leave_deduction').value = w.sick_leave_deduction || 0;
+        document.getElementById('id_employee_loan_repayment').value = w.employee_loan_repayment || 0;
+        document.getElementById('id_other_loan').value = w.other_loan || 0;
+        document.getElementById('id_other_deductions').value = w.other_deductions || 0;
+        document.getElementById('id_year').value = w.year;
+        document.getElementById('id_month').value = w.month;
+        document.getElementById('id_remarks').value = w.remarks || '';
+        autoCalc();
+        wageModal.show();
+    });
+}
+
+function saveWage() {
+    var id = document.getElementById('wageId').value;
+    var r = collectWageData();
+    var empId = document.getElementById('id_employee_select').value;
+    var data = {
+        company: document.getElementById('id_company').value,
+        employee_company: document.getElementById('id_employee_company').value || null,
+        employee: empId || null,
+        employee_name: document.getElementById('id_employee_name').value,
+        bank_card: document.getElementById('id_bank_card').value,
+        department: document.getElementById('id_department').value,
+        position: document.getElementById('id_position').value,
+        base_salary: document.getElementById('id_base_salary').value || 0,
+        position_salary: document.getElementById('id_position_salary').value || 0,
+        overtime_pay: document.getElementById('id_overtime_pay').value || 0,
+        bonus: document.getElementById('id_bonus').value || 0,
+        commission: document.getElementById('id_commission').value || 0,
+        meal_allowance: document.getElementById('id_meal_allowance').value || 0,
+        transport_allowance: document.getElementById('id_transport_allowance').value || 0,
+        communication_allowance: document.getElementById('id_communication_allowance').value || 0,
+        other_allowance: document.getElementById('id_other_allowance').value || 0,
+        social_insurance: document.getElementById('id_social_insurance').value || 0,
+        housing_fund: document.getElementById('id_housing_fund').value || 0,
+        leave_days: document.getElementById('id_leave_days').value || 0,
+        leave_deduction: document.getElementById('id_leave_deduction').value || 0,
+        sick_leave_days: document.getElementById('id_sick_leave_days').value || 0,
+        sick_leave_deduction: document.getElementById('id_sick_leave_deduction').value || 0,
+        employee_loan_repayment: document.getElementById('id_employee_loan_repayment').value || 0,
+        other_loan: document.getElementById('id_other_loan').value || 0,
+        other_deductions: document.getElementById('id_other_deductions').value || 0,
+        gross_salary: r.gross,
+        total_deduction: r.totalDed,
+        taxable_salary: r.taxable,
+        tax: r.tax,
+        net_salary: r.net,
+        year: document.getElementById('id_year').value,
+        month: document.getElementById('id_month').value,
+        remarks: document.getElementById('id_remarks').value,
+        status: 'draft'
+    };
+    var url = '/api/finance/wages/' + (id ? id + '/' : '');
+    var method = id ? 'PATCH' : 'POST';
+    fetch(url, {
+        method: method,
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify(data)
+    })
+    .then(r => {
+        if (r.ok) {
+            showToast('保存成功', 'success');
+            wageModal.hide();
+            document.getElementById('wageModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('wageModal').removeEventListener('hidden.bs.modal', handler);
+                loadWages();
+            });
+        } else {
+            return r.json().then(err => { throw new Error(JSON.stringify(err)); });
+        }
+    })
+    .catch(err => { showToast('保存失败: ' + err.message, 'danger'); });
+}
+
+function deleteWage(id) {
+    if (!confirm('确定要删除这条工资记录吗？')) return;
+    fetch('/api/finance/wages/' + id + '/', {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { 'X-CSRFToken': getCsrfToken() }
+    })
+    .then(r => {
+        if (r.ok) { showToast('删除成功', 'success'); loadWages(); }
+        else { throw new Error('删除失败'); }
+    })
+    .catch(err => { showToast(err.message, 'danger'); });
+}
+
+function showExportOptions() {
+    var modal = new bootstrap.Modal(document.getElementById('exportOptionsModal'));
+    modal.show();
+}
+
+function doExportWithSelectedFields() {
+    var checkedFields = [];
+    document.querySelectorAll('#exportFieldsContainer input[type="checkbox"]:checked').forEach(function(cb) {
+        checkedFields.push(cb.value);
+    });
+    if (checkedFields.length === 0) {
+        showToast('请至少选择一个导出字段', 'warning');
+        return;
+    }
+    bootstrap.Modal.getInstance(document.getElementById('exportOptionsModal')).hide();
+    exportWages(checkedFields);
+}
+
+function exportWages(selectedFields) {
+    var company = document.getElementById('companyFilter').value;
+    var year = document.getElementById('yearFilter').value;
+    var month = document.getElementById('monthFilter').value;
+    var status = document.getElementById('statusFilter').value;
+    var companyName = document.getElementById('companyFilter').selectedOptions[0]?.text || '';
+    var allData = [];
+    var page = 1;
+    var fetchedCount = 0;
+
+    function fetchPage(p) {
+        var params = new URLSearchParams({ page: p, page_size: 200 });
+        if (company) params.append('company_id', company);
+        if (year) params.append('year', year);
+        if (month) params.append('month', month);
+        if (status) params.append('status', status);
+        return fetch('/api/finance/wages/?' + params.toString(), { credentials: 'include' })
+        .then(r => r.json())
+        .then(function(data) {
+            var records = data.results || data;
+            allData = allData.concat(records);
+            fetchedCount = records.length;
+            if (data.next) return fetchPage(p + 1);
+        });
+    }
+
+    showToast('正在准备导出数据...', 'info');
+    fetchPage(1).then(function() {
+        if (allData.length === 0) { showToast('没有可导出的工资数据', 'warning'); return; }
+        var ALL_COLUMNS = [
+            {key: 'employee_name', label: '姓名'},
+            {key: 'employee_code', label: '工号'},
+            {key: 'employee_phone', label: '手机号'},
+            {key: 'employee_bank_card', label: '银行卡号'},
+            {key: 'company_name', label: '公司'},
+            {key: 'department_name', label: '部门'},
+            {key: 'position', label: '职位'},
+            {key: 'year', label: '年份'},
+            {key: 'month', label: '月份'},
+            {key: 'base_salary', label: '基本工资'},
+            {key: 'position_salary', label: '岗位工资'},
+            {key: 'overtime_pay', label: '加班费'},
+            {key: 'bonus', label: '奖金'},
+            {key: 'commission', label: '提成'},
+            {key: 'meal_allowance', label: '餐补'},
+            {key: 'transport_allowance', label: '交通补贴'},
+            {key: 'communication_allowance', label: '通讯补贴'},
+            {key: 'other_allowance', label: '其他应发'},
+            {key: 'gross_salary', label: '应发合计'},
+            {key: 'social_insurance', label: '社保扣款'},
+            {key: 'housing_fund', label: '公积金扣款'},
+            {key: 'leave_days', label: '请假天数'},
+            {key: 'leave_deduction', label: '请假扣款'},
+            {key: 'sick_leave_days', label: '病假天数'},
+            {key: 'sick_leave_deduction', label: '病假扣款'},
+            {key: 'employee_loan_repayment', label: '借款还款'},
+            {key: 'other_loan', label: '其他借款'},
+            {key: 'other_deductions', label: '其他扣款'},
+            {key: 'total_deduction', label: '扣款合计'},
+            {key: 'taxable_salary', label: '个税前工资'},
+            {key: 'tax', label: '个税'},
+            {key: 'net_salary', label: '实发工资'},
+            {key: 'status_display', label: '状态'},
+        ];
+
+        var cols = selectedFields ? ALL_COLUMNS.filter(function(c) { return selectedFields.indexOf(c.key) >= 0; }) : ALL_COLUMNS;
+        var rows = [cols.map(function(c) { return c.label; })];
+        allData.forEach(function(w) {
+            rows.push(cols.map(function(c) {
+                var val = w[c.key];
+                if (val === null || val === undefined) return '';
+                return val;
+            }));
+        });
+        var csvContent = rows.map(function(r) {
+            return r.map(function(cell) {
+                var str = String(cell);
+                if (str.match(/[,\n"]/)) return '"' + str.replace(/"/g, '""') + '"';
+                return str;
+            }).join(',');
+        }).join('\n');
+        var BOM = '\uFEFF';
+        var blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        var filterStr = '';
+        if (companyName && companyName !== '全部公司') filterStr += '_' + companyName;
+        if (year) filterStr += '_' + year + '年';
+        if (month) filterStr += (month < 10 ? '0' : '') + month + '月';
+        link.download = '工资表' + filterStr + '_' + new Date().toISOString().slice(0,10) + '.csv';
+        link.click();
+        URL.revokeObjectURL(url);
+        showToast('导出成功，共 ' + allData.length + ' 条记录', 'success');
+    }).catch(function(err) { showToast('导出失败: ' + err.message, 'danger'); });
+}
+</script>
+{% endblock %}
+
+{% block modal %}
+<div class="modal fade" id="wageModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-currency-yen me-2"></i><span id="wageModalTitle">录入工资</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="wageId">
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">公司 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="id_company" required onchange="onCompanyChange(this.value)"><option value="">选择公司</option></select>
+                    </div>
+                    <div class="col-2">
+                        <label class="form-label">年份 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="id_year" required>
+                            <option value="2024">2024</option><option value="2025">2025</option>
+                            <option value="2026" selected>2026</option>
+                        </select>
+                    </div>
+                    <div class="col-2">
+                        <label class="form-label">月份 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="id_month" required>
+                            {% for m in "xxxxxxxxxxxx"|make_list %}
+                            <option value="{{ forloop.counter }}" {% if forloop.counter == 4 %}selected{% endif %}>{{ forloop.counter }}月</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">员工姓名 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="id_employee_select" onchange="onEmployeeSelect(this.value)">
+                            <option value="">选择员工（可选）</option>
+                        </select>
+                        <input type="hidden" id="id_employee_name" value="">
+                        <input type="hidden" id="id_employee_company" value="">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">银行卡号</label>
+                        <input type="text" class="form-control" id="id_bank_card" placeholder="卡号">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">部门</label>
+                        <input type="text" class="form-control" id="id_department" placeholder="部门">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">职位</label>
+                        <input type="text" class="form-control" id="id_position" placeholder="职位">
+                    </div>
+                </div>
+
+                <div class="section-title">应发项目</div>
+                <div class="row g-3 mb-3">
+                    <div class="col-3"><label class="form-label">基本工资</label><input type="number" class="form-control" id="id_base_salary" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">岗位工资</label><input type="number" class="form-control" id="id_position_salary" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">加班费</label><input type="number" class="form-control" id="id_overtime_pay" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">奖金</label><input type="number" class="form-control" id="id_bonus" placeholder="0" value="0"></div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-3"><label class="form-label">提成</label><input type="number" class="form-control" id="id_commission" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">餐补</label><input type="number" class="form-control" id="id_meal_allowance" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">交通补贴</label><input type="number" class="form-control" id="id_transport_allowance" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">通讯补贴</label><input type="number" class="form-control" id="id_communication_allowance" placeholder="0" value="0"></div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-3"><label class="form-label">其他应发</label><input type="number" class="form-control" id="id_other_allowance" placeholder="0" value="0"></div>
+                </div>
+
+                <div class="section-title">社保公积金扣款</div>
+                <div class="row g-3 mb-3">
+                    <div class="col-3"><label class="form-label">社保扣款</label><input type="number" class="form-control" id="id_social_insurance" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">公积金扣款</label><input type="number" class="form-control" id="id_housing_fund" placeholder="0" value="0"></div>
+                </div>
+
+                <div class="section-title">其他扣款</div>
+                <div class="row g-3 mb-3">
+                    <div class="col-2"><label class="form-label">请假天数</label><input type="number" class="form-control" id="id_leave_days" placeholder="0" value="0" step="0.5"></div>
+                    <div class="col-2"><label class="form-label">请假扣款</label><input type="number" class="form-control" id="id_leave_deduction" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">病假天数</label><input type="number" class="form-control" id="id_sick_leave_days" placeholder="0" value="0" step="0.5"></div>
+                    <div class="col-2"><label class="form-label">病假扣款</label><input type="number" class="form-control" id="id_sick_leave_deduction" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">借款还款</label><input type="number" class="form-control" id="id_employee_loan_repayment" placeholder="0" value="0"></div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-3"><label class="form-label">其他借款</label><input type="number" class="form-control" id="id_other_loan" placeholder="0" value="0"></div>
+                    <div class="col-3"><label class="form-label">其他扣款</label><input type="number" class="form-control" id="id_other_deductions" placeholder="0" value="0"></div>
+                </div>
+
+                <div class="calc-result">
+                    <div class="row">
+                        <div class="col-3"><span class="label">应发合计 =</span></div>
+                        <div class="col-6"><span class="label">基本+岗位+加班+奖金+提成+补贴</span></div>
+                        <div class="col-3"><span class="value" id="calc_gross">¥0</span></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3"><span class="label">扣款合计 =</span></div>
+                        <div class="col-6"><span class="label">社保+公积金+请假+病假+借款+其他</span></div>
+                        <div class="col-3"><span class="value text-danger" id="calc_total_ded">¥0</span></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3"><span class="label">个税前工资 =</span></div>
+                        <div class="col-6"><span class="label">应发合计 - 社保 - 公积金 - 5000</span></div>
+                        <div class="col-3"><span class="value" id="calc_taxable">¥0</span></div>
+                    </div>
+                    <div class="row tax-row">
+                        <div class="col-3"><span class="label">个税（估算）=</span></div>
+                        <div class="col-6"><span class="label">（仅供参考，以实际保存后结果为准）</span></div>
+                        <div class="col-3"><span class="value text-warning" id="calc_tax">¥0</span></div>
+                    </div>
+                    <div class="row">
+                        <div class="col-3"><span class="label">实发工资 =</span></div>
+                        <div class="col-6"><span class="label">应发合计 - 扣款合计 - 个税</span></div>
+                        <div class="col-3"><span class="value total" id="calc_net">¥0</span></div>
+                    </div>
+                </div>
+
+        <div class="mb-3 mt-3">
+                <label class="form-label">备注</label>
+                <textarea class="form-control" id="id_remarks" rows="2" placeholder="备注信息（可选）"></textarea>
+            </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveWage()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出选项Modal -->
+<div class="modal fade" id="exportOptionsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-list-check me-2"></i>选择导出字段</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="checkAllExportFields()">全选</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="uncheckAllExportFields()">取消全选</button>
+                    <span class="ms-2 text-muted" style="font-size:0.85rem;">默认导出全部字段</span>
+                </div>
+                <div id="exportFieldsContainer" class="row g-2" style="max-height:400px; overflow-y:auto;">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doExportWithSelectedFields()">
+                    <i class="bi bi-download me-1"></i>确认导出
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 发送工资条邮件弹窗 -->
+<div class="modal fade" id="sendWageSlipModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-envelope me-2"></i>发送工资条邮件</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="wageSlipStep1">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle me-1"></i>
+                        批量发送工资条邮件，系统将根据每条工资记录的<strong>员工邮箱</strong>发送个人工资条。<br>
+                        <strong>注意：</strong>员工需先在个人信息中登记邮箱，未登记邮箱的记录将跳过。
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col">
+                            <label class="form-label">选择年份</label>
+                            <select class="form-select" id="wageSlipYear">
+                                <option value="">-- 请选择 --</option>
+                                <option value="2026" selected>2026</option>
+                                <option value="2025">2025</option>
+                            </select>
+                        </div>
+                        <div class="col">
+                            <label class="form-label">选择月份</label>
+                            <select class="form-select" id="wageSlipMonth">
+                                <option value="">-- 请选择 --</option>
+                                <option value="1">1月</option>
+                                <option value="2">2月</option>
+                                <option value="3">3月</option>
+                                <option value="4">4月</option>
+                                <option value="5">5月</option>
+                                <option value="6">6月</option>
+                                <option value="7">7月</option>
+                                <option value="8">8月</option>
+                                <option value="9">9月</option>
+                                <option value="10">10月</option>
+                                <option value="11">11月</option>
+                                <option value="12">12月</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="wageSlipDryRun" checked>
+                        <label class="form-check-label" for="wageSlipDryRun">
+                            试运行模式（不实际发送邮件，仅显示模拟结果）
+                        </label>
+                    </div>
+                    <div class="d-grid">
+                        <button type="button" class="btn btn-primary" onclick="doSendWageSlipEmail()">
+                            <i class="bi bi-send me-1"></i>开始发送
+                        </button>
+                    </div>
+                </div>
+                <div id="wageSlipStep2" style="display:none;">
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span>正在发送工资条邮件，请稍候…</span>
+                    </div>
+                </div>
+                <div id="wageSlipResult" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导入弹窗 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalTitle"><i class="bi bi-upload me-2"></i>导入工资单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="importStep1">
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>导入说明</strong>
+                        <ul class="mb-0 mt-2">
+                            <li>必需列：<strong>员工姓名</strong>、<strong>年月</strong>（如 2026-04）、<strong>公司</strong></li>
+                            <li>可选列：基本工资、加班费、奖金、社保个人、公积金个人、个税、其他扣款、实发工资</li>
+                            <li>员工按姓名匹配，公司按名称匹配</li>
+                        </ul>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">选择 Excel 文件（.xlsx）</label>
+                        <input type="file" class="form-control" id="importFileInput" accept=".xlsx,.xls">
+                    </div>
+                    <div class="text-center">
+                        <button type="button" class="btn btn-outline-secondary" onclick="downloadTemplate()">
+                            <i class="bi bi-file-earmark-arrow-down me-1"></i>下载模板
+                        </button>
+                    </div>
+                </div>
+                <div id="importStep2" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span>正在导入，请稍候…</span>
+                    </div>
+                </div>
+                <div id="importStep3" style="display:none;">
+                    <div id="importResultMsg" class="mb-3"></div>
+                    <div id="importErrors" class="small text-muted" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer" id="importModalFooter">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="importConfirmBtn" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i>开始导入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var ALL_COLUMNS_DEF = [
+        {key: 'employee_name', label: '姓名', group: '基本信息'},
+        {key: 'employee_code', label: '工号', group: '基本信息'},
+        {key: 'employee_phone', label: '手机号', group: '基本信息'},
+        {key: 'employee_bank_card', label: '银行卡号', group: '基本信息'},
+        {key: 'company_name', label: '公司', group: '基本信息'},
+        {key: 'department_name', label: '部门', group: '基本信息'},
+        {key: 'position', label: '职位', group: '基本信息'},
+        {key: 'year', label: '年份', group: '基本信息'},
+        {key: 'month', label: '月份', group: '基本信息'},
+        {key: 'status_display', label: '状态', group: '基本信息'},
+        {key: 'base_salary', label: '基本工资', group: '应发工资'},
+        {key: 'position_salary', label: '岗位工资', group: '应发工资'},
+        {key: 'overtime_pay', label: '加班费', group: '应发工资'},
+        {key: 'bonus', label: '奖金', group: '应发工资'},
+        {key: 'commission', label: '提成', group: '应发工资'},
+        {key: 'meal_allowance', label: '餐补', group: '应发工资'},
+        {key: 'transport_allowance', label: '交通补贴', group: '应发工资'},
+        {key: 'communication_allowance', label: '通讯补贴', group: '应发工资'},
+        {key: 'other_allowance', label: '其他应发', group: '应发工资'},
+        {key: 'gross_salary', label: '应发合计', group: '应发工资'},
+        {key: 'social_insurance', label: '社保扣款', group: '扣款项'},
+        {key: 'housing_fund', label: '公积金扣款', group: '扣款项'},
+        {key: 'leave_days', label: '请假天数', group: '扣款项'},
+        {key: 'leave_deduction', label: '请假扣款', group: '扣款项'},
+        {key: 'sick_leave_days', label: '病假天数', group: '扣款项'},
+        {key: 'sick_leave_deduction', label: '病假扣款', group: '扣款项'},
+        {key: 'employee_loan_repayment', label: '借款还款', group: '扣款项'},
+        {key: 'other_loan', label: '其他借款', group: '扣款项'},
+        {key: 'other_deductions', label: '其他扣款', group: '扣款项'},
+        {key: 'total_deduction', label: '扣款合计', group: '扣款项'},
+        {key: 'taxable_salary', label: '个税前工资', group: '扣款项'},
+        {key: 'tax', label: '个税', group: '扣款项'},
+        {key: 'net_salary', label: '实发工资', group: '最终金额'},
+    ];
+
+    window.renderExportFields = function() {
+        var container = document.getElementById('exportFieldsContainer');
+        if (!container) return;
+        var groups = {};
+        ALL_COLUMNS_DEF.forEach(function(col) {
+            if (!groups[col.group]) groups[col.group] = [];
+            groups[col.group].push(col);
+        });
+        var html = '';
+        Object.keys(groups).forEach(function(groupName) {
+            html += '<div class="col-12"><h6 class="text-muted mt-2 mb-1" style="font-size:0.8rem;">' + groupName + '</h6></div>';
+            groups[groupName].forEach(function(col) {
+                html += '<div class="col-4">';
+                html += '<div class="form-check">';
+                html += '<input class="form-check-input" type="checkbox" value="' + col.key + '" id="ef_' + col.key + '" checked>';
+                html += '<label class="form-check-label" for="ef_' + col.key + '" style="font-size:0.9rem;">' + col.label + '</label>';
+                html += '</div></div>';
+            });
+        });
+        container.innerHTML = html;
+    }
+
+    window.checkAllExportFields = function() {
+        document.querySelectorAll('#exportFieldsContainer input[type="checkbox"]').forEach(function(cb) { cb.checked = true; });
+    };
+    window.uncheckAllExportFields = function() {
+        document.querySelectorAll('#exportFieldsContainer input[type="checkbox"]').forEach(function(cb) { cb.checked = false; });
+    };
+
+    document.getElementById('exportOptionsModal').addEventListener('show.bs.modal', function() {
+        renderExportFields();
+    });
+})();
+
+// ===== 批量导入 =====
+var currentImportModule = null;
+var importModal = null;
+
+var importGuides = {
+    wage: [
+        '必需列：<strong>员工姓名</strong>、<strong>年月</strong>（如 2026-04）、<strong>公司</strong>',
+        '可选列：基本工资、加班费、奖金、社保个人、公积金个人、个税、其他扣款、实发工资',
+        '员工按姓名匹配，公司按名称匹配',
+    ]
+};
+
+function showImportModal(module) {
+    currentImportModule = module;
+    if (!importModal) importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    document.getElementById('importModalTitle').textContent = '导入工资单';
+    document.getElementById('importGuide').innerHTML = (importGuides[module] || []).map(function(s) { return '<li>' + s + '</li>'; }).join('');
+    document.getElementById('importFileInput').value = '';
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = '';
+    importModal.show();
+}
+
+async function doImport() {
+    var fileInput = document.getElementById('importFileInput');
+    var file = fileInput.files[0];
+    if (!file) { showToast('请先选择 Excel 文件', 'warning'); return; }
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importStep2').style.display = 'block';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = 'none';
+    var formData = new FormData();
+    formData.append('file', file);
+    try {
+        var response = await fetch('/api/finance/wages/import_records/', {
+            method: 'POST', credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() }, body: formData,
+        });
+        var result = await response.json();
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importStep3').style.display = 'block';
+        if (result.success !== false) {
+            document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-1"></i>' + (result.message || '导入完成') + '</div>';
+            document.getElementById('importErrors').innerHTML = '';
+            setTimeout(function() { importModal.hide(); loadWages(); }, 1500);
+        } else {
+            document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle me-1"></i>' + (result.message || '导入失败') + '</div>';
+            document.getElementById('importErrors').innerHTML = (result.errors || []).map(function(e) { return '<div>' + e + '</div>'; }).join('');
+        }
+    } catch (err) {
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importStep3').style.display = 'block';
+        document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle me-1"></i>请求失败：' + err.message + '</div>';
+    }
+}
+
+function downloadTemplate() {
+    var headers = ['姓名', '年月', '公司', '基本工资', '加班费', '奖金', '社保个人', '公积金个人', '个税', '其他扣款', '实发工资'];
+    var rows = [['李四', '2026-04', '深圳市百川软件科技发展有限公司', 8000, 500, 2000, 566.5, 225, 285.3, 0, 8423.2]];
+    var xls = '\uFEFF' + headers.join('\t') + '\n' + rows.map(function(r) { return r.join('\t'); }).join('\n');
+    var blob = new Blob([xls], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a'); a.href = url; a.download = '工资单导入模板.xls';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ===== 发送工资条邮件 =====
+var sendWageSlipModal = null;
+
+function showSendWageSlipModal() {
+    if (!sendWageSlipModal) {
+        sendWageSlipModal = new bootstrap.Modal(document.getElementById('sendWageSlipModal'));
+    }
+    document.getElementById('wageSlipStep1').style.display = 'block';
+    document.getElementById('wageSlipStep2').style.display = 'none';
+    document.getElementById('wageSlipResult').style.display = 'none';
+    sendWageSlipModal.show();
+}
+
+async function doSendWageSlipEmail() {
+    var year = document.getElementById('wageSlipYear').value;
+    var month = document.getElementById('wageSlipMonth').value;
+    var dryRun = document.getElementById('wageSlipDryRun').checked;
+
+    if (!year || !month) {
+        showToast('请选择年月', 'warning');
+        return;
+    }
+
+    document.getElementById('wageSlipStep1').style.display = 'none';
+    document.getElementById('wageSlipStep2').style.display = 'block';
+    document.getElementById('wageSlipResult').style.display = 'none';
+
+    try {
+        var response = await fetch('/api/finance/wages/send_wage_slip_email/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+                'X-CSRFToken': getCsrfToken(),
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ year: parseInt(year), month: parseInt(month), dry_run: dryRun }),
+        });
+        var result = await response.json();
+
+        document.getElementById('wageSlipStep2').style.display = 'none';
+        document.getElementById('wageSlipResult').style.display = 'block';
+
+        var msg = '<div class="alert ' + (result.success !== false ? 'alert-success' : 'alert-danger') + '">';
+        msg += '<strong>发送完成</strong><br>';
+        msg += '总计: ' + (result.total || 0) + ' 条 | ';
+        msg += '成功: ' + (result.sent || 0) + ' 条 | ';
+        msg += '失败: ' + (result.failed || 0) + ' 条 | ';
+        msg += '跳过(无邮箱): ' + (result.skipped || 0) + ' 条';
+        msg += '</div>';
+
+        if (result.details && result.details.length > 0) {
+            msg += '<details class="mt-2"><summary style="cursor:pointer;font-size:13px;color:#666;">查看详情</summary>';
+            msg += '<div class="small text-muted p-2" style="max-height:200px;overflow-y:auto;">';
+            result.details.forEach(function(d) {
+                var icon = d[1] ? '✅' : '❌';
+                msg += '<div>' + icon + ' 记录#' + d[0] + ': ' + d[2] + '</div>';
+            });
+            msg += '</div></details>';
+        }
+
+        document.getElementById('wageSlipResult').innerHTML = msg;
+
+    } catch (err) {
+        document.getElementById('wageSlipStep2').style.display = 'none';
+        document.getElementById('wageSlipResult').style.display = 'block';
+        document.getElementById('wageSlipResult').innerHTML = '<div class="alert alert-danger">请求失败: ' + err.message + '</div>';
+    }
+}
+</script>
+{% endblock %}

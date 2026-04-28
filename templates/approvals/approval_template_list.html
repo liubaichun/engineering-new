@@ -1,0 +1,638 @@
+{% extends "base.html" %}
+
+{% block title %}审批模板管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.template-list-container { padding: 24px; }
+.template-card {
+    background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: var(--card-shadow); margin-bottom: 16px;
+    transition: all 0.2s;
+}
+.template-card:hover { box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+.template-header {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; margin-bottom: 12px;
+}
+.template-title { font-weight: 700; font-size: 1.1rem; color: var(--text-primary); }
+.template-code { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
+.template-meta { display: flex; gap: 16px; font-size: 0.85rem; color: var(--text-secondary); margin-top: 8px; }
+.template-meta span { display: flex; align-items: center; gap: 4px; }
+.node-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.node-badge { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 500; }
+.node-badge.single { background: #dbeafe; color: #1e40af; }
+.node-badge.all_sign { background: #ede9fe; color: #7c3aed; }
+.node-count-badge { background: #f1f5f9; color: #64748b; padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; }
+.filter-bar {
+    background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 20px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+}
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+.empty-state i { font-size: 3rem; margin-bottom: 16px; }
+
+/* ── 可视化流程设计器 ── */
+.flow-designer {
+    background: #f8fafc;
+    border: 2px dashed #cbd5e1;
+    border-radius: 12px;
+    padding: 16px;
+    min-height: 120px;
+    position: relative;
+}
+.flow-start-node {
+    background: linear-gradient(135deg, #10b981, #059669);
+    color: #fff;
+    border-radius: 24px;
+    padding: 8px 24px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 8px rgba(16,185,129,0.3);
+    cursor: default;
+    user-select: none;
+}
+.flow-node-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-top: 0;
+}
+.flow-node-card {
+    background: #fff;
+    border: 2px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    width: 260px;
+    cursor: grab;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    position: relative;
+}
+.flow-node-card:active { cursor: grabbing; }
+.flow-node-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.1); border-color: #94a3b8; }
+.flow-node-card.dragging { opacity: 0.4; }
+.flow-node-card.drag-over { border-color: #3b82f6; background: #eff6ff; }
+.flow-node-card.admin { border-left: 4px solid #ef4444; }
+.flow-node-card.department_head { border-left: 4px solid #f59e0b; }
+.flow-node-card.specific_user { border-left: 4px solid #3b82f6; }
+.flow-node-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 6px;
+}
+.flow-node-num {
+    background: var(--accent); color: #fff;
+    width: 22px; height: 22px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.7rem; font-weight: 700;
+}
+.flow-node-title { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); flex: 1; margin-left: 8px; }
+.flow-node-actions { display: flex; gap: 4px; }
+.flow-node-actions button { background: none; border: none; padding: 2px 4px; cursor: pointer; border-radius: 4px; font-size: 0.8rem; }
+.flow-node-actions button:hover { background: #f1f5f9; }
+.flow-node-props { display: flex; gap: 8px; flex-wrap: wrap; }
+.flow-node-tag {
+    font-size: 0.7rem; padding: 2px 7px; border-radius: 10px;
+    font-weight: 500;
+}
+.tag-admin { background: #fee2e2; color: #b91c1c; }
+.tag-dept { background: #fef3c7; color: #92400e; }
+.tag-user { background: #dbeafe; color: #1e40af; }
+.tag-single { background: #d1fae5; color: #065f46; }
+.tag-all { background: #ede9fe; color: #5b21b6; }
+.flow-node-timeout { font-size: 0.7rem; color: #94a3b8; margin-top: 4px; }
+.flow-connector {
+    display: flex; flex-direction: column; align-items: center;
+    color: #94a3b8; padding: 4px 0;
+}
+.flow-connector-line {
+    width: 2px; height: 20px; background: #cbd5e1;
+}
+.flow-connector-arrow {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid #cbd5e1;
+}
+.flow-add-btn {
+    margin-top: 12px;
+    border: 2px dashed #94a3b8;
+    border-radius: 10px;
+    padding: 10px;
+    text-align: center;
+    color: #64748b;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 260px;
+}
+.flow-add-btn:hover { border-color: #3b82f6; color: #3b82f6; background: #eff6ff; }
+.flow-svg-overlay {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; overflow: visible;
+}
+
+/* 节点编辑小弹窗 */
+.node-edit-popover {
+    position: absolute; z-index: 50;
+    background: #fff; border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+    padding: 16px; width: 280px;
+    border: 1px solid #e2e8f0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-file-earmark-text me-2"></i>审批模板管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">配置审批流程模板，设置节点与触发条件</p>
+    </div>
+    <button class="btn btn-primary" onclick="showTemplateModal()">
+        <i class="bi bi-plus-lg me-1"></i>新建模板
+    </button>
+</div>
+
+<div class="filter-bar">
+    <select class="form-select form-select-sm" id="flowTypeFilter" onchange="loadTemplates()" style="width: auto; min-width: 140px;">
+        <option value="">全部类型</option>
+        <option value="payment">付款审批</option>
+        <option value="project">立项审批</option>
+        <option value="expense">支出审批</option>
+        <option value="income">收入确认</option>
+        <option value="wage">工资审批</option>
+        <option value="custom">自定义审批</option>
+    </select>
+    <select class="form-select form-select-sm" id="isActiveFilter" onchange="loadTemplates()" style="width: auto; min-width: 120px;">
+        <option value="">全部状态</option>
+        <option value="true">启用</option>
+        <option value="false">停用</option>
+    </select>
+    <input type="text" class="form-control form-control-sm" id="searchInput" placeholder="搜索名称/编码..." onkeyup="onSearch()" style="max-width: 200px;">
+</div>
+
+<div id="templateList"></div>
+
+<!-- 新建/编辑弹窗 -->
+<div class="modal fade" id="templateModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTitle">新建审批模板</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="templateId">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">模板名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="templateName" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">模板编码 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="templateCode" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">审批类型 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="templateFlowType" required>
+                            <option value="">请选择</option>
+                            <option value="payment">付款审批</option>
+                            <option value="project">立项审批</option>
+                            <option value="expense">支出审批</option>
+                            <option value="income">收入确认</option>
+                            <option value="wage">工资审批</option>
+                            <option value="custom">自定义审批</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="templateIsActive">
+                            <option value="true" selected>启用</option>
+                            <option value="false">停用</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">模板说明</label>
+                        <textarea class="form-control" id="templateDescription" rows="2"></textarea>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">触发条件（JSON）</label>
+                        <input type="text" class="form-control" id="templateConditions" placeholder='如：{"min_amount": 5000}'>
+                        <small class="text-muted">金额区间触发：min_amount（最小金额）、max_amount（最大金额，为null表示无上限）</small>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">节点配置 <span class="text-danger">*</span></label>
+                        <div id="nodesContainer"></div>
+                        <small class="text-muted mt-1 d-block">节点类型：single=或签（任一人审批即通过），all_sign=会签（需所有人同意）</small>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveTemplate()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let allTemplates = [];
+let editingId = null;
+const FLOW_TYPE_MAP = {
+    'payment': '付款审批', 'project': '立项审批', 'expense': '支出审批',
+    'income': '收入确认', 'wage': '工资审批', 'custom': '自定义审批'
+};
+const APPROVER_TYPE_MAP = {
+    'admin': '系统管理员', 'department_head': '部门主管', 'specific_user': '指定用户'
+};
+const NODE_TYPE_MAP = { 'single': '或签', 'all_sign': '会签' };
+
+// Example nodes for reference
+const EXAMPLE_NODES = [
+    { node_order: 1, approver_type: 'department_head', approver_id: null, timeout_hours: 24, node_type: 'single' },
+    { node_order: 2, approver_type: 'admin', approver_id: null, timeout_hours: 48, node_type: 'all_sign' }
+];
+
+function loadTemplates() {
+    const flowType = document.getElementById('flowTypeFilter').value;
+    const isActive = document.getElementById('isActiveFilter').value;
+    const search = document.getElementById('searchInput').value.toLowerCase();
+    let url = '/api/approvals/templates/?limit=100';
+    if (flowType) url += '&flow_type=' + flowType;
+    if (isActive) url += '&is_active=' + isActive;
+
+    fetch(url, { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+            const results = data.results || data;
+            allTemplates = results;
+            renderTemplates(results.filter(t =>
+                !search || t.name.toLowerCase().includes(search) || (t.code || '').toLowerCase().includes(search)
+            ));
+        });
+}
+
+function renderTemplates(templates) {
+    const container = document.getElementById('templateList');
+    if (!templates.length) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-inbox"></i><p>暂无审批模板，点击"新建模板"创建</p></div>';
+        return;
+    }
+    container.innerHTML = '<div class="row g-3">' + templates.map(t => {
+        const typeClass = t.flow_type || 'custom';
+        const nodeItems = (t.nodes || []).map(n => {
+            const at = APPROVER_TYPE_MAP[n.approver_type] || n.approver_type;
+            const nt = NODE_TYPE_MAP[n.node_type] || n.node_type;
+            return `<span class="node-badge ${n.node_type || 'single'}">节点${n.node_order}·${at}·${nt}</span>`;
+        }).join('');
+        const conditionsText = t.conditions && Object.keys(t.conditions).length
+            ? (() => {
+                const c = t.conditions;
+                let s = '';
+                if (c.min_amount) s += `≥${c.min_amount}元`;
+                if (c.max_amount) s += ` ≤${c.max_amount}元`;
+                return s;
+            })()
+            : '无条件';
+        return `
+        <div class="col-md-6 col-lg-4">
+            <div class="template-card">
+                <div class="template-header">
+                    <div>
+                        <div class="template-title">${escapeHtml(t.name)}</div>
+                        <div class="template-code">${escapeHtml(t.code || '')}</div>
+                    </div>
+                    <span class="approval-type-badge ${typeClass}">${FLOW_TYPE_MAP[t.flow_type] || t.flow_type}</span>
+                </div>
+                <div class="template-meta">
+                    <span><i class="bi bi-list-ul"></i> ${t.node_count || 0} 个节点</span>
+                    <span><i class="bi bi-lightning"></i> ${conditionsText}</span>
+                </div>
+                ${nodeItems ? `<div class="node-badges">${nodeItems}</div>` : ''}
+                ${t.description ? `<p class="text-muted mb-0 mt-2" style="font-size:0.85rem">${escapeHtml(t.description.substring(0,60))}${t.description.length > 60 ? '…' : ''}</p>` : ''}
+                <div class="mt-3 d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="editTemplate(${t.id})">编辑</button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteTemplate(${t.id}, '${escapeHtml(t.name)}')">删除</button>
+                </div>
+            </div>
+        </div>`;
+    }).join('') + '</div>';
+}
+
+function showTemplateModal(id) {
+    editingId = id;
+    const modal = new bootstrap.Modal(document.getElementById('templateModal'));
+    if (id) {
+        const t = allTemplates.find(x => x.id === id);
+        document.getElementById('modalTitle').textContent = '编辑审批模板';
+        document.getElementById('templateId').value = id;
+        document.getElementById('templateName').value = t.name;
+        document.getElementById('templateCode').value = t.code;
+        document.getElementById('templateFlowType').value = t.flow_type;
+        document.getElementById('templateIsActive').value = String(t.is_active);
+        document.getElementById('templateDescription').value = t.description || '';
+        document.getElementById('templateConditions').value = t.conditions && Object.keys(t.conditions).length
+            ? JSON.stringify(t.conditions) : '';
+        initFlowDesigner(t.nodes || []);
+    } else {
+        document.getElementById('modalTitle').textContent = '新建审批模板';
+        document.getElementById('templateId').value = '';
+        document.getElementById('templateName').value = '';
+        document.getElementById('templateCode').value = '';
+        document.getElementById('templateFlowType').value = '';
+        document.getElementById('templateIsActive').value = 'true';
+        document.getElementById('templateDescription').value = '';
+        document.getElementById('templateConditions').value = '';
+        initFlowDesigner([...EXAMPLE_NODES]);
+    }
+    modal.show();
+}
+
+// Make showTemplateModal globally available
+window.showTemplateModal = showTemplateModal;
+
+/* 全局状态 */
+let nodesData = []; // 当前模板的节点数组
+let draggedIdx = null;
+
+/* ── 可视化流程设计器渲染 ── */
+function renderFlowDesigner() {
+    const container = document.getElementById('nodesContainer');
+    if (!nodesData.length) {
+        container.innerHTML = `
+            <div class="flow-designer d-flex align-items-center justify-content-center flex-column" style="min-height:120px;">
+                <div class="flow-start-node mb-3"><i class="bi bi-play-circle"></i> 发起人提交</div>
+                <div class="flow-add-btn" onclick="addFlowNode()"><i class="bi bi-plus-circle me-1"></i>点击添加审批节点</div>
+            </div>`;
+        return;
+    }
+    const nodeTypeLabel = { admin: '系统管理员', department_head: '部门主管', specific_user: '指定用户' };
+    const nodeTypeClass = { admin: 'admin', department_head: 'department_head', specific_user: 'specific_user' };
+    const nodeTypeTagClass = { admin: 'tag-admin', department_head: 'tag-dept', specific_user: 'tag-user' };
+    const signLabel = { single: '或签', all_sign: '会签' };
+    const signTagClass = { single: 'tag-single', all_sign: 'tag-all' };
+
+    let html = `<div class="flow-designer" style="display:flex;flex-direction:column;align-items:center;padding:20px;">`;
+    // 开始节点
+    html += `<div class="flow-start-node mb-3"><i class="bi bi-play-circle"></i> 发起人提交</div>`;
+
+    nodesData.forEach((n, i) => {
+        const typeClass = nodeTypeClass[n.approver_type] || 'admin';
+        const typeTagClass = nodeTypeTagClass[n.approver_type] || 'tag-admin';
+        const typeLabel = nodeTypeLabel[n.approver_type] || '系统管理员';
+        const signLbl = signLabel[n.node_type] || '或签';
+        const signCls = signTagClass[n.node_type] || 'tag-single';
+        const title = n.title || (typeLabel + (n.approver_id ? ' #' + n.approver_id : ''));
+
+        // 连接线
+        html += `<div class="flow-connector"><div class="flow-connector-line"></div><div class="flow-connector-arrow"></div></div>`;
+        // 节点卡片
+        html += `
+        <div class="flow-node-wrap">
+            <div class="flow-node-card ${typeClass}"
+                 draggable="true"
+                 data-idx="${i}"
+                 ondragstart="onNodeDragStart(event, ${i})"
+                 ondragover="onNodeDragOver(event, ${i})"
+                 ondragleave="onNodeDragLeave(event)"
+                 ondrop="onNodeDrop(event, ${i})"
+                 ondragend="onNodeDragEnd(event)">
+                <div class="flow-node-header">
+                    <div class="flow-node-num">${i + 1}</div>
+                    <div class="flow-node-title">${escapeHtml(title)}</div>
+                    <div class="flow-node-actions">
+                        <button title="编辑" onclick="event.stopPropagation();openNodePopover(${i})"><i class="bi bi-pencil-square text-primary"></i></button>
+                        <button title="删除" onclick="event.stopPropagation();removeFlowNode(${i})"><i class="bi bi-trash text-danger"></i></button>
+                    </div>
+                </div>
+                <div class="flow-node-props">
+                    <span class="flow-node-tag ${typeTagClass}">${typeLabel}</span>
+                    <span class="flow-node-tag ${signCls}">${signLbl}</span>
+                    ${n.timeout_hours ? `<span class="flow-node-tag" style="background:#f1f5f9;color:#64748b;">⏱${n.timeout_hours}h</span>` : ''}
+                </div>
+            </div>
+        </div>`;
+    });
+
+    // 添加节点按钮
+    html += `<div class="flow-add-btn" onclick="addFlowNode()"><i class="bi bi-plus-circle me-1"></i>添加审批节点</div>`;
+    html += `</div>`;
+    container.innerHTML = html;
+}
+
+/* ── 拖拽排序 ── */
+function onNodeDragStart(e, idx) {
+    draggedIdx = idx;
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+function onNodeDragOver(e, idx) {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === idx) return;
+    e.target.closest('.flow-node-card').classList.add('drag-over');
+}
+function onNodeDragLeave(e) {
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+}
+function onNodeDrop(e, idx) {
+    e.preventDefault();
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    if (draggedIdx === null || draggedIdx === idx) return;
+    const moved = nodesData.splice(draggedIdx, 1)[0];
+    nodesData.splice(idx, 0, moved);
+    draggedIdx = null;
+    renderFlowDesigner();
+}
+function onNodeDragEnd(e) {
+    document.querySelectorAll('.flow-node-card').forEach(el => el.classList.remove('dragging', 'drag-over'));
+    draggedIdx = null;
+}
+
+/* ── 添加节点 ── */
+function addFlowNode() {
+    const newNode = {
+        id: 'n' + Date.now(),
+        title: '',
+        node_type: 'single',
+        approver_type: 'department_head',
+        designated_user_id: null,
+        timeout_hours: 24,
+        conditions: {}
+    };
+    nodesData.push(newNode);
+    renderFlowDesigner();
+    // 自动打开编辑弹窗
+    setTimeout(() => openNodePopover(nodesData.length - 1), 100);
+}
+
+/* ── 删除节点 ── */
+function removeFlowNode(idx) {
+    nodesData.splice(idx, 1);
+    renderFlowDesigner();
+}
+
+/* ── 节点编辑弹窗（popover） ── */
+function openNodePopover(idx) {
+    closeNodePopover();
+    const n = nodesData[idx];
+    const nWrap = document.querySelectorAll('.flow-node-card')[idx];
+    if (!nWrap) return;
+    const rect = nWrap.getBoundingClientRect();
+    const container = document.getElementById('nodesContainer');
+    const contRect = container.getBoundingClientRect();
+
+    const pop = document.createElement('div');
+    pop.className = 'node-edit-popover';
+    pop.id = 'nodePopover';
+    pop.style.top = (rect.bottom - contRect.top + 8) + 'px';
+    pop.style.left = Math.max(0, rect.left - contRect.left) + 'px';
+    pop.innerHTML = `
+        <div class="d-flex justify-content-between mb-2">
+            <strong>编辑节点 ${idx + 1}</strong>
+            <button onclick="closeNodePopover()" style="background:none;border:none;font-size:1rem;">&times;</button>
+        </div>
+        <div class="mb-2">
+            <label class="form-label small">节点名称</label>
+            <input type="text" class="form-control form-control-sm" id="popTitle" value="${n.title || ''}" placeholder="如：部门主管审批">
+        </div>
+        <div class="mb-2">
+            <label class="form-label small">审批人类型</label>
+            <select class="form-select form-select-sm" id="popApproverType" onchange="onPopApproverTypeChange()">
+                <option value="admin" ${n.approver_type==='admin'?'selected':''}>系统管理员</option>
+                <option value="department_head" ${n.approver_type==='department_head'?'selected':''}>部门主管</option>
+                <option value="specific_user" ${n.approver_type==='specific_user'?'selected':''}>指定用户</option>
+            </select>
+        </div>
+        <div class="mb-2" id="popUserDiv" style="${n.approver_type!=='specific_user'?'display:none':''}">
+            <label class="form-label small">指定用户ID</label>
+            <input type="number" class="form-control form-control-sm" id="popUserId" value="${n.designated_user_id || ''}" placeholder="输入用户ID">
+        </div>
+        <div class="row g-2 mb-2">
+            <div class="col-6">
+                <label class="form-label small">节点类型</label>
+                <select class="form-select form-select-sm" id="popNodeType">
+                    <option value="single" ${(n.node_type||'single')==='single'?'selected':''}>或签</option>
+                    <option value="all_sign" ${n.node_type==='all_sign'?'selected':''}>会签</option>
+                </select>
+            </div>
+            <div class="col-6">
+                <label class="form-label small">超时(小时)</label>
+                <input type="number" class="form-control form-control-sm" id="popTimeout" value="${n.timeout_hours || 24}" min="1">
+            </div>
+        </div>
+        <button class="btn btn-sm btn-primary w-100" onclick="saveNodePopover(${idx})">保存</button>
+    `;
+    container.style.position = 'relative';
+    container.appendChild(pop);
+}
+
+function closeNodePopover() {
+    const p = document.getElementById('nodePopover');
+    if (p) p.remove();
+}
+
+function onPopApproverTypeChange() {
+    const t = document.getElementById('popApproverType').value;
+    document.getElementById('popUserDiv').style.display = t === 'specific_user' ? '' : 'none';
+}
+
+function saveNodePopover(idx) {
+    const n = nodesData[idx];
+    n.title = document.getElementById('popTitle').value.trim();
+    n.approver_type = document.getElementById('popApproverType').value;
+    n.designated_user_id = document.getElementById('popUserId').value ? parseInt(document.getElementById('popUserId').value) : null;
+    n.node_type = document.getElementById('popNodeType').value;
+    n.timeout_hours = parseInt(document.getElementById('popTimeout').value) || 24;
+    closeNodePopover();
+    renderFlowDesigner();
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+/* ── 外部调用的初始化函数（供弹窗打开时使用） ── */
+function initFlowDesigner(nodes) {
+    nodesData = nodes ? JSON.parse(JSON.stringify(nodes)) : [];
+    renderFlowDesigner();
+}
+
+/* ── 保存时从 nodesData 生成 JSON ── */
+function collectNodesJSON() {
+    return JSON.stringify(nodesData.map((n, i) => ({ ...n, node_order: i + 1 })));
+}
+
+/* ── 点击空白关闭 popover ── */
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.node-edit-popover') && !e.target.closest('.flow-node-actions button')) {
+        closeNodePopover();
+    }
+});
+
+// Old functions removed — replaced by flow designer
+
+function saveTemplate() {
+    const name = document.getElementById('templateName').value.trim();
+    const code = document.getElementById('templateCode').value.trim();
+    const flow_type = document.getElementById('templateFlowType').value;
+    const is_active = document.getElementById('templateIsActive').value === 'true';
+    const description = document.getElementById('templateDescription').value.trim();
+    const conditionsStr = document.getElementById('templateConditions').value.trim();
+    const nodes = JSON.parse(collectNodesJSON());
+
+    if (!name || !code || !flow_type) {
+        alert('请填写必填字段（名称/编码/类型）');
+        return;
+    }
+    if (!nodes.length) {
+        alert('请至少添加一个审批节点');
+        return;
+    }
+
+    let conditions = {};
+    if (conditionsStr) {
+        try { conditions = JSON.parse(conditionsStr); } catch(e) { alert('触发条件JSON格式错误'); return; }
+    }
+
+    const payload = { name, code, flow_type, is_active, description, conditions, nodes };
+    const id = document.getElementById('templateId').value;
+    const url = id ? `/api/approvals/templates/${id}/` : '/api/approvals/templates/';
+    const method = id ? 'PUT' : 'POST';
+
+    fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    }).then(r => {
+        if (!r.ok) return r.json().then(e => { throw new Error(JSON.stringify(e)); });
+        return r.json();
+    }).then(() => {
+        bootstrap.Modal.getInstance(document.getElementById('templateModal')).hide();
+        loadTemplates();
+    }).catch(e => alert('保存失败：' + e.message));
+}
+
+function editTemplate(id) { showTemplateModal(id); }
+
+function deleteTemplate(id, name) {
+    if (!confirm(`确定删除模板"${name}"？`)) return;
+    fetch(`/api/approvals/templates/${id}/`, {
+        method: 'DELETE', credentials: 'include'
+    }).then(r => {
+        if (r.ok) loadTemplates();
+        else alert('删除失败');
+    });
+}
+
+function onSearch() { loadTemplates(); }
+
+// Also expose editTemplate globally
+window.editTemplate = editTemplate;
+
+document.addEventListener('DOMContentLoaded', loadTemplates);
+</script>
+{% endblock %}

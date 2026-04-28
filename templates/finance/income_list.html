@@ -1,0 +1,907 @@
+{% extends "base.html" %}
+
+{% block title %}收入管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.income-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.warning { color: var(--warning); }
+.summary-card .value.primary { color: var(--primary); }
+.income-table td { vertical-align: middle; }
+.income-source {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    background: var(--primary-light);
+    color: var(--primary);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+.source-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.source-badge.contract { background: #dbeafe; color: #1e40af; }
+.source-badge.project { background: #d1fae5; color: #065f46; }
+.source-badge.service { background: #fef3c7; color: #92400e; }
+.source-badge.other { background: #f3f4f6; color: #6b7280; }
+.amount-display {
+    font-weight: 600;
+    color: var(--success);
+}
+.client-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.client-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+.client-name { font-weight: 600; }
+.client-id { font-size: 0.75rem; color: var(--text-muted); }
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filter-bar .form-select,
+.filter-bar .form-control {
+    min-width: 160px;
+}
+.date-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.date-range .form-control {
+    width: 140px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-currency-yen me-2"></i>收入管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">
+            <span class="income-source"><i class="bi bi-calendar3"></i>2026年度</span>
+        </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <div class="filter-bar">
+            <select class="form-select form-select-sm" id="filterCompany" onchange="loadIncomes()">
+                <option value="">全部公司</option>
+            </select>
+            <div class="date-range">
+                <input type="date" class="form-control form-control-sm" id="filterDateStart" placeholder="开始日期">
+                <span class="text-muted">-</span>
+                <input type="date" class="form-control form-control-sm" id="filterDateEnd" placeholder="结束日期">
+            </div>
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadIncomes()">
+                <i class="bi bi-search me-1"></i>筛选
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                <i class="bi bi-x-lg me-1"></i>清空
+            </button>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="showAddIncomeModal()" data-perm="income.add">
+            <i class="bi bi-plus-lg me-1"></i>新建收入
+        </button>
+        <button class="btn btn-success btn-sm" onclick="exportIncomes()">
+            <i class="bi bi-download me-1"></i>导出
+        </button>
+        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('income')" data-perm="income.add">
+            <i class="bi bi-upload me-1"></i>导入
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="income-summary">
+    <div class="summary-card">
+        <div class="label">本年收入总额</div>
+        <div class="value primary" id="totalIncome">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalCount">0</span> 笔</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">本月收入</div>
+        <div class="value success" id="monthIncome">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="monthCount">0</span> 笔</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">待确认收入</div>
+        <div class="value warning" id="pendingIncome">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">待确认</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">已到账收入</div>
+        <div class="value success" id="confirmedIncome">¥0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">已确认</div>
+    </div>
+</div>
+
+<!-- 收入列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>收入明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table income-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input class="form-check-input" type="checkbox">
+                        </th>
+                        <th>公司</th>
+                        <th>金额</th>
+                        <th>日期</th>
+                        <th>来源</th>
+                        <th>客户</th>
+                        <th>关联项目</th>
+                        <th>状态</th>
+                        <th>审批状态</th>
+                        <th style="width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="incomeTableBody">
+                    <tr>
+                        <td colspan="9" class="text-center text-muted py-4">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 新增/编辑收入 Modal -->
+<div class="modal fade" id="incomeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-currency-yen me-2"></i><span id="incomeModalTitle">新建收入</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="incomeId">
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">公司 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="incomeCompany" required>
+                            <option value="">选择公司</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">收入金额 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="incomeAmount" placeholder="¥0" step="0.01" required>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">收入日期 <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="incomeDate" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">收入来源</label>
+                        <select class="form-select" id="incomeSource">
+                            <option value="contract">合同收入</option>
+                            <option value="project">项目收入</option>
+                            <option value="service">服务收入</option>
+                            <option value="other">其他收入</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">客户</label>
+                        <input type="text" class="form-control" id="incomeClient" placeholder="客户名称">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">关联项目</label>
+                        <select class="form-select" id="incomeProject">
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="incomeRemark" rows="2" placeholder="备注信息（可选）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveIncome()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认 Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除这条收入记录吗？此操作无法撤销。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="income.delete">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导入弹窗 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="importModalTitle"><i class="bi bi-upload me-2"></i>导入数据</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="importStep1">
+                    <div class="alert alert-info" role="alert">
+                        <i class="bi bi-info-circle me-1"></i>
+                        <strong>导入说明</strong>
+                        <ul class="mb-0 mt-2" id="importGuide"></ul>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">选择 Excel 文件（.xlsx）</label>
+                        <input type="file" class="form-control" id="importFileInput" accept=".xlsx,.xls">
+                    </div>
+                    <div class="text-center">
+                        <button type="button" class="btn btn-outline-secondary" onclick="downloadTemplate()">
+                            <i class="bi bi-file-earmark-arrow-down me-1"></i>下载模板
+                        </button>
+                    </div>
+                </div>
+                <div id="importStep2" style="display:none;">
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                        <span>正在导入，请稍候…</span>
+                    </div>
+                </div>
+                <div id="importStep3" style="display:none;">
+                    <div id="importResultMsg" class="mb-3"></div>
+                    <div id="importErrors" class="small text-muted" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+            </div>
+            <div class="modal-footer" id="importModalFooter">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="importConfirmBtn" onclick="doImport()">
+                    <i class="bi bi-upload me-1"></i>开始导入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var incomeModal, deleteModal;
+var currentPage = 1;
+var deleteTargetId = null;
+var companies = [];
+var projects = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    incomeModal = new bootstrap.Modal(document.getElementById('incomeModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    
+    loadCompanies();
+    loadProjects();
+    loadIncomes();
+});
+
+async function loadCompanies() {
+    try {
+        const response = await fetch('/api/finance/companies/', {
+            credentials: 'include',
+        });
+        if (response.ok) {
+            const data = await response.json();
+            companies = data.results || data;
+            updateCompanySelects();
+        }
+    } catch (error) {
+        console.error('加载公司数据失败:', error);
+    }
+}
+
+function updateCompanySelects() {
+    const selects = ['filterCompany', 'incomeCompany'];
+    selects.forEach(selectId => {
+        const select = document.getElementById(selectId);
+        if (select) {
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">全部公司</option>';
+            companies.forEach(company => {
+                select.innerHTML += `<option value="${company.id}">${company.name}</option>`;
+            });
+            select.value = currentValue;
+        }
+    });
+}
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/tasks/projects/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            projects = data.results || data;
+            updateProjectSelect();
+        }
+    } catch (error) {
+        console.error('加载项目数据失败:', error);
+    }
+}
+
+function updateProjectSelect() {
+    const select = document.getElementById('incomeProject');
+    if (select) {
+        select.innerHTML = '<option value="">选择项目</option>';
+        projects.forEach(project => {
+            select.innerHTML += `<option value="${project.id}">${project.name}</option>`;
+        });
+    }
+}
+
+async function loadIncomes(page = 1) {
+    currentPage = page;
+    const tableBody = document.getElementById('incomeTableBody');
+    tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">加载中...</td></tr>';
+    
+    const company = document.getElementById('filterCompany').value;
+    const dateStart = document.getElementById('filterDateStart').value;
+    const dateEnd = document.getElementById('filterDateEnd').value;
+    
+    let url = '/api/finance/incomes/?page=' + page;
+    if (company) url += `&company_id=${company}`;
+    if (dateStart) url += '&date_start=' + dateStart;
+    if (dateEnd) url += '&date_end=' + dateEnd;
+    
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            renderIncomes(data);
+            updateSummary(data);
+        } else {
+            tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">加载失败</td></tr>';
+            showToast('加载收入数据失败', 'error');
+        }
+    } catch (error) {
+        console.error('加载收入数据失败:', error);
+        tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">网络错误</td></tr>';
+        showToast('网络错误', 'error');
+    }
+}
+
+function renderIncomes(data) {
+    const tableBody = document.getElementById('incomeTableBody');
+    const incomes = data.results || data;
+    
+    if (!incomes || incomes.length === 0) {
+        tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>';
+        document.getElementById('recordCount').textContent = '0';
+        return;
+    }
+    
+    let html = '';
+    incomes.forEach(income => {
+        const sourceClass = income.source || 'other';
+        const sourceText = {
+            'contract': '合同收入', '合同收入': '合同收入',
+            'project': '项目收入', '项目收入': '项目收入',
+            'service': '服务收入', '服务收入': '服务收入',
+            'other': '其他', '其他': '其他'
+        }[sourceClass] || '其他';
+        const statusClass = income.status === 'approved' ? 'badge-approved' : income.status === 'rejected' ? 'badge-rejected' : 'badge-pending';
+        const statusText = income.status === 'approved' ? '已确认' : income.status === 'rejected' ? '已拒绝' : '待确认';
+        const companyName = income.company_name || income.company || '-';
+        const projectName = income.project_name || income.project || '-';
+        
+        html += `
+        <tr>
+            <td><input class="form-check-input" type="checkbox" value="${income.id}"></td>
+            <td><strong>${companyName}</strong></td>
+            <td class="amount-display">¥${formatNumber(income.amount)}</td>
+            <td>${income.date || '-'}</td>
+            <td><span class="source-badge ${sourceClass}">${sourceText}</span></td>
+            <td>${income.customer || '-'}</td>
+            <td>${projectName}</td>
+            <td><span class="badge ${statusClass}">${statusText}</span></td>
+            <td>${income.approval_status ? `<span class="badge ${income.approval_status === 'approved' ? 'bg-success' : income.approval_status === 'rejected' ? 'bg-danger' : income.approval_status === 'pending' ? 'bg-warning' : 'bg-secondary'}">${income.approval_status === 'approved' ? '已批准' : income.approval_status === 'rejected' ? '已拒绝' : income.approval_status === 'pending' ? '待审批' : income.approval_status}</span>` : '<span class="text-muted">—</span>'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-secondary" onclick="editIncome(${income.id})" title="编辑">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteIncome(${income.id})" title="删除" data-perm="income.delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+        `;
+    });
+    
+    tableBody.innerHTML = html;
+    document.getElementById('recordCount').textContent = data.count || incomes.length;
+    renderPagination(data);
+}
+
+function updateSummary(data) {
+    const incomes = data.results || data;
+    
+    let total = 0, monthTotal = 0, pending = 0, confirmed = 0;
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    incomes.forEach(income => {
+        const amount = parseFloat(income.amount) || 0;
+        total += amount;
+        
+        const incomeDate = new Date(income.date);
+        if (incomeDate.getMonth() === currentMonth && incomeDate.getFullYear() === currentYear) {
+            monthTotal += amount;
+        }
+        
+        if (income.status === 'pending') {
+            pending += amount;
+        } else if (income.status === 'approved') {
+            confirmed += amount;
+        }
+    });
+    
+    document.getElementById('totalIncome').textContent = '¥' + formatNumber(total);
+    document.getElementById('monthIncome').textContent = '¥' + formatNumber(monthTotal);
+    document.getElementById('pendingIncome').textContent = '¥' + formatNumber(pending);
+    document.getElementById('confirmedIncome').textContent = '¥' + formatNumber(confirmed);
+    document.getElementById('totalCount').textContent = data.count || incomes.length;
+    document.getElementById('monthCount').textContent = incomes.filter(i => {
+        const d = new Date(i.date);
+        return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    }).length;
+}
+
+function renderPagination(data) {
+    const pagination = document.getElementById('pagination');
+    const paginationInfo = document.getElementById('paginationInfo');
+    
+    if (!data.total_pages || data.total_pages <= 1) {
+        pagination.innerHTML = '';
+        const start = (currentPage - 1) * 20 + 1;
+        const end = Math.min(start + 19, data.count || 0);
+        paginationInfo.textContent = `显示 ${start}-${end} 条，共 ${data.count || 0} 条`;
+        return;
+    }
+    
+    let html = '';
+    html += `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="loadIncomes(${currentPage - 1}); return false;">上一页</a></li>`;
+    
+    for (let i = 1; i <= data.total_pages; i++) {
+        if (i === 1 || i === data.total_pages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += `<li class="page-item ${currentPage === i ? 'active' : ''}">
+                <a class="page-link" href="#" onclick="loadIncomes(${i}); return false;">${i}</a></li>`;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += `<li class="page-item disabled"><a class="page-link" href="#">...</a></li>`;
+        }
+    }
+    
+    html += `<li class="page-item ${currentPage === data.total_pages ? 'disabled' : ''}">
+        <a class="page-link" href="#" onclick="loadIncomes(${currentPage + 1}); return false;">下一页</a></li>`;
+    
+    pagination.innerHTML = html;
+    
+    const start = (currentPage - 1) * 20 + 1;
+    const end = Math.min(start + 19, data.count || 0);
+    paginationInfo.textContent = `显示 ${start}-${end} 条，共 ${data.count || 0} 条`;
+}
+
+function formatNumber(num) {
+    return parseFloat(num).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function showAddIncomeModal() {
+    document.getElementById('incomeModalTitle').textContent = '新建收入';
+    document.getElementById('incomeId').value = '';
+    document.getElementById('incomeAmount').value = '';
+    document.getElementById('incomeDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('incomeSource').value = 'contract';
+    document.getElementById('incomeClient').value = '';
+    document.getElementById('incomeProject').value = '';
+    document.getElementById('incomeRemark').value = '';
+    incomeModal.show();
+}
+
+async function editIncome(id) {
+    try {
+        const response = await fetch('/api/finance/incomes/' + id + '/', { credentials: 'include' });
+        if (response.ok) {
+            const income = await response.json();
+            document.getElementById('incomeModalTitle').textContent = '编辑收入';
+            document.getElementById('incomeId').value = income.id;
+            document.getElementById('incomeCompany').value = income.company || '';
+            document.getElementById('incomeAmount').value = income.amount;
+            document.getElementById('incomeDate').value = income.date;
+            document.getElementById('incomeSource').value = income.source || 'contract';
+            document.getElementById('incomeClient').value = income.customer || '';
+            document.getElementById('incomeProject').value = income.project || '';
+            document.getElementById('incomeRemark').value = income.description || '';
+            if (document.getElementById('incomeStatus')) {
+                document.getElementById('incomeStatus').value = income.status || 'pending';
+            }
+            incomeModal.show();
+        } else {
+            showToast('获取收入详情失败', 'error');
+        }
+    } catch (error) {
+        console.error('获取收入详情失败:', error);
+        showToast('网络错误', 'error');
+    }
+}
+
+async function saveIncome() {
+    const id = document.getElementById('incomeId').value;
+    const company = document.getElementById('incomeCompany').value;
+    const amount = document.getElementById('incomeAmount').value;
+    const date = document.getElementById('incomeDate').value;
+    const source = document.getElementById('incomeSource').value;
+    const client = document.getElementById('incomeClient').value;
+    const project = document.getElementById('incomeProject').value;
+    const remark = document.getElementById('incomeRemark').value;
+    
+    if (!company || !amount || !date) {
+        showToast('请填写必填项', 'warning');
+        return;
+    }
+    
+    const data = {
+        company: parseInt(company),
+        amount: parseFloat(amount),
+        date: date,
+        source: source,
+        customer: client,
+        project: project ? parseInt(project) : null,
+        description: remark
+    };
+    
+    const url = id ? '/api/finance/incomes/' + id + '/' : '/api/finance/incomes/';
+    const method = id ? 'PUT' : 'POST';
+    
+    try {
+        const response = await fetch(url, {
+            method: method,
+            credentials: 'include',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken') || ''
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            showToast(id ? '收入更新成功' : '收入创建成功', 'success');
+            incomeModal.hide();
+            document.getElementById('incomeModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('incomeModal').removeEventListener('hidden.bs.modal', handler);
+                loadIncomes(currentPage);
+            });
+        } else {
+            const error = await response.json();
+            showToast('保存失败: ' + JSON.stringify(error), 'error');
+        }
+    } catch (error) {
+        console.error('保存收入失败:', error);
+        showToast('网络错误', 'error');
+    }
+}
+
+function deleteIncome(id) {
+    deleteTargetId = id;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    if (!deleteTargetId) return;
+    
+    try {
+        const response = await fetch('/api/finance/incomes/' + deleteTargetId + '/', {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
+        });
+        
+        if (response.ok) {
+            showToast('删除成功', 'success');
+            deleteModal.hide();
+            document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('deleteModal').removeEventListener('hidden.bs.modal', handler);
+                loadIncomes(currentPage);
+            });
+        } else {
+            showToast('删除失败', 'error');
+        }
+    } catch (error) {
+        console.error('删除收入失败:', error);
+        showToast('网络错误', 'error');
+    }
+    
+    deleteTargetId = null;
+}
+
+function clearFilters() {
+    document.getElementById('filterCompany').value = '';
+    document.getElementById('filterDateStart').value = '';
+    document.getElementById('filterDateEnd').value = '';
+    loadIncomes(1);
+}
+
+function showToast(message, type) {
+    const container = document.querySelector('.toast-container') || createToastContainer();
+    const toast = document.createElement('div');
+    toast.className = 'toast-msg ' + (type || 'info');
+    toast.innerHTML = '<i class="bi bi-' + getToastIcon(type) + '"></i><span>' + message + '</span>';
+    container.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+    return container;
+}
+
+function getToastIcon(type) {
+    const icons = {
+        success: 'check-circle-fill text-success',
+        error: 'x-circle-fill text-danger',
+        warning: 'exclamation-triangle-fill text-warning',
+        info: 'info-circle-fill text-info'
+    };
+    return icons[type] || 'info-circle-fill text-info';
+}
+
+// ===== 导出功能 =====
+const INCOME_COLUMNS = [
+    { key: 'id', label: 'ID' },
+    { key: 'company_name', label: '公司' },
+    { key: 'project_name', label: '项目' },
+    { key: 'source_display', label: '收入来源' },
+    { key: 'amount', label: '金额（元）' },
+    { key: 'date', label: '收入日期' },
+    { key: 'status_display', label: '状态' },
+    { key: 'approval_status', label: '审批状态' },
+    { key: 'operator_name', label: '操作人' },
+    { key: 'description', label: '备注' },
+    { key: 'created_at', label: '创建时间' }
+];
+
+async function exportIncomes() {
+    const params = new URLSearchParams();
+    const companyId = document.getElementById('filterCompany')?.value;
+    const dateStart = document.getElementById('filterDateStart')?.value;
+    const dateEnd = document.getElementById('filterDateEnd')?.value;
+    if (companyId) params.set('company_id', companyId);
+    if (dateStart) params.set('date_start', dateStart);
+    if (dateEnd) params.set('date_end', dateEnd);
+
+    try {
+        showToast('正在导出…', 'info');
+        const response = await fetch(`/api/finance/incomes/export/?${params}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('导出失败');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `收入记录_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showToast('导出成功', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('导出失败', 'error');
+    }
+}
+
+function downloadBlob(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+// ===== 批量导入 =====
+var currentImportModule = null;
+var importModal = null;
+
+var importGuides = {
+    income: [
+        '必需列：<strong>金额</strong>、<strong>日期</strong>（格式如 2026-04-26）',
+        '可选列：公司名称、项目名称、来源、状态（已确认/待确认）、备注',
+        '公司/项目按名称自动匹配，请确保系统中已存在对应数据',
+    ],
+    expense: [
+        '必需列：<strong>金额</strong>、<strong>日期</strong>（格式如 2026-04-26）',
+        '可选列：公司名称、支出类型、项目名称、供应商/收款方、付款方式、备注',
+        '公司/项目按名称自动匹配',
+    ],
+    wage: [
+        '必需列：<strong>员工姓名</strong>、<strong>年月</strong>（如 2026-04）、<strong>公司</strong>',
+        '可选列：基本工资、加班费、奖金、社保个人、公积金个人、个税、其他扣款、实发工资',
+        '员工按姓名匹配，公司按名称匹配',
+    ]
+};
+
+function showImportModal(module) {
+    currentImportModule = module;
+    if (!importModal) {
+        importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    }
+    document.getElementById('importModalTitle').textContent = {
+        income: '导入收入记录', expense: '导入支出记录', wage: '导入工资单'
+    }[module] || '导入数据';
+    document.getElementById('importGuide').innerHTML = (importGuides[module] || []).map(function(s) {
+        return '<li>' + s + '</li>';
+    }).join('');
+    document.getElementById('importFileInput').value = '';
+    document.getElementById('importStep1').style.display = 'block';
+    document.getElementById('importStep2').style.display = 'none';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = '';
+    importModal.show();
+}
+
+async function doImport() {
+    var fileInput = document.getElementById('importFileInput');
+    var file = fileInput.files[0];
+    if (!file) {
+        showToast('请先选择 Excel 文件', 'warning');
+        return;
+    }
+    document.getElementById('importStep1').style.display = 'none';
+    document.getElementById('importStep2').style.display = 'block';
+    document.getElementById('importStep3').style.display = 'none';
+    document.getElementById('importConfirmBtn').style.display = 'none';
+
+    var formData = new FormData();
+    formData.append('file', file);
+
+    var endpoint = {
+        income: '/api/finance/incomes/import_records/',
+        expense: '/api/finance/expenses/import_records/',
+        wage: '/api/finance/wages/import_records/',
+    }[currentImportModule];
+
+    try {
+        var response = await fetch(endpoint, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            body: formData,
+        });
+        var result = await response.json();
+
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importStep3').style.display = 'block';
+
+        var msgEl = document.getElementById('importResultMsg');
+        var errEl = document.getElementById('importErrors');
+        if (result.success !== false) {
+            msgEl.innerHTML = '<div class="alert alert-success mb-0"><i class="bi bi-check-circle me-1"></i>' + (result.message || '导入完成') + '</div>';
+            errEl.innerHTML = '';
+            // 关闭弹窗并刷新
+            setTimeout(function() {
+                importModal.hide();
+                if (currentImportModule === 'income') loadIncomes();
+                else if (currentImportModule === 'expense') loadExpenses();
+                else if (currentImportModule === 'wage') loadWages();
+            }, 1500);
+        } else {
+            msgEl.innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle me-1"></i>' + (result.message || '导入失败') + '</div>';
+            errEl.innerHTML = (result.errors || []).map(function(e) { return '<div>' + e + '</div>'; }).join('');
+        }
+    } catch (err) {
+        document.getElementById('importStep2').style.display = 'none';
+        document.getElementById('importStep3').style.display = 'block';
+        document.getElementById('importResultMsg').innerHTML = '<div class="alert alert-danger mb-0"><i class="bi bi-x-circle me-1"></i>导入请求失败：' + err.message + '</div>';
+    }
+}
+
+function downloadTemplate() {
+    var templates = {
+        income: { name: '收入记录导入模板', headers: ['金额', '日期', '公司', '项目', '来源', '状态', '备注'],
+                   rows: [[50000, '2026-04-26', '深圳市龙晟科技贸易有限公司', '城市综合体', '工程款', '已确认', '示例收入']] },
+        expense: { name: '支出记录导入模板', headers: ['金额', '日期', '公司', '支出类型', '项目', '供应商/收款方', '付款方式', '备注'],
+                    rows: [[12000, '2026-04-26', '深圳市龙晟科技贸易有限公司', '材料费', '城市综合体', '建材公司', '银行转账', '示例支出']] },
+        wage: { name: '工资单导入模板', headers: ['姓名', '年月', '公司', '基本工资', '加班费', '奖金', '社保个人', '公积金个人', '个税', '其他扣款', '实发工资'],
+                rows: [['李四', '2026-04', '深圳市百川软件科技发展有限公司', 8000, 500, 2000, 566.5, 225, 285.3, 0, 8423.2]] },
+    };
+    var tpl = templates[currentImportModule];
+    if (!tpl) return;
+
+    var xls = '\uFEFF' + tpl.headers.join('\t') + '\n' + tpl.rows.map(function(r) { return r.join('\t'); }).join('\n');
+    var blob = new Blob([xls], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = tpl.name + '.xls';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

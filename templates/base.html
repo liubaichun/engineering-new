@@ -1,0 +1,797 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}企业信息化管理系统{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+    :root {
+        --primary: #3b82f6;
+        --primary-dark: #2563eb;
+        --primary-light: #dbeafe;
+        --sidebar-bg: #1e293b;
+        --sidebar-hover: #334155;
+        --sidebar-text: #94a3b8;
+        --sidebar-active: #ffffff;
+        --sidebar-width: 260px;
+        --page-bg: #f1f5f9;
+        --card-bg: #ffffff;
+        --card-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        --card-radius: 14px;
+        --success: #10b981;
+        --warning: #f59e0b;
+        --danger: #ef4444;
+        --info: #06b6d4;
+        --text-primary: #1e293b;
+        --text-secondary: #64748b;
+        --text-muted: #94a3b8;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    body {
+        font-family: "PingFang SC", "Microsoft YaHei", -apple-system, sans-serif;
+        background: var(--page-bg);
+        color: var(--text-primary);
+    }
+
+    /* Sidebar */
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: var(--sidebar-width);
+        height: 100vh;
+        background: var(--sidebar-bg);
+        z-index: 100;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.3s ease;
+    }
+    
+    .sidebar-brand {
+        padding: 20px 24px;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #fff;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .sidebar-brand i { color: var(--primary); }
+    
+    .sidebar-nav { flex: 1; overflow-y: auto; padding: 12px 0; }
+    
+    .sidebar-section {
+        padding: 8px 16px;
+        margin-bottom: 4px;
+    }
+    
+    .sidebar-section-title {
+        font-size: 0.7rem;
+        font-weight: 600;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 8px 12px 4px;
+    }
+    
+    .sidebar .nav-link {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+        color: var(--sidebar-text);
+        text-decoration: none;
+        border-radius: 10px;
+        margin: 2px 8px;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+    }
+    
+    .sidebar .nav-link:hover {
+        background: var(--sidebar-hover);
+        color: var(--sidebar-active);
+    }
+    
+    .sidebar .nav-link.active {
+        background: var(--primary);
+        color: #fff;
+    }
+    
+    .sidebar .nav-link i { 
+        font-size: 1.1rem;
+        width: 22px;
+        text-align: center;
+    }
+    
+    .sidebar-footer {
+        padding: 16px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .sidebar-footer .nav-link {
+        padding: 10px 16px;
+        color: var(--sidebar-text);
+    }
+    
+    /* Main Content */
+    .main-content {
+        margin-left: var(--sidebar-width);
+        padding: 28px 32px;
+        min-height: 100vh;
+    }
+    
+    /* Page Header */
+    .page-header {
+        margin-bottom: 28px;
+    }
+    
+    .page-header h4 {
+        font-weight: 700;
+        color: var(--text-primary);
+        font-size: 1.5rem;
+    }
+    
+    /* Cards */
+    .card {
+        border: none;
+        border-radius: var(--card-radius);
+        box-shadow: var(--card-shadow);
+        background: var(--card-bg);
+    }
+    
+    .card-header {
+        background: transparent;
+        border-bottom: 1px solid #f1f5f9;
+        padding: 16px 20px;
+        font-weight: 600;
+    }
+    
+    .card-body { padding: 20px; }
+    
+    /* Stat Cards */
+    .stat-card {
+        background: var(--card-bg);
+        border-radius: var(--card-radius);
+        box-shadow: var(--card-shadow);
+        padding: 22px;
+        transition: all 0.2s;
+        border: 1px solid rgba(0,0,0,0.03);
+    }
+    
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    }
+    
+    .stat-icon {
+        width: 50px;
+        height: 50px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+        margin-bottom: 14px;
+    }
+    
+    .stat-icon.blue { background: #dbeafe; color: #2563eb; }
+    .stat-icon.green { background: #d1fae5; color: #059669; }
+    .stat-icon.orange { background: #fef3c7; color: #d97706; }
+    .stat-icon.purple { background: #ede9fe; color: #7c3aed; }
+    .stat-icon.red { background: #fee2e2; color: #dc2626; }
+    .stat-icon.cyan { background: #cffafe; color: #0891b2; }
+    
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 700;
+        line-height: 1.2;
+        color: var(--text-primary);
+    }
+    
+    .stat-label {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        margin-top: 4px;
+    }
+    
+    /* Buttons */
+    .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        padding: 8px 16px;
+        transition: all 0.2s;
+    }
+    
+    .btn:hover { transform: translateY(-1px); }
+    
+    .btn-primary {
+        background: var(--primary);
+        border-color: var(--primary);
+    }
+    
+    .btn-primary:hover {
+        background: var(--primary-dark);
+        border-color: var(--primary-dark);
+    }
+    
+    .btn-success { background: var(--success); border-color: var(--success); }
+    .btn-danger { background: var(--danger); border-color: var(--danger); }
+    .btn-warning { background: var(--warning); border-color: var(--warning); color: #fff; }
+    .btn-outline-secondary {
+        color: var(--text-secondary);
+        border-color: #e2e8f0;
+    }
+    
+    .btn-outline-secondary:hover {
+        background: #f8fafc;
+        color: var(--text-primary);
+        border-color: #e2e8f0;
+    }
+    
+    /* Forms */
+    .form-control, .form-select {
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        padding: 10px 14px;
+        font-size: 0.9rem;
+    }
+
+    /* 全局修复：下拉箭头与文字重叠问题
+       Bootstrap5 的 form-select 箭头是 SVG data-URI，绝对定位在右padding区。
+       当 select 设 width:auto 时，浏览器只给文字分配刚好宽度，箭头压在文字上。
+       解决方案：统一增大 padding-right，再用 min-width 确保 width:auto 的 select
+       有足够宽度容纳文字内容 + 箭头空间。 */
+    .form-select {
+        padding-right: 44px !important;
+    }
+    /* 仅针对 width:auto 的 select（最常见于 filter-bar 筛选区）补 min-width */
+    .form-select[style*="width: auto"] {
+        min-width: 130px !important;
+    }
+    /* form-select-sm（小尺寸下拉框）右padding稍小一些，三角也更小 */
+    .form-select-sm {
+        padding-right: 38px !important;
+    }
+    .form-select-sm[style*="width: auto"] {
+        min-width: 120px !important;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(59,130,246,0.1);
+    }
+    
+    .form-label {
+        font-weight: 500;
+        color: var(--text-primary);
+        margin-bottom: 6px;
+        font-size: 0.9rem;
+    }
+    
+    /* Tables */
+    .table {
+        background: var(--card-bg);
+        border-radius: var(--card-radius);
+        overflow: hidden;
+        margin-bottom: 0;
+    }
+    
+    .table thead th {
+        background: #f8fafc;
+        color: var(--text-secondary);
+        font-weight: 600;
+        font-size: 0.8rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border: none;
+        padding: 14px 16px;
+    }
+    
+    .table tbody td {
+        vertical-align: middle;
+        padding: 14px 16px;
+        border-color: #f1f5f9;
+        font-size: 0.9rem;
+    }
+    
+    .table tbody tr:hover { background: #f8fafc; }
+    
+    /* Badges */
+    .badge {
+        border-radius: 6px;
+        font-weight: 500;
+        font-size: 0.75rem;
+        padding: 5px 10px;
+    }
+    
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-approved { background: #d1fae5; color: #065f46; }
+    .badge-rejected { background: #fee2e2; color: #991b1b; }
+    .badge-progress { background: #dbeafe; color: #1e40af; }
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    
+    /* Progress */
+    .progress {
+        border-radius: 10px;
+        height: 8px;
+        background: #e2e8f0;
+    }
+    
+    .progress-bar {
+        border-radius: 10px;
+        transition: width 0.6s ease;
+    }
+    
+    /* Modal */
+    .modal-content {
+        border-radius: var(--card-radius);
+        border: none;
+    }
+    
+    .modal-header {
+        border-bottom: 1px solid #f1f5f9;
+        padding: 18px 24px;
+    }
+    
+    .modal-title { font-weight: 700; }
+    
+    .modal-footer { border-top: 1px solid #f1f5f9; }
+    
+    /* Toast */
+    .toast-container {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 9999;
+    }
+    
+    .toast-msg {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 18px;
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+        margin-bottom: 10px;
+        animation: slideIn 0.3s ease;
+        min-width: 280px;
+    }
+    
+    .toast-msg.success { border-left: 4px solid var(--success); }
+    .toast-msg.error { border-left: 4px solid var(--danger); }
+    .toast-msg.warning { border-left: 4px solid var(--warning); }
+    .toast-msg.info { border-left: 4px solid var(--info); }
+    
+    @keyframes slideIn {
+        from { opacity: 0; transform: translateX(30px); }
+        to { opacity: 1; transform: translateX(0); }
+    }
+    
+    /* Mobile Nav Toggle */
+    .mobile-nav-toggle {
+        display: none;
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        z-index: 1050;
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        width: 44px;
+        height: 44px;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+        box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+    }
+    
+    /* Bottom Tab Nav (Mobile) */
+    .bottom-tabs {
+        display: none;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #fff;
+        border-top: 1px solid #e2e8f0;
+        z-index: 1050;
+        padding: 8px 0;
+    }
+    
+    .bottom-tabs .tab-item {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 6px;
+        color: var(--text-secondary);
+        text-decoration: none;
+        font-size: 0.65rem;
+        gap: 2px;
+    }
+    
+    .bottom-tabs .tab-item i { font-size: 1.2rem; }
+    .bottom-tabs .tab-item.active,
+    .bottom-tabs .tab-item:hover { color: var(--primary); }
+    
+    /* Responsive */
+    @media (max-width: 991.98px) {
+        .sidebar {
+            transform: translateX(-100%);
+        }
+        
+        .sidebar.show { transform: translateX(0); }
+        
+        .mobile-nav-toggle { display: flex; }
+        
+        .main-content {
+            margin-left: 0;
+            padding: 70px 16px 80px;
+        }
+        
+        .bottom-tabs { display: flex; }
+        
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 99;
+        }
+        
+        .sidebar-overlay.show { display: block; }
+    }
+    
+    @media (min-width: 1200px) {
+        .main-content { padding: 32px 40px; }
+    }
+
+    {% block styles %}{% endblock %}
+    </style>
+</head>
+<body>
+
+<!-- Mobile Toggle -->
+<button class="mobile-nav-toggle" onclick="toggleSidebar()">
+    <i class="bi bi-list"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <i class="bi bi-grid-3x3-gap"></i>
+        <span>企业信息化管理系统</span>
+    </div>
+    
+    <div class="sidebar-nav">
+        {% block sidebar_nav %}
+        <!-- ===== 核心业务（始终显示）===== -->
+        <div class="sidebar-section">
+            <a href="/dashboard/" class="nav-link {% if request.path == '/dashboard/' %}active{% endif %}">
+                <i class="bi bi-speedometer2"></i><span>控制台</span>
+            </a>
+            {% if 'project.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/projects/" class="nav-link {% if '/projects' in request.path %}active{% endif %}">
+                <i class="bi bi-briefcase"></i><span>项目管理</span>
+            </a>
+            {% endif %}
+            {% if 'task_board.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/tasks/board/" class="nav-link {% if '/tasks' in request.path %}active{% endif %}">
+                <i class="bi bi-kanban"></i><span>任务看板</span>
+            </a>
+            {% endif %}
+            {% if 'approval.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/approvals/" class="nav-link {% if '/approvals' in request.path and '/approvals/templates' not in request.path %}active{% endif %}">
+                <i class="bi bi-git-branch"></i><span>审批管理</span>
+            </a>
+            {% endif %}
+        </div>
+
+        <!-- ===== 财务管理 ===== -->
+        {% if 'wage.view' in user_menu_codes or 'income.view' in user_menu_codes or 'expense.view' in user_menu_codes or 'invoice.view' in user_menu_codes or 'report.view' in user_menu_codes or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">财务</div>
+            {% if 'wage.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/wages/" class="nav-link {% if '/finance/wages' in request.path %}active{% endif %}">
+                <i class="bi bi-wallet2"></i><span>工资管理</span>
+            </a>
+            {% endif %}
+            {% if 'employee_view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/employees/" class="nav-link {% if '/finance/employees' in request.path %}active{% endif %}">
+                <i class="bi bi-person-badge"></i><span>员工管理</span>
+            </a>
+            {% endif %}
+            {% if 'income.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/incomes/" class="nav-link {% if '/finance/incomes' in request.path %}active{% endif %}">
+                <i class="bi bi-arrow-down-circle"></i><span>收入管理</span>
+            </a>
+            {% endif %}
+            {% if 'expense.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/expenses/" class="nav-link {% if '/finance/expenses' in request.path %}active{% endif %}">
+                <i class="bi bi-arrow-up-circle"></i><span>支出管理</span>
+            </a>
+            {% endif %}
+            {% if 'invoice.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/invoices/" class="nav-link {% if '/finance/invoices' in request.path %}active{% endif %}">
+                <i class="bi bi-receipt"></i><span>发票管理</span>
+            </a>
+            {% endif %}
+            {% if 'report.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/reports/" class="nav-link {% if '/finance/reports' in request.path %}active{% endif %}">
+                <i class="bi bi-bar-chart"></i><span>财务报表</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- ===== 项目资源 ===== -->
+        {% if 'client.view' in user_menu_codes or 'contract.view' in user_menu_codes or 'supplier_view' in user_menu_codes or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">资源</div>
+            {% if 'client.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/crm/clients/" class="nav-link {% if '/crm/clients' in request.path %}active{% endif %}">
+                <i class="bi bi-building"></i><span>客户</span>
+            </a>
+            {% endif %}
+            {% if 'contract.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/crm/contracts/" class="nav-link {% if '/crm/contracts' in request.path %}active{% endif %}">
+                <i class="bi bi-file-earmark-text"></i><span>合同</span>
+            </a>
+            {% endif %}
+            {% if 'supplier_view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/crm/suppliers/" class="nav-link {% if '/crm/suppliers' in request.path %}active{% endif %}">
+                <i class="bi bi-truck"></i><span>供应商</span>
+            </a>
+            {% endif %}
+            {% if 'file.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/files/" class="nav-link {% if request.path == '/files/' %}active{% endif %}">
+                <i class="bi bi-folder"></i><span>文件</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- ===== 系统管理（管理员）===== -->
+        {% if 'user.view' in user_menu_codes or 'role.view' in user_menu_codes or 'permission.view' in user_menu_codes or 'company.view' in user_menu_codes or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">系统</div>
+            {% if 'company.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/system/companies/" class="nav-link {% if '/system/companies' in request.path %}active{% endif %}">
+                <i class="bi bi-building"></i><span>公司</span>
+            </a>
+            {% endif %}
+            {% if 'user.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/system/users/" class="nav-link {% if '/system/users' in request.path %}active{% endif %}">
+                <i class="bi bi-people"></i><span>用户</span>
+            </a>
+            {% endif %}
+            {% if 'role.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/system/roles/" class="nav-link {% if '/system/roles' in request.path %}active{% endif %}">
+                <i class="bi bi-shield"></i><span>角色</span>
+            </a>
+            {% endif %}
+            {% if 'permission.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/system/permissions/" class="nav-link {% if '/system/permissions' in request.path %}active{% endif %}">
+                <i class="bi bi-key"></i><span>权限</span>
+            </a>
+            {% endif %}
+            <a href="/system/audit-logs/" class="nav-link {% if '/system/audit-logs' in request.path %}active{% endif %}">
+                <i class="bi bi-clock-history"></i><span>审计日志</span>
+            </a>
+            {% if request.user.is_superuser %}
+            <a href="/system/settings/" class="nav-link {% if '/system/settings' in request.path %}active{% endif %}">
+                <i class="bi bi-gear-wide-connected"></i><span>系统参数</span>
+            </a>
+            <a href="/warnings/" class="nav-link {% if '/warnings' in request.path %}active{% endif %}">
+                <i class="bi bi-shield-exclamation"></i><span>预警中心</span>
+                <span class="badge bg-danger ms-auto" style="font-size:0.65rem;padding:2px 6px;border-radius:10px;display:none;" id="warningBadge"></span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- ===== 辅助功能（始终折叠）===== -->
+        {% if 'stats.view' in user_menu_codes or 'notification.view' in user_menu_codes or 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">工具</div>
+            {% if 'notification.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/notifications/" class="nav-link">
+                <i class="bi bi-bell"></i><span>通知</span>
+            </a>
+            {% endif %}
+            {% if 'stats.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/stats/" class="nav-link">
+                <i class="bi bi-pie-chart"></i><span>数据统计</span>
+            </a>
+            {% endif %}
+            {% if 'material.list' in user_menu_codes or request.user.is_superuser %}
+            <a href="/materials/" class="nav-link {% if '/materials' in request.path %}active{% endif %}">
+                <i class="bi bi-box-seam"></i><span>物料</span>
+            </a>
+            {% endif %}
+            {% if 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+            <a href="/equipment/" class="nav-link {% if '/equipment' in request.path %}active{% endif %}">
+                <i class="bi bi-tools"></i><span>设备</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+        {% endblock %}
+    </div>
+    
+    <div class="sidebar-footer">
+        <a href="/profile/" class="nav-link">
+            <i class="bi bi-person-circle"></i>
+            <span>个人设置</span>
+        </a>
+        <a href="#" class="nav-link" onclick="logout()">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>退出登录</span>
+        </a>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Bottom Tabs (Mobile) -->
+<nav class="bottom-tabs">
+    <a href="/dashboard/" class="tab-item {% if request.path == '/dashboard/' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i>
+        <span>首页</span>
+    </a>
+    <a href="/projects/" class="tab-item {% if '/projects' in request.path %}active{% endif %}">
+        <i class="bi bi-briefcase"></i>
+        <span>项目</span>
+    </a>
+    <a href="/tasks/board/" class="tab-item {% if '/tasks' in request.path %}active{% endif %}">
+        <i class="bi bi-kanban"></i>
+        <span>任务</span>
+    </a>
+    <a href="/finance/wages/" class="tab-item {% if '/finance' in request.path %}active{% endif %}">
+        <i class="bi bi-wallet2"></i>
+        <span>工资</span>
+    </a>
+    <a href="/profile/" class="tab-item {% if '/profile' in request.path %}active{% endif %}">
+        <i class="bi bi-person"></i>
+        <span>我的</span>
+    </a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+function getCsrfToken() {
+    return getCookie('csrftoken') || '';
+}
+
+</script>
+<script>
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('show');
+    document.querySelector('.sidebar-overlay').classList.toggle('show');
+}
+
+function logout() {
+    fetch('/api/core/auth/logout/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+    })
+    .then(function() {
+        window.location.href = '/login/';
+    })
+    .catch(function() {
+        window.location.href = '/login/';
+    });
+}
+
+function showToast(msg, type, duration) {
+    type = type || 'info';
+    duration = duration || 3000;
+    var container = document.querySelector('.toast-container') || (function() {
+        var div = document.createElement('div');
+        div.className = 'toast-container';
+        document.body.appendChild(div);
+        return div;
+    })();
+    var toast = document.createElement('div');
+    toast.className = 'toast-msg ' + type;
+    var icons = {
+        success: 'bi-check-circle-fill',
+        error: 'bi-x-circle-fill',
+        warning: 'bi-exclamation-triangle-fill',
+        info: 'bi-info-circle-fill'
+    };
+    toast.innerHTML = '<i class="bi ' + (icons[type] || icons.info) + '"></i><span>' + msg + '</span>';
+    container.appendChild(toast);
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.3s';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, duration);
+}
+
+// Sidebar active state
+var USER_PERMS = { codes: [], menu_codes: [] };
+
+function loadPermissions() {
+    fetch('/api/core/auth/user/my-permissions/', {
+        credentials: 'include'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            USER_PERMS.codes = data.codes || [];
+            USER_PERMS.menu_codes = data.menu_codes || [];
+            hideUnauthorizedButtons();
+        }
+    })
+    .catch(function() {});
+}
+
+function hasPermission(permCode) {
+    if (!permCode) return true;
+    var codes = USER_PERMS.codes || [];
+    return codes.includes(permCode);
+}
+
+function hideUnauthorizedButtons() {
+    document.querySelectorAll('[data-perm]').forEach(function(el) {
+        var perms = el.getAttribute('data-perm').split(',').map(function(p) { return p.trim(); });
+        var allowed = perms.some(function(p) { return hasPermission(p); });
+        if (!allowed) {
+            el.style.display = 'none';
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否已登录（通过session cookie）
+    fetch('/api/core/auth/user/', {
+        credentials: 'include'
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            window.location.href = '/login/';
+        } else {
+            loadPermissions();
+        }
+    })
+    .catch(function() {
+        window.location.href = '/login/';
+    });
+});
+</script>
+{% block modal %}{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

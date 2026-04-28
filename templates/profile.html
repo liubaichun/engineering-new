@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block title %}个人设置 - 企业信息化管理系统{% endblock %}
+
+{% block content %}
+<div class="container-fluid p-4">
+    <h4 class="mb-4"><i class="bi bi-person-circle me-2"></i>个人设置</h4>
+    
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <div class="mb-3">
+                        <i class="bi bi-person-circle" style="font-size: 4rem; color: var(--primary);"></i>
+                    </div>
+                    <h5>{{ request.user.username }}</h5>
+                    <p class="text-muted mb-1">{{ request.user.email|default:"未设置邮箱" }}</p>
+                    <span class="badge bg-primary">{{ request.user.is_staff|yesno:"管理员,普通用户" }}</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-key me-2"></i>修改密码</h6>
+                </div>
+                <div class="card-body">
+                    <form id="passwordForm" onsubmit="return updatePassword(event)">
+                        <div class="mb-3">
+                            <label class="form-label">当前密码</label>
+                            <input type="password" class="form-control" id="oldPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">新密码</label>
+                            <input type="password" class="form-control" id="newPassword" required minlength="6">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">确认新密码</label>
+                            <input type="password" class="form-control" id="confirmPassword" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="bi bi-check2 me-1"></i>保存修改
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function updatePassword(e) {
+    e.preventDefault();
+    const newPwd = document.getElementById('newPassword').value;
+    const confirmPwd = document.getElementById('confirmPassword').value;
+    
+    if (newPwd !== confirmPwd) {
+        alert('两次输入的新密码不一致');
+        return false;
+    }
+    
+    fetch('/api/core/auth/password/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            old_password: document.getElementById('oldPassword').value,
+            new_password: newPwd
+        })
+    }).then(r => r.json()).then(data => {
+        if (data.success || data.message) {
+            alert('密码修改成功');
+            document.getElementById('passwordForm').reset();
+        } else {
+            alert(data.error || '修改失败');
+        }
+    }).catch(() => alert('修改失败，请重试'));
+    return false;
+}
+</script>
+{% endblock %}

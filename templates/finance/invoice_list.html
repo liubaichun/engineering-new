@@ -1,0 +1,771 @@
+{% extends "base.html" %}
+
+{% block title %}发票管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.invoice-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.warning { color: var(--warning); }
+.summary-card .value.primary { color: var(--primary); }
+.invoice-table td { vertical-align: middle; }
+.status-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.status-badge.pending { background: #fef3c7; color: #92400e; }
+.status-badge.issued { background: #dbeafe; color: #1e40af; }
+.status-badge.paid { background: #d1fae5; color: #065f46; }
+.status-badge.cancelled { background: #f3f4f6; color: #6b7280; }
+.type-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.type-badge.income { background: #d1fae5; color: #065f46; }
+.type-badge.expense { background: #fee2e2; color: #991b1b; }
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+.date-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-receipt me-2"></i>发票管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理收入发票和支出发票的开具、收 取状态</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" id="filterCompany" style="width: auto;" onchange="loadInvoices()">
+            <option value="">全部公司</option>
+        </select>
+        <select class="form-select form-select-sm" id="filterType" style="width: auto;" onchange="loadInvoices()">
+            <option value="">全部类型</option>
+            <option value="income">收入发票</option>
+            <option value="expense">支出发票</option>
+        </select>
+        <select class="form-select form-select-sm" id="filterStatus" style="width: auto;" onchange="loadInvoices()">
+            <option value="">全部状态</option>
+            <option value="pending">待开票</option>
+            <option value="issued">已开票</option>
+            <option value="paid">已支付</option>
+            <option value="cancelled">已作废</option>
+        </select>
+        <input type="date" class="form-control form-control-sm" id="filterDateFrom" style="width: auto;" placeholder="开始日期" onchange="loadInvoices()">
+        <input type="date" class="form-control form-control-sm" id="filterDateTo" style="width: auto;" placeholder="结束日期" onchange="loadInvoices()">
+        <button class="btn btn-primary btn-sm" onclick="showAddInvoiceModal()" data-perm="invoice.add">
+            <i class="bi bi-plus-lg me-1"></i>新建发票
+        </button>
+        <button class="btn btn-success btn-sm" onclick="exportInvoices()">
+            <i class="bi bi-download me-1"></i>导出
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="invoice-summary">
+    <div class="summary-card">
+        <div class="label">发票总数</div>
+        <div class="value primary" id="totalCount">0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalInvoices">0</span> 张</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">待开票金额</div>
+        <div class="value warning" id="pendingAmount">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">已开票金额</div>
+        <div class="value primary" id="issuedAmount">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">已收/支金额</div>
+        <div class="value success" id="paidAmount">¥0</div>
+    </div>
+</div>
+
+<!-- 发票列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>发票明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table invoice-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input class="form-check-input" type="checkbox">
+                        </th>
+                        <th>发票号</th>
+                        <th>类型</th>
+                        <th>发票类型</th>
+                        <th>公司</th>
+                        <th>金额</th>
+                        <th>税率</th>
+                        <th>税额</th>
+                        <th>状态</th>
+                        <th>认证</th>
+                        <th style="width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="invoiceTableBody">
+                    <tr>
+                        <td colspan="10" class="text-center text-muted py-4">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 新增/编辑发票 Modal -->
+<div class="modal fade" id="invoiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-receipt me-2"></i><span id="invoiceModalTitle">新建发票</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="invoiceId">
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">发票号 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="invoiceNo" placeholder="请输入发票号" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">类型 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="invoiceType" required>
+                            <option value="">选择类型</option>
+                            <option value="income">收入发票</option>
+                            <option value="expense">支出发票</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">公司 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="invoiceCompany" required>
+                            <option value="">选择公司</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">金额 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="invoiceAmount" placeholder="¥0" step="0.01" required>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">发票类型</label>
+                        <select class="form-select" id="invoiceType2">
+                            <option value="">普通发票</option>
+                            <option value="special">增值税专用发票</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">税率(%)</label>
+                        <input type="number" class="form-control" id="invoiceTaxRate" placeholder="如: 6, 13" step="0.01" min="0" max="100">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">认证抵扣</label>
+                        <select class="form-select" id="invoiceIsCredited">
+                            <option value="false">未认证</option>
+                            <option value="true">已认证</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">对方公司</label>
+                        <input type="text" class="form-control" id="invoiceCounterparty" placeholder="对方公司名称">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">关联项目</label>
+                        <select class="form-select" id="invoiceProject">
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">开票日期</label>
+                        <input type="date" class="form-control" id="invoiceIssueDate">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">到期日期</label>
+                        <input type="date" class="form-control" id="invoiceDueDate">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="invoiceRemarks" rows="2" placeholder="备注信息"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveInvoice()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 查看详情 Modal -->
+<div class="modal fade" id="invoiceDetailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-receipt me-2"></i>发票详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="invoiceDetailContent">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let pageSize = 15;
+let totalInvoices = 0;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    loadProjects();
+    loadInvoices();
+});
+
+async function loadCompanies() {
+    try {
+        const response = await fetch('/api/finance/companies/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const options = '<option value="">全部公司</option>' + 
+                data.results.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            document.getElementById('filterCompany').innerHTML = options;
+            document.getElementById('invoiceCompany').innerHTML = '<option value="">选择公司</option>' + 
+                data.results.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        }
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
+}
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/tasks/projects/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const options = '<option value="">选择项目</option>' + 
+                (data.results || data).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            document.getElementById('invoiceProject').innerHTML = options;
+        }
+    } catch (error) {
+        console.error('加载项目失败:', error);
+    }
+}
+
+async function loadInvoices() {
+    const company = document.getElementById('filterCompany').value;
+    const type = document.getElementById('filterType').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    
+    let url = `/api/finance/invoices/?page=${currentPage}&page_size=${pageSize}`;
+    if (company) url += `&company_id=${company}`;
+    if (type) url += `&type=${type}`;
+    if (status) url += `&status=${status}`;
+    if (dateFrom) url += `&issue_date_min=${dateFrom}`;
+    if (dateTo) url += `&issue_date_max=${dateTo}`;
+    
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            totalInvoices = data.count;
+            renderInvoiceTable(data.results || data);
+            renderPagination(data);
+            updateSummary(data);
+        } else {
+            showError('加载发票列表失败');
+        }
+    } catch (error) {
+        console.error('加载发票失败:', error);
+        document.getElementById('invoiceTableBody').innerHTML = 
+            '<tr><td colspan="10" class="text-center text-danger py-4">加载失败，请刷新页面</td></tr>';
+    }
+}
+
+function renderInvoiceTable(invoices) {
+    const tbody = document.getElementById('invoiceTableBody');
+    if (!invoices || invoices.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无发票记录</td></tr>';
+        return;
+    }
+    
+    tbody.innerHTML = invoices.map(inv => `
+        <tr>
+            <td><input class="form-check-input" type="checkbox" value="${inv.id}"></td>
+            <td><strong>${inv.invoice_no}</strong></td>
+            <td><span class="type-badge ${inv.type}">${inv.type === 'income' ? '收入' : '支出'}</span></td>
+            <td>${inv.invoice_type === 'special' ? '增值税专用' : '普通发票'}</td>
+            <td>${inv.company_name || '-'}</td>
+            <td><strong class="text-success">¥${parseFloat(inv.amount).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</strong></td>
+            <td>${inv.tax_rate ? inv.tax_rate + '%' : '-'}</td>
+            <td>${inv.tax_amount > 0 ? '¥' + parseFloat(inv.tax_amount).toLocaleString('zh-CN', {minimumFractionDigits: 2}) : '-'}</td>
+            <td><span class="status-badge ${inv.status}">${getStatusText(inv.status)}</span></td>
+            <td>${inv.is_credited ? '<span class="badge bg-success">已认证</span>' : '<span class="badge bg-secondary">未认证</span>'}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="viewInvoice(${inv.id})" title="查看">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="editInvoice(${inv.id})" title="编辑">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteInvoice(${inv.id})" title="删除" data-perm="invoice.delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function getStatusText(status) {
+    const map = {
+        'pending': '待开票',
+        'issued': '已开票',
+        'paid': '已支付',
+        'cancelled': '已作废'
+    };
+    return map[status] || status;
+}
+
+function renderPagination(data) {
+    const pagination = document.getElementById('pagination');
+    const totalPages = Math.ceil(data.count / pageSize);
+    
+    document.getElementById('recordCount').textContent = data.count;
+    document.getElementById('paginationInfo').textContent = 
+        `显示 ${((currentPage - 1) * pageSize) + 1}-${Math.min(currentPage * pageSize, data.count)} 条，共 ${data.count} 条`;
+    
+    let html = '';
+    if (currentPage > 1) {
+        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage - 1})">上一页</a></li>`;
+    }
+    
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    
+    if (start > 1) {
+        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(1)">1</a></li>`;
+        if (start > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+    }
+    
+    for (let i = start; i <= end; i++) {
+        html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+            <a class="page-link" href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>
+        </li>`;
+    }
+    
+    if (end < totalPages) {
+        if (end < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${totalPages})">${totalPages}</a></li>`;
+    }
+    
+    if (currentPage < totalPages) {
+        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage + 1})">下一页</a></li>`;
+    }
+    
+    pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadInvoices();
+}
+
+function updateSummary(data) {
+    const invoices = data.results || data;
+    let pending = 0, issued = 0, paid = 0;
+    invoices.forEach(inv => {
+        if (inv.status === 'pending') pending += parseFloat(inv.amount);
+        else if (inv.status === 'issued') issued += parseFloat(inv.amount);
+        else if (inv.status === 'paid') paid += parseFloat(inv.amount);
+    });
+    
+    document.getElementById('totalCount').textContent = data.count;
+    document.getElementById('totalInvoices').textContent = data.count;
+    document.getElementById('pendingAmount').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+    document.getElementById('issuedAmount').textContent = '¥' + issued.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+    document.getElementById('paidAmount').textContent = '¥' + paid.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+}
+
+function showAddInvoiceModal() {
+    document.getElementById('invoiceModalTitle').textContent = '新建发票';
+    document.getElementById('invoiceId').value = '';
+    document.getElementById('invoiceNo').value = '';
+    document.getElementById('invoiceType').value = '';
+    document.getElementById('invoiceCompany').value = '';
+    document.getElementById('invoiceAmount').value = '';
+    document.getElementById('invoiceProject').value = '';
+    var elStatus = document.getElementById('invoiceStatus');
+    if (elStatus) elStatus.value = 'pending';
+    var elType2 = document.getElementById('invoiceType2');
+    if (elType2) elType2.value = '';
+    var elTax = document.getElementById('invoiceTaxRate');
+    if (elTax) elTax.value = '';
+    var elCred = document.getElementById('invoiceIsCredited');
+    if (elCred) elCred.value = 'false';
+    var elCp = document.getElementById('invoiceCounterparty');
+    if (elCp) elCp.value = '';
+    var elId = document.getElementById('invoiceIssueDate');
+    if (elId) elId.value = '';
+    var elDd = document.getElementById('invoiceDueDate');
+    if (elDd) elDd.value = '';
+    document.getElementById('invoiceRemarks').value = '';
+
+    const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+    modal.show();
+}
+
+async function editInvoice(id) {
+    try {
+        const response = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
+        if (response.ok) {
+            const inv = await response.json();
+            document.getElementById('invoiceModalTitle').textContent = '编辑发票';
+            document.getElementById('invoiceId').value = inv.id;
+            document.getElementById('invoiceNo').value = inv.invoice_no;
+            document.getElementById('invoiceType').value = inv.type;
+            document.getElementById('invoiceCompany').value = inv.company || '';
+            document.getElementById('invoiceAmount').value = inv.amount;
+            document.getElementById('invoiceProject').value = inv.project || '';
+            document.getElementById('invoiceStatus').value = inv.status;
+            document.getElementById('invoiceType2').value = inv.invoice_type || '';
+            document.getElementById('invoiceTaxRate').value = inv.tax_rate || '';
+            document.getElementById('invoiceIsCredited').value = inv.is_credited ? 'true' : 'false';
+            document.getElementById('invoiceCounterparty').value = inv.counterparty || '';
+            document.getElementById('invoiceIssueDate').value = inv.issue_date || '';
+            document.getElementById('invoiceDueDate').value = inv.due_date || '';
+            document.getElementById('invoiceRemarks').value = inv.remarks || '';
+
+            const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
+            modal.show();
+        }
+    } catch (error) {
+        showError('加载发票信息失败');
+    }
+}
+
+async function viewInvoice(id) {
+    try {
+        const response = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
+        if (response.ok) {
+            const inv = await response.json();
+            const content = `
+                <table class="table table-bordered">
+                    <tr><th style="width: 35%;">发票号</th><td>${inv.invoice_no}</td></tr>
+                    <tr><th>类型</th><td>${inv.type === 'income' ? '收入发票' : '支出发票'}</td></tr>
+                    <tr><th>发票类型</th><td>${inv.invoice_type === 'special' ? '增值税专用发票' : '普通发票'}</td></tr>
+                    <tr><th>公司</th><td>${inv.company_name || '-'}</td></tr>
+                    <tr><th>金额</th><td class="text-success fw-bold">¥${parseFloat(inv.amount).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td></tr>
+                    <tr><th>税率</th><td>${inv.tax_rate ? inv.tax_rate + '%' : '-'}</td></tr>
+                    <tr><th>税额</th><td>${inv.tax_amount > 0 ? '¥' + parseFloat(inv.tax_amount).toLocaleString('zh-CN', {minimumFractionDigits: 2}) : '-'}</td></tr>
+                    <tr><th>对方公司</th><td>${inv.counterparty || '-'}</td></tr>
+                    <tr><th>认证抵扣</th><td>${inv.is_credited ? '已认证' : '未认证'}</td></tr>
+                    <tr><th>状态</th><td><span class="status-badge ${inv.status}">${getStatusText(inv.status)}</span></td></tr>
+                    <tr><th>开票日期</th><td>${inv.issue_date || '-'}</td></tr>
+                    <tr><th>到期日期</th><td>${inv.due_date || '-'}</td></tr>
+                    <tr><th>备注</th><td>${inv.remarks || '-'}</td></tr>
+                    <tr><th>创建时间</th><td>${inv.created_at || '-'}</td></tr>
+                </table>
+                <div class="mt-3">
+                    <button class="btn btn-primary btn-sm me-2" onclick="issueInvoice(${inv.id})" ${inv.status !== 'pending' ? 'disabled' : ''}>
+                        <i class="bi bi-check-circle me-1"></i>开具发票
+                    </button>
+                    <button class="btn btn-success btn-sm me-2" onclick="markInvoicePaid(${inv.id})" ${inv.status !== 'issued' ? 'disabled' : ''}>
+                        <i class="bi bi-check-all me-1"></i>标记已支付
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="cancelInvoice(${inv.id})" ${inv.status === 'paid' ? 'disabled' : ''} data-perm="invoice.change">
+                        <i class="bi bi-x-circle me-1"></i>作废发票
+                    </button>
+                </div>
+            `;
+            document.getElementById('invoiceDetailContent').innerHTML = content;
+            const modal = new bootstrap.Modal(document.getElementById('invoiceDetailModal'));
+            modal.show();
+        }
+    } catch (error) {
+        showError('加载发票信息失败');
+    }
+}
+
+async function saveInvoice() {
+    const id = document.getElementById('invoiceId').value;
+    const data = {
+        invoice_no: document.getElementById('invoiceNo').value,
+        type: document.getElementById('invoiceType').value,
+        company: document.getElementById('invoiceCompany').value,
+        amount: document.getElementById('invoiceAmount').value,
+        project: document.getElementById('invoiceProject').value || null,
+        status: document.getElementById('invoiceStatus').value,
+        invoice_type: document.getElementById('invoiceType2').value || 'normal',
+        tax_rate: document.getElementById('invoiceTaxRate').value || '0',
+        is_credited: document.getElementById('invoiceIsCredited').value === 'true',
+        counterparty: document.getElementById('invoiceCounterparty').value,
+        issue_date: document.getElementById('invoiceIssueDate').value || null,
+        due_date: document.getElementById('invoiceDueDate').value || null,
+        remarks: document.getElementById('invoiceRemarks').value
+    };
+
+    if (!data.type || !data.company || !data.amount) {
+        showError('请填写必填项（类型、公司、金额）');
+        return;
+    }
+    
+    try {
+        const url = id ? `/api/finance/invoices/${id}/` : '/api/finance/invoices/';
+        const method = id ? 'PUT' : 'POST';
+        const response = await fetch(url, {
+            method,
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+            },
+            body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('invoiceModal')).hide();
+            document.getElementById('invoiceModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('invoiceModal').removeEventListener('hidden.bs.modal', handler);
+                loadInvoices();
+                showSuccess(id ? '发票已更新' : '发票已创建');
+            });
+        } else {
+            const err = await response.json();
+            showError(err.message || '保存失败');
+        }
+    } catch (error) {
+        showError('保存失败');
+    }
+}
+
+async function deleteInvoice(id) {
+    if (!confirm('确定要删除这张发票吗？')) return;
+    
+    try {
+        const response = await fetch(`/api/finance/invoices/${id}/`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (response.ok) {
+            loadInvoices();
+            showSuccess('发票已删除');
+        } else {
+            showError('删除失败');
+        }
+    } catch (error) {
+        showError('删除失败');
+    }
+}
+
+async function issueInvoice(id) {
+    try {
+        const response = await fetch(`/api/finance/invoices/${id}/issue/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailModal')).hide();
+            document.getElementById('invoiceDetailModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('invoiceDetailModal').removeEventListener('hidden.bs.modal', handler);
+                loadInvoices();
+                showSuccess('发票已开具');
+            });
+        } else {
+            showError(data.message || '操作失败');
+        }
+    } catch (error) {
+        showError('操作失败');
+    }
+}
+
+async function markInvoicePaid(id) {
+    try {
+        const response = await fetch(`/api/finance/invoices/${id}/mark_paid/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailModal')).hide();
+            document.getElementById('invoiceDetailModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('invoiceDetailModal').removeEventListener('hidden.bs.modal', handler);
+                loadInvoices();
+                showSuccess('已标记为已支付');
+            });
+        } else {
+            showError(data.message || '操作失败');
+        }
+    } catch (error) {
+        showError('操作失败');
+    }
+}
+
+async function cancelInvoice(id) {
+    if (!confirm('确定要作废这张发票吗？')) return;
+    
+    try {
+        const response = await fetch(`/api/finance/invoices/${id}/cancel/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+        });
+        const data = await response.json();
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailModal')).hide();
+            document.getElementById('invoiceDetailModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('invoiceDetailModal').removeEventListener('hidden.bs.modal', handler);
+                loadInvoices();
+                showSuccess('发票已作废');
+            });
+        } else {
+            showError(data.message || '操作失败');
+        }
+    } catch (error) {
+        showError('操作失败');
+    }
+}
+
+function showError(msg) {
+    alert(msg);
+}
+
+function showSuccess(msg) {
+    alert(msg);
+}
+
+// ===== 导出功能 =====
+const INVOICE_COLUMNS = [
+    { key: 'id', label: 'ID' },
+    { key: 'invoice_no', label: '发票号' },
+    { key: 'type_display', label: '发票类型' },
+    { key: 'company_name', label: '公司' },
+    { key: 'project_name', label: '项目' },
+    { key: 'amount', label: '金额（元）' },
+    { key: 'tax_rate', label: '税率（%）' },
+    { key: 'tax_amount', label: '税额（元）' },
+    { key: 'counterparty', label: '对方单位' },
+    { key: 'invoice_type_display', label: '发票票种' },
+    { key: 'is_credited_display', label: '认证抵扣' },
+    { key: 'status_display', label: '状态' },
+    { key: 'issue_date', label: '开票日期' },
+    { key: 'due_date', label: '到期日期' },
+    { key: 'remarks', label: '备注' },
+    { key: 'created_at', label: '创建时间' }
+];
+
+async function exportInvoices() {
+    const params = new URLSearchParams();
+    const companyId = document.getElementById('filterCompany')?.value;
+    const type = document.getElementById('filterType')?.value;
+    const status = document.getElementById('filterStatus')?.value;
+    const dateFrom = document.getElementById('filterDateFrom')?.value;
+    const dateTo = document.getElementById('filterDateTo')?.value;
+    if (companyId) params.set('company_id', companyId);
+    if (type) params.set('type', type);
+    if (status) params.set('status', status);
+    if (dateFrom) params.set('date_start', dateFrom);
+    if (dateTo) params.set('date_end', dateTo);
+
+    try {
+        showSuccess('正在导出…');
+        const response = await fetch(`/api/finance/invoices/export/?${params}`, { credentials: 'include' });
+        if (!response.ok) throw new Error('导出失败');
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `发票记录_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showSuccess('导出成功');
+    } catch (e) {
+        console.error(e);
+        showError('导出失败');
+    }
+}
+
+function downloadBlob(content, filename, mimeType) {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+</script>
+{% endblock %}

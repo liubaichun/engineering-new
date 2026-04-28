@@ -1,0 +1,386 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>注册 - 企业信息化管理系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+        }
+        body {
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .register-container {
+            width: 100%;
+            max-width: 480px;
+            padding: 0 16px;
+        }
+        .register-card {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 40px 36px;
+        }
+        .brand {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .brand h3 {
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 1.5rem;
+            margin-bottom: 4px;
+        }
+        .brand p {
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin: 0;
+        }
+        .form-label {
+            font-weight: 500;
+            font-size: 0.875rem;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        .form-control {
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.9rem;
+            border: 1.5px solid #e5e7eb;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-control:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+        }
+        .form-control.is-invalid {
+            border-color: #ef4444;
+        }
+        .password-toggle {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            cursor: pointer;
+            color: #9ca3af;
+            z-index: 5;
+        }
+        .password-toggle:hover { color: var(--primary); }
+        .password-wrapper {
+            position: relative;
+        }
+        .btn-register {
+            background: var(--primary);
+            border: none;
+            border-radius: 10px;
+            padding: 12px;
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #fff;
+            width: 100%;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        .btn-register:hover { background: var(--primary-hover); }
+        .btn-register:disabled { background: #a5b4fc; cursor: not-allowed; }
+        .password-rules {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-top: 4px;
+            padding-left: 2px;
+        }
+        .error-msg {
+            font-size: 0.8rem;
+            color: #ef4444;
+            margin-top: 4px;
+        }
+        .login-hint {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+        .login-hint a { color: var(--primary); text-decoration: none; font-weight: 500; }
+        .login-hint a:hover { text-decoration: underline; }
+        .alert-box {
+            border-radius: 10px;
+            padding: 10px 14px;
+            font-size: 0.85rem;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .alert-box.error { background: #fef2f2; border: 1px solid #fecaca; color: #dc2626; }
+        .alert-box.success { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; }
+        .strength-bar {
+            height: 4px;
+            border-radius: 2px;
+            margin-top: 6px;
+            background: #e5e7eb;
+            overflow: hidden;
+        }
+        .strength-bar .bar {
+            height: 100%;
+            width: 0%;
+            border-radius: 2px;
+            transition: width 0.3s, background 0.3s;
+        }
+        .strength-text {
+            font-size: 0.72rem;
+            margin-top: 4px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+<div class="register-container">
+    <div class="register-card">
+        <div class="brand">
+            <h3><i class="bi bi-grid-3x3-gap-fill"></i> 企业信息化管理系统</h3>
+            <p>创建您的账号</p>
+        </div>
+
+        <div id="errorAlert" class="alert-box error"></div>
+        <div id="successAlert" class="alert-box success"></div>
+
+        <form id="registerForm" autocomplete="off">
+            <div class="mb-3">
+                <label class="form-label">用户名 <span style="color:#ef4444">*</span></label>
+                <input type="text" class="form-control" id="username" placeholder="请输入用户名" required maxlength="30" autocomplete="username">
+                <div id="usernameError" class="error-msg"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">邮箱 <span style="color:#ef4444">*</span></label>
+                <input type="email" class="form-control" id="email" placeholder="请输入邮箱地址" required autocomplete="email">
+                <div id="emailError" class="error-msg"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">密码 <span style="color:#ef4444">*</span></label>
+                <div class="password-wrapper">
+                    <input type="password" class="form-control" id="password" placeholder="请输入密码" required autocomplete="new-password" style="padding-right:40px">
+                    <span class="password-toggle" onclick="togglePassword('password', this)">
+                        <i class="bi bi-eye-slash" id="toggle-password-icon"></i>
+                    </span>
+                </div>
+                <div class="strength-bar"><div class="bar" id="strengthBar"></div></div>
+                <div class="strength-text" id="strengthText"></div>
+                <div class="password-rules">至少8位，包含大小写字母和数字</div>
+                <div id="passwordError" class="error-msg"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">确认密码 <span style="color:#ef4444">*</span></label>
+                <div class="password-wrapper">
+                    <input type="password" class="form-control" id="passwordConfirm" placeholder="请再次输入密码" required autocomplete="new-password" style="padding-right:40px">
+                    <span class="password-toggle" onclick="togglePassword('passwordConfirm', this)">
+                        <i class="bi bi-eye-slash" id="toggle-passwordConfirm-icon"></i>
+                    </span>
+                </div>
+                <div id="passwordConfirmError" class="error-msg"></div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">手机号（选填）</label>
+                <input type="tel" class="form-control" id="phone" placeholder="请输入手机号（选填）" autocomplete="tel">
+            </div>
+
+            <button type="submit" class="btn btn-register" id="registerBtn">
+                <span id="btnText">注 册</span>
+                <span id="btnSpinner" class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
+            </button>
+        </form>
+
+        <div class="login-hint">
+            已有账号？<a href="/login/">立即登录</a>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function togglePassword(id, el) {
+    var input = document.getElementById(id);
+    var icon = el.querySelector('i');
+    if (input.type === 'password') {
+        input.type = 'text';
+        icon.className = 'bi bi-eye';
+    } else {
+        input.type = 'password';
+        icon.className = 'bi bi-eye-slash';
+    }
+}
+
+function getCsrfToken() {
+    return document.cookie.split(';').find(row => row.trim().startsWith('csrftoken='))?.split('=')[1];
+}
+
+function calcPasswordStrength(pwd) {
+    var score = 0;
+    if (pwd.length >= 8) score++;
+    if (pwd.length >= 12) score++;
+    if (/[A-Z]/.test(pwd)) score++;
+    if (/[a-z]/.test(pwd)) score++;
+    if (/\d/.test(pwd)) score++;
+    if (/[^A-Za-z0-9]/.test(pwd)) score++;
+    return Math.min(score, 4);
+}
+
+document.getElementById('password').addEventListener('input', function() {
+    var pwd = this.value;
+    var bar = document.getElementById('strengthBar');
+    var text = document.getElementById('strengthText');
+    var score = calcPasswordStrength(pwd);
+    var colors = ['#ef4444', '#f97316', '#eab308', '#22c55e'];
+    var labels = ['太弱', '弱', '中等', '强'];
+    bar.style.width = (score * 25) + '%';
+    bar.style.background = colors[Math.max(0, score - 1)];
+    if (pwd.length > 0) {
+        text.textContent = '强度：' + labels[Math.max(0, score - 1)];
+    } else {
+        text.textContent = '';
+        bar.style.width = '0%';
+    }
+});
+
+function showError(fieldId, msg) {
+    var el = document.getElementById(fieldId + 'Error');
+    var input = document.getElementById(fieldId);
+    if (el) { el.textContent = msg; }
+    if (input) { input.classList.add('is-invalid'); }
+}
+
+function clearErrors() {
+    ['username', 'email', 'password', 'passwordConfirm'].forEach(function(id) {
+        var el = document.getElementById(id + 'Error');
+        var input = document.getElementById(id);
+        if (el) el.textContent = '';
+        if (input) input.classList.remove('is-invalid');
+    });
+    document.getElementById('errorAlert').style.display = 'none';
+}
+
+function showTopError(msg) {
+    var el = document.getElementById('errorAlert');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+document.getElementById('registerForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    clearErrors();
+
+    var username = document.getElementById('username').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var password = document.getElementById('password').value;
+    var passwordConfirm = document.getElementById('passwordConfirm').value;
+    var phone = document.getElementById('phone').value.trim();
+    var btn = document.getElementById('registerBtn');
+    var btnText = document.getElementById('btnText');
+
+    // Basic validation
+    if (!username) { showError('username', '请输入用户名'); return; }
+    if (!email) { showError('email', '请输入邮箱'); return; }
+    if (!password) { showError('password', '请输入密码'); return; }
+    if (!passwordConfirm) { showError('passwordConfirm', '请再次输入密码'); return; }
+    if (password !== passwordConfirm) {
+        showError('passwordConfirm', '两次密码输入不一致');
+        return;
+    }
+
+    btn.disabled = true;
+    btnText.textContent = '注册中...';
+    document.getElementById('btnSpinner').classList.remove('d-none');
+
+    var payload = {
+        username: username,
+        email: email,
+        password: password,
+        password_confirm: passwordConfirm
+    };
+    if (phone) payload.phone = phone;
+
+    fetch('/api/core/auth/register/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCsrfToken()
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(function(response) {
+        return response.json().then(function(data) {
+            return { status: response.status, data: data };
+        });
+    })
+    .then(function(result) {
+        if (result.status === 201) {
+            if (result.data.status === 'pending') {
+                // 注册成功但待审批
+                document.getElementById('successAlert').textContent = '注册成功！您的账号正在等待管理员审批，审批通过后我们会通知您。';
+                document.getElementById('successAlert').style.display = 'block';
+                btnText.textContent = '注册成功';
+                btn.disabled = true;
+                document.getElementById('btnSpinner').classList.add('d-none');
+            } else {
+                document.getElementById('successAlert').textContent = '注册成功！正在跳转登录页...';
+                document.getElementById('successAlert').style.display = 'block';
+                btnText.textContent = '注册成功';
+                setTimeout(function() {
+                    window.location.href = '/login/';
+                }, 1200);
+            }
+        } else if (result.status === 400) {
+            var errors = result.data.errors || {};
+            var msg = result.data.message || '注册失败';
+
+            // Handle field-specific errors
+            var fieldMap = {
+                'username': 'username',
+                'email': 'email',
+                'password': 'password',
+                'password_confirm': 'passwordConfirm'
+            };
+            var hasFieldError = false;
+            for (var key in errors) {
+                if (errors.hasOwnProperty(key)) {
+                    var fieldId = fieldMap[key] || key;
+                    var errMsg = Array.isArray(errors[key]) ? errors[key].join('；') : errors[key];
+                    showError(fieldId, errMsg);
+                    hasFieldError = true;
+                }
+            }
+            if (!hasFieldError) {
+                showTopError(msg);
+            }
+            btn.disabled = false;
+            btnText.textContent = '注 册';
+            document.getElementById('btnSpinner').classList.add('d-none');
+        } else {
+            showTopError('注册请求失败，请稍后重试');
+            btn.disabled = false;
+            btnText.textContent = '注 册';
+            document.getElementById('btnSpinner').classList.add('d-none');
+        }
+    })
+    .catch(function(error) {
+        showTopError('网络错误，请检查网络连接后重试');
+        btn.disabled = false;
+        btnText.textContent = '注 册';
+        document.getElementById('btnSpinner').classList.add('d-none');
+    });
+});
+</script>
+</body>
+</html>

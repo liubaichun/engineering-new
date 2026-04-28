@@ -1,0 +1,475 @@
+{% extends "base.html" %}
+
+{% block title %}用户管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.user-status-active { color: #10b981; }
+.user-status-inactive { color: #ef4444; }
+.user-status-pending { color: #f59e0b; }
+.status-tab {
+    border: 1px solid #e5e7eb;
+    background: #fff;
+    color: #6b7280;
+    padding: 4px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.status-tab:hover { background: #f3f4f6; }
+.status-tab.active {
+    background: #4f46e5;
+    color: #fff;
+    border-color: #4f46e5;
+}
+.status-tab.active .badge { background: rgba(255,255,255,0.3) !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-people me-2"></i>用户管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理系统用户账号</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="showUserModal()" data-perm="user.add">
+            <i class="bi bi-plus-lg me-1"></i>新建用户
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <!-- 状态Tab -->
+        <div class="d-flex align-items-center gap-1 mb-3" style="font-size:0.875rem;">
+            <span class="text-muted me-2" style="white-space:nowrap;">状态：</span>
+            <button class="btn btn-sm status-tab active" data-status="all" onclick="switchTab(this)">全部 <span class="badge bg-secondary" id="countAll">-</span></button>
+            <button class="btn btn-sm status-tab" data-status="active" onclick="switchTab(this)">已激活 <span class="badge bg-success" id="countActive">-</span></button>
+            <button class="btn btn-sm status-tab" data-status="pending" onclick="switchTab(this)">待审批 <span class="badge bg-warning" id="countPending">-</span></button>
+            <button class="btn btn-sm status-tab" data-status="disabled" onclick="switchTab(this)">已禁用 <span class="badge bg-danger" id="countDisabled">-</span></button>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="searchUsername" placeholder="搜索用户名" onkeyup="filterUsers()">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterRole" onchange="filterUsers()">
+                    <option value="">全部角色</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>用户名</th>
+                        <th>邮箱</th>
+                        <th>角色</th>
+                        <th>状态</th>
+                        <th>注册时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <tr>
+                        <td colspan="7" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div id="pendingHint" class="alert alert-warning d-flex align-items-center gap-2 mb-0" style="display:none;">
+            <i class="bi bi-hourglass-split"></i>
+            <span>以上用户均为新注册待审批账号，点击「批准」开通账号，点击「拒绝」移除该申请。</span>
+        </div>
+    </div>
+</div>
+
+<!-- 用户Modal -->
+<div class="modal fade" id="userModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="userModalTitle"><i class="bi bi-user-plus me-2"></i>新建用户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="userId">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">用户名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="username" placeholder="登录用户名">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">真实姓名</label>
+                        <input type="text" class="form-control" id="displayName" placeholder="显示名称">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" class="form-control" id="email" placeholder="email@example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">手机</label>
+                        <input type="text" class="form-control" id="phone" placeholder="手机号码">
+                    </div>
+                    <div class="col-md-6" id="passwordField">
+                        <label class="form-label">密码 <span class="text-danger">*</span></label>
+                        <input type="password" class="form-control" id="password" placeholder="初始密码">
+                    </div>
+                    <div class="col-12" id="rolesField">
+                        <label class="form-label">角色（可多选）</label>
+                        <div id="rolesCheckboxes" class="border rounded p-2" style="background:#f8fafc;max-height:160px;overflow-y:auto;">
+                            <!-- 复选框由 JS 动态渲染 -->
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">状态</label>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" id="isActive" checked>
+                            <label class="form-check-label" for="isActive">启用账号</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveUser()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var userModal;
+var allUsers = [];
+var allRoles = [];
+var currentTab = 'all';  // all | active | pending | disabled
+
+document.addEventListener('DOMContentLoaded', function() {
+    userModal = new bootstrap.Modal(document.getElementById('userModal'));
+    loadRoles();
+    loadUsers();
+});
+
+async function loadRoles() {
+    try {
+        var response = await fetch('/api/core/roles/', { credentials: 'include' });
+        var data = await response.json();
+        allRoles = data.results || data;
+
+        var select = document.getElementById('filterRole');
+        allRoles.forEach(function(role) {
+            select.innerHTML += '<option value="' + escapeHtml(role.code) + '">' + escapeHtml(role.name) + '</option>';
+        });
+
+        var container = document.getElementById('rolesCheckboxes');
+        container.innerHTML = allRoles.map(function(role) {
+            return '<div class="form-check mb-1">' +
+                '<input class="form-check-input role-checkbox" type="checkbox" value="' + role.id + '" id="roleCheck' + role.id + '">' +
+                '<label class="form-check-label" for="roleCheck' + role.id + '" style="cursor:pointer;">' + escapeHtml(role.name) + '</label>' +
+            '</div>';
+        }).join('');
+    } catch (error) {
+        console.error('加载角色失败:', error);
+    }
+}
+
+async function loadUsers() {
+    try {
+        var response = await fetch('/api/core/users/?page_size=100', { credentials: 'include' });
+        var data = await response.json();
+        allUsers = data.results || data;
+        updateTabCounts();
+        renderUsers();
+    } catch (error) {
+        console.error('加载用户失败:', error);
+        document.getElementById('userTableBody').innerHTML =
+            '<tr><td colspan="7" class="text-center text-danger py-4">加载失败</td></tr>';
+    }
+}
+
+function updateTabCounts() {
+    var counts = { all: allUsers.length, active: 0, pending: 0, disabled: 0 };
+    allUsers.forEach(function(u) {
+        if (u.is_active && u.is_superuser) {
+            // 超级管理员不计入待审批/禁用
+        } else if (u.is_active) {
+            counts.active++;
+        } else if (!u.is_active) {
+            // 有最近登录记录 → 已禁用；无登录记录 → 待审批
+            var hasLogin = u.last_login !== null;
+            counts[hasLogin ? 'disabled' : 'pending']++;
+        }
+    });
+    document.getElementById('countAll').textContent = counts.all;
+    document.getElementById('countActive').textContent = counts.active;
+    document.getElementById('countPending').textContent = counts.pending;
+    document.getElementById('countDisabled').textContent = counts.disabled;
+}
+
+function switchTab(btn) {
+    document.querySelectorAll('.status-tab').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    currentTab = btn.getAttribute('data-status');
+    renderUsers();
+}
+
+function getUserStatus(u) {
+    if (u.is_active && u.is_superuser) return 'superadmin';
+    if (u.is_active) return 'active';
+    return u.last_login !== null ? 'disabled' : 'pending';
+}
+
+function renderUsers() {
+    var search = document.getElementById('searchUsername').value.toLowerCase();
+    var roleFilter = document.getElementById('filterRole').value;
+
+    var filtered = allUsers.filter(function(u) {
+        var status = getUserStatus(u);
+        if (currentTab !== 'all' && status !== currentTab) return false;
+        if (search && !u.username.toLowerCase().includes(search)) return false;
+        if (roleFilter && u.role !== roleFilter) return false;
+        return true;
+    });
+
+    var tbody = document.getElementById('userTableBody');
+    var hint = document.getElementById('pendingHint');
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">暂无用户</td></tr>';
+        hint.style.display = 'none';
+        return;
+    }
+
+    // 待审批提示
+    hint.style.display = (currentTab === 'pending') ? 'flex' : 'none';
+
+    var html = '';
+    filtered.forEach(function(user) {
+        var status = getUserStatus(user);
+        var roleDisplay;
+        if (user.is_superuser) {
+            roleDisplay = '<span class="badge bg-danger"><i class="bi bi-shield-fill me-1"></i>管理员</span>';
+        } else if (user.role_display) {
+            roleDisplay = '<span class="badge bg-info">' + escapeHtml(user.role_display) + '</span>';
+        } else {
+            roleDisplay = '-';
+        }
+
+        var statusClass, statusText, statusIcon;
+        if (status === 'active') {
+            statusClass = 'user-status-active'; statusText = '已激活'; statusIcon = 'check-circle-fill';
+        } else if (status === 'pending') {
+            statusClass = 'user-status-pending'; statusText = '待审批'; statusIcon = 'hourglass-split';
+        } else if (status === 'disabled') {
+            statusClass = 'user-status-inactive'; statusText = '已禁用'; statusIcon = 'x-circle-fill';
+        } else {
+            statusClass = 'user-status-active'; statusText = '管理员'; statusIcon = 'shield-fill';
+        }
+
+        var joinDate = user.date_joined ? formatDate(user.date_joined) : '-';
+
+        html += '<tr>';
+        html += '<td>' + user.id + '</td>';
+        html += '<td><strong>' + escapeHtml(user.username) + '</strong></td>';
+        html += '<td>' + escapeHtml(user.email || '-') + '</td>';
+        html += '<td>' + roleDisplay + '</td>';
+        html += '<td><span class="' + statusClass + '"><i class="bi bi-' + statusIcon + ' me-1"></i>' + statusText + '</span></td>';
+        html += '<td>' + joinDate + '</td>';
+        html += '<td>';
+
+        if (status === 'pending') {
+            // 待审批用户：显示批准和拒绝按钮
+            html += '<button class="btn btn-sm btn-success me-1" onclick="approveUser(' + user.id + ')"><i class="bi bi-check-lg"></i> 批准</button>';
+            html += '<button class="btn btn-sm btn-outline-danger me-1" onclick="rejectUser(' + user.id + ')"><i class="bi bi-x-lg"></i> 拒绝</button>';
+        } else {
+            html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editUser(' + user.id + ')"><i class="bi bi-pencil"></i></button>';
+            if (status !== 'superadmin') {
+                html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(' + user.id + ')"><i class="bi bi-trash"></i></button>';
+            }
+        }
+        html += '</td></tr>';
+    });
+
+    tbody.innerHTML = html;
+}
+
+function filterUsers() {
+    renderUsers();
+}
+
+async function approveUser(userId) {
+    if (!confirm('确认批准该用户的注册申请？批准后用户即可登录系统。')) return;
+    try {
+        var response = await fetch('/api/core/users/' + userId + '/approve/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            credentials: 'include'
+        });
+        var result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        showToast(result.message, 'success');
+        loadUsers();
+    } catch (error) {
+        showToast(error.message || '批准失败', 'error');
+    }
+}
+
+async function rejectUser(userId) {
+    if (!confirm('确认拒绝并删除该用户的注册申请？此操作不可撤销。')) return;
+    try {
+        var response = await fetch('/api/core/users/' + userId + '/reject/', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
+            credentials: 'include'
+        });
+        var result = await response.json();
+        if (!response.ok) throw new Error(result.message);
+        showToast(result.message, 'success');
+        loadUsers();
+    } catch (error) {
+        showToast(error.message || '拒绝失败', 'error');
+    }
+}
+
+function showUserModal() {
+    document.getElementById('userModalTitle').innerHTML = '<i class="bi bi-user-plus me-2"></i>新建用户';
+    document.getElementById('userId').value = '';
+    document.getElementById('username').value = '';
+    document.getElementById('username').readOnly = false;
+    document.getElementById('displayName').value = '';
+    document.getElementById('email').value = '';
+    document.getElementById('phone').value = '';
+    document.getElementById('password').value = '';
+    document.getElementById('isActive').checked = true;
+    document.getElementById('passwordField').style.display = 'block';
+    document.querySelectorAll('.role-checkbox').forEach(function(cb) { cb.checked = false; });
+    userModal.show();
+}
+
+async function editUser(userId) {
+    var user = allUsers.find(function(u) { return u.id === userId; });
+    if (!user) return;
+
+    document.getElementById('userModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑用户';
+    document.getElementById('userId').value = user.id;
+    document.getElementById('username').value = user.username;
+    document.getElementById('username').readOnly = true;
+    document.getElementById('displayName').value = user.first_name || '';
+    document.getElementById('email').value = user.email || '';
+    document.getElementById('phone').value = user.phone || '';
+    var userRoles = user.roles || [];
+    document.querySelectorAll('.role-checkbox').forEach(function(cb) {
+        cb.checked = userRoles.some(function(ur) { return ur.role_id === parseInt(cb.value); });
+    });
+    document.getElementById('isActive').checked = user.is_active;
+    document.getElementById('password').value = '';
+    document.getElementById('passwordField').style.display = 'none';
+    userModal.show();
+}
+
+async function saveUser() {
+    var userId = document.getElementById('userId').value;
+    var username = document.getElementById('username').value.trim();
+    var displayName = document.getElementById('displayName').value.trim();
+    var email = document.getElementById('email').value.trim();
+    var phone = document.getElementById('phone').value.trim();
+    var password = document.getElementById('password').value;
+    var isActive = document.getElementById('isActive').checked;
+    var roleIds = Array.from(document.querySelectorAll('.role-checkbox:checked')).map(cb => parseInt(cb.value));
+
+    if (!username && !userId) {
+        showToast('请输入用户名', 'warning');
+        return;
+    }
+
+    var payload = {
+        username: username,
+        first_name: displayName,
+        email: email,
+        phone: phone,
+        is_active: isActive,
+        role_ids: roleIds.length ? roleIds : []
+    };
+
+    if (password) {
+        payload.password = password;
+    }
+
+    var url = '/api/core/users/';
+    var method = 'POST';
+    if (userId) {
+        url += userId + '/';
+        method = 'PATCH';
+    }
+
+    try {
+        var response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            var error = await response.json();
+            throw new Error(error.detail || error.username || '保存失败');
+        }
+
+        showToast(userId ? '用户已更新' : '用户已创建', 'success');
+        userModal.hide();
+        document.getElementById('userModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('userModal').removeEventListener('hidden.bs.modal', handler);
+            loadUsers();
+        });
+    } catch (error) {
+        console.error('保存用户失败:', error);
+        showToast(error.message || '保存失败', 'error');
+    }
+}
+
+async function deleteUser(userId) {
+    if (!confirm('确定要删除此用户吗？')) return;
+
+    try {
+        var response = await fetch('/api/core/users/' + userId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            throw new Error('删除失败');
+        }
+
+        showToast('用户已删除', 'success');
+        loadUsers();
+    } catch (error) {
+        console.error('删除用户失败:', error);
+        showToast('删除失败', 'error');
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

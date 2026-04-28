@@ -1,0 +1,566 @@
+{% extends "base.html" %}
+
+{% block title %}驾驶舱 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+:root {
+    --primary: #3b82f6;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --info: #06b6d4;
+    --purple: #8b5cf6;
+    --bg: #f0f2f5;
+}
+body { background: var(--bg); }
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.kpi-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid transparent;
+}
+.kpi-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.kpi-card.blue { border-left-color: var(--primary); }
+.kpi-card.green { border-left-color: var(--success); }
+.kpi-card.yellow { border-left-color: var(--warning); }
+.kpi-card.red { border-left-color: var(--danger); }
+.kpi-card.purple { border-left-color: var(--purple); }
+.kpi-card.info { border-left-color: var(--info); }
+.kpi-icon {
+    width: 48px; height: 48px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; flex-shrink: 0;
+}
+.kpi-body { min-width: 0; }
+.kpi-value { font-size: 1.6rem; font-weight: 800; color: #1e293b; line-height: 1.2; }
+.kpi-label { font-size: 0.8rem; color: #64748b; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kpi-sub { font-size: 0.75rem; margin-top: 4px; }
+.kpi-sub .up { color: var(--success); }
+.kpi-sub .down { color: var(--danger); }
+
+.charts-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.charts-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.charts-row-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+.chart-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.chart-card h5 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #374151;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.chart-card h5 .badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+canvas { max-height: 220px; }
+
+/* 预警面板 */
+.alert-panel {
+    background: #fff;
+    border-radius: 14px;
+    padding: 20px 24px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.alert-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.85rem;
+}
+.alert-item:last-child { border-bottom: none; }
+.alert-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.alert-dot.red { background: var(--danger); }
+.alert-dot.yellow { background: var(--warning); }
+.alert-dot.blue { background: var(--primary); }
+.alert-dot.green { background: var(--success); }
+
+/* 审批待办 */
+.approval-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.82rem;
+}
+.approval-item:last-child { border-bottom: none; }
+.approval-info { display: flex; align-items: center; gap: 8px; }
+.approval-amount { font-weight: 700; color: #1e293b; }
+.approval-time { color: #94a3b8; font-size: 0.75rem; }
+
+/* 进度条 */
+.progress-mini {
+    height: 6px; border-radius: 3px;
+    background: #e2e8f0;
+    overflow: hidden;
+}
+.progress-mini-bar {
+    height: 100%; border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+/* 环形进度 */
+.ring-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+.ring-label { font-size: 0.75rem; color: #64748b; }
+.ring-value { font-size: 1.1rem; font-weight: 700; color: #1e293b; }
+
+/* 健康度指示 */
+.health-bar {
+    display: flex;
+    gap: 3px;
+    margin-top: 8px;
+}
+.health-unit {
+    flex: 1; height: 6px; border-radius: 3px;
+    background: #e2e8f0;
+}
+.health-unit.active.green { background: var(--success); }
+.health-unit.active.yellow { background: var(--warning); }
+.health-unit.active.red { background: var(--danger); }
+
+.trend-up { color: var(--success); }
+.trend-down { color: var(--danger); }
+
+@media (max-width: 1024px) {
+    .charts-row, .charts-row-2, .charts-row-3 { grid-template-columns: 1fr; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h4><i class="bi bi-display me-2"></i>经营驾驶舱</h4>
+    <p class="text-muted mb-0" id="reportTime"></p>
+</div>
+
+<!-- KPI 卡片 -->
+<div class="kpi-grid" id="kpiGrid"></div>
+
+<!-- 趋势图 + 审批待办 -->
+<div class="charts-row">
+    <div class="chart-card">
+        <h5><i class="bi bi-graph-up text-primary"></i>月度收支趋势 <span class="badge bg-primary bg-opacity-10 text-primary" id="trendYear"></span></h5>
+        <canvas id="trendChart" style="max-height:200px"></canvas>
+    </div>
+    <div class="alert-panel">
+        <h5><i class="bi bi-hourglass-split text-warning me-1"></i>审批待办 <span class="badge bg-warning bg-opacity-10 text-warning" id="pendingCount">0</span></h5>
+        <div id="pendingApprovals">
+            <div class="text-center text-muted py-4">暂无待审批项</div>
+        </div>
+    </div>
+</div>
+
+<!-- 收入分布 + 支出分布 + 合同状态 -->
+<div class="charts-row-2">
+    <div class="chart-card">
+        <h5><i class="bi bi-pie-chart text-success"></i>收入构成</h5>
+        <canvas id="incomeChart" style="max-height:180px"></canvas>
+    </div>
+    <div class="chart-card">
+        <h5><i class="bi bi-pie-chart text-danger"></i>支出构成</h5>
+        <canvas id="expenseChart" style="max-height:180px"></canvas>
+    </div>
+    <div class="chart-card">
+        <h5><i class="bi bi-file-earmark-text text-info"></i>合同状态</h5>
+        <canvas id="contractChart" style="max-height:180px"></canvas>
+    </div>
+</div>
+
+<!-- 项目健康度 + 工资趋势 + 设备状态 -->
+<div class="charts-row-3">
+    <div class="chart-card">
+        <h5><i class="bi bi-kanban text-primary"></i>项目进度</h5>
+        <div id="projectHealthList"></div>
+    </div>
+    <div class="chart-card">
+        <h5><i class="bi bi-currency-yen text-warning"></i>月度工资</h5>
+        <canvas id="wageChart" style="max-height:180px"></canvas>
+    </div>
+    <div class="chart-card">
+        <h5><i class="bi bi-gear-wide-connected text-purple"></i>设备状态</h5>
+        <canvas id="equipmentChart" style="max-height:180px"></canvas>
+    </div>
+</div>
+
+<!-- 预警中心 -->
+<div class="alert-panel">
+    <h5><i class="bi bi-bell text-danger me-1"></i>预警中心 <span class="badge bg-danger bg-opacity-10 text-danger" id="alertCount">0</span></h5>
+    <div id="alertList">
+        <div class="text-center text-muted py-3">暂无预警</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+async function safeJson(res) {
+    if (!res.ok) return [];
+    const data = await res.json();
+    return Array.isArray(data) ? data : (data.results || []);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    document.getElementById('reportTime').textContent = '更新时间: ' + new Date().toLocaleString('zh-CN');
+    document.getElementById('trendYear').textContent = new Date().getFullYear() + '年';
+
+    let companies = [], projects = [], tasks = [], wages = [], incomes = [], expenses = [], contracts = [], equipment = [], approvals = [];
+
+    try {
+        // 经营驾驶舱数据 - 带超时控制的并行请求，各自独立不会互相阻塞
+        const fetchWithTimeout = (url, options={}, timeout=8000) => {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+            return fetch(url, { ...options, signal: controller.signal, credentials: 'include' })
+                .then(res => { clearTimeout(timeoutId); return res; })
+                .catch(err => {
+                    clearTimeout(timeoutId);
+                    if (err.name === 'AbortError') console.warn('请求超时:', url);
+                    else console.warn('请求失败:', url, err);
+                    return null;
+                });
+        };
+        const safeJson = async (res) => {
+            try {
+                if (!res.ok) return [];
+                const data = await res.json();
+                return Array.isArray(data) ? data : (data.results || data.data || []);
+            } catch(e) { return []; }
+        };
+        [companies, projects, tasks, wages, incomes, expenses, contracts, equipment, approvals] = await Promise.all([
+            safeJson(await fetchWithTimeout('/api/finance/companies/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/tasks/projects/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/tasks/tasks/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/wages/?year=' + new Date().getFullYear(), {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/incomes/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/expenses/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/crm/contracts/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/equipment/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/approvals/flows/?status=pending&page_size=10', {credentials: 'include'})),
+        ]);
+    } catch(e) {
+        console.error('经营驾驶舱数据加载失败:', e);
+    }
+
+    renderKPI(companies, projects, tasks, wages, incomes, expenses, contracts, equipment);
+    renderTrendChart(incomes, expenses);
+    renderIncomeExpensePie(incomes, expenses, companies);
+    renderContractChart(contracts);
+    renderProjectHealth(projects);
+    renderWageChart(wages);
+    renderEquipmentChart(equipment);
+    renderPendingApprovals(approvals);
+    renderAlerts(contracts, projects, tasks, approvals);
+});
+
+function fmtMoney(n) {
+    n = parseFloat(n) || 0;
+    if (n >= 100000000) return (n/100000000).toFixed(1) + '亿';
+    if (n >= 10000) return (n/10000).toFixed(1) + '万';
+    return n.toLocaleString('zh-CN', {maximumFractionDigits: 0});
+}
+function fmtMoneyRaw(n) {
+    return (parseFloat(n) || 0).toLocaleString('zh-CN', {maximumFractionDigits: 0});
+}
+
+function renderKPI(companies, projects, tasks, wages, incomes, expenses, contracts, equipment) {
+    const year = new Date().getFullYear();
+    const totalIncome = incomes.reduce((s,i) => s + parseFloat(i.amount||0), 0);
+    const confirmedIncome = incomes.filter(i => i.status==='confirmed').reduce((s,i) => s + parseFloat(i.amount||0), 0);
+    const totalExpense = expenses.reduce((s,e) => s + parseFloat(e.amount||0), 0);
+    const totalWage = wages.reduce((s,w) => s + parseFloat(w.gross_salary||0), 0);
+    const activeProjects = projects.filter(p => p.status==='active'||p.status==='in_progress').length;
+    const doneProjects = projects.filter(p => p.status==='completed').length;
+    const overdueTasks = tasks.filter(t => {
+        if (!t.due_date || t.status==='completed'||t.status==='cancelled') return false;
+        return new Date(t.due_date) < new Date();
+    }).length;
+    const activeContracts = contracts.filter(c => c.status==='active').length;
+    const expireContracts = contracts.filter(c => {
+        if (c.status!=='active' || !c.expire_date) return false;
+        const days = (new Date(c.expire_date) - new Date()) / 86400000;
+        return days <= 30 && days > 0;
+    }).length;
+    const idleEquipment = equipment.filter(e => e.status==='idle').length;
+    const inuseEquipment = equipment.filter(e => e.status==='in_use').length;
+
+    const kpis = [
+        { cls:'green', icon:'bi-arrow-down-circle', label:'年度收入', value:'¥'+fmtMoney(totalIncome), sub:'已确认 ¥'+fmtMoney(confirmedIncome) },
+        { cls:'red', icon:'bi-arrow-up-circle', label:'年度支出', value:'¥'+fmtMoney(totalExpense), sub:'余额 ¥'+fmtMoney(confirmedIncome - totalExpense) },
+        { cls:'purple', icon:'bi-wallet2', label:'年度工资', value:'¥'+fmtMoney(totalWage), sub: companies.length+'家公司' },
+        { cls:'blue', icon:'bi-briefcase', label:'项目总数', value: projects.length, sub:`进行中 ${activeProjects} / 已完成 ${doneProjects}` },
+        { cls:'yellow', icon:'bi-list-task', label:'任务总数', value: tasks.length, sub:'逾期 '+overdueTasks+' 项' },
+        { cls:'info', icon:'bi-file-earming-text', label:'合同总数', value: contracts.length, sub:`${activeContracts}份执行中 / ${expireContracts}份将到期` },
+        { cls:'blue', icon:'bi-tools', label:'设备总数', value: equipment.length, sub:`空闲 ${idleEquipment} / 使用中 ${inuseEquipment}` },
+        { cls:'green', icon:'bi-building', label:'公司总数', value: companies.length, sub:'全部正常运营' },
+    ];
+
+    const bgMap = { green:'rgba(16,185,129,0.1)', red:'rgba(239,68,68,0.1)', blue:'rgba(59,130,246,0.1)', yellow:'rgba(245,158,11,0.1)', purple:'rgba(139,92,246,0.1)', info:'rgba(6,182,212,0.1)' };
+    const colorMap = { green:'var(--success)', red:'var(--danger)', blue:'var(--primary)', yellow:'var(--warning)', purple:'var(--purple)', info:'var(--info)' };
+
+    let html = '';
+    kpis.forEach(k => {
+        html += `<div class="kpi-card ${k.cls}">
+            <div class="kpi-icon" style="background:${bgMap[k.cls]}">
+                <i class="bi ${k.icon}" style="color:${colorMap[k.cls]}"></i>
+            </div>
+            <div class="kpi-body">
+                <div class="kpi-value">${k.value}</div>
+                <div class="kpi-label">${k.label}</div>
+                <div class="kpi-sub">${k.sub}</div>
+            </div>
+        </div>`;
+    });
+    document.getElementById('kpiGrid').innerHTML = html;
+}
+
+function renderTrendChart(incomes, expenses) {
+    const year = new Date().getFullYear();
+    const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+    const incByMonth = Array(12).fill(0);
+    const expByMonth = Array(12).fill(0);
+
+    incomes.forEach(i => {
+        if (i.date) {
+            const m = new Date(i.date).getMonth();
+            incByMonth[m] += parseFloat(i.amount||0);
+        }
+    });
+    expenses.forEach(e => {
+        if (e.date) {
+            const m = new Date(e.date).getMonth();
+            expByMonth[m] += parseFloat(e.amount||0);
+        }
+    });
+
+    new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [
+                { label: '收入', data: incByMonth, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.4 },
+                { label: '支出', data: expByMonth, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }
+            ]
+        },
+        options: {
+            responsive: true, plugins: { legend: { position: 'bottom' } },
+            scales: { y: { ticks: { callback: v => fmtMoney(v) } } }
+        }
+    });
+}
+
+function renderIncomeExpensePie(incomes, expenses, companies) {
+    const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+    const incByComp = {}; incomes.forEach(i => {
+        const cid = i.company_name || '其他';
+        incByComp[cid] = (incByComp[cid]||0) + parseFloat(i.amount||0);
+    });
+    const expByComp = {}; expenses.forEach(e => {
+        const cid = e.company_name || '其他';
+        expByComp[cid] = (expByComp[cid]||0) + parseFloat(e.amount||0);
+    });
+    const allComp = [...new Set([...Object.keys(incByComp), ...Object.keys(expByComp)])];
+
+    new Chart(document.getElementById('incomeChart'), {
+        type: 'doughnut',
+        data: { labels: allComp, datasets: [{ data: allComp.map(c => incByComp[c]||0), backgroundColor: COLORS }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+    new Chart(document.getElementById('expenseChart'), {
+        type: 'doughnut',
+        data: { labels: allComp, datasets: [{ data: allComp.map(c => expByComp[c]||0), backgroundColor: COLORS }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+}
+
+function renderContractChart(contracts) {
+    const status = {};
+    contracts.forEach(c => { status[c.status] = (status[c.status]||0) + 1; });
+    const labels = Object.keys(status);
+    const data = Object.values(status);
+    const colorMap = { active: '#10b981', expired: '#ef4444', terminated: '#64748b', pending: '#f59e0b', draft: '#94a3b8' };
+    const COLORS = labels.map(l => colorMap[l]||'#8b5cf6');
+
+    new Chart(document.getElementById('contractChart'), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: COLORS }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+}
+
+function renderProjectHealth(projects) {
+    let html = '';
+    projects.slice(0, 8).forEach(p => {
+        const pct = p.progress !== undefined ? p.progress : (p.status==='completed' ? 100 : 0);
+        const color = pct >= 80 ? 'var(--success)' : pct >= 50 ? 'var(--warning)' : 'var(--danger)';
+        html += `<div class="mb-2">
+            <div class="d-flex justify-content-between mb-1">
+                <span class="small fw-500" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.name||p.title||'无标题'}</span>
+                <span class="small fw-600">${pct}%</span>
+            </div>
+            <div class="progress-mini"><div class="progress-mini-bar" style="width:${pct}%;background:${color}"></div></div>
+        </div>`;
+    });
+    if (!projects.length) html = '<div class="text-center text-muted py-3">暂无项目</div>';
+    document.getElementById('projectHealthList').innerHTML = html;
+}
+
+function renderWageChart(wages) {
+    const byMonth = Array(12).fill(0);
+    wages.forEach(w => { if (w.month) byMonth[parseInt(w.month)-1] += parseFloat(w.gross_salary||0); });
+
+    new Chart(document.getElementById('wageChart'), {
+        type: 'bar',
+        data: {
+            labels: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+            datasets: [{ label: '工资', data: byMonth, backgroundColor: '#f59e0b' }]
+        },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => fmtMoney(v) } } } }
+    });
+}
+
+function renderEquipmentChart(equipment) {
+    const status = {};
+    equipment.forEach(e => { status[e.status] = (status[e.status]||0) + 1; });
+    const colorMap = { idle: '#10b981', in_use: '#3b82f6', repair: '#f59e0b', retired: '#64748b' };
+    const labels = Object.keys(status);
+    const COLORS = labels.map(l => colorMap[l]||'#8b5cf6');
+
+    new Chart(document.getElementById('equipmentChart'), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data: Object.values(status), backgroundColor: COLORS }] },
+        options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } }
+    });
+}
+
+function renderPendingApprovals(approvals) {
+    document.getElementById('pendingCount').textContent = approvals.length;
+    if (!approvals.length) {
+        document.getElementById('pendingApprovals').innerHTML = '<div class="text-center text-muted py-4">暂无待审批项 ✓</div>';
+        return;
+    }
+    let html = '';
+    approvals.slice(0, 8).forEach(f => {
+        const amt = f.amount ? '¥'+fmtMoneyRaw(f.amount) : '';
+        const date = f.created_at ? new Date(f.created_at).toLocaleDateString('zh-CN') : '';
+        html += `<div class="approval-item">
+            <div class="approval-info">
+                <span class="alert-dot ${f.status==='approved'?'green':f.status==='rejected'?'red':'yellow'}"></span>
+                <span style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${f.name||'未知'}</span>
+            </div>
+            <div>
+                ${amt ? `<span class="approval-amount">${amt}</span>` : ''}
+                <span class="approval-time">${date}</span>
+            </div>
+        </div>`;
+    });
+    document.getElementById('pendingApprovals').innerHTML = html;
+}
+
+function renderAlerts(contracts, projects, tasks, approvals) {
+    const alerts = [];
+    const now = new Date();
+
+    // 合同30天内到期
+    contracts.forEach(c => {
+        if (!c.expire_date || c.status !== 'active') return;
+        const days = Math.ceil((new Date(c.expire_date) - now) / 86400000);
+        if (days <= 30 && days > 0) {
+            alerts.push({ type: 'red', msg: `合同「${c.name||c.title}」将于${days}天后（${c.expire_date}）到期` });
+        } else if (days <= 0) {
+            alerts.push({ type: 'red', msg: `合同「${c.name||c.title}」已过期（${c.expire_date}）` });
+        }
+    });
+
+    // 项目逾期
+    projects.forEach(p => {
+        if (!p.end_date || p.status === 'completed' || p.status === 'cancelled') return;
+        if (new Date(p.end_date) < now) {
+            alerts.push({ type: 'yellow', msg: `项目「${p.name||p.title}」已逾期（截止${p.end_date}）` });
+        }
+    });
+
+    // 任务逾期
+    tasks.forEach(t => {
+        if (!t.due_date || t.status === 'completed' || t.status === 'cancelled') return;
+        if (new Date(t.due_date) < now) {
+            alerts.push({ type: 'yellow', msg: `任务「${t.title}」已逾期（截止${t.due_date}）` });
+        }
+    });
+
+    // 审批超时
+    const timeoutHours = 48;
+    const approvalsWithNodes = approvals.filter(f => f.nodes && f.nodes.length);
+    approvalsWithNodes.forEach(f => {
+        f.nodes.filter(n => n.status === 'pending').forEach(n => {
+            if (n.assigned_at) {
+                const hrs = (now - new Date(n.assigned_at)) / 3600000;
+                if (hrs > timeoutHours) {
+                    alerts.push({ type: 'blue', msg: `审批「${f.name}」节点${n.node_order}已等待${Math.floor(hrs)}小时` });
+                }
+            }
+        });
+    });
+
+    document.getElementById('alertCount').textContent = alerts.length;
+    if (!alerts.length) {
+        document.getElementById('alertList').innerHTML = '<div class="text-center text-success py-3"><i class="bi bi-check-circle me-1"></i>暂无预警，一切正常</div>';
+        return;
+    }
+    let html = '';
+    alerts.slice(0, 12).forEach(a => {
+        html += `<div class="alert-item">
+            <span class="alert-dot ${a.type}"></span>
+            <span>${a.msg}</span>
+        </div>`;
+    });
+    document.getElementById('alertList').innerHTML = html;
+}
+</script>
+{% endblock %}

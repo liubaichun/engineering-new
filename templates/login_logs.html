@@ -1,0 +1,272 @@
+{% extends "base.html" %}
+
+{% block title %}登录日志 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.summary-bar {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-item {
+    background: var(--card-bg);
+    border-radius: var(--card-radius);
+    padding: 14px 20px;
+    flex: 1;
+    box-shadow: var(--card-shadow);
+}
+.summary-item .num {
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-item .label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+.summary-item.highlight {
+    border-left: 3px solid var(--primary);
+}
+.summary-item.danger {
+    border-left: 3px solid #ef4444;
+}
+.summary-item.success {
+    border-left: 3px solid #10b981;
+}
+.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: var(--text-muted);
+}
+.loading i { font-size: 1.5rem; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+.empty-state i { font-size: 3rem; margin-bottom: 16px; display: block; }
+.filter-bar {
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-bottom: 1px solid #f1f5f9;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.pagination-wrapper {
+    padding: 16px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+}
+.pagination-info { font-size: 0.82rem; color: var(--text-muted); }
+.badge-status { padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-failed { background: #fee2e2; color: #991b1b; }
+.ua-text { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; color: var(--text-muted); font-size: 0.8rem; }
+.fail-reason { color: #ef4444; font-size: 0.82rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div>
+        <h4><i class="bi bi-box-arrow-in-right me-2"></i>登录日志</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">查看用户登录记录</p>
+    </div>
+    <div>
+        <button class="btn btn-primary btn-sm" onclick="exportLogs()">
+            <i class="bi bi-download me-1"></i>导出
+        </button>
+    </div>
+</div>
+
+<!-- 汇总统计 -->
+<div class="summary-bar" id="summaryBar">
+    <div class="summary-item success">
+        <div class="num" id="totalCount">—</div>
+        <div class="label">总记录数</div>
+    </div>
+    <div class="summary-item">
+        <div class="num" id="todaySuccess">—</div>
+        <div class="label">今日成功</div>
+    </div>
+    <div class="summary-item danger">
+        <div class="num" id="todayFailed">—</div>
+        <div class="label">今日失败</div>
+    </div>
+    <div class="summary-item highlight">
+        <div class="num" id="weekCount">—</div>
+        <div class="label">本周登录</div>
+    </div>
+</div>
+
+<!-- 主表卡片 -->
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-list-ul me-2"></i>登录记录</h5>
+    </div>
+    <div class="filter-bar">
+        <select id="filterStatus" class="form-select form-select-sm" style="width: auto;" onchange="loadLogs(1)">
+            <option value="">全部状态</option>
+            <option value="success">登录成功</option>
+            <option value="failed">登录失败</option>
+        </select>
+        <input type="text" id="filterUser" class="form-control form-control-sm" placeholder="用户名" style="width: 130px;" onkeyup="if(event.key==='Enter')loadLogs(1)">
+        <input type="date" id="filterDateFrom" class="form-control form-control-sm" style="width: 150px;" onchange="loadLogs(1)">
+        <input type="date" id="filterDateTo" class="form-control form-control-sm" style="width: 150px;" onchange="loadLogs(1)">
+        <button class="btn btn-primary btn-sm" onclick="loadLogs(1)">
+            <i class="bi bi-search"></i> 搜索
+        </button>
+        <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+            <i class="bi bi-x-circle"></i> 清空
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <div id="tableContainer">
+                <div class="loading"><i class="bi bi-arrow-repeat"></i> 加载中...</div>
+            </div>
+        </div>
+        <div class="pagination-wrapper" id="paginationWrapper" style="display:none;">
+            <div class="pagination-info" id="paginationInfo"></div>
+            <ul class="pagination mb-0" id="pagination"></ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 全局状态
+let currentPage = 1;
+let pageSize = 20;
+let totalCount = 0;
+
+async function loadLogs(page = 1) {
+    currentPage = page;
+    const container = document.getElementById('tableContainer');
+    container.innerHTML = '<div class="loading"><i class="bi bi-arrow-repeat"></i> 加载中...</div>';
+
+    const status = document.getElementById('filterStatus').value;
+    const username = document.getElementById('filterUser').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+
+    const params = new URLSearchParams({
+        page: currentPage, page_size: pageSize,
+        status: status,
+        username: username,
+        date_from: dateFrom, date_to: dateTo,
+    });
+
+    try {
+        const res = await fetch(`/api/core/login-logs/?${params}`, { credentials: 'include' });
+        if (res.status === 403 || res.status === 401) {
+            container.innerHTML = '<div class="empty-state"><i class="bi bi-lock"></i><p>无权限查看登录日志（仅管理员可访问）</p></div>';
+            return;
+        }
+        const data = await res.json();
+        totalCount = data.count || 0;
+        renderTable(data.results || []);
+        renderPagination();
+        updateSummary(data);
+    } catch (e) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>加载失败：' + e.message + '</p></div>';
+    }
+}
+
+function renderTable(logs) {
+    const container = document.getElementById('tableContainer');
+    if (!logs || logs.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-clipboard"></i><p>暂无登录记录</p></div>';
+        return;
+    }
+
+    const rows = logs.map(log => {
+        const statusClass = log.status === 'success' ? 'badge-success' : 'badge-failed';
+        const statusText = log.status === 'success' ? '成功' : '失败';
+        const time = new Date(log.created_at).toLocaleString('zh-CN');
+        const uaPreview = log.user_agent ? log.user_agent.slice(0, 50) + (log.user_agent.length > 50 ? '…' : '') : '—';
+
+        return `<tr>
+            <td><span class="badge-status ${statusClass}">${statusText}</span></td>
+            <td><strong>${escHtml(log.username)}</strong>${log.user_name ? '<br><small style="color:var(--text-muted)">' + escHtml(log.user_name) + '</small>' : ''}</td>
+            <td><small style="color:var(--text-secondary)">${time}</small></td>
+            <td><small style="color:var(--text-secondary)">${log.ip_address || '—'}</small></td>
+            <td><span class="ua-text" title="${escHtml(log.user_agent)}">${escHtml(uaPreview)}</span></td>
+            <td>${log.fail_reason ? '<span class="fail-reason">' + escHtml(log.fail_reason) + '</span>' : '—'}</td>
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `<table class="table table-hover mb-0">
+        <thead>
+            <tr>
+                <th>状态</th>
+                <th>用户</th>
+                <th>登录时间</th>
+                <th>IP地址</th>
+                <th>浏览器</th>
+                <th>失败原因</th>
+            </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function updateSummary(data) {
+    const logs = data.results || [];
+    const today = new Date().toDateString();
+    const todayLogs = logs.filter(l => new Date(l.created_at).toDateString() === today);
+    document.getElementById('totalCount').textContent = data.count || 0;
+    document.getElementById('todaySuccess').textContent = todayLogs.filter(l => l.status === 'success').length;
+    document.getElementById('todayFailed').textContent = todayLogs.filter(l => l.status === 'failed').length;
+    const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+    document.getElementById('weekCount').textContent = logs.filter(l => new Date(l.created_at) >= weekAgo).length;
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(totalCount / pageSize);
+    document.getElementById('paginationWrapper').style.display = totalCount > 0 ? 'flex' : 'none';
+    document.getElementById('paginationInfo').textContent = `共 ${totalCount} 条记录`;
+    if (totalPages <= 1) { document.getElementById('pagination').innerHTML = ''; return; }
+    let html = '';
+    if (currentPage > 1) html += `<li class="page-item"><a class="page-link" href="#" onclick="loadLogs(${currentPage-1});return false">&laquo;</a></li>`;
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    if (start > 1) html += `<li class="page-item"><a class="page-link" href="#" onclick="loadLogs(1);return false">1</a></li>`;
+    if (start > 2) html += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+    for (let i = start; i <= end; i++) {
+        html += `<li class="page-item ${i===currentPage?'active':''}"><a class="page-link" href="#" onclick="loadLogs(${i});return false">${i}</a></li>`;
+    }
+    if (end < totalPages) html += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+    if (currentPage < totalPages) html += `<li class="page-item"><a class="page-link" href="#" onclick="loadLogs(${currentPage+1});return false">&raquo;</a></li>`;
+    document.getElementById('pagination').innerHTML = html;
+}
+
+function clearFilters() {
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterUser').value = '';
+    document.getElementById('filterDateFrom').value = '';
+    document.getElementById('filterDateTo').value = '';
+    loadLogs(1);
+}
+
+function escHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function exportLogs() {
+    const status = document.getElementById('filterStatus').value;
+    const username = document.getElementById('filterUser').value;
+    const params = new URLSearchParams({ page_size: 2000, status: status, username: username });
+    window.open(`/api/core/login-logs/?${params}`, '_blank');
+}
+
+document.addEventListener('DOMContentLoaded', () => loadLogs(1));
+</script>
+{% endblock %}

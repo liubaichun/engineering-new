@@ -1,0 +1,577 @@
+{% extends "base.html" %}
+
+{% block title %}预警中心 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.warning-center {
+    padding: 24px;
+}
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.page-header h4 {
+    margin: 0;
+    font-weight: 700;
+}
+.page-header p {
+    margin: 4px 0 0;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+}
+
+/* 统计卡片 */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 28px;
+}
+.stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    transition: all 0.2s;
+}
+.stat-card:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+}
+.stat-card .icon-wrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    flex-shrink: 0;
+}
+.stat-card .stat-info {
+    flex: 1;
+    min-width: 0;
+}
+.stat-card .stat-num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+.stat-card .stat-label {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-top: 2px;
+}
+.stat-card.task .icon-wrap { background: #fef3c7; color: #d97706; }
+.stat-card.approval .icon-wrap { background: #ede9fe; color: #7c3aed; }
+.stat-card.contract .icon-wrap { background: #fce7f3; color: #db2777; }
+.stat-card.project .icon-wrap { background: #dbeafe; color: #1d4ed8; }
+.stat-card.wage .icon-wrap { background: #d1fae5; color: #059669; }
+.stat-card.finance .icon-wrap { background: #fee2e2; color: #dc2626; }
+
+/* 筛选栏 */
+.filter-bar {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px 18px;
+    margin-bottom: 20px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.filter-bar .filter-tab {
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+.filter-bar .filter-tab.active {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+.filter-bar .filter-tab:hover:not(.active) {
+    background: #eef2ff;
+    color: var(--primary);
+}
+.filter-bar .filter-tab .badge {
+    margin-left: 4px;
+    font-size: 0.72rem;
+}
+
+/* 预警列表 */
+.warning-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.warning-item {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: var(--card-shadow);
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    border-left: 4px solid transparent;
+    transition: all 0.2s;
+}
+.warning-item:hover {
+    box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+}
+.warning-item.unread {
+    border-left-color: var(--warning);
+    background: #fffbf0;
+}
+.warning-item.read {
+    opacity: 0.7;
+}
+.warning-item.level-danger { border-left-color: #dc2626; }
+.warning-item.level-warning { border-left-color: #d97706; }
+.warning-item.level-info { border-left-color: #2563eb; }
+
+.warning-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+.warning-icon.task { background: #fef3c7; color: #d97706; }
+.warning-icon.approval { background: #ede9fe; color: #7c3aed; }
+.warning-icon.project { background: #dbeafe; color: #1d4ed8; }
+.warning-icon.contract { background: #fce7f3; color: #db2777; }
+.warning-icon.wage { background: #d1fae5; color: #059669; }
+.warning-icon.finance { background: #fee2e2; color: #dc2626; }
+
+.warning-body {
+    flex: 1;
+    min-width: 0;
+}
+.warning-title {
+    font-weight: 600;
+    font-size: 0.95rem;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.warning-title .unread-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d97706;
+    flex-shrink: 0;
+}
+.warning-content {
+    font-size: 0.88rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin-bottom: 8px;
+}
+.warning-meta {
+    font-size: 0.78rem;
+    color: #94a3b8;
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.warning-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex-shrink: 0;
+}
+.warning-actions button {
+    padding: 4px 10px;
+    font-size: 0.78rem;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #f8fafc;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+}
+.warning-actions button:hover {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+}
+
+/* 分组标题 */
+.group-title {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 8px 0 12px;
+    border-bottom: 1px solid #f1f5f9;
+    margin-bottom: 12px;
+}
+
+/* 空状态 */
+.empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: var(--text-secondary);
+}
+.empty-state i {
+    font-size: 3.5rem;
+    margin-bottom: 16px;
+    opacity: 0.4;
+}
+.empty-state h5 {
+    margin-bottom: 8px;
+    color: var(--text-primary);
+}
+.empty-state p {
+    font-size: 0.88rem;
+}
+
+/* 操作按钮 */
+.action-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+.btn-smaller {
+    padding: 5px 14px;
+    font-size: 0.82rem;
+    border-radius: 8px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="warning-center">
+    <div class="page-header">
+        <div>
+            <h4><i class="bi bi-shield-exclamation me-2"></i>预警中心</h4>
+            <p class="mb-0">实时监控任务超时、审批积压、合同到期等关键风险</p>
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-outline-secondary btn-smaller" onclick="markAllRead()">
+                <i class="bi bi-check2-all me-1"></i>全部已读
+            </button>
+            <button class="btn btn-outline-danger btn-smaller" onclick="clearRead()">
+                <i class="bi bi-trash me-1"></i>清除已读
+            </button>
+            <button class="btn btn-primary btn-smaller" onclick="runCheckNow()">
+                <i class="bi bi-arrow-clockwise me-1"></i>立即检测
+            </button>
+        </div>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="stats-grid" id="statsGrid">
+        <div class="stat-card task" onclick="filterByType('task')" style="cursor:pointer">
+            <div class="icon-wrap"><i class="bi bi-clock-history"></i></div>
+            <div class="stat-info">
+                <div class="stat-num" id="taskCount">—</div>
+                <div class="stat-label">任务超时</div>
+            </div>
+        </div>
+        <div class="stat-card approval" onclick="filterByType('approval')" style="cursor:pointer">
+            <div class="icon-wrap"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-info">
+                <div class="stat-num" id="approvalCount">—</div>
+                <div class="stat-label">审批超时/积压</div>
+            </div>
+        </div>
+        <div class="stat-card contract" onclick="filterByType('contract')" style="cursor:pointer">
+            <div class="icon-wrap"><i class="bi bi-file-earmark-lock"></i></div>
+            <div class="stat-info">
+                <div class="stat-num" id="contractCount">—</div>
+                <div class="stat-label">合同到期</div>
+            </div>
+        </div>
+        <div class="stat-card project" onclick="filterByType('project')" style="cursor:pointer">
+            <div class="icon-wrap"><i class="bi bi-folder2-open"></i></div>
+            <div class="stat-info">
+                <div class="stat-num" id="projectCount">—</div>
+                <div class="stat-label">项目超期</div>
+            </div>
+        </div>
+        <div class="stat-card wage" onclick="filterByType('wage')" style="cursor:pointer">
+            <div class="icon-wrap"><i class="bi bi-wallet2"></i></div>
+            <div class="stat-info">
+                <div class="stat-num" id="wageCount">—</div>
+                <div class="stat-label">工资待发放</div>
+            </div>
+        </div>
+        <div class="stat-card finance" onclick="filterByType('finance')" style="cursor:pointer">
+            <div class="icon-wrap"><i class="bi bi-currency-dollar"></i></div>
+            <div class="stat-info">
+                <div class="stat-num" id="financeCount">—</div>
+                <div class="stat-label">大额支出</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="filter-bar">
+        <span style="font-size:0.85rem;color:var(--text-secondary);font-weight:500;">筛选：</span>
+        <div class="filter-tab active" data-filter="all" onclick="filterNotifications('all')">
+            全部 <span class="badge bg-secondary" id="countAll">0</span>
+        </div>
+        <div class="filter-tab" data-filter="unread" onclick="filterNotifications('unread')">
+            未读 <span class="badge bg-warning" id="countUnread">0</span>
+        </div>
+        <div class="filter-tab" data-filter="task" onclick="filterNotifications('task')">
+            任务 <span class="badge bg-warning" id="countTask">0</span>
+        </div>
+        <div class="filter-tab" data-filter="approval" onclick="filterNotifications('approval')">
+            审批 <span class="badge bg-warning" id="countApproval">0</span>
+        </div>
+        <div class="filter-tab" data-filter="project" onclick="filterNotifications('project')">
+            项目 <span class="badge bg-warning" id="countProject">0</span>
+        </div>
+        <div class="filter-tab" data-filter="finance" onclick="filterNotifications('finance')">
+            财务 <span class="badge bg-warning" id="countFinance">0</span>
+        </div>
+    </div>
+
+    <!-- 预警列表 -->
+    <div id="warningList"></div>
+</div>
+
+<script>
+let currentFilter = 'all';
+const typeIcon = {
+    task: 'bi-clock-history',
+    approval: 'bi-hourglass-split',
+    project: 'bi-folder2-open',
+    contract: 'bi-file-earmark-lock',
+    wage: 'bi-wallet2',
+    finance: 'bi-currency-dollar',
+    system: 'bi-info-circle',
+    info: 'bi-info-circle',
+};
+const typeLabel = {
+    task: '任务',
+    approval: '审批',
+    project: '项目',
+    contract: '合同',
+    wage: '工资',
+    finance: '财务',
+    system: '系统',
+    info: '通知',
+};
+const levelColor = { danger: '#dc2626', warning: '#d97706', info: '#2563eb' };
+
+async function loadStats() {
+    const [task, approval, project, finance, wage, all] = await Promise.all([
+        callAPI('/api/core/notifications/?notification_type=task&is_read=0'),
+        callAPI('/api/core/notifications/?notification_type=approval&is_read=0'),
+        callAPI('/api/core/notifications/?notification_type=project&is_read=0'),
+        callAPI('/api/core/notifications/?notification_type=finance&is_read=0'),
+        callAPI('/api/core/notifications/?notification_type=wage&is_read=0'),
+        callAPI('/api/core/notifications/?is_read=0'),
+    ]);
+    document.getElementById('taskCount').textContent = task.count || 0;
+    document.getElementById('approvalCount').textContent = approval.count || 0;
+    document.getElementById('projectCount').textContent = project.count || 0;
+    document.getElementById('financeCount').textContent = finance.count || 0;
+    document.getElementById('wageCount').textContent = wage.count || 0;
+    // Update warning badge in sidebar
+    const badge = document.getElementById('warningBadge');
+    if (badge) {
+        if (all.count > 0) {
+            badge.textContent = all.count > 99 ? '99+' : all.count;
+            badge.style.display = 'inline-block';
+        } else {
+            badge.style.display = 'none';
+        }
+    }
+}
+
+function callAPI(url) {
+    return fetch(url, { credentials: 'include' })
+        .then(r => r.json())
+        .catch(() => ({ count: 0, results: [] }));
+}
+
+function filterNotifications(f) {
+    currentFilter = f;
+    document.querySelectorAll('.filter-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.filter === f);
+    });
+    loadWarnings();
+}
+
+function filterByType(type) {
+    currentFilter = type;
+    document.querySelectorAll('.filter-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.filter === type);
+    });
+    loadWarnings();
+}
+
+function buildWarningItem(n) {
+    const icon = typeIcon[n.notification_type] || 'bi-bell';
+    const label = typeLabel[n.notification_type] || '通知';
+    const level = n.level || 'info';
+    const unread = n.is_read === false || n.is_read === 0;
+    const timeAgo = formatTime(n.created_at);
+    const levelColorVal = levelColor[level] || '#64748b';
+
+    return `
+    <div class="warning-item ${unread ? 'unread' : 'read'} level-${level}" data-id="${n.id}">
+        <div class="warning-icon ${n.notification_type}">
+            <i class="bi ${icon}"></i>
+        </div>
+        <div class="warning-body">
+            <div class="warning-title">
+                ${unread ? '<span class="unread-dot"></span>' : ''}
+                ${escapeHtml(n.title || '')}
+                <span class="badge" style="background:${levelColorVal}20;color:${levelColorVal};font-size:0.7rem;padding:2px 8px;border-radius:10px;">
+                    ${escapeHtml(label)}
+                </span>
+            </div>
+            <div class="warning-content">${escapeHtml(n.content || '')}</div>
+            <div class="warning-meta">
+                <span><i class="bi bi-clock me-1"></i>${timeAgo}</span>
+                ${n.related_type ? `<span><i class="bi bi-link-45deg me-1"></i>${escapeHtml(n.related_type)}</span>` : ''}
+            </div>
+        </div>
+        <div class="warning-actions">
+            ${unread ? `<button onclick="markRead(${n.id})"><i class="bi bi-check2 me-1"></i>已读</button>` : ''}
+            <button onclick="deleteNotif(${n.id})"><i class="bi bi-trash me-1"></i>删除</button>
+        </div>
+    </div>`;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+function formatTime(t) {
+    if (!t) return '';
+    const diff = new Date() - new Date(t);
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+    if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
+    return new Date(t).toLocaleDateString('zh-CN');
+}
+
+async function loadWarnings() {
+    const container = document.getElementById('warningList');
+    let url = '/api/core/notifications/?';
+    if (currentFilter === 'unread') url += 'is_read=0&';
+    else if (currentFilter !== 'all') url += `notification_type=${currentFilter}&`;
+
+    const data = await callAPI(url);
+
+    // Update filter counts
+    const allData = await callAPI('/api/core/notifications/?is_read=0');
+    const taskData = await callAPI('/api/core/notifications/?notification_type=task&is_read=0');
+    const approvalData = await callAPI('/api/core/notifications/?notification_type=approval&is_read=0');
+    const projectData = await callAPI('/api/core/notifications/?notification_type=project&is_read=0');
+    const financeData = await callAPI('/api/core/notifications/?notification_type=finance&is_read=0');
+
+    document.getElementById('countAll').textContent = allData.count || 0;
+    document.getElementById('countUnread').textContent = allData.count || 0;
+    document.getElementById('countTask').textContent = taskData.count || 0;
+    document.getElementById('countApproval').textContent = approvalData.count || 0;
+    document.getElementById('countProject').textContent = projectData.count || 0;
+    document.getElementById('countFinance').textContent = financeData.count || 0;
+
+    // Update stat cards
+    document.getElementById('taskCount').textContent = taskData.count || 0;
+    document.getElementById('approvalCount').textContent = approvalData.count || 0;
+    document.getElementById('projectCount').textContent = projectData.count || 0;
+    document.getElementById('financeCount').textContent = financeData.count || 0;
+
+    const results = data.results || [];
+    if (results.length === 0) {
+        container.innerHTML = `
+        <div class="empty-state">
+            <i class="bi bi-shield-check"></i>
+            <h5>暂无预警信息</h5>
+            <p>系统检测一切正常，或者所有预警已处理完毕</p>
+        </div>`;
+        return;
+    }
+
+    container.innerHTML = '<div class="warning-list">' + results.map(buildWarningItem).join('') + '</div>';
+}
+
+async function markRead(id) {
+    await fetch(`/api/core/notifications/${id}/mark-read/`, {
+        method: 'POST', credentials: 'include'
+    });
+    loadWarnings();
+}
+
+async function markAllRead() {
+    await fetch('/api/core/notifications/mark-all-read/', {
+        method: 'POST', credentials: 'include'
+    });
+    loadWarnings();
+}
+
+async function deleteNotif(id) {
+    if (!confirm('确定删除此通知？')) return;
+    await fetch(`/api/core/notifications/${id}/`, {
+        method: 'DELETE', credentials: 'include'
+    });
+    loadWarnings();
+}
+
+async function clearRead() {
+    if (!confirm('确定清除所有已读通知？')) return;
+    await fetch('/api/core/notifications/clear-read/', {
+        method: 'DELETE', credentials: 'include'
+    });
+    loadWarnings();
+}
+
+async function runCheckNow() {
+    const btn = event.target.closest('button');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>检测中...';
+    try {
+        const resp = await fetch('/api/core/notifications/unread-count/', { credentials: 'include' });
+        const json = await resp.json();
+        showToast(`检测完成：${json.unread_count || 0} 条预警`, 'success');
+        loadWarnings();
+    } catch (e) {
+        showToast('检测请求失败', 'error');
+    }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i>立即检测';
+}
+
+function showToast(msg, type) {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'warning'} position-fixed`;
+    toast.style.cssText = 'top:20px;right:20px;z-index:9999;min-width:200px;';
+    toast.innerHTML = msg;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+loadWarnings();
+loadStats();
+</script>
+{% endblock %}

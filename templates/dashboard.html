@@ -1,0 +1,616 @@
+{% extends "base.html" %}
+
+{% block title %}控制台 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.stat-card { cursor: pointer; }
+.quick-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+.action-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 12px;
+    background: #f8fafc;
+    border: 1px solid #f1f5f9;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    color: var(--text-primary);
+}
+.action-btn:hover {
+    background: #fff;
+    border-color: var(--primary);
+    color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59,130,246,0.1);
+}
+.action-btn i {
+    font-size: 1.5rem;
+    margin-bottom: 8px;
+    color: var(--primary);
+}
+.action-btn span {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+.activity-item {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid #f8fafc;
+}
+.activity-item:last-child { border-bottom: none; }
+.activity-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+}
+.activity-dot.blue { background: var(--primary); }
+.activity-dot.green { background: var(--success); }
+.activity-dot.orange { background: var(--warning); }
+.activity-dot.red { background: var(--danger); }
+.activity-content { flex: 1; }
+.activity-text { font-size: 0.9rem; color: var(--text-primary); line-height: 1.4; }
+.activity-text strong { font-weight: 600; }
+.activity-time { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+.project-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #f8fafc;
+}
+.project-item:last-child { border-bottom: none; }
+.project-info { flex: 1; }
+.project-name { font-weight: 600; font-size: 0.95rem; }
+.project-meta { font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px; }
+.project-progress { width: 100px; }
+.progress { height: 6px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center">
+    <div>
+        <h4><i class="bi bi-speedometer2 me-2"></i>控制台</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">欢迎回来，今天是 <span id="today"></span></p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary btn-sm" onclick="refreshData()">
+            <i class="bi bi-arrow-clockwise me-1"></i>刷新
+        </button>
+        <a href="/projects/" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg me-1"></i>新建项目
+        </a>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row g-4 mb-4">
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card" onclick="location.href='/projects/'">
+            <div class="stat-icon blue"><i class="bi bi-briefcase"></i></div>
+            <div class="stat-value" id="statActiveProjects">-</div>
+            <div class="stat-label">进行中项目</div>
+            <div class="mt-2" style="font-size:0.8rem; color:var(--text-secondary);">
+                <span>本月新增 <span id="statNewProjects">-</span></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card" onclick="location.href='/tasks/board/'">
+            <div class="stat-icon green"><i class="bi bi-kanban"></i></div>
+            <div class="stat-value" id="statPendingTasks">-</div>
+            <div class="stat-label">待完成任务</div>
+            <div class="mt-2" style="font-size:0.8rem; color:var(--text-secondary);">
+                <span>进行中 <span id="statInProgressTasks">-</span></span>
+                <span class="ms-2">今日完成 <span id="statTodayCompleted">-</span></span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card" onclick="location.href='/finance/wages/'">
+            <div class="stat-icon orange"><i class="bi bi-wallet2"></i></div>
+            <div class="stat-value" id="statWageTotal">¥-<span style="font-size:1rem;">万</span></div>
+            <div class="stat-label">本月工资支出</div>
+            <div class="mt-2" style="font-size:0.8rem; color:var(--text-secondary);">
+                <span>员工 <span id="statEmployeeCount">-</span>人</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-xl-3">
+        <div class="stat-card" onclick="location.href='/system/users/'">
+            <div class="stat-icon purple"><i class="bi bi-people"></i></div>
+            <div class="stat-value" id="statTeamMembers">-</div>
+            <div class="stat-label">团队成员</div>
+            <div class="mt-2" style="font-size:0.8rem; color:var(--text-secondary);">
+                <span>在线 <span id="statOnlineUsers">-</span></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 审批统计卡片 -->
+<div class="row g-4 mb-4">
+    <div class="col-sm-6 col-lg-4">
+        <div class="stat-card" onclick="location.href='/approvals/'">
+            <div class="stat-icon orange"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-value" id="statPendingApprovals">-</div>
+            <div class="stat-label">待我审批</div>
+            <div class="d-flex justify-content-between mt-2" style="font-size:0.8rem; color:var(--text-secondary);">
+                <span>审批中 <span id="statRunningApprovals">-</span></span>
+                <span class="text-warning">待处理</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="stat-card" onclick="location.href='/approvals/'">
+            <div class="stat-icon green"><i class="bi bi-check-circle"></i></div>
+            <div class="stat-value" id="statApprovedCount">-</div>
+            <div class="stat-label">本月已通过</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-4">
+        <div class="stat-card" onclick="location.href='/approvals/'">
+            <div class="stat-icon red"><i class="bi bi-x-circle"></i></div>
+            <div class="stat-value" id="statRejectedCount">-</div>
+            <div class="stat-label">本月已拒绝</div>
+        </div>
+    </div>
+</div>
+
+<!-- 预警统计卡片 -->
+<div class="row g-4 mb-4">
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card" onclick="location.href='/warnings/'">
+            <div class="stat-icon orange"><i class="bi bi-shield-exclamation"></i></div>
+            <div class="stat-value" id="statWarningTotal">-</div>
+            <div class="stat-label">未读预警</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card" onclick="location.href='/warnings/'">
+            <div class="stat-icon red"><i class="bi bi-clock-history"></i></div>
+            <div class="stat-value" id="statTaskOverdue">-</div>
+            <div class="stat-label">任务超时</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card" onclick="location.href='/warnings/'">
+            <div class="stat-icon purple"><i class="bi bi-hourglass-split"></i></div>
+            <div class="stat-value" id="statApprovalStale">-</div>
+            <div class="stat-label">审批超时</div>
+        </div>
+    </div>
+    <div class="col-sm-6 col-lg-3">
+        <div class="stat-card" onclick="location.href='/warnings/'">
+            <div class="stat-icon blue"><i class="bi bi-folder2-open"></i></div>
+            <div class="stat-value" id="statProjectOverdue">-</div>
+            <div class="stat-label">项目超期</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- 快捷操作 -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-lightning me-2"></i>快捷操作</span>
+            </div>
+            <div class="card-body">
+                <div class="quick-grid">
+                    <a href="/projects/" class="action-btn" onclick="showProjectModal(); return false;">
+                        <i class="bi bi-plus-circle"></i>
+                        <span>新建项目</span>
+                    </a>
+                    <a href="/tasks/board/" class="action-btn">
+                        <i class="bi bi-task"></i>
+                        <span>创建任务</span>
+                    </a>
+                    <a href="/finance/wages/" class="action-btn">
+                        <i class="bi bi-currency-yen"></i>
+                        <span>工资录入</span>
+                    </a>
+                    <a href="/system/users/" class="action-btn">
+                        <i class="bi bi-person-plus"></i>
+                        <span>添加人员</span>
+                    </a>
+                    <a href="/approvals/" class="action-btn" style="position:relative;">
+                        <i class="bi bi-bell"></i>
+                        <span>预警中心</span>
+                        <span id="alertCountBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none; font-size:0.65rem;">0</span>
+                    </a>
+                    <a href="/finance/reports/" class="action-btn">
+                        <i class="bi bi-bar-chart"></i>
+                        <span>报表导出</span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 项目进度 -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-graph-up me-2"></i>项目进度</span>
+                <a href="/projects/" class="btn btn-link btn-sm text-decoration-none p-0">查看全部</a>
+            </div>
+            <div class="card-body" id="projectProgressBody">
+                <div class="text-center text-muted py-4"><i class="bi bi-arrow-repeat spin"></i> 加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 最新动态 -->
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header">
+                <i class="bi bi-clock-history me-2"></i>最新动态
+            </div>
+            <div class="card-body" id="activityBody">
+                <div class="text-center text-muted py-4"><i class="bi bi-arrow-repeat spin"></i> 加载中...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 待办事项 -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-task me-2"></i>待办事项</span>
+                <a href="/tasks/board/" class="btn btn-link btn-sm text-decoration-none p-0">查看全部</a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">
+                                    <input class="form-check-input" type="checkbox">
+                                </th>
+                                <th>任务名称</th>
+                                <th>项目</th>
+                                <th>截止日期</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody id="todoBody">
+                            <tr><td colspan="5" class="text-center text-muted py-3"><i class="bi bi-arrow-repeat spin"></i> 加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 设置日期
+document.getElementById('today').textContent = new Date().toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long'
+});
+
+// 通用带超时 fetch
+async function fetchWithTimeout(url, options = {}, timeout = 8000) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+        const res = await fetch(url, { ...options, signal: controller.signal, credentials: 'include' });
+        clearTimeout(timeoutId);
+        return res;
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+            console.warn('请求超时:', url);
+        } else {
+            console.warn('请求失败:', url, err);
+        }
+        return null;
+    }
+}
+
+async function loadDashboardStats() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const today = now.toISOString().slice(0, 10);
+
+    const [
+        empRes, usersRes, onlineRes,
+        projRes, newProjRes,
+        pendingRes, inProgRes, todayCompRes,
+        wageRes
+    ] = await Promise.all([
+        fetchWithTimeout('/api/finance/employees/?status=active'),
+        fetchWithTimeout('/api/core/users/?is_active=true'),
+        fetchWithTimeout('/api/core/users/?is_active=true&last_login_since=15'),
+        fetchWithTimeout('/api/tasks/projects/?status=active&page_size=1'),
+        fetchWithTimeout(`/api/tasks/projects/?created_month=${month}&year=${year}&page_size=1`),
+        fetchWithTimeout('/api/tasks/tasks/?status=pending&page_size=1'),
+        fetchWithTimeout('/api/tasks/tasks/?status=in_progress&page_size=1'),
+        fetchWithTimeout(`/api/tasks/tasks/?status=completed&created_date=${today}&page_size=1`),
+        fetchWithTimeout(`/api/finance/reports/wage_summary/?year=${year}&page_size=1`),
+    ]);
+
+    if (empRes) {
+        const d = await empRes.json().catch(() => ({}));
+        document.getElementById('statEmployeeCount').textContent = d.count || 0;
+    }
+    if (usersRes) {
+        const d = await usersRes.json().catch(() => ({}));
+        document.getElementById('statTeamMembers').textContent = d.count || 0;
+    }
+    if (onlineRes) {
+        const d = await onlineRes.json().catch(() => ({}));
+        document.getElementById('statOnlineUsers').textContent = d.count || 0;
+    }
+    if (projRes) {
+        const d = await projRes.json().catch(() => ({}));
+        document.getElementById('statActiveProjects').textContent = d.count || 0;
+    }
+    if (newProjRes) {
+        const d = await newProjRes.json().catch(() => ({}));
+        document.getElementById('statNewProjects').textContent = d.count || 0;
+    }
+    if (pendingRes) {
+        const d = await pendingRes.json().catch(() => ({}));
+        const cnt = d.count !== undefined ? d.count : (Array.isArray(d) ? d.length : 0);
+        document.getElementById('statPendingTasks').textContent = cnt;
+    }
+    if (inProgRes) {
+        const d = await inProgRes.json().catch(() => ({}));
+        const cnt = d.count !== undefined ? d.count : (Array.isArray(d) ? d.length : 0);
+        document.getElementById('statInProgressTasks').textContent = cnt;
+    }
+    if (todayCompRes) {
+        const d = await todayCompRes.json().catch(() => ({}));
+        const cnt = d.count !== undefined ? d.count : (Array.isArray(d) ? d.length : 0);
+        document.getElementById('statTodayCompleted').textContent = cnt;
+    }
+    if (wageRes && wageRes.ok) {
+        const d = await wageRes.json().catch(() => ({}));
+        const total = d.summary?.total_net || 0;
+        document.getElementById('statWageTotal').innerHTML = '¥' + (total / 10000).toFixed(1) + '<span style="font-size:1rem;">万</span>';
+    }
+}
+
+async function loadApprovalStats() {
+    // 使用 Promise.all 并行请求，全部8秒超时，各自独立不会互相阻塞
+    const [pendingRes, notifRes] = await Promise.all([
+        fetchWithTimeout('/api/approvals/nodes/?status=pending', {}, 8000),
+        fetchWithTimeout('/api/core/notifications/?is_read=false&page_size=1', {}, 8000),
+    ]);
+
+    let pendingApprovals = 0;
+    let unreadCount = 0;
+    let thisMonthApproved = 0;
+    let thisMonthRejected = 0;
+    let thisMonthTotal = 0;
+
+    if (pendingRes && pendingRes.ok) {
+        try {
+            const pendingData = await pendingRes.json();
+            const pendingNodes = Array.isArray(pendingData) ? pendingData : (pendingData?.results || []);
+            pendingApprovals = pendingNodes.length;
+        } catch(e) {}
+    }
+
+    if (notifRes && notifRes.ok) {
+        try {
+            const notifData = await notifRes.json();
+            unreadCount = notifData.count || 0;
+        } catch(e) {}
+    }
+
+    // 审批统计用小量数据 page_size=10，不阻塞主线程
+    const flowsRes = await fetchWithTimeout('/api/approvals/flows/?page_size=10&ordering=-created_at', {}, 8000);
+    if (flowsRes && flowsRes.ok) {
+        try {
+            const flowsData = await flowsRes.json();
+            const allFlows = Array.isArray(flowsData) ? flowsData : (flowsData?.results || []);
+            const now = new Date();
+            const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+            const thisMonth = allFlows.filter(f => f.created_at && f.created_at >= monthStart);
+            thisMonthApproved = thisMonth.filter(f => f.status === 'approved').length;
+            thisMonthRejected = thisMonth.filter(f => f.status === 'rejected').length;
+            thisMonthTotal = thisMonthApproved + thisMonthRejected;
+        } catch(e) {}
+    }
+
+    document.getElementById('statPendingApprovals').textContent = pendingApprovals;
+    document.getElementById('statRunningApprovals').textContent = pendingApprovals;
+    document.getElementById('statApprovedCount').textContent = thisMonthApproved;
+    document.getElementById('statRejectedCount').textContent = thisMonthRejected;
+    document.getElementById('statTotalApprovals').textContent = thisMonthTotal;
+    const rate = thisMonthTotal > 0 ? Math.round((thisMonthApproved / thisMonthTotal) * 100) : 0;
+    document.getElementById('statApprovalRate').textContent = rate;
+
+    const alertBadge = document.getElementById('alertCountBadge');
+    if (alertBadge && unreadCount > 0) {
+        alertBadge.textContent = unreadCount;
+        alertBadge.style.display = 'inline';
+    }
+}
+
+async function loadWarningStats() {
+    const types = ['', 'task', 'approval', 'project'];
+    const ids = ['statWarningTotal', 'statTaskOverdue', 'statApprovalStale', 'statProjectOverdue'];
+    const fetches = types.map(t =>
+        fetchWithTimeout('/api/core/notifications/?is_read=0' + (t ? '&notification_type=' + t : ''), {}, 8000)
+    );
+    const results = await Promise.all(fetches);
+    results.forEach((res, i) => {
+        const el = document.getElementById(ids[i]);
+        if (el && res && res.ok) {
+            res.json().then(d => { el.textContent = d.count || 0; }).catch(() => {});
+        } else if (el) {
+            el.textContent = '0';
+        }
+    });
+}
+
+async function loadProjectProgress() {
+    try {
+        const res = await fetchWithTimeout('/api/tasks/projects/?status=active&page_size=3', {}, 8000);
+        if (!res || !res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const projects = data.results || [];
+        const body = document.getElementById('projectProgressBody');
+        if (!projects.length) {
+            body.innerHTML = '<div class="text-center text-muted py-3">暂无进行中项目</div>';
+            return;
+        }
+        const colors = ['bg-success', 'bg-primary', 'bg-warning', 'bg-info'];
+        const textColors = ['text-success', 'text-primary', 'text-warning'];
+        let html = '';
+        projects.forEach((p, i) => {
+            const pct = parseFloat(p.computed_progress) || 0;
+            html += '<div class="project-item">';
+            html += '<div class="project-info">';
+            html += '<div class="project-name">' + escapeHtml(p.name) + '</div>';
+            html += '<div class="project-meta">项目编号: ' + escapeHtml(p.code || '-') + ' | ';
+            if (p.start_date && p.end_date) {
+                const start = new Date(p.start_date);
+                const end = new Date(p.end_date);
+                const days = Math.ceil((end - start) / 86400000);
+                html += '预计工期 ' + days + '天';
+            } else {
+                html += '预计工期 -天';
+            }
+            html += '</div></div>';
+            html += '<div class="project-progress">';
+            html += '<div class="d-flex justify-content-between mb-1" style="font-size:0.8rem;">';
+            html += '<span class="' + textColors[i % 3] + '">' + pct + '%</span></div>';
+            html += '<div class="progress"><div class="progress-bar ' + colors[i % 4] + '" style="width:' + pct + '%"></div></div>';
+            html += '</div></div>';
+        });
+        body.innerHTML = html;
+    } catch (err) {
+        const body = document.getElementById('projectProgressBody');
+        if (body) body.innerHTML = '<div class="text-center text-muted py-3">加载失败</div>';
+    }
+}
+
+async function loadActivities() {
+    try {
+        const res = await fetchWithTimeout('/api/tasks/tasks/?page_size=5', {}, 8000);
+        if (!res || !res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const tasks = data.results ? data.results : (Array.isArray(data) ? data : []);
+        const body = document.getElementById('activityBody');
+        if (!tasks.length) {
+            body.innerHTML = '<div class="text-center text-muted py-3">暂无动态</div>';
+            return;
+        }
+        const dots = ['blue', 'green', 'orange', 'red'];
+        let html = '';
+        const statusMap = { pending: '待处理', in_progress: '进行中', completed: '已完成' };
+        tasks.slice(0, 5).forEach((t, i) => {
+            const timeField = t.updated_at || t.created_at;
+            let timeStr = '-';
+            if (timeField) {
+                const ms = Date.now() - new Date(timeField).getTime();
+                const minutes = Math.floor(ms / 60000);
+                if (minutes < 1) timeStr = '刚刚';
+                else if (minutes < 60) timeStr = minutes + '分钟前';
+                else {
+                    const hours = Math.floor(minutes / 60);
+                    if (hours < 24) timeStr = hours + '小时前';
+                    else {
+                        const days = Math.floor(hours / 24);
+                        timeStr = days + '天前';
+                    }
+                }
+            }
+            html += '<div class="activity-item">';
+            html += '<div class="activity-dot ' + dots[i % 4] + '"></div>';
+            html += '<div class="activity-content">';
+            html += '<div class="activity-text">任务 <strong>' + escapeHtml(t.title || t.name || '未命名') + '</strong> 已' + (statusMap[t.status] || t.status) + '</div>';
+            html += '<div class="activity-time">' + timeStr + '</div>';
+            html += '</div></div>';
+        });
+        body.innerHTML = html;
+    } catch (err) {
+        const body = document.getElementById('activityBody');
+        if (body) body.innerHTML = '<div class="text-center text-muted py-3">加载失败</div>';
+    }
+}
+
+async function loadTodos() {
+    try {
+        const res = await fetchWithTimeout('/api/tasks/tasks/?status=pending&page_size=4', {}, 8000);
+        if (!res || !res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        const tasks = data.results ? data.results : (Array.isArray(data) ? data : []);
+        const tbody = document.getElementById('todoBody');
+        if (!tasks.length) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">暂无待办</td></tr>';
+            return;
+        }
+        const deadlines = ['今天', '明天', '周五', '周六', '本周'];
+        const statusMap = { pending: 'badge-pending', in_progress: 'badge-progress', completed: 'badge-success' };
+        const statusText = { pending: '待处理', in_progress: '进行中', completed: '已完成' };
+        let html = '';
+        tasks.slice(0, 4).forEach((t, i) => {
+            const dl = deadlines[i] || '本周';
+            const badge = statusMap[t.status] || 'badge-pending';
+            const txt = statusText[t.status] || '待处理';
+            const proj = t.project_name || (t.project && t.project.name) || '-';
+            html += '<tr>';
+            html += '<td><input class="form-check-input" type="checkbox"></td>';
+            html += '<td><span class="task-name">' + escapeHtml(t.title || t.name || '未命名') + '</span></td>';
+            html += '<td><small class="text-muted">' + escapeHtml(proj) + '</small></td>';
+            html += '<td><small>' + dl + '</small></td>';
+            html += '<td><span class="badge ' + badge + '">' + txt + '</span></td>';
+            html += '</tr>';
+        });
+        tbody.innerHTML = html;
+    } catch (err) {
+        const tbody = document.getElementById('todoBody');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">加载失败</td></tr>';
+    }
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function refreshData() {
+    loadDashboardStats();
+    loadApprovalStats();
+    loadProjectProgress();
+    loadActivities();
+    loadTodos();
+    loadWarningStats();
+    showToast('数据已刷新', 'success');
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadDashboardStats();
+    loadApprovalStats();
+    loadProjectProgress();
+    loadActivities();
+    loadTodos();
+    loadWarningStats();
+});
+</script>
+{% endblock %}

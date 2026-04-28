@@ -1,0 +1,543 @@
+from datetime import date
+from django.db import models
+from django.conf import settings
+from django.utils import timezone
+
+
+class Employee(models.Model):
+    """员工信息表（独立于系统User，工资管理专用）"""
+    EMPLOYEE_STATUS_CHOICES = [
+        ('active', '在职'),
+        ('probation', '试用期'),
+        ('intern', '实习'),
+        ('resigned', '已离职'),
+    ]
+
+    code = models.CharField('工号', max_length=50, unique=True, blank=True)
+    name = models.CharField('姓名', max_length=50)
+    id_card = models.CharField('身份证号', max_length=18, blank=True, default='')
+    phone = models.CharField('手机号', max_length=20, blank=True, default='')
+    bank_card = models.CharField('银行卡号', max_length=30, blank=True, default='')
+    bank_name = models.CharField('开户银行', max_length=100, blank=True, default='')
+    department = models.CharField('部门(主公司)', max_length=50, blank=True, default='')
+    position = models.CharField('职位(主公司)', max_length=50, blank=True, default='')
+    company = models.ForeignKey(
+        'Company',
+        verbose_name='主公司',
+        on_delete=models.PROTECT,
+        related_name='employees',
+        blank=True,
+        null=True
+    )
+    hire_date = models.DateField('入职日期', blank=True, null=True)
+    leave_date = models.DateField('离职日期', blank=True, null=True)
+    status = models.CharField('状态', max_length=20, choices=EMPLOYEE_STATUS_CHOICES, default='active')
+    has_social_insurance = models.BooleanField('是否购买社保', default=True)
+    has_housing_fund = models.BooleanField('是否购买公积金', default=False)
+    social_insurance_base = models.DecimalField('社保基数', max_digits=10, decimal_places=2, default=0)
+    housing_fund_base = models.DecimalField('公积金基数', max_digits=10, decimal_places=2, default=0)
+    email = models.EmailField('邮箱', blank=True, default='')
+    emergency_contact = models.CharField('紧急联系人', max_length=50, blank=True, default='')
+    emergency_phone = models.CharField('紧急联系电话', max_length=20, blank=True, default='')
+    remarks = models.TextField('备注', blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'finance_employee'
+        verbose_name = '员工'
+        verbose_name_plural = '员工信息'
+        ordering = ['code', 'name']
+
+    def __str__(self):
+        return f"{self.code} - {self.name}" if self.code else self.name
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            year = self.hire_date.year if self.hire_date else 2026
+            last = Employee.objects.filter(code__startswith=f'YG-{year}-').order_by('-code').first()
+            if last and last.code:
+                try:
+                    seq = int(last.code.split('-')[-1]) + 1
+                except:
+                    seq = 1
+            else:
+                seq = 1
+            self.code = f'YG-{year}-{seq:04d}'
+        super().save(*args, **kwargs)
+
+
+class Company(models.Model):
+    """公司模型"""
+    STATUS_CHOICES = [
+        ('active', '启用'),
+        ('inactive', '停用'),
+        ('pending', '待审核'),
+    ]
+
+    name = models.CharField(verbose_name='公司名称', max_length=100)
+    code = models.CharField(verbose_name='公司代码', max_length=20, unique=True)
+    status = models.CharField(verbose_name='状态', max_length=20, choices=STATUS_CHOICES, default='active')
+    contact_person = models.CharField(verbose_name='联系人', max_length=50, blank=True, default='')
+    contact_phone = models.CharField(verbose_name='联系电话', max_length=30, blank=True, default='')
+    address = models.CharField(verbose_name='地址', max_length=200, blank=True, default='')
+    tax_id = models.CharField(verbose_name='税务登记号', max_length=50, blank=True, default='')
+    bank_name = models.CharField(verbose_name='开户银行', max_length=100, blank=True, default='')
+    bank_account = models.CharField(verbose_name='银行账号', max_length=50, blank=True, default='')
+    remark = models.TextField(verbose_name='备注', blank=True, default='')
+    created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_company'
+        verbose_name = '公司'
+        verbose_name_plural = '公司管理'
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
+class EmployeeCompany(models.Model):
+    """员工-公司关联表（支持一个员工属于多家公司）"""
+    employee = models.ForeignKey(
+        'Employee',
+        verbose_name='员工',
+        on_delete=models.CASCADE,
+        related_name='company_links'
+    )
+    company = models.ForeignKey(
+        'Company',
+        verbose_name='公司',
+        on_delete=models.CASCADE,
+        related_name='employee_links'
+    )
+    department = models.CharField('部门', max_length=50, blank=True, default='')
+    position = models.CharField('职位', max_length=50, blank=True, default='')
+    is_primary = models.BooleanField('主职', default=False, help_text='每员工只能有一个主职')
+    hire_date = models.DateField('入职日期', blank=True, null=True)
+    leave_date = models.DateField('离职日期', blank=True, null=True)
+    status = models.CharField('状态', max_length=20, default='active')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_employee_company'
+        verbose_name = '员工公司关联'
+        verbose_name_plural = '员工公司关联'
+        unique_together = [('employee', 'company')]
+        ordering = ['-is_primary', 'company__name']
+
+    def __str__(self):
+        return f"{self.employee.name}@{self.company.name}({self.department}/{self.position})"
+
+    def save(self, *args, **kwargs):
+        # 自动取消其他主职标记，同员工只能有一个主职
+        if self.is_primary:
+            EmployeeCompany.objects.filter(
+                employee=self.employee, is_primary=True
+            ).exclude(id=self.id).update(is_primary=False)
+        super().save(*args, **kwargs)
+
+
+class Income(models.Model):
+    """收入模型"""
+    STATUS_CHOICES = [
+        ('pending', '待审批'),
+        ('approved', '已批准'),
+        ('rejected', '已拒绝'),
+    ]
+
+    company = models.ForeignKey(
+        Company,
+        verbose_name='公司',
+        on_delete=models.CASCADE,
+        related_name='incomes'
+    )
+    amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
+    date = models.DateField(verbose_name='日期')
+    source = models.CharField(verbose_name='来源', max_length=200, blank=True, default='')
+    status = models.CharField(verbose_name='状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    project = models.ForeignKey(
+        'tasks.Project',
+        verbose_name='关联项目',
+        on_delete=models.PROTECT,
+        related_name='finance_incomes',
+        blank=True,
+        null=True
+    )
+    customer = models.CharField(verbose_name='客户', max_length=200, blank=True, default='')
+    description = models.TextField(verbose_name='描述', blank=True, default='')
+    attachment = models.CharField(verbose_name='附件', max_length=500, blank=True, default='')
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name='录入人',
+        on_delete=models.PROTECT,
+        related_name='finance_incomes',
+        blank=True,
+        null=True
+    )
+    approval_flow = models.ForeignKey(
+        'approvals.ApprovalFlow',
+        verbose_name='关联审批流',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='income_records'
+    )
+    created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'finance_income'
+        verbose_name = '收入'
+        verbose_name_plural = '收入管理'
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"收入 {self.amount} - {self.date}"
+
+
+class Expense(models.Model):
+    """支出模型"""
+    EXPENSE_TYPE_CHOICES = [
+        ('expense', '费用报销'),
+        ('advance', '预付款'),
+        ('deposit', '押金'),
+        ('wage', '工资支出'),
+    ]
+
+    EXPENSE_STATUS_CHOICES = [
+        ('draft', '草稿'),
+        ('pending', '待审批'),
+        ('approved', '已批准'),
+        ('rejected', '已拒绝'),
+    ]
+
+    company = models.ForeignKey(
+        Company,
+        verbose_name='公司',
+        on_delete=models.CASCADE,
+        related_name='expenses'
+    )
+    amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
+    expense_type = models.CharField(
+        verbose_name='支出类型', max_length=20,
+        choices=EXPENSE_TYPE_CHOICES, default='expense'
+    )
+    expense_date = models.DateField(verbose_name='日期', help_text='支出日期', default=date.today)
+    date = models.DateField(verbose_name='日期', help_text='兼容性别名', blank=True, null=True)
+    expense_category = models.CharField(verbose_name='支出类别', max_length=50, blank=True, default='')
+    project = models.ForeignKey(
+        'tasks.Project',
+        verbose_name='关联项目',
+        on_delete=models.PROTECT,
+        related_name='finance_expenses',
+        blank=True,
+        null=True
+    )
+    supplier = models.CharField(verbose_name='供应商', max_length=200, blank=True, default='')
+    note = models.CharField(verbose_name='备注', max_length=500, blank=True, default='')
+    description = models.TextField(verbose_name='描述', blank=True, default='')
+    attachment = models.CharField(verbose_name='附件', max_length=500, blank=True, default='')
+    operator = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name='录入人',
+        on_delete=models.PROTECT,
+        related_name='finance_expenses',
+        blank=True,
+        null=True
+    )
+    approval_flow = models.ForeignKey(
+        'approvals.ApprovalFlow',
+        verbose_name='关联审批流',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='expense_records'
+    )
+    status = models.CharField(
+        verbose_name='状态', max_length=20,
+        choices=EXPENSE_STATUS_CHOICES, default='draft'
+    )
+    created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if self.expense_date:
+            self.date = self.expense_date.date() if hasattr(self.expense_date, 'date') else self.expense_date
+        elif self.date:
+            from django.utils import timezone as tz
+            self.expense_date = self.date
+        super().save(*args, **kwargs)
+
+    class Meta:
+        db_table = 'finance_expense'
+        verbose_name = '支出'
+        verbose_name_plural = '支出管理'
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"支出 {self.amount} - {self.date}"
+
+
+class WageRecord(models.Model):
+    """工资单记录 - 7级超额累进税率计算个税"""
+    STATUS_CHOICES = [
+        ('draft', '草稿'),
+        ('pending', '待审核'),
+        ('approved', '已批准'),
+        ('paid', '已发放'),
+    ]
+
+    company = models.ForeignKey(
+        Company,
+        verbose_name='公司',
+        on_delete=models.CASCADE,
+        related_name='wage_records'
+    )
+    # employee_company: 员工在哪家公司的任职记录（工资发在这家公司）
+    employee_company = models.ForeignKey(
+        'EmployeeCompany',
+        verbose_name='员工任职记录',
+        on_delete=models.SET_NULL,
+        related_name='wage_records',
+        blank=True,
+        null=True
+    )
+    employee = models.ForeignKey(
+        'Employee',
+        verbose_name='关联员工(旧)',
+        on_delete=models.SET_NULL,
+        related_name='wage_records',
+        blank=True,
+        null=True
+    )
+    # employee_name 保留用于展示和 unique_together 约束，录入时从 employee_company 自动填充
+    employee_name = models.CharField(verbose_name='员工姓名', max_length=50, blank=True, default='')
+    bank_card = models.CharField(verbose_name='银行卡号', max_length=30, blank=True, default='')
+
+    # 应发项目
+    base_salary = models.DecimalField(verbose_name='基本工资', max_digits=12, decimal_places=2, default=0)
+    position_salary = models.DecimalField(verbose_name='岗位工资', max_digits=12, decimal_places=2, default=0)
+    overtime_pay = models.DecimalField(verbose_name='加班费', max_digits=12, decimal_places=2, default=0)
+    bonus = models.DecimalField(verbose_name='奖金', max_digits=12, decimal_places=2, default=0)
+    commission = models.DecimalField(verbose_name='提成', max_digits=12, decimal_places=2, default=0)
+    meal_allowance = models.DecimalField(verbose_name='餐补', max_digits=12, decimal_places=2, default=0)
+    transport_allowance = models.DecimalField(verbose_name='交通补贴', max_digits=12, decimal_places=2, default=0)
+    communication_allowance = models.DecimalField(verbose_name='通讯补贴', max_digits=12, decimal_places=2, default=0)
+    other_allowance = models.DecimalField(verbose_name='其他应发', max_digits=12, decimal_places=2, default=0)
+
+    # 社保公积金扣款
+    social_insurance = models.DecimalField(verbose_name='社保扣款', max_digits=12, decimal_places=2, default=0)
+    housing_fund = models.DecimalField(verbose_name='公积金扣款', max_digits=12, decimal_places=2, default=0)
+
+    # 其他扣款
+    leave_days = models.DecimalField(verbose_name='请假天数', max_digits=5, decimal_places=1, default=0)
+    leave_deduction = models.DecimalField(verbose_name='请假扣款', max_digits=12, decimal_places=2, default=0)
+    sick_leave_days = models.DecimalField(verbose_name='病假天数', max_digits=5, decimal_places=1, default=0)
+    sick_leave_deduction = models.DecimalField(verbose_name='病假扣款', max_digits=12, decimal_places=2, default=0)
+    employee_loan_repayment = models.DecimalField(verbose_name='员工借款还款', max_digits=12, decimal_places=2, default=0)
+    other_loan = models.DecimalField(verbose_name='其他借款', max_digits=12, decimal_places=2, default=0)
+    other_deductions = models.DecimalField(verbose_name='其他扣款', max_digits=12, decimal_places=2, default=0)
+
+    # 计算项
+    gross_salary = models.DecimalField(verbose_name='应发合计', max_digits=12, decimal_places=2, default=0, editable=False)
+    total_deduction = models.DecimalField(verbose_name='扣款合计', max_digits=12, decimal_places=2, default=0, editable=False)
+    taxable_salary = models.DecimalField(verbose_name='个税前工资', max_digits=12, decimal_places=2, default=0, editable=False)
+    tax = models.DecimalField(verbose_name='个税', max_digits=12, decimal_places=2, default=0, editable=False)
+    cumulative_tax = models.DecimalField(verbose_name='累计税额', max_digits=12, decimal_places=2, default=0, editable=False)
+    net_salary = models.DecimalField(verbose_name='实发工资', max_digits=12, decimal_places=2, default=0, editable=False)
+
+    year = models.IntegerField(verbose_name='年份')
+    month = models.IntegerField(verbose_name='月份', choices=[(i, f'{i}月') for i in range(1, 13)])
+    department = models.CharField(verbose_name='部门', max_length=50, blank=True, default='')
+    position = models.CharField(verbose_name='职位', max_length=50, blank=True, default='')
+    status = models.CharField(verbose_name='状态', max_length=20, choices=STATUS_CHOICES, default='draft')
+    approver = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name='审批人',
+        on_delete=models.SET_NULL,
+        related_name='approved_wage_records',
+        blank=True,
+        null=True
+    )
+    approval_flow = models.ForeignKey(
+        'approvals.ApprovalFlow',
+        verbose_name='关联审批流',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='wage_records'
+    )
+    approved_at = models.DateTimeField(verbose_name='审批时间', blank=True, null=True)
+    paid_at = models.DateTimeField(verbose_name='支付时间', blank=True, null=True)
+    remarks = models.TextField(verbose_name='备注', blank=True, default='')
+    created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'finance_wage_record'
+        verbose_name = '工资单'
+        verbose_name_plural = '工资管理'
+        ordering = ['-year', '-month', 'company__name', 'employee_name']
+        unique_together = ['company', 'employee_company', 'year', 'month']
+
+    def __str__(self):
+        return f"{self.employee_name} - {self.year}-{self.month:02d}"
+
+    def calculate_gross_and_tax(self):
+        """计算应发合计、扣款合计、个税前工资、个税和实发工资（按月单独计税）"""
+        # 自动从 employee_company 填充 employee_name（支持多公司任职）
+        if self.employee_company_id and not self.employee_name:
+            try:
+                ec = self.employee_company
+                if ec and ec.employee:
+                    self.employee_name = ec.employee.name
+            except Exception:
+                pass
+
+        # 应发合计 = 基本工资 + 岗位工资 + 加班费 + 奖金 + 提成 + 餐补 + 交通补贴 + 通讯补贴 + 其他应发
+        gross = (
+            float(self.base_salary or 0) +
+            float(self.position_salary or 0) +
+            float(self.overtime_pay or 0) +
+            float(self.bonus or 0) +
+            float(self.commission or 0) +
+            float(self.meal_allowance or 0) +
+            float(self.transport_allowance or 0) +
+            float(self.communication_allowance or 0) +
+            float(self.other_allowance or 0)
+        )
+
+        # 专项扣除 = 社保 + 公积金
+        special_deduction = float(self.social_insurance or 0) + float(self.housing_fund or 0)
+
+        # 其他扣款合计
+        total_ded = (
+            special_deduction +
+            float(self.leave_deduction or 0) +
+            float(self.sick_leave_deduction or 0) +
+            float(self.employee_loan_repayment or 0) +
+            float(self.other_loan or 0) +
+            float(self.other_deductions or 0)
+        )
+
+        # 按月单独计税：taxable_salary 为当月计税基数，直接套7级累进税率
+        monthly_taxable = max(gross - special_deduction - 5000, 0)
+
+        def calc_tax(taxable):
+            """7级超额累进税率（按月）"""
+            if taxable <= 0:
+                return 0.0
+            thresholds = [0, 3000, 12000, 25000, 35000, 55000, 80000]
+            rates = [3, 10, 20, 25, 30, 35, 45]
+            quick_deductions = [0, 210, 1410, 2660, 4410, 7160, 15160]
+            for i in range(len(thresholds) - 1):
+                if taxable <= thresholds[i + 1]:
+                    return max(taxable * rates[i] / 100 - quick_deductions[i], 0)
+            return max(taxable * 45 / 100 - 15160, 0)
+
+        self.tax = round(calc_tax(monthly_taxable), 2)
+        self.cumulative_tax = round(self.tax, 2)  # 按月计税时与当月税额相同
+        self.gross_salary = round(gross, 2)
+        self.total_deduction = round(total_ded, 2)
+        self.taxable_salary = round(monthly_taxable, 2)
+
+        # 实发工资 = 应发合计 - 扣款合计 - 个税
+        self.net_salary = round(gross - total_ded - float(self.tax or 0), 2)
+
+    def save(self, *args, **kwargs):
+        self.calculate_gross_and_tax()
+        super(WageRecord, self).save(*args, **kwargs)
+
+
+class Invoice(models.Model):
+    """发票模型"""
+    TYPE_CHOICES = [
+        ('income', '收入发票'),
+        ('expense', '支出发票'),
+    ]
+    INVOICE_TYPE_CHOICES = [
+        ('special', '增值税专用发票'),
+        ('normal', '普通发票'),
+    ]
+    STATUS_CHOICES = [
+        ('pending', '待开票'),
+        ('issued', '已开票'),
+        ('paid', '已支付'),
+        ('cancelled', '已作废'),
+    ]
+
+    invoice_no = models.CharField('发票号', max_length=50, unique=True)
+    type = models.CharField('类型', max_length=10, choices=TYPE_CHOICES)
+    invoice_type = models.CharField('发票类型', max_length=10, choices=INVOICE_TYPE_CHOICES, default='normal')
+    amount = models.DecimalField('金额', max_digits=14, decimal_places=2)
+    tax_rate = models.DecimalField('税率', max_digits=5, decimal_places=2, default=0, help_text='如 6% 填 6')
+    tax_amount = models.DecimalField('税额', max_digits=14, decimal_places=2, default=0, editable=False)
+    counterparty = models.CharField('对方公司', max_length=200, blank=True, default='')
+    project = models.ForeignKey(
+        'tasks.Project',
+        verbose_name='关联项目',
+        on_delete=models.PROTECT,
+        related_name='invoices',
+        blank=True,
+        null=True
+    )
+    company = models.ForeignKey(
+        Company,
+        verbose_name='开票公司',
+        on_delete=models.PROTECT,
+        related_name='invoices',
+        blank=True,
+        null=True
+    )
+    is_credited = models.BooleanField('已认证抵扣', default=False)
+    status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    issue_date = models.DateField('开票日期', blank=True, null=True)
+    due_date = models.DateField('到期日期', blank=True, null=True)
+    remarks = models.TextField('备注', blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'finance_invoice'
+        verbose_name = '发票'
+        verbose_name_plural = '发票管理'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.invoice_no
+
+    def save(self, *args, **kwargs):
+        # 自动计算税额
+        if self.tax_rate and self.amount:
+            self.tax_amount = round(float(self.amount) * float(self.tax_rate) / 100, 2)
+        super().save(*args, **kwargs)
+
+
+class CompanySocialConfig(models.Model):
+    """公司社保公积金配置"""
+    company = models.OneToOneField(
+        Company,
+        on_delete=models.CASCADE,
+        related_name='social_config',
+        verbose_name='关联公司'
+    )
+    social_base = models.DecimalField('社保基数', max_digits=10, decimal_places=2, default=0)
+    pension_rate_employee = models.DecimalField('养老保险个人比例%', max_digits=5, decimal_places=2, default=8)
+    pension_rate_company = models.DecimalField('养老保险公司比例%', max_digits=5, decimal_places=2, default=16)
+    medical_rate_employee = models.DecimalField('医疗保险个人比例%', max_digits=5, decimal_places=2, default=2)
+    medical_rate_company = models.DecimalField('医疗保险公司比例%', max_digits=5, decimal_places=2, default=6)
+    unemployment_rate_employee = models.DecimalField('失业保险个人比例%', max_digits=5, decimal_places=3, default=0.3)
+    unemployment_rate_company = models.DecimalField('失业保险公司比例%', max_digits=5, decimal_places=3, default=0.6)
+    injury_rate_company = models.DecimalField('工伤保险公司比例%', max_digits=5, decimal_places=2, default=0.4)
+    housing_fund_base = models.DecimalField('公积金基数', max_digits=10, decimal_places=2, default=0)
+    housing_fund_rate_employee = models.DecimalField('公积金个人比例%', max_digits=5, decimal_places=2, default=5)
+    housing_fund_rate_company = models.DecimalField('公积金公司比例%', max_digits=5, decimal_places=2, default=5)
+
+    class Meta:
+        db_table = 'finance_social_config'
+        verbose_name = '社保公积金配置'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.company.name} 社保配置"

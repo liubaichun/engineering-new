@@ -1,0 +1,568 @@
+{% extends "base.html" %}
+
+{% block title %}员工管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.employee-status-active { color: #10b981; }
+.employee-status-trial { color: #f59e0b; }
+.employee-status-resigned { color: #ef4444; }
+.action-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    font-size: 0.875rem;
+    color: #374151;
+    text-decoration: none;
+    transition: background 0.15s;
+}
+.action-menu-item:hover {
+    background: #f5f6f8;
+    color: #111;
+}
+.action-menu-item i { font-size: 0.9rem; width: 16px; text-align: center; }
+.action-menu-divider {
+    height: 1px;
+    background: #f1f1f1;
+    margin: 4px 0;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-people me-2"></i>员工管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理员工信息、社保公积金及入职离职</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="showEmployeeModal()" data-perm="employee.add">
+            <i class="bi bi-plus-lg me-1"></i>新建员工
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="searchName" placeholder="搜索姓名/工号/手机号" onkeyup="filterEmployees()">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterStatus" onchange="filterEmployees()">
+                    <option value="">全部状态</option>
+                    <option value="active">在职</option>
+                    <option value="probation">试用期</option>
+                    <option value="intern">实习</option>
+                    <option value="resigned">已离职</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterCompany" onchange="filterEmployees()">
+                    <option value="">全部公司</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterDepartment" onchange="filterEmployees()">
+                    <option value="">全部部门</option>
+                    <option value="技术部">技术部</option>
+                    <option value="工程部">工程部</option>
+                    <option value="财务部">财务部</option>
+                    <option value="行政部">行政部</option>
+                    <option value="商务部">商务部</option>
+                    <option value="市场部">市场部</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>工号</th>
+                        <th>姓名</th>
+                        <th>部门</th>
+                        <th>职位</th>
+                        <th>公司</th>
+                        <th>入职日期</th>
+                        <th>社保</th>
+                        <th>公积金</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="employeeTableBody">
+                    <tr>
+                        <td colspan="10" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="paginationInfo" class="d-flex justify-content-between align-items-center mt-3"></div>
+    </div>
+</div>
+
+<!-- 员工Modal -->
+<div class="modal fade" id="employeeModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="employeeModalTitle"><i class="bi bi-person me-2"></i>新建员工</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="employeeId">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">姓名 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="employeeName" placeholder="员工姓名">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">手机号 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="employeePhone" placeholder="11位手机号">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">身份证号 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="employeeIdCard" placeholder="18位身份证号" maxlength="18">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">电子邮箱</label>
+                        <input type="email" class="form-control" id="employeeEmail" placeholder="email@example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">部门 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="employeeDepartment">
+                            <option value="">请选择部门</option>
+                            <option value="技术部">技术部</option>
+                            <option value="工程部">工程部</option>
+                            <option value="财务部">财务部</option>
+                            <option value="行政部">行政部</option>
+                            <option value="商务部">商务部</option>
+                            <option value="市场部">市场部</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">职位</label>
+                        <input type="text" class="form-control" id="employeePosition" placeholder="职位名称">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">所属公司 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="employeeCompany">
+                            <option value="">请选择公司</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">入职日期 <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="employeeHireDate">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">银行卡号</label>
+                        <input type="text" class="form-control" id="employeeBankCard" placeholder="银行卡号">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">开户银行</label>
+                        <input type="text" class="form-control" id="employeeBankName" placeholder="如：中国工商银行深圳分行">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">是否购买社保</label>
+                        <select class="form-select" id="employeeHasSocialInsurance">
+                            <option value="true">是</option>
+                            <option value="false">否</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">是否购买公积金</label>
+                        <select class="form-select" id="employeeHasHousingFund">
+                            <option value="true">是</option>
+                            <option value="false">否</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="employeeStatus">
+                            <option value="active">在职</option>
+                            <option value="probation">试用期</option>
+                            <option value="intern">实习</option>
+                            <option value="resigned">已离职</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <hr>
+                        <h6 class="text-muted mb-3">紧急联系人</h6>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">紧急联系人姓名</label>
+                        <input type="text" class="form-control" id="employeeEmergencyContact" placeholder="紧急联系人姓名">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">紧急联系人电话</label>
+                        <input type="text" class="form-control" id="employeeEmergencyPhone" placeholder="紧急联系人电话">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-control" id="employeeRemark" rows="2" placeholder="其他备注信息"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveEmployee()">
+                    <i class="bi bi-check-lg me-1"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情Modal -->
+<div class="modal fade" id="employeeDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-person-badge me-2"></i>员工详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="employeeDetailContent">
+                <!-- 动态填充 -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认Modal -->
+<div class="modal fade" id="deleteEmployeeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除员工 <strong id="deleteEmployeeName"></strong> 吗？此操作不可恢复。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteEmployee()" data-perm="employee.delete">
+                    <i class="bi bi-trash me-1"></i>确认删除
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API_BASE = '/api/finance';
+let allEmployees = [];
+let currentPage = 1;
+let pageSize = 15;
+let deleteEmployeeId = null;
+let activeMenuEl = null;
+
+function toggleActionMenu(btn, empId, e) {
+    e.stopPropagation();
+    const menuId = 'action-menu-' + empId;
+    let menu = document.getElementById(menuId);
+
+    // 关掉其他菜单
+    document.querySelectorAll('.action-float-menu').forEach(m => m.remove());
+    if (activeMenuEl && activeMenuEl !== menu) {
+        activeMenuEl = null;
+    }
+
+    if (menu) {
+        menu.remove();
+        activeMenuEl = null;
+        return;
+    }
+
+    // 菜单位置：按钮下方，左对齐
+    const btnRect = btn.getBoundingClientRect();
+    const menuW = 160, menuH = 110; // 粗略估算
+    const top = btnRect.bottom + 4;
+    const left = btnRect.left;
+
+    // 超出右边界则左对齐
+    const finalLeft = left + menuW > window.innerWidth - 10 ? btnRect.right - menuW : left;
+
+    menu = document.createElement('div');
+    menu.id = menuId;
+    menu.className = 'action-float-menu';
+    menu.style.cssText = `position:fixed;top:${top}px;left:${finalLeft}px;width:${menuW}px;background:#fff;border:1px solid rgba(0,0,0,0.08);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:9999;overflow:hidden;padding:6px 0;`;
+    menu.innerHTML = `
+        <a class="action-menu-item" href="#" onclick="editEmployee(${empId}); closeAllFloatMenus(); event.preventDefault();"><i class="bi bi-pencil"></i>编辑</a>
+        <a class="action-menu-item" href="#" onclick="resignEmployee(${empId}); closeAllFloatMenus(); event.preventDefault();"><i class="bi bi-box-arrow-left"></i>离职</a>
+        <div class="action-menu-divider"></div>
+        <a class="action-menu-item text-danger" href="#" onclick="doDeleteEmp(${empId}); closeAllFloatMenus(); event.preventDefault();"><i class="bi bi-trash"></i>删除</a>
+    `;
+    document.body.appendChild(menu);
+    activeMenuEl = menu;
+
+    // 点其他地方关菜单
+    setTimeout(() => {
+        document.addEventListener('click', closeAllFloatMenus, { once: true });
+    }, 0);
+}
+
+function closeAllFloatMenus() {
+    document.querySelectorAll('.action-float-menu').forEach(m => m.remove());
+    activeMenuEl = null;
+}
+
+async function loadCompanies() {
+    try {
+        const res = await fetch(`${API_BASE}/companies/`);
+        if (res.ok) {
+            const data = await res.json();
+            const options = data.results || data;
+            const html = options.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+            document.getElementById('employeeCompany').innerHTML = '<option value="">请选择公司</option>' + html;
+            document.getElementById('filterCompany').innerHTML = '<option value="">全部公司</option>' + html;
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function loadEmployees() {
+    try {
+        const res = await fetch(`${API_BASE}/employees/?page=${currentPage}&page_size=${pageSize * 3}`);
+        if (!res.ok) throw new Error('加载失败');
+        const data = await res.json();
+        allEmployees = data.results || data;
+        renderEmployees();
+    } catch(e) {
+        document.getElementById('employeeTableBody').innerHTML = `<tr><td colspan="10" class="text-center text-danger py-4">加载失败: ${e.message}</td></tr>`;
+    }
+}
+
+function filterEmployees() {
+    const search = document.getElementById('searchName').value.toLowerCase();
+    const status = document.getElementById('filterStatus').value;
+    const company = document.getElementById('filterCompany').value;
+    const department = document.getElementById('filterDepartment').value;
+
+    const filtered = allEmployees.filter(emp => {
+        if (search && !emp.name.toLowerCase().includes(search) && !emp.code.toLowerCase().includes(search) && !(emp.phone || '').includes(search)) return false;
+        if (status && emp.status !== status) return false;
+        if (company && !emp.companies.some(c => c.company == company)) return false;
+        if (department && emp.department !== department) return false;
+        return true;
+    });
+
+    const total = filtered.length;
+    const start = (currentPage - 1) * pageSize;
+    const paged = filtered.slice(start, start + pageSize);
+    renderEmployeeRows(paged);
+    document.getElementById('paginationInfo').innerHTML = total > 0
+        ? `<span class="text-muted" style="font-size:0.875rem;">共 ${total} 条，第 ${start + 1}-${Math.min(start + pageSize, total)} 条</span>`
+        : '<span class="text-muted">无数据</span>';
+}
+
+function renderEmployees() {
+    filterEmployees();
+}
+
+function renderEmployeeRows(employees) {
+    if (!employees.length) {
+        document.getElementById('employeeTableBody').innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无员工记录</td></tr>';
+        return;
+    }
+    const statusClass = { active: 'employee-status-active', trial: 'employee-status-trial', resigned: 'employee-status-resigned' };
+    const statusText = { active: '在职', trial: '试用期', probation: '试用期', intern: '实习', resigned: '已离职' };
+    const html = employees.map((emp, idx) => `
+        <tr onclick="showEmployeeDetail(${emp.id})" style="cursor:pointer">
+            <td><span class="badge bg-secondary">${emp.code || '-'}</span></td>
+            <td><strong>${emp.name}</strong></td>
+            <td>${emp.department || '-'}</td>
+            <td>${emp.position || '-'}</td>
+            <td>${(emp.companies && emp.companies.length > 0) ? emp.companies[0].company_name : (emp.company_name || '-')}</td>
+            <td>${emp.hire_date || '-'}</td>
+            <td>${emp.has_social_insurance ? '<span class="badge bg-success">' + (emp.has_social_insurance_display || '是') + '</span>' : '<span class="badge bg-secondary">否</span>'}</td>
+            <td>${emp.has_housing_fund ? '<span class="badge bg-success">' + (emp.has_housing_fund_display || '是') + '</span>' : '<span class="badge bg-secondary">否</span>'}</td>
+            <td><span class="${statusClass[emp.status] || ''}"><strong>${statusText[emp.status] || emp.status}</strong></span></td>
+            <td onclick="event.stopPropagation()">
+                <button class="btn btn-sm btn-outline-secondary" onclick="toggleActionMenu(this, ${emp.id}, event)">操作 <span class="caret">▾</span></button>
+            </td>
+        </tr>
+    `).join('');
+    document.getElementById('employeeTableBody').innerHTML = html;
+}
+
+async function showEmployeeModal(id) {
+    const modal = new bootstrap.Modal(document.getElementById('employeeModal'));
+    if (id) {
+        document.getElementById('employeeModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑员工';
+        const emp = allEmployees.find(e => e.id === id);
+        if (!emp) return;
+        document.getElementById('employeeId').value = emp.id;
+        document.getElementById('employeeName').value = emp.name;
+        document.getElementById('employeePhone').value = emp.phone || '';
+        document.getElementById('employeeIdCard').value = emp.id_card || '';
+        document.getElementById('employeeEmail').value = emp.email || '';
+        document.getElementById('employeeDepartment').value = emp.department || '';
+        document.getElementById('employeePosition').value = emp.position || '';
+        document.getElementById('employeeCompany').value = emp.company || '';
+        document.getElementById('employeeHireDate').value = emp.hire_date || '';
+        document.getElementById('employeeBankCard').value = emp.bank_card || '';
+        document.getElementById('employeeBankName').value = emp.bank_name || '';
+        document.getElementById('employeeHasSocialInsurance').value = emp.has_social_insurance ? 'true' : 'false';
+        document.getElementById('employeeHasHousingFund').value = emp.has_housing_fund ? 'true' : 'false';
+        document.getElementById('employeeStatus').value = emp.status || 'active';
+        document.getElementById('employeeEmergencyContact').value = emp.emergency_contact || '';
+        document.getElementById('employeeEmergencyPhone').value = emp.emergency_phone || '';
+        document.getElementById('employeeRemark').value = emp.remarks || '';
+    } else {
+        document.getElementById('employeeModalTitle').innerHTML = '<i class="bi bi-person me-2"></i>新建员工';
+        document.getElementById('employeeId').value = '';
+        document.querySelectorAll('#employeeModal .form-control, #employeeModal .form-select').forEach(el => {
+            if (el.id !== 'employeeHasSocialInsurance' && el.id !== 'employeeHasHousingFund' && el.id !== 'employeeStatus') el.value = '';
+        });
+        document.getElementById('employeeHasSocialInsurance').value = 'true';
+        document.getElementById('employeeHasHousingFund').value = 'true';
+        document.getElementById('employeeStatus').value = 'probation';
+        document.getElementById('employeeHireDate').value = new Date().toISOString().split('T')[0];
+    }
+    modal.show();
+}
+
+async function saveEmployee() {
+    const id = document.getElementById('employeeId').value;
+    const name = document.getElementById('employeeName').value.trim();
+    const phone = document.getElementById('employeePhone').value.trim();
+    const id_card = document.getElementById('employeeIdCard').value.trim();
+    const email = document.getElementById('employeeEmail').value.trim();
+    const department = document.getElementById('employeeDepartment').value;
+    const position = document.getElementById('employeePosition').value.trim();
+    const company = parseInt(document.getElementById('employeeCompany').value);
+    const hire_date = document.getElementById('employeeHireDate').value;
+    const bank_card = document.getElementById('employeeBankCard').value.trim();
+    const bank_name = document.getElementById('employeeBankName').value.trim();
+    const has_social_insurance = document.getElementById('employeeHasSocialInsurance').value === 'true';
+    const has_housing_fund = document.getElementById('employeeHasHousingFund').value === 'true';
+    const status = document.getElementById('employeeStatus').value;
+    const emergency_contact = document.getElementById('employeeEmergencyContact').value.trim();
+    const emergency_phone = document.getElementById('employeeEmergencyPhone').value.trim();
+    const remark = document.getElementById('employeeRemark').value.trim();
+
+    if (!name || !phone || !id_card || !department || !company || !hire_date) {
+        alert('请填写必填项（姓名、手机号、身份证号、部门、公司、入职日期）');
+        return;
+    }
+
+    const payload = { name, phone, id_card, department, company, hire_date, status, has_social_insurance, has_housing_fund };
+    if (email) payload.email = email;
+    if (position) payload.position = position;
+    if (bank_card) payload.bank_card = bank_card;
+    if (bank_name) payload.bank_name = bank_name;
+    if (emergency_contact) payload.emergency_contact = emergency_contact;
+    if (emergency_phone) payload.emergency_phone = emergency_phone;
+    if (remark) payload.remarks = remark;
+
+    try {
+        const url = id ? `${API_BASE}/employees/${id}/` : `${API_BASE}/employees/`;
+        const method = id ? 'PUT' : 'POST';
+        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        const res = await fetch(url, {
+            method,
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+            const modalEl = document.getElementById('employeeModal');
+            const hideAndReload = () => {
+                modalEl.removeEventListener('hidden.bs.modal', hideAndReload);
+                loadEmployees();
+            };
+            modalEl.addEventListener('hidden.bs.modal', hideAndReload);
+            bootstrap.Modal.getInstance(modalEl).hide();
+        } else {
+            const err = await res.json();
+            alert('保存失败: ' + JSON.stringify(err));
+        }
+    } catch(e) { alert('保存失败: ' + e.message); }
+}
+
+async function showEmployeeDetail(id) {
+    const emp = allEmployees.find(e => e.id === id);
+    if (!emp) return;
+    const statusText = { active: '在职', trial: '试用期', probation: '试用期', intern: '实习', resigned: '已离职' };
+    const html = `
+        <div class="row g-4">
+            <div class="col-md-6"><p class="mb-1 text-muted small">工号</p><p class="mb-0 fw-bold">${emp.code || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">姓名</p><p class="mb-0 fw-bold">${emp.name}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">部门</p><p class="mb-0">${emp.department || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">职位</p><p class="mb-0">${emp.position || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">公司</p><p class="mb-0">${(emp.companies && emp.companies.length > 0) ? emp.companies[0].company_name : (emp.company_name || '-')}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">入职日期</p><p class="mb-0">${emp.hire_date || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">手机号</p><p class="mb-0">${emp.phone || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">身份证号</p><p class="mb-0">${emp.id_card || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">银行卡</p><p class="mb-0">${emp.bank_card || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">开户银行</p><p class="mb-0">${emp.bank_name || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">社保</p><p class="mb-0">${emp.has_social_insurance ? '已购买' : '未购买'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">公积金</p><p class="mb-0">${emp.has_housing_fund ? '已购买' : '未购买'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">邮箱</p><p class="mb-0">${emp.email || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">状态</p><p class="mb-0">${statusText[emp.status] || emp.status}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">紧急联系人</p><p class="mb-0">${emp.emergency_contact || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">紧急联系人电话</p><p class="mb-0">${emp.emergency_phone || '-'}</p></div>
+            ${emp.remarks ? `<div class="col-12"><p class="mb-1 text-muted small">备注</p><p class="mb-0">${emp.remarks}</p></div>` : ''}
+        </div>
+    `;
+    document.getElementById('employeeDetailContent').innerHTML = html;
+    new bootstrap.Modal(document.getElementById('employeeDetailModal')).show();
+}
+
+function doDeleteEmp(id) {
+    const emp = allEmployees.find(e => e.id === id);
+    deleteEmployee(id, emp ? emp.name : '');
+}
+
+function editEmployee(id) { showEmployeeModal(id); }
+
+async function resignEmployee(id) {
+    if (!confirm('确定要将该员工标记为离职？')) return;
+    try {
+        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        const res = await fetch(`${API_BASE}/employees/${id}/resign/`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        if (res.ok) { loadEmployees(); }
+        else { alert('操作失败'); }
+    } catch(e) { alert('操作失败: ' + e.message); }
+}
+
+function deleteEmployee(id, name) {
+    deleteEmployeeId = id;
+    document.getElementById('deleteEmployeeName').textContent = name;
+    new bootstrap.Modal(document.getElementById('deleteEmployeeModal')).show();
+}
+
+async function confirmDeleteEmployee() {
+    try {
+        const csrfToken = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        const res = await fetch(`${API_BASE}/employees/${deleteEmployeeId}/`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': csrfToken }
+        });
+        if (res.ok || res.status === 204) {
+            bootstrap.Modal.getInstance(document.getElementById('deleteEmployeeModal')).hide();
+            loadEmployees();
+        } else { alert('删除失败'); }
+    } catch(e) { alert('删除失败: ' + e.message); }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadCompanies();
+    loadEmployees();
+});
+</script>
+{% endblock %}

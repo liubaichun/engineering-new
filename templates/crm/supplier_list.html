@@ -1,0 +1,302 @@
+{% extends "base.html" %}
+
+{% block title %}供应商管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.supplier-status-active { color: #10b981; }
+.supplier-status-inactive { color: #ef4444; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-truck me-2"></i>供应商管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理供应商信息和代理品牌</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="showSupplierModal()" data-perm="supplier.add">
+            <i class="bi bi-plus-lg me-1"></i>新建供应商
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchName" placeholder="搜索供应商名称/品牌" onkeyup="filterSuppliers()">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterStatus" onchange="filterSuppliers()">
+                    <option value="">全部状态</option>
+                    <option value="active">合作中</option>
+                    <option value="inactive">已停止</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>编码</th>
+                        <th>供应商名称</th>
+                        <th>联系人</th>
+                        <th>电话</th>
+                        <th>代理品牌</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="supplierTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 供应商Modal -->
+<div class="modal fade" id="supplierModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="supplierModalTitle"><i class="bi bi-truck me-2"></i>新建供应商</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="supplierId">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">供应商名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="supplierName" placeholder="供应商公司名称">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">联系人</label>
+                        <input type="text" class="form-control" id="contactPerson" placeholder="联系人姓名">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">联系电话</label>
+                        <input type="text" class="form-control" id="contactPhone" placeholder="电话">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" class="form-control" id="contactEmail" placeholder="email@example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">合作状态</label>
+                        <select class="form-select" id="supplierStatus">
+                            <option value="active">合作中</option>
+                            <option value="inactive">已停止</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">代理品牌</label>
+                        <input type="text" class="form-control" id="supplierBrands" placeholder="多个品牌用逗号分隔">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">地址</label>
+                        <input type="text" class="form-control" id="supplierAddress" placeholder="公司地址">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-control" id="supplierRemark" rows="2" placeholder="备注信息"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveSupplier()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var supplierModal;
+var allSuppliers = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    supplierModal = new bootstrap.Modal(document.getElementById('supplierModal'));
+    loadSuppliers();
+});
+
+async function loadSuppliers() {
+    try {
+        var response = await fetch('/api/crm/suppliers/', { credentials: 'include' });
+        if (!response.ok) throw new Error('API不存在');
+        var data = await response.json();
+        allSuppliers = data.results || data;
+    } catch (error) {
+        console.error('加载供应商失败:', error);
+        allSuppliers = [];
+    }
+    renderSuppliers();
+}
+
+function renderSuppliers() {
+    var search = document.getElementById('searchName').value.toLowerCase();
+    var status = document.getElementById('filterStatus').value;
+
+    var filtered = allSuppliers.filter(function(s) {
+        if (search && !s.name.toLowerCase().includes(search) && !(s.brands || '').toLowerCase().includes(search)) return false;
+        if (status && s.status !== status) return false;
+        return true;
+    });
+
+    var tbody = document.getElementById('supplierTableBody');
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无供应商数据</td></tr>';
+        return;
+    }
+
+    var html = '';
+    filtered.forEach(function(s) {
+        var statusClass = s.status === 'active' ? 'supplier-status-active' : 'supplier-status-inactive';
+        var statusText = s.status === 'active' ? '合作中' : '已停止';
+        var createdAt = s.created_at ? formatDate(s.created_at) : '-';
+
+        html += '<tr>';
+        html += '<td><small>' + escapeHtml(s.code || '-') + '</small></td>';
+        html += '<td><strong>' + escapeHtml(s.name) + '</strong></td>';
+        html += '<td>' + escapeHtml(s.contact_person || '-') + '</td>';
+        html += '<td>' + escapeHtml(s.contact_phone || '-') + '</td>';
+        html += '<td><small>' + escapeHtml(s.brands || '-') + '</small></td>';
+        html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
+        html += '<td>' + createdAt + '</td>';
+        html += '<td>';
+        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(' + s.id + ')"><i class="bi bi-pencil"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteSupplier(' + s.id + ')" data-perm="supplier.delete"><i class="bi bi-trash"></i></button>';
+        html += '</td></tr>';
+    });
+
+    tbody.innerHTML = html;
+}
+
+function filterSuppliers() {
+    renderSuppliers();
+}
+
+function showSupplierModal() {
+    document.getElementById('supplierModalTitle').innerHTML = '<i class="bi bi-truck me-2"></i>新建供应商';
+    document.getElementById('supplierId').value = '';
+    document.getElementById('supplierName').value = '';
+    document.getElementById('contactPerson').value = '';
+    document.getElementById('contactPhone').value = '';
+    document.getElementById('contactEmail').value = '';
+    document.getElementById('supplierStatus').value = 'active';
+    document.getElementById('supplierBrands').value = '';
+    document.getElementById('supplierAddress').value = '';
+    document.getElementById('supplierRemark').value = '';
+    supplierModal.show();
+}
+
+function editSupplier(id) {
+    var s = allSuppliers.find(function(x) { return x.id === id; });
+    if (!s) return;
+
+    document.getElementById('supplierModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑供应商';
+    document.getElementById('supplierId').value = s.id;
+    document.getElementById('supplierName').value = s.name;
+    document.getElementById('contactPerson').value = s.contact_person || '';
+    document.getElementById('contactPhone').value = s.contact_phone || '';
+    document.getElementById('contactEmail').value = s.contact_email || '';
+    document.getElementById('supplierStatus').value = s.status || 'active';
+    document.getElementById('supplierBrands').value = s.brands || '';
+    document.getElementById('supplierAddress').value = s.address || '';
+    document.getElementById('supplierRemark').value = s.remark || '';
+    supplierModal.show();
+}
+
+async function saveSupplier() {
+    var supplierId = document.getElementById('supplierId').value;
+    var name = document.getElementById('supplierName').value.trim();
+
+    if (!name) { showToast('请输入供应商名称', 'warning'); return; }
+
+    var payload = {
+        name: name,
+        contact_person: document.getElementById('contactPerson').value.trim(),
+        contact_phone: document.getElementById('contactPhone').value.trim(),
+        contact_email: document.getElementById('contactEmail').value.trim(),
+        status: document.getElementById('supplierStatus').value,
+        brands: document.getElementById('supplierBrands').value.trim(),
+        address: document.getElementById('supplierAddress').value.trim(),
+        remark: document.getElementById('supplierRemark').value.trim()
+    };
+
+    var url = '/api/crm/suppliers/';
+    var method = 'POST';
+    if (supplierId) {
+        url += supplierId + '/';
+        method = 'PATCH';
+    }
+
+    try {
+        var response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            var error = await response.json();
+            throw new Error(error.detail || '保存失败');
+        }
+
+        showToast(supplierId ? '供应商已更新' : '供应商已创建', 'success');
+        supplierModal.hide();
+        document.getElementById('supplierModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('supplierModal').removeEventListener('hidden.bs.modal', handler);
+            loadSuppliers();
+        });
+    } catch (error) {
+        console.error('保存供应商失败:', error);
+        showToast(error.message || '保存失败', 'error');
+    }
+}
+
+async function deleteSupplier(id) {
+    if (!confirm('确定要删除此供应商吗？')) return;
+
+    try {
+        var response = await fetch('/api/crm/suppliers/' + id + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+
+        if (!response.ok) throw new Error('删除失败');
+        showToast('供应商已删除', 'success');
+        loadSuppliers();
+    } catch (error) {
+        showToast('删除失败', 'error');
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

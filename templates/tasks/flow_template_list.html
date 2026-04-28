@@ -1,0 +1,813 @@
+{% extends "base.html" %}
+
+{% block title %}流程模板管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.template-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 20px;
+}
+.template-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+.template-card:hover {
+    border-color: var(--primary);
+    transform: translateY(-2px);
+}
+.template-card.inactive {
+    opacity: 0.6;
+}
+.template-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+.template-name {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+.template-code {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    font-family: monospace;
+}
+.template-desc {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    line-height: 1.5;
+    min-height: 40px;
+}
+.template-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+}
+.node-count-badge {
+    background: var(--primary-light);
+    color: var(--primary);
+    padding: 3px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+.template-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.type-badge {
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.type-badge.development { background: #dbeafe; color: #1e40af; }
+.type-badge.approval { background: #ede9fe; color: #7c3aed; }
+.type-badge.custom { background: #f3f4f6; color: #374151; }
+.nodes-preview {
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+}
+.nodes-preview-title {
+    font-size: 0.72rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.node-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 0.8rem;
+}
+.node-dot-sm {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+.node-dot-sm.start { background: var(--success); }
+.node-dot-sm.task { background: var(--primary); }
+.node-dot-sm.approval { background: var(--warning); }
+.node-dot-sm.condition { background: #8b5cf6; }
+.node-dot-sm.end { background: #64748b; }
+.node-line-name { color: var(--text-primary); font-weight: 500; }
+.node-arrow {
+    color: #cbd5e1;
+    font-size: 0.7rem;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-diagram-3 me-2"></i>流程模板管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">配置和管理业务流程模板，定义任务在各阶段的审批节点</p>
+    </div>
+    <div>
+        <button class="btn btn-primary" onclick="showTemplateModal()" data-perm="flow_template.add">
+            <i class="bi bi-plus-lg me-1"></i>新建模板
+        </button>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="row mb-4">
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-value" id="statTotal">-</div>
+            <div class="stat-label">模板总数</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-value" id="statActive">-</div>
+            <div class="stat-label">启用中</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-value" id="statNodes">-</div>
+            <div class="stat-label">节点总数</div>
+        </div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="stat-card">
+            <div class="stat-value" id="statDev">-</div>
+            <div class="stat-label">开发流程</div>
+        </div>
+    </div>
+</div>
+
+<!-- 筛选栏 -->
+<div class="card mb-4">
+    <div class="card-body d-flex gap-3 flex-wrap align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <label class="fw-600 me-2">类型</label>
+            <select id="filterType" class="form-select form-select-sm" style="width: 130px;" onchange="loadTemplates()">
+                <option value="">全部</option>
+                <option value="development">开发流程</option>
+                <option value="approval">审批流程</option>
+                <option value="custom">自定义</option>
+            </select>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            <label class="fw-600 me-2">状态</label>
+            <select id="filterStatus" class="form-select form-select-sm" style="width: 110px;" onchange="loadTemplates()">
+                <option value="">全部</option>
+                <option value="active" selected>启用</option>
+                <option value="inactive">停用</option>
+            </select>
+        </div>
+        <div class="ms-auto">
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadTemplates()">
+                <i class="bi bi-arrow-clockwise me-1"></i>刷新
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 模板列表 -->
+<div id="templateList" class="template-grid">
+    <div class="text-center text-muted py-5">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="mb-0">加载中...</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block modal %}
+<!-- 新建/编辑模板 Modal -->
+<div class="modal fade" id="templateModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="templateModalTitle">
+                    <i class="bi bi-diagram-3 me-2"></i>新建流程模板
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="templateId">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">模板名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="templateName" placeholder="如：需求开发流程">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">模板代码 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="templateCode" placeholder="如：FLOW-DEV-001">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">类型</label>
+                        <select class="form-select" id="templateType">
+                            <option value="development">开发流程</option>
+                            <option value="approval">审批流程</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="templateIsActive">
+                            <option value="true">启用</option>
+                            <option value="false">停用</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">描述</label>
+                        <textarea class="form-control" id="templateDesc" rows="2" placeholder="描述此模板的用途..."></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="templateSaveBtn" onclick="saveTemplate()">
+                    <span class="spinner-border spinner-border-sm me-1 d-none"></span>
+                    保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 节点配置 Modal -->
+<div class="modal fade" id="nodeModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-nodes me-2"></i>配置流程节点 — <span id="nodeModalTemplateName" class="text-primary"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="nodeModalTemplateId">
+
+                <!-- 节点列表 -->
+                <div id="nodeList" class="mb-3">
+                    <div class="text-center text-muted py-4">
+                        <div class="spinner-border spinner-border-sm text-primary mb-2"></div>
+                        加载节点...
+                    </div>
+                </div>
+
+                <!-- 新增节点表单 -->
+                <div class="border rounded p-3 bg-light">
+                    <h6 class="mb-3 fw-700"><i class="bi bi-plus-circle me-1"></i>新增节点</h6>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="form-label">节点名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="nodeName" placeholder="如：需求评审">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">节点代码 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="nodeCode" placeholder="如：REVIEW">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">节点类型</label>
+                            <select class="form-select" id="nodeType">
+                                <option value="start">开始</option>
+                                <option value="task" selected>任务节点</option>
+                                <option value="approval">审批节点</option>
+                                <option value="condition">条件节点</option>
+                                <option value="end">结束</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">审批人类型</label>
+                            <select class="form-select" id="nodeAssigneeType">
+                                <option value="user">指定用户</option>
+                                <option value="role">指定角色</option>
+                                <option value="field">字段值</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">审批人值</label>
+                            <input type="text" class="form-control" id="nodeAssigneeValue" placeholder="用户ID/角色名">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">顺序</label>
+                            <input type="number" class="form-control" id="nodeOrder" value="0" min="0">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">超时(小时)</label>
+                            <input type="number" class="form-control" id="nodeTimeout" value="0" min="0">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">描述</label>
+                            <input type="text" class="form-control" id="nodeDesc" placeholder="节点描述...">
+                        </div>
+                        <div class="col-12">
+                            <button type="button" class="btn btn-outline-primary btn-sm" onclick="addNode()">
+                                <i class="bi bi-plus-lg me-1"></i>添加节点
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认 Modal -->
+<div class="modal fade" id="deleteTemplateModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle text-danger me-2"></i>确认删除</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>确定要删除模板 <strong id="deleteTemplateName"></strong> 吗？</p>
+                <p class="text-muted small mb-0">注意：删除后无法恢复，关联的节点也会被删除。</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" id="confirmDeleteBtn" onclick="confirmDeleteTemplate()" data-perm="flow_template.delete">删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+let templates = [];
+let currentTemplateId = null;
+let deleteTargetId = null;
+
+window.templateModal = null;
+window.nodeModal = null;
+window.deleteTemplateModal = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    window.templateModal = new bootstrap.Modal(document.getElementById('templateModal'));
+    window.nodeModal = new bootstrap.Modal(document.getElementById('nodeModal'));
+    window.deleteTemplateModal = new bootstrap.Modal(document.getElementById('deleteTemplateModal'));
+    loadTemplates();
+});
+
+async function loadTemplates() {
+    const listEl = document.getElementById('templateList');
+    listEl.innerHTML = '<div class="text-center text-muted py-5"><div class="spinner-border text-primary mb-3" role="status"></div><p class="mb-0">加载中...</p></div>';
+
+    const typeFilter = document.getElementById('filterType').value;
+    const statusFilter = document.getElementById('filterStatus').value;
+
+    let url = '/api/tasks/flow-templates/?page_size=100';
+    if (typeFilter) url += '&type=' + typeFilter;
+    if (statusFilter === 'active') url += '&is_active=true';
+    if (statusFilter === 'inactive') url += '&is_active=false';
+
+    try {
+        const res = await fetch(url, { credentials: 'include' });
+        if (!res.ok) throw new Error('加载失败');
+        const data = await res.json();
+        const results = data.results || (Array.isArray(data) ? data : []);
+
+        // 更新统计
+        const allRes = await fetch('/api/tasks/flow-templates/?page_size=500', { credentials: 'include' });
+        const allData = await allRes.json();
+        const all = allData.results || (Array.isArray(allData) ? allData : []);
+        document.getElementById('statTotal').textContent = all.length;
+        document.getElementById('statActive').textContent = all.filter(t => t.is_active).length;
+        document.getElementById('statDev').textContent = all.filter(t => t.type === 'development').length;
+
+        // 节点总数
+        let nodeTotal = 0;
+        for (const t of all) {
+            const nr = await fetch(`/api/tasks/flow-templates/${t.id}/nodes/`, { credentials: 'include' });
+            if (nr.ok) {
+                const nd = await nr.json();
+                nodeTotal += (nd.results || nd || []).length;
+            }
+        }
+        document.getElementById('statNodes').textContent = nodeTotal;
+
+        templates = results;
+        renderTemplates(results);
+    } catch (e) {
+        listEl.innerHTML = `<div class="alert alert-danger">加载失败: ${e.message}</div>`;
+    }
+}
+
+function renderTemplates(list) {
+    const listEl = document.getElementById('templateList');
+    if (!list.length) {
+        listEl.innerHTML = '<div class="col-span-full text-center text-muted py-5"><i class="bi bi-inbox fs-1 d-block mb-3"></i>暂无模板，点击"新建模板"创建第一个流程模板</div>';
+        return;
+    }
+
+    listEl.innerHTML = list.map(t => `
+        <div class="template-card ${t.is_active ? '' : 'inactive'}" data-id="${t.id}">
+            <div class="template-header">
+                <div>
+                    <div class="template-name">${escapeHtml(t.name)}</div>
+                    <div class="template-code">${escapeHtml(t.code)}</div>
+                </div>
+                <div class="d-flex flex-column align-items-end gap-1">
+                    <span class="type-badge ${t.type}">${t.type_display || t.type}</span>
+                    ${t.is_active
+                        ? '<span class="badge bg-success-subtle text-success" style="font-size:0.7rem;">启用</span>'
+                        : '<span class="badge bg-secondary-subtle text-secondary" style="font-size:0.7rem;">停用</span>'}
+                </div>
+            </div>
+            <div class="template-desc">${escapeHtml(t.description || '暂无描述')}</div>
+            <div class="nodes-preview" id="nodesPreview_${t.id}">
+                <div class="nodes-preview-title"><i class="bi bi-diagram-3 me-1"></i>节点预览</div>
+                <div class="text-muted small" style="padding:4px 0;">点击"配置节点"加载</div>
+            </div>
+            <div class="template-meta">
+                <span class="node-count-badge">
+                    <i class="bi bi-nodes me-1"></i>${t.node_count || 0} 个节点
+                </span>
+            </div>
+            <div class="template-actions">
+                <button class="btn btn-outline-primary btn-sm" onclick="openNodeModal(${t.id}, '${escapeHtml(t.name)}')">
+                    <i class="bi bi-nodes me-1"></i>配置节点
+                </button>
+                <button class="btn btn-outline-secondary btn-sm" onclick="editTemplate(${t.id})">
+                    <i class="bi bi-pencil me-1"></i>编辑
+                </button>
+                <button class="btn btn-outline-danger btn-sm" onclick="deleteTemplate(${t.id}, '${escapeHtml(t.name)}')" data-perm="flow_template.delete">
+                    <i class="bi bi-trash me-1"></i>删除
+                </button>
+            </div>
+        </div>
+    `).join('');
+
+    // 预加载节点预览
+    list.forEach(t => loadNodePreview(t.id));
+}
+
+async function loadNodePreview(templateId) {
+    try {
+        const res = await fetch(`/api/tasks/flow-templates/${templateId}/nodes/`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const nodes = data.results || (Array.isArray(data) ? data : []);
+        nodes.sort((a, b) => a.order - b.order);
+
+        const previewEl = document.getElementById('nodesPreview_' + templateId);
+        if (!previewEl || !nodes.length) return;
+
+        previewEl.innerHTML = `
+            <div class="nodes-preview-title"><i class="bi bi-diagram-3 me-1"></i>节点预览</div>
+            ${nodes.map(n => `
+                <div class="node-line">
+                    <span class="node-dot-sm ${n.node_type}">${n.node_type[0].toUpperCase()}</span>
+                    <span class="node-line-name">${escapeHtml(n.name)}</span>
+                    <span class="text-muted" style="font-size:0.7rem;">(${n.node_type_display || n.node_type})</span>
+                    ${n.timeout_hours > 0 ? `<span class="text-warning" style="font-size:0.65rem;">⏱${n.timeout_hours}h</span>` : ''}
+                </div>
+            `).join('<div class="node-arrow ms-1">↓</div>')}
+        `;
+    } catch(e) {}
+}
+
+function showTemplateModal(id) {
+    currentTemplateId = null;
+    document.getElementById('templateId').value = '';
+    document.getElementById('templateName').value = '';
+    document.getElementById('templateCode').value = '';
+    document.getElementById('templateType').value = 'development';
+    document.getElementById('templateIsActive').value = 'true';
+    document.getElementById('templateDesc').value = '';
+    document.getElementById('templateModalTitle').innerHTML = '<i class="bi bi-diagram-3 me-2"></i>新建流程模板';
+    document.getElementById('templateSaveBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-1 d-none"></span>保存';
+    templateModal.show();
+}
+
+function editTemplate(id) {
+    const t = templates.find(x => x.id === id);
+    if (!t) return;
+    currentTemplateId = id;
+    document.getElementById('templateId').value = id;
+    document.getElementById('templateName').value = t.name;
+    document.getElementById('templateCode').value = t.code;
+    document.getElementById('templateType').value = t.type;
+    document.getElementById('templateIsActive').value = t.is_active ? 'true' : 'false';
+    document.getElementById('templateDesc').value = t.description || '';
+    document.getElementById('templateModalTitle').innerHTML = '<i class="bi bi-diagram-3 me-2"></i>编辑流程模板';
+    document.getElementById('templateSaveBtn').innerHTML = '<span class="spinner-border spinner-border-sm me-1 d-none"></span>保存修改';
+    templateModal.show();
+}
+
+async function saveTemplate() {
+    const btn = document.getElementById('templateSaveBtn');
+    const spinner = btn.querySelector('.spinner-border');
+    const id = document.getElementById('templateId').value;
+    const name = document.getElementById('templateName').value.trim();
+    const code = document.getElementById('templateCode').value.trim();
+    const type = document.getElementById('templateType').value;
+    const is_active = document.getElementById('templateIsActive').value === 'true';
+    const description = document.getElementById('templateDesc').value.trim();
+
+    if (!name || !code) {
+        showToast('请填写模板名称和代码', 'danger');
+        return;
+    }
+
+    btn.disabled = true;
+    spinner.classList.remove('d-none');
+
+    const payload = { name, code, type, is_active, description };
+    const url = id ? `/api/tasks/flow-templates/${id}/` : '/api/tasks/flow-templates/';
+    const method = id ? 'PUT' : 'POST';
+
+    try {
+        const csrf = getCsrfToken();
+        const res = await fetch(url, {
+            method,
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(JSON.stringify(err));
+        }
+        templateModal.hide();
+        showToast(id ? '模板已更新' : '模板已创建', 'success');
+        loadTemplates();
+    } catch(e) {
+        showToast('保存失败: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        spinner.classList.add('d-none');
+    }
+}
+
+function deleteTemplate(id, name) {
+    deleteTargetId = id;
+    document.getElementById('deleteTemplateName').textContent = name;
+    deleteTemplateModal.show();
+}
+
+async function confirmDeleteTemplate() {
+    if (!deleteTargetId) return;
+    const btn = document.getElementById('confirmDeleteBtn');
+    btn.disabled = true;
+    try {
+        const csrf = getCsrfToken();
+        const res = await fetch(`/api/tasks/flow-templates/${deleteTargetId}/`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': csrf }
+        });
+        if (!res.ok && res.status !== 204) throw new Error('删除失败');
+        deleteTemplateModal.hide();
+        showToast('模板已删除', 'success');
+        loadTemplates();
+    } catch(e) {
+        showToast('删除失败: ' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        deleteTargetId = null;
+    }
+}
+
+async function openNodeModal(templateId, templateName) {
+    document.getElementById('nodeModalTemplateId').value = templateId;
+    document.getElementById('nodeModalTemplateName').textContent = templateName;
+    document.getElementById('nodeName').value = '';
+    document.getElementById('nodeCode').value = '';
+    document.getElementById('nodeType').value = 'task';
+    document.getElementById('nodeAssigneeType').value = 'user';
+    document.getElementById('nodeAssigneeValue').value = '';
+    document.getElementById('nodeOrder').value = '0';
+    document.getElementById('nodeTimeout').value = '0';
+    document.getElementById('nodeDesc').value = '';
+    await loadNodes(templateId);
+    nodeModal.show();
+}
+
+async function loadNodes(templateId) {
+    const listEl = document.getElementById('nodeList');
+    listEl.innerHTML = '<div class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-primary mb-2"></div>加载节点...</div>';
+    try {
+        const res = await fetch(`/api/tasks/flow-templates/${templateId}/nodes/`, { credentials: 'include' });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        const nodes = data.results || (Array.isArray(data) ? data : []);
+        nodes.sort((a, b) => a.order - b.order);
+        renderNodes(nodes, templateId);
+    } catch(e) {
+        listEl.innerHTML = '<div class="alert alert-danger">加载节点失败</div>';
+    }
+}
+
+function renderNodes(nodes, templateId) {
+    const listEl = document.getElementById('nodeList');
+    if (!nodes.length) {
+        listEl.innerHTML = '<div class="text-center text-muted py-4"><i class="bi bi-inbox fs-4 d-block mb-2"></i>暂无节点，请使用下方表单添加</div>';
+        return;
+    }
+    listEl.innerHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:50px;">顺序</th>
+                        <th>节点名称</th>
+                        <th>代码</th>
+                        <th>类型</th>
+                        <th>审批人</th>
+                        <th>超时</th>
+                        <th style="width:80px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="nodeTableBody">
+                    ${nodes.map(n => `
+                        <tr draggable="true" data-node-id="${n.id}">
+                            <td class="text-center" style="cursor:grab;">
+                                <span class="badge bg-light text-dark">${n.order}</span>
+                                <span class="node-dot-sm ${n.node_type}" style="position:absolute;margin-left:4px;">${n.node_type[0].toUpperCase()}</span>
+                            </td>
+                            <td>
+                                <div class="fw-600">${escapeHtml(n.name)}</div>
+                                ${n.description ? `<div class="text-muted small">${escapeHtml(n.description)}</div>` : ''}
+                            </td>
+                            <td><code>${escapeHtml(n.code)}</code></td>
+                            <td><span class="type-badge ${n.node_type}">${n.node_type_display || n.node_type}</span></td>
+                            <td>
+                                <div class="small">${n.assignee_type_display || n.assignee_type}</div>
+                                ${n.assignee_value ? `<div class="text-muted small">${escapeHtml(n.assignee_value)}</div>` : ''}
+                            </td>
+                            <td>${n.timeout_hours > 0 ? `<span class="text-warning fw-600">${n.timeout_hours}h</span>` : '<span class="text-muted">—</span>'}</td>
+                            <td>
+                                <button class="btn btn-outline-danger btn-sm py-0 px-1" onclick="deleteNode(${n.id}, ${templateId})" title="删除节点" data-perm="flow_template.change">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div class="small text-muted mt-2"><i class="bi bi-arrows-expand me-1"></i>提示：拖拽行可调整节点顺序</div>
+    `;
+    initNodeDragDrop(templateId);
+}
+
+function initNodeDragDrop(templateId) {
+    const tbody = document.getElementById('nodeTableBody');
+    if (!tbody) return;
+    let draggedRow = null;
+    tbody.querySelectorAll('tr').forEach(function(row) {
+        row.addEventListener('dragstart', function(e) {
+            draggedRow = row;
+            row.style.opacity = '0.5';
+            e.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', function(e) {
+            row.style.opacity = '';
+            draggedRow = null;
+        });
+        row.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            row.style.background = '#e0f2fe';
+        });
+        row.addEventListener('dragleave', function(e) {
+            row.style.background = '';
+        });
+        row.addEventListener('drop', async function(e) {
+            e.preventDefault();
+            row.style.background = '';
+            if (!draggedRow || draggedRow === row) return;
+            const rows = Array.from(tbody.querySelectorAll('tr'));
+            const fromIdx = rows.indexOf(draggedRow);
+            const toIdx = rows.indexOf(row);
+            if (fromIdx < 0 || toIdx < 0) return;
+            // Reorder DOM
+            if (fromIdx < toIdx) {
+                row.parentNode.insertBefore(draggedRow, row.nextSibling);
+            } else {
+                row.parentNode.insertBefore(draggedRow, row);
+            }
+            // Update order badges
+            const allRows = Array.from(tbody.querySelectorAll('tr'));
+            const nodeIds = allRows.map(function(r) { return parseInt(r.dataset.nodeId); });
+            allRows.forEach(function(r, i) {
+                var badge = r.querySelector('.badge');
+                if (badge) badge.textContent = i;
+            });
+            // Save new order via PATCH
+            try {
+                var csrf = getCsrfToken();
+                for (var i = 0; i < nodeIds.length; i++) {
+                    await fetch('/api/tasks/flow-nodes/' + nodeIds[i] + '/', {
+                        method: 'PATCH',
+                        credentials: 'include',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+                        body: JSON.stringify({ order: i })
+                    });
+                }
+                showToast('节点顺序已保存', 'success');
+            } catch(err) {
+                showToast('保存顺序失败: ' + err.message, 'danger');
+            }
+        });
+    });
+}
+
+async function addNode() {
+    const templateId = document.getElementById('nodeModalTemplateId').value;
+    const name = document.getElementById('nodeName').value.trim();
+    const code = document.getElementById('nodeCode').value.trim();
+    const node_type = document.getElementById('nodeType').value;
+    const assignee_type = document.getElementById('nodeAssigneeType').value;
+    const assignee_value = document.getElementById('nodeAssigneeValue').value.trim();
+    const order = parseInt(document.getElementById('nodeOrder').value) || 0;
+    const timeout_hours = parseInt(document.getElementById('nodeTimeout').value) || 0;
+    const description = document.getElementById('nodeDesc').value.trim();
+
+    if (!name || !code) {
+        showToast('请填写节点名称和代码', 'danger');
+        return;
+    }
+
+    const payload = {
+        template: parseInt(templateId),
+        name, code, node_type, assignee_type, assignee_value,
+        order, timeout_hours, description
+    };
+
+    try {
+        const csrf = getCsrfToken();
+        const res = await fetch('/api/tasks/flow-nodes/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(JSON.stringify(err));
+        }
+        showToast('节点已添加', 'success');
+        document.getElementById('nodeName').value = '';
+        document.getElementById('nodeCode').value = '';
+        document.getElementById('nodeDesc').value = '';
+        await loadNodes(templateId);
+        loadTemplates(); // 刷新主列表的节点数
+    } catch(e) {
+        showToast('添加节点失败: ' + e.message, 'danger');
+    }
+}
+
+async function deleteNode(nodeId, templateId) {
+    if (!confirm('确定删除此节点？')) return;
+    try {
+        const csrf = getCsrfToken();
+        const res = await fetch(`/api/tasks/flow-nodes/${nodeId}/`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': csrf }
+        });
+        if (!res.ok && res.status !== 204) throw new Error();
+        showToast('节点已删除', 'success');
+        await loadNodes(templateId);
+        loadTemplates();
+    } catch(e) {
+        showToast('删除节点失败', 'danger');
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

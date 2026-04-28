@@ -1,0 +1,611 @@
+{% extends "base.html" %}
+
+{% block title %}应收应付台账 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.arap-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.primary { color: var(--primary); }
+
+.nav-tabs .nav-link {
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 3px solid transparent;
+    padding: 12px 20px;
+    border-radius: 0;
+}
+.nav-tabs .nav-link.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    background: transparent;
+}
+
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.filter-bar .form-select,
+.filter-bar .form-control {
+    min-width: 160px;
+}
+
+.invoice-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: var(--card-shadow); }
+.invoice-table th {
+    background: var(--page-bg);
+    padding: 12px 16px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-align: left;
+    white-space: nowrap;
+}
+.invoice-table td {
+    padding: 12px 16px;
+    font-size: 0.875rem;
+    border-top: 1px solid #f1f5f9;
+    vertical-align: middle;
+}
+.invoice-table tr:hover td { background: #f8fafc; }
+.amount-ar { color: var(--success); font-weight: 600; }
+.amount-ap { color: var(--danger); font-weight: 600; }
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.status-badge.pending { background: #fef3c7; color: #92400e; }
+.status-badge.issued { background: #dbeafe; color: #1e40af; }
+.status-badge.paid { background: #d1fae5; color: #065f46; }
+.status-badge.cancelled { background: #f3f4f6; color: #6b7280; }
+
+.counterparty-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.counterparty-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 0.85rem;
+    flex-shrink: 0;
+}
+.counterparty-avatar.ar { background: var(--success); }
+.counterparty-avatar.ap { background: var(--danger); }
+
+.summary-row td {
+    background: #f8fafc !important;
+    font-weight: 600;
+    border-top: 2px solid #e2e8f0;
+}
+
+.net-balance {
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 16px 24px;
+    border-radius: 12px;
+    margin-top: 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.net-balance.positive { background: #d1fae5; color: #065f46; }
+.net-balance.negative { background: #fee2e2; color: #991b1b; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3" style="margin-bottom: 24px;">
+    <div>
+        <h4><i class="bi bi-bank2 me-2"></i>应收应付台账</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">发票状态为"待开票/已开票"的未结明细汇总</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap align-items-center">
+        <div class="filter-bar">
+            <select class="form-select form-select-sm" id="filterCompany" onchange="loadARAP(); loadCurrentTab()">
+                <option value="">全部公司</option>
+            </select>
+            <button class="btn btn-success btn-sm" onclick="exportAR()">
+                <i class="bi bi-download me-1"></i>导出应收
+            </button>
+            <button class="btn btn-danger btn-sm" onclick="exportAP()">
+                <i class="bi bi-download me-1"></i>导出应付
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- 汇总卡片 -->
+<div class="arap-summary">
+    <div class="summary-card">
+        <div class="label">应收总额</div>
+        <div class="value success" id="totalAR">¥0.00</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">应付总额</div>
+        <div class="value danger" id="totalAP">¥0.00</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">净应收</div>
+        <div class="value primary" id="netBalance">¥0.00</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">应收发票数</div>
+        <div class="value" id="arCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">应付发票数</div>
+        <div class="value" id="apCount">0</div>
+    </div>
+</div>
+
+<!-- 标签页 -->
+<ul class="nav nav-tabs mb-3" id="arapTabs">
+    <li class="nav-item">
+        <a class="nav-link active" data-bs-toggle="tab" href="#arTab" id="arTabBtn">
+            <i class="bi bi-arrow-down-circle me-1"></i>应收明细
+        </a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" data-bs-toggle="tab" href="#apTab" id="apTabBtn">
+            <i class="bi bi-arrow-up-circle me-1"></i>应付明细
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <!-- 应收明细 -->
+    <div class="tab-pane fade show active" id="arTab">
+        <div class="filter-bar mb-3">
+            <input type="text" class="form-control form-control-sm" id="arCounterparty" placeholder="对方公司名称">
+            <select class="form-select form-select-sm" id="arStatusFilter">
+                <option value="">全部状态</option>
+                <option value="pending">待开票</option>
+                <option value="issued">已开票</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadARList(1)">
+                <i class="bi bi-search me-1"></i>筛选
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('arCounterparty').value=''; document.getElementById('arStatusFilter').value=''; loadARList(1)">
+                <i class="bi bi-x-lg me-1"></i>清空
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="invoice-table" id="arTable">
+                <thead>
+                    <tr>
+                        <th>对方公司</th>
+                        <th>发票号码</th>
+                        <th>金额</th>
+                        <th>税额</th>
+                        <th>价税合计</th>
+                        <th>开票日期</th>
+                        <th>到期日期</th>
+                        <th>状态</th>
+                        <th>关联项目</th>
+                    </tr>
+                </thead>
+                <tbody id="arTableBody">
+                    <tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3" id="arPagination"></div>
+    </div>
+
+    <!-- 应付明细 -->
+    <div class="tab-pane fade" id="apTab">
+        <div class="filter-bar mb-3">
+            <input type="text" class="form-control form-control-sm" id="apCounterparty" placeholder="对方公司名称">
+            <select class="form-select form-select-sm" id="apStatusFilter">
+                <option value="">全部状态</option>
+                <option value="pending">待开票</option>
+                <option value="issued">已开票</option>
+            </select>
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadAPList(1)">
+                <i class="bi bi-search me-1"></i>筛选
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="document.getElementById('apCounterparty').value=''; document.getElementById('apStatusFilter').value=''; loadAPList(1)">
+                <i class="bi bi-x-lg me-1"></i>清空
+            </button>
+        </div>
+        <div class="table-responsive">
+            <table class="invoice-table" id="apTable">
+                <thead>
+                    <tr>
+                        <th>对方公司</th>
+                        <th>发票号码</th>
+                        <th>金额</th>
+                        <th>税额</th>
+                        <th>价税合计</th>
+                        <th>开票日期</th>
+                        <th>到期日期</th>
+                        <th>状态</th>
+                        <th>关联项目</th>
+                    </tr>
+                </thead>
+                <tbody id="apTableBody">
+                    <tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="d-flex justify-content-between align-items-center mt-3" id="apPagination"></div>
+    </div>
+</div>
+
+<!-- 净余额提示 -->
+<div class="net-balance positive" id="netBalanceBar" style="display:none;">
+    <span id="netBalanceText"></span>
+    <small id="netBalanceNote"></small>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+{{ block.super }}
+<script>
+let currentTab = 'ar';
+
+function formatCurrency(val) {
+    if (val === null || val === undefined || val === '') return '¥0.00';
+    return '¥' + parseFloat(val).toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+
+function formatDate(d) {
+    if (!d) return '-';
+    return d;
+}
+
+function getStatusBadge(status) {
+    const map = {
+        'pending': ['待开票', 'pending'],
+        'issued': ['已开票', 'issued'],
+        'paid': ['已支付', 'paid'],
+        'cancelled': ['已作废', 'cancelled']
+    };
+    const [label, cls] = map[status] || [status, ''];
+    return `<span class="status-badge ${cls}">${label}</span>`;
+}
+
+function showToast(msg, type) {
+    if (typeof Toast !== 'undefined') { Toast.show(msg, type); return; }
+    const colors = { success: 'bg-success', error: 'bg-danger', warning: 'bg-warning', info: 'bg-info' };
+    const el = document.createElement('div');
+    el.className = `toast align-items-center text-white ${colors[type] || 'bg-info'} position-fixed top-0 end-0 m-3`;
+    el.style.zIndex = 9999;
+    el.innerHTML = `<div class="d-flex"><div class="toast-body">${msg}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+    document.body.appendChild(el);
+    const t = new bootstrap.Toast(el, { delay: 3000 });
+    t.show();
+    el.addEventListener('hidden.bs.toast', () => el.remove());
+}
+
+function getApiUrl(path) {
+    return `/api/finance/${path}`;
+}
+
+function getCompanyId() {
+    return document.getElementById('filterCompany') ? document.getElementById('filterCompany').value : '';
+}
+
+function loadARAP() {
+    const company = getCompanyId();
+    const url = getApiUrl('ar-ap/') + (company ? `?company=${company}` : '');
+    fetch(url, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => {
+            document.getElementById('totalAR').textContent = formatCurrency(data.receivable_total);
+            document.getElementById('totalAP').textContent = formatCurrency(data.payable_total);
+            const net = parseFloat(data.receivable_total || 0) - parseFloat(data.payable_total || 0);
+            const netEl = document.getElementById('netBalance');
+            netEl.textContent = formatCurrency(Math.abs(net));
+            netEl.className = 'value ' + (net >= 0 ? 'success' : 'danger');
+            document.getElementById('netBalanceText').textContent = `应收 vs 应付净差额：${net >= 0 ? '+' : ''}${formatCurrency(net)}`;
+            document.getElementById('netBalanceBar').style.display = 'flex';
+            document.getElementById('netBalanceBar').className = `net-balance ${net >= 0 ? 'positive' : 'negative'}`;
+
+            let arCount = 0, apCount = 0;
+            (data.receivables || []).forEach(r => arCount += r.invoice_count || 0);
+            (data.payables || []).forEach(r => apCount += r.invoice_count || 0);
+            document.getElementById('arCount').textContent = arCount;
+            document.getElementById('apCount').textContent = apCount;
+        })
+        .catch(err => {
+            console.error('loadARAP error', err);
+        });
+}
+
+function loadARList(page) {
+    page = page || 1;
+    const company = getCompanyId();
+    const counterparty = document.getElementById('arCounterparty') ? document.getElementById('arCounterparty').value : '';
+    const status = document.getElementById('arStatusFilter') ? document.getElementById('arStatusFilter').value : '';
+    let params = new URLSearchParams({ page });
+    if (company) params.set('company', company);
+    if (counterparty) params.set('counterparty', counterparty);
+    if (status) params.set('status', status);
+
+    document.getElementById('arTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>';
+    fetch(getApiUrl('ar-ap/receivables/?') + params.toString(), { credentials: 'include' })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => renderARTable(data))
+        .catch(err => {
+            console.error('loadARList error', err);
+            document.getElementById('arTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">加载失败</td></tr>';
+            showToast('加载应收明细失败', 'error');
+        });
+}
+
+function loadAPList(page) {
+    page = page || 1;
+    const company = getCompanyId();
+    const counterparty = document.getElementById('apCounterparty') ? document.getElementById('apCounterparty').value : '';
+    const status = document.getElementById('apStatusFilter') ? document.getElementById('apStatusFilter').value : '';
+    let params = new URLSearchParams({ page });
+    if (company) params.set('company', company);
+    if (counterparty) params.set('counterparty', counterparty);
+    if (status) params.set('status', status);
+
+    document.getElementById('apTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>';
+    fetch(getApiUrl('ar-ap/payables/?') + params.toString(), { credentials: 'include' })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => renderAPTable(data))
+        .catch(err => {
+            console.error('loadAPList error', err);
+            document.getElementById('apTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">加载失败</td></tr>';
+            showToast('加载应付明细失败', 'error');
+        });
+}
+
+function parseCurrentPage(data) {
+    const url = new URL(window.location.href);
+    const nextUrl = data.next || '';
+    const prevUrl = data.previous || '';
+    const nextPage = nextUrl ? new URL(nextUrl, window.location.origin).searchParams.get('page') : null;
+    const prevPage = prevUrl ? new URL(prevUrl, window.location.origin).searchParams.get('page') : null;
+    if (nextPage) return parseInt(nextPage) - 1;
+    if (prevPage) return parseInt(prevPage) + 1;
+    return 1;
+}
+
+function renderARTable(data) {
+    const tbody = document.getElementById('arTableBody');
+    const results = data.results || [];
+    if (results.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无应收发票数据</td></tr>';
+        document.getElementById('arPagination').innerHTML = '';
+        return;
+    }
+    const currentPage = parseCurrentPage(data);
+    const totalCount = data.count || 0;
+    const pageSize = results.length;
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+    let html = '';
+    results.forEach(inv => {
+        html += `<tr>
+            <td><div class="counterparty-cell">
+                <div class="counterparty-avatar ar">${(inv.counterparty || '?')[0]}</div>
+                <span>${inv.counterparty || '-'}</span>
+            </div></td>
+            <td><code>${inv.invoice_no || '-'}</code></td>
+            <td class="amount-ar">${formatCurrency(inv.amount)}</td>
+            <td>${formatCurrency(inv.tax_amount)}</td>
+            <td class="amount-ar">${formatCurrency((parseFloat(inv.amount)||0) + (parseFloat(inv.tax_amount)||0))}</td>
+            <td>${formatDate(inv.issue_date)}</td>
+            <td>${formatDate(inv.due_date)}</td>
+            <td>${getStatusBadge(inv.status)}</td>
+            <td>${inv.project_name || '-'}</td>
+        </tr>`;
+    });
+    const totalAmt = results.reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+    const totalTax = results.reduce((s, i) => s + (parseFloat(i.tax_amount)||0), 0);
+    html += `<tr class="summary-row">
+        <td colspan="2">本页合计 (${results.length} 条)</td>
+        <td class="amount-ar">${formatCurrency(totalAmt)}</td>
+        <td>${formatCurrency(totalTax)}</td>
+        <td class="amount-ar">${formatCurrency(totalAmt + totalTax)}</td>
+        <td colspan="4"></td>
+    </tr>`;
+    tbody.innerHTML = html;
+
+    const pg = document.getElementById('arPagination');
+    if (totalPages <= 1) { pg.innerHTML = `<small class="text-muted">共 ${totalCount} 条</small>`; return; }
+    let pgHtml = `<small class="text-muted">第 ${currentPage} / ${totalPages} 页，共 ${totalCount} 条</small><div>`;
+    if (currentPage > 1) pgHtml += `<button class="btn btn-sm btn-outline-secondary me-1" onclick="loadARList(${currentPage-1})">上一页</button>`;
+    if (currentPage < totalPages) pgHtml += `<button class="btn btn-sm btn-outline-secondary" onclick="loadARList(${currentPage+1})">下一页</button>`;
+    pgHtml += '</div>';
+    pg.innerHTML = pgHtml;
+}
+
+function renderAPTable(data) {
+    const tbody = document.getElementById('apTableBody');
+    const results = data.results || [];
+    if (results.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无应付发票数据</td></tr>';
+        document.getElementById('apPagination').innerHTML = '';
+        return;
+    }
+    const currentPage = parseCurrentPage(data);
+    const totalCount = data.count || 0;
+    const pageSize = results.length;
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+    let html = '';
+    results.forEach(inv => {
+        html += `<tr>
+            <td><div class="counterparty-cell">
+                <div class="counterparty-avatar ap">${(inv.counterparty || '?')[0]}</div>
+                <span>${inv.counterparty || '-'}</span>
+            </div></td>
+            <td><code>${inv.invoice_no || '-'}</code></td>
+            <td class="amount-ap">${formatCurrency(inv.amount)}</td>
+            <td>${formatCurrency(inv.tax_amount)}</td>
+            <td class="amount-ap">${formatCurrency((parseFloat(inv.amount)||0) + (parseFloat(inv.tax_amount)||0))}</td>
+            <td>${formatDate(inv.issue_date)}</td>
+            <td>${formatDate(inv.due_date)}</td>
+            <td>${getStatusBadge(inv.status)}</td>
+            <td>${inv.project_name || '-'}</td>
+        </tr>`;
+    });
+    const totalAmt = results.reduce((s, i) => s + (parseFloat(i.amount)||0), 0);
+    const totalTax = results.reduce((s, i) => s + (parseFloat(i.tax_amount)||0), 0);
+    html += `<tr class="summary-row">
+        <td colspan="2">本页合计 (${results.length} 条)</td>
+        <td class="amount-ap">${formatCurrency(totalAmt)}</td>
+        <td>${formatCurrency(totalTax)}</td>
+        <td class="amount-ap">${formatCurrency(totalAmt + totalTax)}</td>
+        <td colspan="4"></td>
+    </tr>`;
+    tbody.innerHTML = html;
+
+    const pg = document.getElementById('apPagination');
+    if (totalPages <= 1) { pg.innerHTML = `<small class="text-muted">共 ${totalCount} 条</small>`; return; }
+    let pgHtml = `<small class="text-muted">第 ${currentPage} / ${totalPages} 页，共 ${totalCount} 条</small><div>`;
+    if (currentPage > 1) pgHtml += `<button class="btn btn-sm btn-outline-secondary me-1" onclick="loadAPList(${currentPage-1})">上一页</button>`;
+    if (currentPage < totalPages) pgHtml += `<button class="btn btn-sm btn-outline-secondary" onclick="loadAPList(${currentPage+1})">下一页</button>`;
+    pgHtml += '</div>';
+    pg.innerHTML = pgHtml;
+}
+
+function loadCurrentTab() {
+    if (currentTab === 'ar') loadARList(1);
+    else loadAPList(1);
+}
+
+document.getElementById('arTabBtn').addEventListener('shown.bs.tab', function() {
+    currentTab = 'ar';
+    loadARList(1);
+});
+document.getElementById('apTabBtn').addEventListener('shown.bs.tab', function() {
+    currentTab = 'ap';
+    loadAPList(1);
+});
+
+function loadCompanies() {
+    fetch(getApiUrl('companies/'), { credentials: 'include' })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => {
+            const sel = document.getElementById('filterCompany');
+            (data.results || []).forEach(c => {
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = c.name;
+                sel.appendChild(opt);
+            });
+        })
+        .catch(() => {});
+}
+
+function exportAR() {
+    const company = getCompanyId();
+    const counterparty = document.getElementById('arCounterparty') ? document.getElementById('arCounterparty').value : '';
+    const status = document.getElementById('arStatusFilter') ? document.getElementById('arStatusFilter').value : '';
+    showToast('正在导出应收…', 'info');
+    let url = getApiUrl('ar-ap/receivables/?page_size=1000');
+    if (company) url += `&company=${company}`;
+    if (counterparty) url += `&counterparty=${encodeURIComponent(counterparty)}`;
+    if (status) url += `&status=${status}`;
+    fetch(url, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => {
+            const rows = [['对方公司','发票号码','金额','税额','价税合计','开票日期','到期日期','状态','关联项目']];
+            (data.results || []).forEach(i => {
+                rows.push([
+                    i.counterparty||'', i.invoice_no||'',
+                    parseFloat(i.amount||0).toFixed(2), parseFloat(i.tax_amount||0).toFixed(2),
+                    (parseFloat(i.amount||0)+parseFloat(i.tax_amount||0)).toFixed(2),
+                    i.issue_date||'', i.due_date||'',
+                    i.status_display||i.status||'', i.project_name||''
+                ]);
+            });
+            downloadCSV(rows, '应收台账_' + new Date().toISOString().slice(0,10) + '.csv');
+            showToast('导出成功', 'success');
+        })
+        .catch(() => showToast('导出失败', 'error'));
+}
+
+function exportAP() {
+    const company = getCompanyId();
+    const counterparty = document.getElementById('apCounterparty') ? document.getElementById('apCounterparty').value : '';
+    const status = document.getElementById('apStatusFilter') ? document.getElementById('apStatusFilter').value : '';
+    showToast('正在导出应付…', 'info');
+    let url = getApiUrl('ar-ap/payables/?page_size=1000');
+    if (company) url += `&company=${company}`;
+    if (counterparty) url += `&counterparty=${encodeURIComponent(counterparty)}`;
+    if (status) url += `&status=${status}`;
+    fetch(url, { credentials: 'include' })
+        .then(r => r.ok ? r.json() : Promise.reject(r))
+        .then(data => {
+            const rows = [['对方公司','发票号码','金额','税额','价税合计','开票日期','到期日期','状态','关联项目']];
+            (data.results || []).forEach(i => {
+                rows.push([
+                    i.counterparty||'', i.invoice_no||'',
+                    parseFloat(i.amount||0).toFixed(2), parseFloat(i.tax_amount||0).toFixed(2),
+                    (parseFloat(i.amount||0)+parseFloat(i.tax_amount||0)).toFixed(2),
+                    i.issue_date||'', i.due_date||'',
+                    i.status_display||i.status||'', i.project_name||''
+                ]);
+            });
+            downloadCSV(rows, '应付台账_' + new Date().toISOString().slice(0,10) + '.csv');
+            showToast('导出成功', 'success');
+        })
+        .catch(() => showToast('导出失败', 'error'));
+}
+
+function downloadCSV(rows, filename) {
+    const BOM = '\uFEFF';
+    const csv = BOM + rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// 页面初始化
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    loadARAP();
+    loadARList(1);
+});
+</script>
+{% endblock %}

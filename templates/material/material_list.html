@@ -1,0 +1,584 @@
+{% extends "base.html" %}
+
+{% block title %}物料管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.material-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.warning { color: var(--warning); }
+.summary-card .value.primary { color: var(--primary); }
+.material-table td { vertical-align: middle; }
+.stock-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+.stock-badge.low { background: #fee2e2; color: #991b1b; }
+.stock-badge.warning { background: #fef3c7; color: #92400e; }
+.stock-badge.normal { background: #d1fae5; color: #065f46; }
+.category-badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    background: #e0e7ff;
+    color: #3730a3;
+}
+.filter-bar {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-box-seam me-2"></i>物料管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理工程物料库存、预警阈值及使用记录</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" id="filterCategory" style="width: auto;" onchange="loadMaterials()">
+            <option value="">全部分类</option>
+            <option value="cable">线缆类</option>
+            <option value="network">网络设备</option>
+            <option value="server">服务器/存储</option>
+            <option value="cabinet">机柜/配件</option>
+            <option value="monitor">监控设备</option>
+            <option value="access">门禁设备</option>
+            <option value="software">软件/许可</option>
+            <option value="tool">工具/耗材</option>
+        </select>
+        <input type="text" class="form-control form-control-sm" id="filterSearch" style="width: 200px;" placeholder="搜索编码/名称/规格" onkeyup="if(event.key==='Enter')loadMaterials()">
+        <div class="form-check form-check-sm">
+            <input class="form-check-input" type="checkbox" id="filterStockAlert" onchange="loadMaterials()">
+            <label class="form-check-label" for="filterStockAlert">库存告警</label>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="showAddMaterialModal()" data-perm="material.add">
+            <i class="bi bi-plus-lg me-1"></i>新建物料
+        </button>
+    </div>
+</div>
+
+<!-- 汇总信息 -->
+<div class="material-summary">
+    <div class="summary-card">
+        <div class="label">物料总数</div>
+        <div class="value primary" id="totalCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">库存告警</div>
+        <div class="value danger" id="alertCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">库存总值</div>
+        <div class="value primary" id="totalValue">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">低库存物料</div>
+        <div class="value warning" id="lowStockCount">0</div>
+    </div>
+</div>
+
+<!-- 物料列表 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>物料明细列表</span>
+        <div class="d-flex gap-2 align-items-center">
+            <span style="font-size:0.85rem; color:var(--text-secondary);">
+                共 <strong id="recordCount">0</strong> 条记录
+            </span>
+        </div>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table material-table mb-0">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">
+                            <input class="form-check-input" type="checkbox">
+                        </th>
+                        <th>编码</th>
+                        <th>名称</th>
+                        <th>规格</th>
+                        <th>分类</th>
+                        <th>单位</th>
+                        <th>库存</th>
+                        <th>预警阈值</th>
+                        <th>单价</th>
+                        <th>供应商</th>
+                        <th style="width: 120px;">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="materialTableBody">
+                    <tr>
+                        <td colspan="11" class="text-center text-muted py-4">加载中...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- 分页 -->
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+        <nav>
+            <ul class="pagination pagination-sm mb-0" id="pagination">
+            </ul>
+        </nav>
+    </div>
+</div>
+
+<!-- 新增/编辑物料 Modal -->
+<div class="modal fade" id="materialModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i><span id="materialModalTitle">新建物料</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="materialId">
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">物料名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="materialName" placeholder="请输入物料名称" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">规格型号</label>
+                        <input type="text" class="form-control" id="materialSpec" placeholder="如：CAT6, 3米">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">分类 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="materialCategory" required>
+                            <option value="">选择分类</option>
+                            <option value="cable">线缆类</option>
+                            <option value="network">网络设备</option>
+                            <option value="server">服务器/存储</option>
+                            <option value="cabinet">机柜/配件</option>
+                            <option value="monitor">监控设备</option>
+                            <option value="access">门禁设备</option>
+                            <option value="software">软件/许可</option>
+                            <option value="tool">工具/耗材</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">单位</label>
+                        <input type="text" class="form-control" id="materialUnit" placeholder="个/箱/米" value="个">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">单价(¥)</label>
+                        <input type="number" class="form-control" id="materialUnitPrice" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-4">
+                        <label class="form-label">当前库存</label>
+                        <input type="number" class="form-control" id="materialStock" placeholder="0" min="0" value="0">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">预警阈值</label>
+                        <input type="number" class="form-control" id="materialAlertThreshold" placeholder="10" min="0" value="10">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">供应商</label>
+                        <select class="form-select" id="materialSupplier">
+                            <option value="">选择供应商</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">关联项目</label>
+                        <select class="form-select" id="materialProject">
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">备注</label>
+                        <input type="text" class="form-control" id="materialRemark" placeholder="备注信息">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveMaterial()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 使用记录 Modal -->
+<div class="modal fade" id="usageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-arrow-up me-2"></i>物料出库</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="usageMaterialId">
+                <div class="mb-3">
+                    <label class="form-label">物料</label>
+                    <div class="form-control" id="usageMaterialName" style="background:#f8f9fa;">-</div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">使用项目 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="usageProject" required>
+                            <option value="">选择项目</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">出库数量 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="usageQuantity" placeholder="1" min="1" required>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="usageRemark" rows="2" placeholder="用途说明"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="recordUsage()">确认出库</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 使用记录查看 Modal -->
+<div class="modal fade" id="usageLogModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-clock-history me-2"></i>使用记录</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>时间</th>
+                                <th>项目</th>
+                                <th>数量</th>
+                                <th>领用人</th>
+                                <th>备注</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usageLogTableBody">
+                            <tr><td colspan="5" class="text-center text-muted py-3">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let pageSize = 15;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadSuppliers();
+    loadProjects();
+    loadMaterials();
+});
+
+async function loadSuppliers() {
+    try {
+        const response = await fetch('/api/crm/suppliers/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const opts = (data.results || data).map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+            document.getElementById('materialSupplier').innerHTML = '<option value="">选择供应商</option>' + opts;
+        }
+    } catch (e) { console.error('加载供应商失败', e); }
+}
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/tasks/projects/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const opts = (data.results || data).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            document.getElementById('materialProject').innerHTML = '<option value="">选择项目</option>' + opts;
+            document.getElementById('usageProject').innerHTML = '<option value="">选择项目</option>' + opts;
+        }
+    } catch (e) { console.error('加载项目失败', e); }
+}
+
+async function loadMaterials() {
+    const category = document.getElementById('filterCategory').value;
+    const search = document.getElementById('filterSearch').value;
+    const stockAlert = document.getElementById('filterStockAlert').checked;
+    
+    let url = `/api/material/?page=${currentPage}&page_size=${pageSize}`;
+    if (category) url += `&category=${category}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+    if (stockAlert) url += `&stock_alert=1`;
+    
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            renderMaterialTable(data.results || data);
+            renderPagination(data);
+            updateSummary(data.results || data);
+        } else {
+            document.getElementById('materialTableBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
+        }
+    } catch (e) {
+        console.error('加载物料失败', e);
+        document.getElementById('materialTableBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
+    }
+}
+
+function getCategoryText(cat) {
+    const map = { cable:'线缆类', network:'网络设备', server:'服务器/存储', cabinet:'机柜/配件', monitor:'监控设备', access:'门禁设备', software:'软件/许可', tool:'工具/耗材' };
+    return map[cat] || cat;
+}
+
+function renderMaterialTable(items) {
+    const tbody = document.getElementById('materialTableBody');
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无物料记录</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(m => {
+        const stockClass = m.stock < m.alert_threshold ? 'low' : (m.stock < m.alert_threshold * 2 ? 'warning' : 'normal');
+        return `<tr>
+            <td><input class="form-check-input" type="checkbox" value="${m.id}"></td>
+            <td><strong>${m.code}</strong></td>
+            <td>${m.name}</td>
+            <td>${m.spec || '-'}</td>
+            <td><span class="category-badge">${getCategoryText(m.category)}</span></td>
+            <td>${m.unit}</td>
+            <td><span class="stock-badge ${stockClass}">${m.stock}</span></td>
+            <td>${m.alert_threshold}</td>
+            <td>¥${parseFloat(m.unit_price || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td>
+            <td>${m.supplier_name || '-'}</td>
+            <td>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-primary" onclick="showUsageModal(${m.id}, '${m.name}', ${m.stock})" title="出库" ${m.stock <= 0 ? 'disabled' : ''}>
+                        <i class="bi bi-box-arrow-up"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="showUsageLog(${m.id})" title="记录">
+                        <i class="bi bi-clock-history"></i>
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="editMaterial(${m.id})" title="编辑">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="deleteMaterial(${m.id})" title="删除" data-perm="material.delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>`;
+    }).join('');
+}
+
+function renderPagination(data) {
+    const totalPages = Math.ceil(data.count / pageSize);
+    document.getElementById('recordCount').textContent = data.count;
+    document.getElementById('paginationInfo').textContent = `显示 ${((currentPage - 1) * pageSize) + 1}-${Math.min(currentPage * pageSize, data.count)} 条，共 ${data.count} 条`;
+    
+    let html = '';
+    if (currentPage > 1) html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage - 1})">上一页</a></li>`;
+    const start = Math.max(1, currentPage - 2);
+    const end = Math.min(totalPages, currentPage + 2);
+    if (start > 1) { html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(1)">1</a></li>`; if (start > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`; }
+    for (let i = start; i <= end; i++) html += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${i})">${i}</a></li>`;
+    if (end < totalPages) { if (end < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`; html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${totalPages})">${totalPages}</a></li>`; }
+    if (currentPage < totalPages) html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage + 1})">下一页</a></li>`;
+    document.getElementById('pagination').innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadMaterials();
+}
+
+function updateSummary(items) {
+    document.getElementById('totalCount').textContent = items.length;
+    let alertCount = 0, lowStockCount = 0, totalValue = 0;
+    items.forEach(m => {
+        if (m.stock < m.alert_threshold) { alertCount++; lowStockCount++; }
+        totalValue += parseFloat(m.stock * m.unit_price || 0);
+    });
+    document.getElementById('alertCount').textContent = alertCount;
+    document.getElementById('lowStockCount').textContent = lowStockCount;
+    document.getElementById('totalValue').textContent = '¥' + totalValue.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+}
+
+function showAddMaterialModal() {
+    document.getElementById('materialModalTitle').textContent = '新建物料';
+    document.getElementById('materialId').value = '';
+    document.getElementById('materialName').value = '';
+    document.getElementById('materialSpec').value = '';
+    document.getElementById('materialCategory').value = '';
+    document.getElementById('materialUnit').value = '个';
+    document.getElementById('materialUnitPrice').value = '';
+    document.getElementById('materialStock').value = '0';
+    document.getElementById('materialAlertThreshold').value = '10';
+    document.getElementById('materialSupplier').value = '';
+    document.getElementById('materialProject').value = '';
+    document.getElementById('materialRemark').value = '';
+    new bootstrap.Modal(document.getElementById('materialModal')).show();
+}
+
+async function editMaterial(id) {
+    try {
+        const response = await fetch(`/api/material/${id}/`, { credentials: 'include' });
+        if (response.ok) {
+            const m = await response.json();
+            document.getElementById('materialModalTitle').textContent = '编辑物料';
+            document.getElementById('materialId').value = m.id;
+            document.getElementById('materialName').value = m.name;
+            document.getElementById('materialSpec').value = m.spec || '';
+            document.getElementById('materialCategory').value = m.category;
+            document.getElementById('materialUnit').value = m.unit;
+            document.getElementById('materialUnitPrice').value = m.unit_price || '';
+            document.getElementById('materialStock').value = m.stock;
+            document.getElementById('materialAlertThreshold').value = m.alert_threshold;
+            document.getElementById('materialSupplier').value = m.supplier || '';
+            document.getElementById('materialProject').value = m.project || '';
+            document.getElementById('materialRemark').value = m.remark || '';
+            new bootstrap.Modal(document.getElementById('materialModal')).show();
+        }
+    } catch (e) { alert('加载失败'); }
+}
+
+async function saveMaterial() {
+    const id = document.getElementById('materialId').value;
+    const data = {
+        name: document.getElementById('materialName').value,
+        spec: document.getElementById('materialSpec').value,
+        category: document.getElementById('materialCategory').value,
+        unit: document.getElementById('materialUnit').value,
+        unit_price: parseFloat(document.getElementById('materialUnitPrice').value) || 0,
+        stock: parseInt(document.getElementById('materialStock').value) || 0,
+        alert_threshold: parseInt(document.getElementById('materialAlertThreshold').value) || 10,
+        supplier: document.getElementById('materialSupplier').value || null,
+        project: document.getElementById('materialProject').value || null,
+        remark: document.getElementById('materialRemark').value
+    };
+    if (!data.name || !data.category) { alert('请填写必填项'); return; }
+    try {
+        const url = id ? `/api/material/${id}/` : '/api/material/';
+        const response = await fetch(url, {
+            method: id ? 'PUT' : 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify(data)
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('materialModal')).hide();
+            document.getElementById('materialModal').addEventListener('hidden.bs.modal', function h() {
+                document.getElementById('materialModal').removeEventListener('hidden.bs.modal', h);
+                loadMaterials();
+            });
+        } else { const e = await response.json(); alert(e.detail || e.message || '保存失败'); }
+    } catch (e) { alert('保存失败'); }
+}
+
+async function deleteMaterial(id) {
+    if (!confirm('确定要删除该物料吗？')) return;
+    try {
+        const response = await fetch(`/api/material/${id}/`, { method: 'DELETE', credentials: 'include' });
+        if (response.ok) { loadMaterials(); } else { alert('删除失败'); }
+    } catch (e) { alert('删除失败'); }
+}
+
+function showUsageModal(id, name, stock) {
+    document.getElementById('usageMaterialId').value = id;
+    document.getElementById('usageMaterialName').textContent = `${name}（当前库存：${stock}）`;
+    document.getElementById('usageQuantity').value = '1';
+    document.getElementById('usageQuantity').max = stock;
+    document.getElementById('usageRemark').value = '';
+    new bootstrap.Modal(document.getElementById('usageModal')).show();
+}
+
+async function recordUsage() {
+    const material_id = document.getElementById('usageMaterialId').value;
+    const project_id = document.getElementById('usageProject').value;
+    const quantity = parseInt(document.getElementById('usageQuantity').value) || 1;
+    const remark = document.getElementById('usageRemark').value;
+    if (!project_id) { alert('请选择使用项目'); return; }
+    try {
+        const response = await fetch('/api/material/record_usage/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ material_id, project_id, quantity, remark })
+        });
+        if (response.ok) {
+            bootstrap.Modal.getInstance(document.getElementById('usageModal')).hide();
+            document.getElementById('usageModal').addEventListener('hidden.bs.modal', function h() {
+                document.getElementById('usageModal').removeEventListener('hidden.bs.modal', h);
+                loadMaterials();
+            });
+        } else {
+            const e = await response.json();
+            alert(e.error || e.detail || '操作失败');
+        }
+    } catch (e) { alert('操作失败'); }
+}
+
+async function showUsageLog(materialId) {
+    try {
+        const response = await fetch(`/api/material/${materialId}/get_usage_logs/`, { credentials: 'include' });
+        if (response.ok) {
+            const logs = await response.json();
+            const tbody = document.getElementById('usageLogTableBody');
+            if (!logs || logs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-3">暂无使用记录</td></tr>';
+            } else {
+                tbody.innerHTML = logs.map(l => `<tr>
+                    <td>${l.used_at ? new Date(l.used_at).toLocaleString('zh-CN') : '-'}</td>
+                    <td>${l.project_name || '-'}</td>
+                    <td>${l.quantity}</td>
+                    <td>${l.used_by_name || '-'}</td>
+                    <td>${l.remark || '-'}</td>
+                </tr>`).join('');
+            }
+            new bootstrap.Modal(document.getElementById('usageLogModal')).show();
+        }
+    } catch (e) { alert('加载记录失败'); }
+}
+</script>
+{% endblock %}

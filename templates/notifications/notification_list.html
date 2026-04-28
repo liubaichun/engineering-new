@@ -1,0 +1,264 @@
+{% extends "base.html" %}
+
+{% block title %}通知消息 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.notification-list { background: #fff; border-radius: 12px; box-shadow: var(--card-shadow); overflow: hidden; }
+.notification-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background 0.15s;
+    cursor: pointer;
+}
+.notification-item:hover { background: #f8fafc; }
+.notification-item.unread { background: #f0f9ff; border-left: 3px solid var(--primary); }
+.notification-item.unread:hover { background: #e0f2fe; }
+.notification-item:last-child { border-bottom: none; }
+.notif-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: var(--primary-light); color: var(--primary);
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem; flex-shrink: 0;
+}
+.notif-body { flex: 1; min-width: 0; }
+.notif-title { font-weight: 600; font-size: 0.9rem; color: var(--text-primary); margin-bottom: 4px; }
+.notif-content { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.4; }
+.notif-meta { display: flex; gap: 12px; align-items: center; }
+.notif-type-badge {
+    padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 500;
+}
+.notif-type-badge.approval { background: #fef3c7; color: #92400e; }
+.notif-type-badge.system { background: #dbeafe; color: #1e40af; }
+.notif-type-badge.warning { background: #fee2e2; color: #991b1b; }
+.notif-type-badge.info { background: #d1fae5; color: #065f46; }
+.level-badge {
+    padding: 2px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 500;
+}
+.level-badge.danger { background: #fee2e2; color: #991b1b; }
+.level-badge.warning { background: #fef3c7; color: #92400e; }
+.level-badge.info { background: #dbeafe; color: #1e40af; }
+.notif-time { font-size: 0.8rem; color: var(--text-muted); }
+.notif-actions { display: flex; gap: 8px; }
+.notif-actions button {
+    background: none; border: none; padding: 4px 8px;
+    cursor: pointer; color: var(--text-muted); border-radius: 4px;
+}
+.notif-actions button:hover { background: #f1f5f9; color: var(--primary); }
+.filter-tabs {
+    display: flex; gap: 4px; margin-bottom: 16px;
+}
+.filter-tabs .tab-btn {
+    padding: 6px 16px; border: none; background: #f1f5f9;
+    border-radius: 20px; cursor: pointer; font-size: 0.85rem;
+    color: var(--text-secondary); transition: all 0.15s;
+}
+.filter-tabs .tab-btn.active {
+    background: var(--primary); color: #fff;
+}
+.pagination { display: flex; gap: 4px; justify-content: center; align-items: center; padding: 16px 0; }
+.page-btn {
+    padding: 6px 12px; border: 1px solid #e2e8f0; background: #fff;
+    border-radius: 6px; cursor: pointer; font-size: 0.85rem;
+}
+.page-btn:hover { background: #f8fafc; }
+.page-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+.page-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.empty-state {
+    text-align: center; padding: 60px 20px; color: var(--text-muted);
+}
+.empty-state i { font-size: 3rem; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-bell me-2"></i>通知消息</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">查看系统通知和审批提醒</p>
+    </div>
+    <div class="d-flex gap-2">
+        <div class="filter-tabs">
+            <button class="tab-btn active" data-filter="all" onclick="setFilter('all')">全部</button>
+            <button class="tab-btn" data-filter="unread" onclick="setFilter('unread')">未读</button>
+            <button class="tab-btn" data-filter="read" onclick="setFilter('read')">已读</button>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="markAllRead()">
+            <i class="bi bi-check-all me-1"></i>全部标为已读
+        </button>
+    </div>
+</div>
+
+<div class="notification-list" id="notificationList">
+    <div class="text-center py-5 text-muted"><i class="bi bi-arrow-repeat spin"></i> 加载中...</div>
+</div>
+
+<div class="pagination" id="pagination"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentFilter = 'all';
+let currentPage = 1;
+let pageSize = 20;
+let totalCount = 0;
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadNotifications();
+});
+
+function setFilter(filter) {
+    currentFilter = filter;
+    currentPage = 1;
+    document.querySelectorAll('.filter-tabs .tab-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filter);
+    });
+    loadNotifications();
+}
+
+async function loadNotifications() {
+    const container = document.getElementById('notificationList');
+    container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-arrow-repeat spin"></i> 加载中...</div>';
+
+    try {
+        let url = `/api/core/notifications/?page=${currentPage}&page_size=${pageSize}`;
+        if (currentFilter === 'unread') url += '&is_read=false';
+        else if (currentFilter === 'read') url += '&is_read=true';
+
+        const response = await fetch(url, { credentials: 'include' });
+        if (!response.ok) throw new Error('加载失败');
+        const data = await response.json();
+        totalCount = data.count;
+        renderNotifications(data.results || data);
+        renderPagination();
+    } catch (error) {
+        container.innerHTML = '<div class="text-center py-5 text-danger">加载失败，请刷新页面</div>';
+        console.error(error);
+    }
+}
+
+function renderNotifications(notifications) {
+    const container = document.getElementById('notificationList');
+    if (!notifications || notifications.length === 0) {
+        container.innerHTML = `
+            <div class="empty-state">
+                <i class="bi bi-bell-slash"></i>
+                <p>暂无通知消息</p>
+            </div>`;
+        return;
+    }
+
+    const typeLabels = { approval: '审批', system: '系统', warning: '预警', info: '通知' };
+    const typeClasses = { approval: 'approval', system: 'system', warning: 'warning', info: 'info' };
+    const levelClasses = { danger: 'danger', warning: 'warning', info: 'info' };
+
+    container.innerHTML = notifications.map(n => `
+        <div class="notification-item ${n.is_read ? '' : 'unread'}" onclick="toggleRead(${n.id}, ${n.is_read})">
+            <div class="notif-avatar">${(n.title || '通').charAt(0)}</div>
+            <div class="notif-body">
+                <div class="notif-title">${escapeHtml(n.title || '')}</div>
+                <div class="notif-content">${escapeHtml(n.content || '')}</div>
+                <div class="notif-meta">
+                    <span class="notif-type-badge ${typeClasses[n.notification_type] || 'info'}">${typeLabels[n.notification_type] || '通知'}</span>
+                    ${n.level ? `<span class="level-badge ${levelClasses[n.level] || 'info'}">${n.level_display || n.level}</span>` : ''}
+                    <span class="notif-time">${formatDate(n.created_at)}</span>
+                </div>
+            </div>
+            <div class="notif-actions">
+                <button onclick="event.stopPropagation(); markRead(${n.id})" title="标为已读">
+                    <i class="bi bi-check"></i>
+                </button>
+                <button onclick="event.stopPropagation(); deleteNotif(${n.id})" title="删除">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>`).join('');
+}
+
+async function toggleRead(id, isRead) {
+    if (!isRead) await markRead(id);
+}
+
+async function markRead(id) {
+    try {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        await fetch(`/api/core/notifications/${id}/`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+            body: JSON.stringify({ is_read: true })
+        });
+        loadNotifications();
+    } catch (e) { console.error(e); }
+}
+
+async function markAllRead() {
+    try {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        await fetch('/api/core/notifications/mark-all-read/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': csrf }
+        });
+        loadNotifications();
+    } catch (e) { console.error(e); }
+}
+
+async function deleteNotif(id) {
+    if (!confirm('确定删除该通知？')) return;
+    try {
+        const csrf = document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '';
+        await fetch(`/api/core/notifications/${id}/`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': csrf }
+        });
+        loadNotifications();
+    } catch (e) { console.error(e); }
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(totalCount / pageSize) || 1;
+    const pagination = document.getElementById('pagination');
+    if (totalPages <= 1) { pagination.innerHTML = ''; return; }
+
+    let html = `<button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToPage(${currentPage - 1})">上一页</button>`;
+    for (let i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += `<button class="page-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+        } else if (i === currentPage - 3 || i === currentPage + 3) {
+            html += '<span style="padding:0 4px;">...</span>';
+        }
+    }
+    html += `<button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${currentPage + 1})">下一页</button>`;
+    pagination.innerHTML = html;
+}
+
+function goToPage(page) {
+    currentPage = page;
+    loadNotifications();
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diff = now - d;
+    if (diff < 60000) return '刚刚';
+    if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前';
+    if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前';
+    if (diff < 604800000) return Math.floor(diff / 86400000) + '天前';
+    return d.toLocaleDateString('zh-CN');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

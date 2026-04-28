@@ -1,0 +1,309 @@
+{% extends "base.html" %}
+
+{% block title %}客户管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.client-status-active { color: #10b981; }
+.client-status-inactive { color: #ef4444; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-building me-2"></i>客户管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理客户信息和联系人</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="showClientModal()" data-perm="client.add">
+            <i class="bi bi-plus-lg me-1"></i>新建客户
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-4">
+                <input type="text" class="form-control" id="searchName" placeholder="搜索客户名称" onkeyup="filterClients()">
+            </div>
+            <div class="col-md-3">
+                <select class="form-select" id="filterCategory" onchange="filterClients()">
+                    <option value="">全部分类</option>
+                    <option value="enterprise">企业客户</option>
+                    <option value="government">政府事业单位</option>
+                    <option value="special">特殊客户</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterStatus" onchange="filterClients()">
+                    <option value="">全部状态</option>
+                    <option value="true">合作中</option>
+                    <option value="false">已停止</option>
+                </select>
+            </div>
+        </div>
+        
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>编码</th>
+                        <th>客户名称</th>
+                        <th>联系人</th>
+                        <th>电话</th>
+                        <th>分类</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="clientTableBody">
+                    <tr>
+                        <td colspan="8" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 客户Modal -->
+<div class="modal fade" id="clientModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="clientModalTitle"><i class="bi bi-building me-2"></i>新建客户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="clientId">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <label class="form-label">客户名称 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="clientName" placeholder="公司或客户名称">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">联系人</label>
+                        <input type="text" class="form-control" id="contactPerson" placeholder="联系人姓名">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">联系电话</label>
+                        <input type="text" class="form-control" id="contactPhone" placeholder="电话">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">邮箱</label>
+                        <input type="email" class="form-control" id="contactEmail" placeholder="email@example.com">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">客户分类</label>
+                        <select class="form-select" id="clientCategory">
+                            <option value="">选择分类</option>
+                            <option value="enterprise">企业客户</option>
+                            <option value="government">政府事业单位</option>
+                            <option value="special">特殊客户</option>
+                        </select>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">地址</label>
+                        <input type="text" class="form-control" id="address" placeholder="公司地址">
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">备注</label>
+                        <textarea class="form-control" id="remark" rows="2" placeholder="备注信息"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveClient()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var clientModal;
+var allClients = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    clientModal = new bootstrap.Modal(document.getElementById('clientModal'));
+    loadClients();
+});
+
+async function loadClients() {
+    try {
+        var response = await fetch('/api/crm/clients/', { credentials: 'include' });
+        if (!response.ok) throw new Error('API不存在');
+        var data = await response.json();
+        allClients = data.results || data;
+    } catch (error) {
+        console.error('加载客户失败，使用空数据:', error);
+        allClients = [];
+    }
+    renderClients();
+}
+
+function renderClients() {
+    var search = document.getElementById('searchName').value.toLowerCase();
+    var category = document.getElementById('filterCategory').value;
+    var status = document.getElementById('filterStatus').value;
+
+    var filtered = allClients.filter(function(c) {
+        if (search && !c.name.toLowerCase().includes(search)) return false;
+        if (category && c.category !== category) return false;
+        if (status && String(c.is_active) !== status) return false;
+        return true;
+    });
+
+    var tbody = document.getElementById('clientTableBody');
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无客户数据</td></tr>';
+        return;
+    }
+
+    var html = '';
+    filtered.forEach(function(client) {
+        var statusClass = client.is_active ? 'client-status-active' : 'client-status-inactive';
+        var statusText = client.is_active ? '合作中' : '已停止';
+        var createdAt = client.created_at ? formatDate(client.created_at) : '-';
+        var categoryMap = { enterprise: '企业客户', government: '政府事业单位', special: '特殊客户' };
+        var categoryText = categoryMap[client.category] || '-';
+
+        html += '<tr>';
+        html += '<td><small>' + escapeHtml(client.code || '-') + '</small></td>';
+        html += '<td><strong>' + escapeHtml(client.name) + '</strong></td>';
+        html += '<td>' + escapeHtml(client.contact_person || '-') + '</td>';
+        html += '<td>' + escapeHtml(client.contact_phone || '-') + '</td>';
+        html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryText) + '</span></td>';
+        html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
+        html += '<td>' + createdAt + '</td>';
+        html += '<td>';
+        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editClient(' + client.id + ')"><i class="bi bi-pencil"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteClient(' + client.id + ')" data-perm="client.delete"><i class="bi bi-trash"></i></button>';
+        html += '</td></tr>';
+    });
+
+    tbody.innerHTML = html;
+}
+
+function filterClients() {
+    renderClients();
+}
+
+function showClientModal() {
+    document.getElementById('clientModalTitle').innerHTML = '<i class="bi bi-building me-2"></i>新建客户';
+    document.getElementById('clientId').value = '';
+    document.getElementById('clientName').value = '';
+    document.getElementById('contactPerson').value = '';
+    document.getElementById('contactPhone').value = '';
+    document.getElementById('contactEmail').value = '';
+    document.getElementById('clientCategory').value = '';
+    document.getElementById('address').value = '';
+    document.getElementById('remark').value = '';
+    clientModal.show();
+}
+
+function editClient(clientId) {
+    var client = allClients.find(function(c) { return c.id === clientId; });
+    if (!client) return;
+
+    document.getElementById('clientModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑客户';
+    document.getElementById('clientId').value = client.id;
+    document.getElementById('clientName').value = client.name;
+    document.getElementById('contactPerson').value = client.contact_person || '';
+    document.getElementById('contactPhone').value = client.contact_phone || '';
+    document.getElementById('contactEmail').value = client.contact_email || '';
+    document.getElementById('clientCategory').value = client.category || '';
+    document.getElementById('address').value = client.address || '';
+    document.getElementById('remark').value = client.remark || '';
+    clientModal.show();
+}
+
+async function saveClient() {
+    var clientId = document.getElementById('clientId').value;
+    var name = document.getElementById('clientName').value.trim();
+    
+    if (!name) { showToast('请输入客户名称', 'warning'); return; }
+    
+    var payload = {
+        name: name,
+        contact_person: document.getElementById('contactPerson').value.trim(),
+        contact_phone: document.getElementById('contactPhone').value.trim(),
+        contact_email: document.getElementById('contactEmail').value.trim(),
+        category: document.getElementById('clientCategory').value,
+        address: document.getElementById('address').value.trim(),
+        remark: document.getElementById('remark').value.trim()
+    };
+    
+    var url = '/api/crm/clients/';
+    var method = 'POST';
+    if (clientId) {
+        url += clientId + '/';
+        method = 'PATCH';
+    }
+    
+    try {
+        var response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            var error = await response.json();
+            throw new Error(error.detail || '保存失败');
+        }
+        
+        showToast(clientId ? '客户已更新' : '客户已创建', 'success');
+        clientModal.hide();
+        document.getElementById('clientModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('clientModal').removeEventListener('hidden.bs.modal', handler);
+            loadClients();
+        });
+    } catch (error) {
+        console.error('保存客户失败:', error);
+        showToast(error.message || '保存失败', 'error');
+    }
+}
+
+async function deleteClient(clientId) {
+    if (!confirm('确定要删除此客户吗？')) return;
+    
+    try {
+        var response = await fetch('/api/crm/clients/' + clientId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('删除失败');
+        showToast('客户已删除', 'success');
+        loadClients();
+    } catch (error) {
+        showToast('删除失败', 'error');
+    }
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var d = new Date(dateStr);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

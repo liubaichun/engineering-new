@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+
+{% block title %}权限管理 - 企业信息化管理系统{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-key me-2"></i>权限管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理系统权限配置</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="showPermissionModal()" data-perm="permission.add">
+            <i class="bi bi-plus-lg me-1"></i>新建权限
+        </button>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>权限名称</th>
+                        <th>权限代码</th>
+                        <th>分类</th>
+                        <th>描述</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="permissionTableBody">
+                    <tr>
+                        <td colspan="6" class="text-center py-4">
+                            <div class="spinner-border text-primary"></div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 权限Modal -->
+<div class="modal fade" id="permissionModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="permissionModalTitle"><i class="bi bi-plus-circle me-2"></i>新建权限</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="permissionId">
+                <div class="mb-3">
+                    <label class="form-label">权限名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="permissionName" placeholder="如：查看项目">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">权限代码 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="permissionCode" placeholder="如：project.view">
+                    <small class="text-muted">格式：模块.操作，如 task.create</small>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">资源路径</label>
+                        <input type="text" class="form-control" id="permissionResource" placeholder="如：/api/projects/">
+                        <small class="text-muted">如：/api/projects/ 或 projects</small>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">操作类型</label>
+                        <select class="form-select" id="permissionAction">
+                            <option value="read">读取</option>
+                            <option value="write">写入</option>
+                            <option value="delete">删除</option>
+                            <option value="admin">管理</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">分类</label>
+                    <select class="form-select" id="permissionCategory">
+                        <option value="项目">项目</option>
+                        <option value="任务">任务</option>
+                        <option value="财务">财务</option>
+                        <option value="审批">审批</option>
+                        <option value="系统">系统</option>
+                        <option value="客户">客户</option>
+                        <option value="合同">合同</option>
+                        <option value="文件">文件</option>
+                        <option value="工资">工资</option>
+                        <option value="其他">其他</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">描述</label>
+                    <textarea class="form-control" id="permissionDescription" rows="2" placeholder="权限描述"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="savePermission()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var permissionModal;
+var allPermissions = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    permissionModal = new bootstrap.Modal(document.getElementById('permissionModal'));
+    loadPermissions();
+});
+
+async function loadPermissions() {
+    try {
+        var response = await fetch('/api/core/permissions/', { credentials: 'include' });
+        if (!response.ok) throw new Error('HTTP ' + response.status);
+        var data = await response.json();
+        // 兼容分页格式(data.results)和普通数组格式
+        if (Array.isArray(data)) {
+            allPermissions = data;
+        } else if (Array.isArray(data.results)) {
+            allPermissions = data.results;
+        } else {
+            allPermissions = [];
+        }
+        renderPermissions();
+        loadPermissionsForFilter();
+    } catch (error) {
+        console.error('加载权限失败: ' + error.message);
+        document.getElementById('permissionTableBody').innerHTML = 
+            '<tr><td colspan="6" class="text-center text-danger py-4">加载失败</td></tr>';
+    }
+}
+
+async function loadPermissionsForFilter() {
+    // 加载权限用于角色权限分配弹窗中的下拉筛选
+}
+
+function renderPermissions() {
+    var tbody = document.getElementById('permissionTableBody');
+
+    if (!Array.isArray(allPermissions) || allPermissions.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">暂无权限</td></tr>';
+        return;
+    }
+
+    var grouped = {};
+    allPermissions.forEach(function(p) {
+        var cat = p.category || '其他';
+        if (!grouped[cat]) grouped[cat] = [];
+        grouped[cat].push(p);
+    });
+    
+    var html = '';
+    for (var cat in grouped) {
+        html += '<tr><td colspan="5" class="bg-light"><strong>' + cat + '</strong></td></tr>';
+        grouped[cat].forEach(function(p) {
+            html += '<tr>';
+            html += '<td>' + p.id + '</td>';
+            html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
+            html += '<td><code>' + escapeHtml(p.code) + '</code></td>';
+            html += '<td><span class="badge bg-secondary">' + escapeHtml(p.category) + '</span></td>';
+            html += '<td>' + escapeHtml(p.description || '-') + '</td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editPermission(' + p.id + ')"><i class="bi bi-pencil"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="deletePermission(' + p.id + ')" data-perm="permission.delete"><i class="bi bi-trash"></i></button>';
+            html += '</td></tr>';
+        });
+    }
+    
+    if (!html) {
+        html = '<tr><td colspan="6" class="text-center text-muted py-4">暂无权限</td></tr>';
+    }
+    
+    tbody.innerHTML = html;
+}
+
+function showPermissionModal() {
+    document.getElementById('permissionModalTitle').innerHTML = '<i class="bi bi-plus-circle me-2"></i>新建权限';
+    document.getElementById('permissionId').value = '';
+    document.getElementById('permissionName').value = '';
+    document.getElementById('permissionCode').value = '';
+    document.getElementById('permissionCategory').value = '其他';
+    document.getElementById('permissionDescription').value = '';
+    permissionModal.show();
+}
+
+function editPermission(permId) {
+    var perm = allPermissions.find(function(p) { return p.id === permId; });
+    if (!perm) return;
+
+    document.getElementById('permissionModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑权限';
+    document.getElementById('permissionId').value = perm.id;
+    document.getElementById('permissionName').value = perm.name;
+    document.getElementById('permissionCode').value = perm.code;
+    document.getElementById('permissionCode').readOnly = true;
+    document.getElementById('permissionResource').value = perm.resource || '';
+    document.getElementById('permissionAction').value = perm.action || 'read';
+    document.getElementById('permissionCategory').value = perm.category || '其他';
+    document.getElementById('permissionDescription').value = perm.description || '';
+    permissionModal.show();
+}
+
+async function savePermission() {
+    var action = document.getElementById('permissionAction').value;
+
+    var payload = {
+        name: document.getElementById('permissionName').value,
+        code: document.getElementById('permissionCode').value,
+        resource: document.getElementById('permissionResource').value,
+        action: action,
+        category: document.getElementById('permissionCategory').value,
+        description: document.getElementById('permissionDescription').value
+    };
+
+    if (!payload.name) { showToast('请输入权限名称', 'warning'); return; }
+    if (!payload.code) { showToast('请输入权限代码', 'warning'); return; }
+
+    var permId = document.getElementById('permissionId').value;
+    var url = '/api/core/permissions/';
+    var method = 'POST';
+    if (permId) {
+        url += permId + '/';
+        method = 'PATCH';
+    }
+
+    try {
+        var response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+
+        if (!response.ok) {
+            var error = await response.json();
+            throw new Error(error.detail || error.code || '保存失败: ' + response.status);
+        }
+
+        showToast(permId ? '权限已更新' : '权限已创建', 'success');
+        permissionModal.hide();
+        document.getElementById('permissionModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('permissionModal').removeEventListener('hidden.bs.modal', handler);
+            loadPermissions();
+        });
+    } catch (error) {
+        showToast(error.message || '保存失败', 'error');
+    }
+}
+
+async function deletePermission(permId) {
+    if (!confirm('确定要删除此权限吗？')) return;
+    
+    try {
+        var response = await fetch('/api/core/permissions/' + permId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        
+        if (!response.ok) throw new Error('删除失败');
+        showToast('权限已删除', 'success');
+        loadPermissions();
+    } catch (error) {
+        showToast('删除失败', 'error');
+    }
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+</script>
+{% endblock %}

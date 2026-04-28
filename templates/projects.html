@@ -1,0 +1,817 @@
+{% extends "base.html" %}
+
+{% block title %}项目管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.project-card {
+    background: var(--card-bg);
+    border-radius: var(--card-radius);
+    box-shadow: var(--card-shadow);
+    padding: 20px;
+    transition: all 0.2s;
+    border: 1px solid rgba(0,0,0,0.03);
+    cursor: pointer;
+    height: 100%;
+}
+.project-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.12);
+}
+.project-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 14px;
+}
+.project-title {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+.project-code {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.project-status {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+.project-status.draft { background: #f1f5f9; color: #64748b; }
+.project-status.active { background: #dbeafe; color: #1e40af; }
+.project-status.completed { background: #d1fae5; color: #065f46; }
+.project-status.archived { background: #fef3c7; color: #92400e; }
+.project-info {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.info-item { display: flex; flex-direction: column; gap: 2px; }
+.info-label { font-size: 0.75rem; color: var(--text-muted); }
+.info-value { font-size: 0.9rem; font-weight: 500; color: var(--text-primary); }
+.project-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 14px;
+    border-top: 1px solid #f1f5f9;
+}
+.task-count {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+.task-count i { margin-right: 4px; }
+.add-project-card {
+    border: 2px dashed #e2e8f0;
+    background: #fafafa;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 260px;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+.add-project-card:hover {
+    border-color: var(--primary);
+    color: var(--primary);
+    background: #f8fafc;
+}
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+    width: 100%;
+}
+.empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+}
+.empty-state i {
+    font-size: 3rem;
+    margin-bottom: 16px;
+    opacity: 0.5;
+}
+/* 项目详情甘特图样式 */
+.detail-tabs {
+    display: flex;
+    border-bottom: 2px solid #e2e8f0;
+    margin-bottom: 18px;
+}
+.detail-tab {
+    padding: 8px 20px;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    font-weight: 500;
+    color: #64748b;
+    transition: all 0.2s;
+}
+.detail-tab:hover { color: var(--primary); }
+.detail-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+.detail-tab-content { display: none; }
+.detail-tab-content.active { display: block; }
+.gantt-mini-container {
+    overflow-x: auto;
+    margin-top: 10px;
+}
+.gantt-mini-header {
+    display: flex;
+    background: #f1f5f9;
+    border-radius: 6px 6px 0 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #475569;
+    min-width: 600px;
+}
+.gantt-mini-header span {
+    padding: 6px 8px;
+    border-right: 1px solid #e2e8f0;
+    white-space: nowrap;
+}
+.gantt-mini-header span:last-child { border-right: none; }
+.gantt-mini-row {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid #f1f5f9;
+    min-width: 600px;
+    font-size: 0.8rem;
+}
+.gantt-mini-row:last-child { border-bottom: none; }
+.gantt-mini-row:hover { background: #f8fafc; }
+.gantt-mini-taskname {
+    width: 180px;
+    min-width: 180px;
+    padding: 8px;
+    font-weight: 500;
+    color: #1e293b;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gantt-mini-bar-area {
+    flex: 1;
+    position: relative;
+    height: 36px;
+    padding: 4px 0;
+}
+.gantt-mini-bar {
+    position: absolute;
+    height: 22px;
+    border-radius: 4px;
+    opacity: 0.85;
+    font-size: 0.68rem;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    top: 50%;
+    transform: translateY(-50%);
+}
+.gantt-mini-bar.low    { background: #94a3b8; }
+.gantt-mini-bar.medium { background: #3b82f6; }
+.gantt-mini-bar.high   { background: #f59e0b; }
+.gantt-mini-bar.critical { background: #ef4444; }
+.gantt-mini-today {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #ef4444;
+    opacity: 0.7;
+    z-index: 5;
+}
+.gantt-mini-range {
+    font-size: 0.75rem;
+    color: #64748b;
+    margin-bottom: 6px;
+}
+.gantt-mini-empty {
+    text-align: center;
+    padding: 30px;
+    color: #94a3b8;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-briefcase me-2"></i>项目管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;" id="projectStats">加载中...</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <select class="form-select form-select-sm" style="width: auto;" id="statusFilter" onchange="loadProjects()">
+            <option value="">全部状态</option>
+            <option value="draft">草稿</option>
+            <option value="active">进行中</option>
+            <option value="completed">已完成</option>
+            <option value="archived">已归档</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="showProjectModal()" data-perm="project.add">
+            <i class="bi bi-plus-lg me-1"></i>新建项目
+        </button>
+    </div>
+</div>
+
+<!-- 项目列表 -->
+<div class="row g-4" id="projectList">
+    <div class="loading-spinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">加载中...</span>
+        </div>
+    </div>
+</div>
+
+<!-- 新建项目 Modal -->
+<div class="modal fade" id="projectModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="projectModalTitle"><i class="bi bi-plus-circle me-2"></i>新建项目</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="projectId">
+                <div class="mb-3">
+                    <label class="form-label">项目名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="projectName" placeholder="请输入项目名称">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">项目代码 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="projectCode" placeholder="如: PRJ-2024-001">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">描述</label>
+                    <textarea class="form-control" id="projectDescription" rows="3" placeholder="项目描述（可选）"></textarea>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">负责人</label>
+                        <select class="form-select" id="projectOwner">
+                            <option value="">选择负责人</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="projectStatus">
+                            <option value="draft">草稿</option>
+                            <option value="active">进行中</option>
+                            <option value="completed">已完成</option>
+                            <option value="archived">已归档</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="row g-3">
+                    <div class="col-6">
+                        <label class="form-label">开始日期</label>
+                        <input type="date" class="form-control" id="projectStartDate">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">结束日期</label>
+                        <input type="date" class="form-control" id="projectEndDate">
+                    </div>
+                </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-6">
+                        <label class="form-label">项目进度 <span class="text-muted" style="font-size:0.8rem;">(0-100%)</span></label>
+                        <div class="input-group">
+                            <input type="number" class="form-control" id="projectProgress" min="0" max="100" step="0.5" value="0" placeholder="0">
+                            <span class="input-group-text">%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveProject()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 项目详情 Modal -->
+<div class="modal fade" id="projectDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="detailModalTitle">项目详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="projectDetailBody">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="editCurrentProject()">编辑</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+var projectModal, detailModal;
+var currentProjectId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    projectModal = new bootstrap.Modal(document.getElementById('projectModal'));
+    detailModal = new bootstrap.Modal(document.getElementById('projectDetailModal'));
+    loadProjects();
+    loadUsers();
+});
+
+async function loadProjects() {
+    var statusFilter = document.getElementById('statusFilter').value;
+    var url = '/api/tasks/projects/';
+    if (statusFilter) {
+        url += '?status=' + statusFilter;
+    }
+    
+    try {
+        var response = await fetch(url, { credentials: 'include' });
+        var data = await response.json();
+        renderProjects(data.results || data);
+        updateStats(data.results || data);
+    } catch (error) {
+        console.error('加载项目失败:', error);
+        document.getElementById('projectList').innerHTML = 
+            '<div class="col-12 empty-state"><i class="bi bi-exclamation-triangle"></i><p>加载失败，请重试</p></div>';
+    }
+}
+
+function renderProjects(projects) {
+    var container = document.getElementById('projectList');
+    
+    if (!projects || projects.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 empty-state">
+                <i class="bi bi-briefcase"></i>
+                <p>暂无项目，点击下方按钮创建</p>
+            </div>
+            <div class="col-md-6 col-xl-4">
+                <div class="project-card add-project-card" onclick="showProjectModal()">
+                    <i class="bi bi-plus-lg" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
+                    <span style="font-weight: 500;">新建项目</span>
+                </div>
+            </div>
+        `;
+        return;
+    }
+    
+    var html = '';
+    projects.forEach(function(project) {
+        var statusClass = project.status || 'draft';
+        var statusText = project.status_display || getStatusText(project.status);
+        var startDate = project.start_date || '-';
+        var endDate = project.end_date || '-';
+        var ownerName = project.owner_name || '未指定';
+        
+        html += `
+            <div class="col-md-6 col-xl-4">
+                <div class="project-card" onclick="showProjectDetail(${project.id})">
+                    <div class="project-header">
+                        <div>
+                            <div class="project-title">${escapeHtml(project.name)}</div>
+                            <div class="project-code">${escapeHtml(project.code)}</div>
+                        </div>
+                        <span class="project-status ${statusClass}">${statusText}</span>
+                    </div>
+                    <div class="project-info">
+                        <div class="info-item">
+                            <span class="info-label">负责人</span>
+                            <span class="info-value">${escapeHtml(ownerName)}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">状态</span>
+                            <span class="info-value">${statusText}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">开始日期</span>
+                            <span class="info-value">${startDate}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">结束日期</span>
+                            <span class="info-value">${endDate}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">进度</span>
+                            <span class="info-value">${project.computed_progress || 0}%</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-container" style="height:6px;background:var(--bg-tertiary);border-radius:3px;margin-bottom:8px;">
+                        <div class="progress-bar-fill" style="height:100%;width:${project.computed_progress || 0}%;background:var(--accent);border-radius:3px;transition:width 0.3s;"></div>
+                    </div>
+                    ${project.description ? '<p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(project.description) + '</p>' : ''}
+                    <div class="project-footer">
+                        <span class="task-count"><i class="bi bi-list-task"></i>查看详情</span>
+                        <span style="font-size:0.8rem;color:var(--text-muted);">${formatDate(project.created_at)}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    html += `
+        <div class="col-md-6 col-xl-4">
+            <div class="project-card add-project-card" onclick="showProjectModal()">
+                <i class="bi bi-plus-lg" style="font-size: 2.5rem; margin-bottom: 12px;"></i>
+                <span style="font-weight: 500;">新建项目</span>
+            </div>
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+function updateStats(projects) {
+    var total = projects.length;
+    var active = projects.filter(function(p) { return p.status === 'active'; }).length;
+    document.getElementById('projectStats').innerHTML = 
+        '共 <strong>' + total + '</strong> 个项目' + (active > 0 ? '，<strong>' + active + '</strong> 个进行中' : '');
+}
+
+function getStatusText(status) {
+    var map = { 'draft': '草稿', 'active': '进行中', 'completed': '已完成', 'archived': '已归档' };
+    return map[status] || status;
+}
+
+async function loadUsers() {
+    try {
+        var response = await fetch('/api/core/users/', { credentials: 'include' });
+        var data = await response.json();
+        var select = document.getElementById('projectOwner');
+        select.innerHTML = '<option value="">选择负责人</option>';
+        (data.results || data).forEach(function(user) {
+            select.innerHTML += '<option value="' + user.id + '">' + escapeHtml(user.username) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载用户失败:', error);
+    }
+}
+
+function showProjectModal(projectId) {
+    currentProjectId = projectId;
+    document.getElementById('projectModalTitle').innerHTML = 
+        projectId ? '<i class="bi bi-pencil me-2"></i>编辑项目' : '<i class="bi bi-plus-circle me-2"></i>新建项目';
+    
+    if (projectId) {
+        loadProjectData(projectId);
+    } else {
+        document.getElementById('projectId').value = '';
+        document.getElementById('projectName').value = '';
+        document.getElementById('projectCode').value = '';
+        document.getElementById('projectDescription').value = '';
+        document.getElementById('projectOwner').value = '';
+        document.getElementById('projectStatus').value = 'draft';
+        document.getElementById('projectStartDate').value = '';
+        document.getElementById('projectEndDate').value = '';
+        document.getElementById('projectProgress').value = '0';
+    }
+    projectModal.show();
+}
+
+async function loadProjectData(projectId) {
+    try {
+        var response = await fetch('/api/tasks/projects/' + projectId + '/', { credentials: 'include' });
+        var project = await response.json();
+        
+        document.getElementById('projectId').value = project.id;
+        document.getElementById('projectName').value = project.name;
+        document.getElementById('projectCode').value = project.code;
+        document.getElementById('projectCode').readOnly = true;
+        document.getElementById('projectDescription').value = project.description || '';
+        document.getElementById('projectOwner').value = project.owner || '';
+        document.getElementById('projectStatus').value = project.status;
+        document.getElementById('projectStartDate').value = project.start_date || '';
+        document.getElementById('projectEndDate').value = project.end_date || '';
+        document.getElementById('projectProgress').value = project.progress || 0;
+    } catch (error) {
+        console.error('加载项目数据失败:', error);
+        showToast('加载项目数据失败', 'error');
+    }
+}
+
+async function saveProject() {
+    var projectId = document.getElementById('projectId').value;
+    var name = document.getElementById('projectName').value.trim();
+    var code = document.getElementById('projectCode').value.trim();
+    var description = document.getElementById('projectDescription').value.trim();
+    var owner = document.getElementById('projectOwner').value;
+    var status = document.getElementById('projectStatus').value;
+    var startDate = document.getElementById('projectStartDate').value;
+    var endDate = document.getElementById('projectEndDate').value;
+    var progress = parseFloat(document.getElementById('projectProgress').value) || 0;
+    
+    if (!name) {
+        showToast('请输入项目名称', 'warning');
+        return;
+    }
+    if (!code) {
+        showToast('请输入项目代码', 'warning');
+        return;
+    }
+    
+    var payload = {
+        name: name,
+        code: code,
+        description: description,
+        owner: owner || null,
+        status: status,
+        start_date: startDate || null,
+        end_date: endDate || null,
+        progress: progress
+    };
+    
+    var url = '/api/tasks/projects/';
+    var method = 'POST';
+    if (projectId) {
+        url += projectId + '/';
+        method = 'PATCH';
+    }
+    
+    try {
+        var response = await fetch(url, {
+            method: method,
+            headers: { 'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken'),
+            },
+            credentials: 'include',
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            var error = await response.json();
+            throw new Error(error.code || error.detail || '保存失败');
+        }
+        
+        showToast(projectId ? '项目已更新' : '项目已创建', 'success');
+        projectModal.hide();
+        document.getElementById('projectModal').addEventListener('hidden.bs.modal', function handler() {
+            document.getElementById('projectModal').removeEventListener('hidden.bs.modal', handler);
+            document.getElementById('projectCode').readOnly = false;
+            loadProjects();
+        });
+    } catch (error) {
+        console.error('保存项目失败:', error);
+        showToast(error.message || '保存失败', 'error');
+    }
+}
+
+async function showProjectDetail(projectId) {
+    currentProjectId = projectId;
+    if (!detailModal) {
+        console.error('detailModal not initialized');
+        return;
+    }
+    detailModal.show();
+    
+    // 超时保护：10秒后强制结束加载
+    var timeoutId = setTimeout(function() {
+        if (document.getElementById('projectDetailBody').innerHTML.includes('spinner-border')) {
+            console.error('showProjectDetail timeout, forcing UI update');
+            document.getElementById('projectDetailBody').innerHTML = 
+                '<p class="text-center text-danger py-5">加载超时，请刷新重试</p>';
+        }
+    }, 10000);
+    
+    try {
+        var response = await fetch('/api/tasks/projects/' + projectId + '/', { credentials: 'include' });
+        if (!response.ok) throw new Error('项目加载失败: ' + response.status);
+        var project = await response.json();
+        
+        var tasksResponse = await fetch('/api/tasks/tasks/?project=' + projectId, { credentials: 'include' });
+        if (!tasksResponse.ok) throw new Error('任务列表加载失败: ' + tasksResponse.status);
+        var tasksData = await tasksResponse.json();
+        var tasks = tasksData.results || tasksData;
+        
+        clearTimeout(timeoutId);
+        
+        var statusMap = { 'pending': '待开始', 'in_progress': '进行中', 'review': '审核中', 'completed': '已完成', 'cancelled': '已取消' };
+        var priorityMap = { 'low': '低', 'medium': '中', 'high': '高', 'critical': '紧急' };
+        
+        var tasksHtml = '';
+        if (tasks.length === 0) {
+            tasksHtml = '<p class="text-muted text-center py-3">暂无任务</p>';
+        } else {
+            tasks.forEach(function(task) {
+                var priorityBadge = task.priority === 'high' || task.priority === 'critical' ? 'bg-danger' : 
+                                    task.priority === 'medium' ? 'bg-warning' : 'bg-secondary';
+                tasksHtml += `
+                    <div class="d-flex align-items-center justify-content-between p-2 border-bottom" style="font-size:0.9rem;">
+                        <div>
+                            <span class="me-2">${escapeHtml(task.code || '')}</span>
+                            <span>${escapeHtml(task.title || '')}</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge ${priorityBadge}" style="font-size:0.7rem;">${priorityMap[task.priority] || task.priority || '未设置'}</span>
+                            <span class="badge badge-${task.status === 'in_progress' ? 'progress' : task.status === 'completed' ? 'completed' : 'pending'}">${statusMap[task.status] || task.status || '未设置'}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+        
+        document.getElementById('detailModalTitle').textContent = project.name || '项目详情';
+        // 存入全局变量供甘特图Tab使用
+        window._currentProjectTasks = tasks;
+        window._currentProjectInfo = project;
+        document.getElementById('projectDetailBody').innerHTML = `
+            <div class="detail-tabs">
+                <div class="detail-tab active" onclick="switchDetailTab('info', this)" id="tabBtn-info">📋 项目信息</div>
+                <div class="detail-tab" onclick="switchDetailTab('gantt', this)" id="tabBtn-gantt">📊 甘特图</div>
+            </div>
+            <div class="detail-tab-content active" id="tabContent-info">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>项目代码：</strong>${escapeHtml(project.code)}</p>
+                    <p><strong>负责人：</strong>${escapeHtml(project.owner_name || '未指定')}</p>
+                    <p><strong>状态：</strong><span class="project-status ${project.status || ''}">${project.status_display || getStatusText(project.status)}</span></p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>开始日期：</strong>${project.start_date || '-'}</p>
+                    <p><strong>结束日期：</strong>${project.end_date || '-'}</p>
+                    <p><strong>创建时间：</strong>${formatDate(project.created_at)}</p>
+                </div>
+            </div>
+            ${project.description ? '<p class="mt-3"><strong>描述：</strong>' + escapeHtml(project.description) + '</p>' : ''}
+
+            <h6 class="mt-4 mb-3"><i class="bi bi-list-task me-2"></i>任务列表 (${tasks.length})</h6>
+            <div class="border rounded" style="max-height:300px;overflow-y:auto;">
+                ${tasksHtml}
+            </div>
+            <div class="mt-3 text-center">
+                <a href="/tasks/board/?project=${project.id}" class="btn btn-sm btn-outline-primary">
+                    <i class="bi bi-kanban me-1"></i>查看任务看板
+                </a>
+                ${project.is_owner ? '<button type="button" class="btn btn-sm btn-outline-primary" onclick="editCurrentProject()"><i class="bi bi-pencil me-1"></i>编辑项目</button>' : ''}
+                ${project.is_owner ? '<button type="button" class="btn btn-sm btn-outline-danger" onclick="deleteProject(' + project.id + ')"><i class="bi bi-trash me-1"></i>删除项目</button>' : ''}
+            </div>
+            </div>
+            <div class="detail-tab-content" id="tabContent-gantt">
+                <div id="ganttContainer" class="gantt-mini-container"></div>
+            </div>
+        `;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('加载项目详情失败:', error);
+        document.getElementById('projectDetailBody').innerHTML = 
+            '<p class="text-center text-danger py-5">加载失败：' + escapeHtml(error.message) + '</p>';
+    }
+}
+
+function editCurrentProject() {
+    // 直接打开编辑弹窗，不依赖 hide 的时序（避免竞态条件）
+    showProjectModal(currentProjectId);
+}
+
+async function deleteProject(projectId) {
+    if (!confirm('确定要删除此项目吗？此操作不可恢复。')) return;
+    try {
+        var response = await fetch('/api/tasks/projects/' + projectId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (response.ok) {
+            showToast('项目已删除', 'success');
+            detailModal.hide();
+            document.getElementById('projectDetailModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('projectDetailModal').removeEventListener('hidden.bs.modal', handler);
+                loadProjects();
+            });
+        } else {
+            var data = await response.json();
+            showToast(data.detail || '删除失败', 'error');
+        }
+    } catch (error) {
+        console.error('删除项目失败:', error);
+        showToast('删除失败', 'error');
+    }
+}
+
+function switchDetailTab(tab, btnEl) {
+    // Tab button
+    document.querySelectorAll('.detail-tab').forEach(function(t) { t.classList.remove('active'); });
+    if (btnEl) btnEl.classList.add('active');
+    // Tab content
+    document.querySelectorAll('.detail-tab-content').forEach(function(c) { c.classList.remove('active'); });
+    var content = document.getElementById('tabContent-' + tab);
+    if (content) content.classList.add('active');
+    // Render gantt when switching to gantt tab
+    if (tab === 'gantt') {
+        var tasks = window._currentProjectTasks || [];
+        var project = window._currentProjectInfo || {};
+        renderProjectGantt(tasks, project);
+    }
+}
+
+function renderProjectGantt(tasks, project) {
+    var container = document.getElementById('ganttContainer');
+    if (!container) return;
+
+    // Filter tasks with dates
+    var timedTasks = tasks.filter(function(t) { return t.start_date || t.due_date; });
+
+    if (!timedTasks.length) {
+        container.innerHTML = '<div class="gantt-mini-empty"><i class="bi bi-calendar-x" style="font-size:2rem;display:block;margin-bottom:8px;"></i>本项目暂无设置了时间范围的任务<br><small>请在任务中填写开始日期或截止日期</small></div>';
+        return;
+    }
+
+    // Date range: project dates or task dates
+    var allDates = [];
+    if (project.start_date) allDates.push(new Date(project.start_date));
+    if (project.end_date)   allDates.push(new Date(project.end_date));
+    timedTasks.forEach(function(t) {
+        if (t.start_date) allDates.push(new Date(t.start_date));
+        if (t.due_date)   allDates.push(new Date(t.due_date));
+    });
+    var minDate = new Date(Math.min.apply(null, allDates));
+    var maxDate = new Date(Math.max.apply(null, allDates));
+    minDate.setDate(minDate.getDate() - 3);
+    maxDate.setDate(maxDate.getDate() + 7);
+    var totalDays = Math.ceil((maxDate - minDate) / 86400000);
+    // Scale: use a generous min dayWidth (24px) to ensure bars are visible even in narrow containers
+    var barAreaWidth = container.clientWidth > 0 ? container.clientWidth - 200 : 800;
+    var dayWidth = Math.max(24, barAreaWidth / totalDays);
+
+    // Header: dates row
+    var headerHtml = '<div class="gantt-mini-header">';
+    headerHtml += '<span style="width:180px;min-width:180px;">任务名称</span>';
+    headerHtml += '<span style="flex:1;display:flex;">';
+    var cur = new Date(minDate);
+    var today = new Date();
+    today.setHours(0,0,0,0);
+    var todayDayIdx = Math.floor((today - minDate) / 86400000);
+    while (cur <= maxDate) {
+        var isWeekend = cur.getDay() === 0 || cur.getDay() === 6;
+        headerHtml += '<span style="width:' + dayWidth + 'px;min-width:' + dayWidth + 'px;' + (isWeekend ? 'background:#e2e8f0;' : '') + '">' + cur.getDate() + '</span>';
+        cur.setDate(cur.getDate() + 1);
+    }
+    headerHtml += '</span></div>';
+
+    // Rows
+    var rowsHtml = '';
+    timedTasks.forEach(function(t) {
+        var start = t.start_date ? new Date(t.start_date) : new Date(t.due_date);
+        var end   = t.due_date   ? new Date(t.due_date)   : start;
+        var startOffset = Math.max(0, (start - minDate) / 86400000) * dayWidth;
+        var duration    = Math.max(1, (end - start) / 86400000 + 1);
+        var barWidth    = Math.max(dayWidth, duration * dayWidth - 2);
+        var statusLabel = { pending: '待办', in_progress: '进行中', review: '审核', completed: '已完成', cancelled: '已取消' }[t.status] || t.status || '待办';
+        var barClass    = t.priority || 'medium';
+
+        rowsHtml += '<div class="gantt-mini-row">';
+        rowsHtml += '<div class="gantt-mini-taskname" title="' + escapeHtml(t.title) + '">' + escapeHtml(t.title || '(无标题)') + '</div>';
+        rowsHtml += '<div class="gantt-mini-bar-area">';
+        rowsHtml += '<div class="gantt-mini-bar ' + barClass + '" style="left:' + startOffset + 'px;width:' + barWidth + 'px;" ' +
+            'title="' + escapeHtml(t.title) + ' | ' + statusLabel + ' | ' + (t.start_date||'') + ' ~ ' + (t.due_date||'') + '" ' +
+            'onclick="goToTaskBoard(' + t.id + ')">' + escapeHtml(statusLabel) + '</div>';
+        // Today line
+        if (today >= minDate && today <= maxDate) {
+            rowsHtml += '<div class="gantt-mini-today" style="left:' + (todayDayIdx * dayWidth + 180) + 'px;"></div>';
+        }
+        rowsHtml += '</div></div>';
+    });
+
+    container.innerHTML = '<div class="gantt-mini-range">' +
+        (minDate.getMonth()+1) + '月' + minDate.getDate() + '日 ~ ' +
+        (maxDate.getMonth()+1) + '月' + maxDate.getDate() + '日 · ' + timedTasks.length + ' 个任务' +
+        '</div>' + headerHtml + rowsHtml;
+}
+
+function goToTaskBoard(taskId) {
+    var projectId = window._currentProjectInfo ? window._currentProjectInfo.id : '';
+    window.location.href = '/tasks/board/?project=' + projectId + '&task=' + taskId;
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function formatDate(dateStr) {
+    if (!dateStr) return '-';
+    var date = new Date(dateStr);
+    return date.toLocaleDateString('zh-CN');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block title %}合同到期预警 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.page-container { padding: 24px; }
+.stat-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card {
+    background: #fff; border-radius: 12px; padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.stat-card .number { font-size: 2rem; font-weight: 700; color: var(--text-primary); }
+.stat-card .label { font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px; }
+.stat-card.warning .number { color: #f59e0b; }
+.stat-card.danger .number { color: #ef4444; }
+.stat-card.safe .number { color: #10b981; }
+.filter-bar {
+    background: #fff; border-radius: 10px; padding: 16px; margin-bottom: 20px;
+    display: flex; gap: 12px; flex-wrap: wrap; align-items: center;
+}
+.contract-table-wrap { background: #fff; border-radius: 12px; padding: 20px; box-shadow: var(--card-shadow); }
+.expiring-badge { padding: 3px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+.badge-danger { background: #fee2e2; color: #b91c1c; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-safe { background: #d1fae5; color: #065f46; }
+.badge-none { background: #f1f5f9; color: #64748b; }
+.days-left { font-weight: 700; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-secondary); }
+.empty-state i { font-size: 3rem; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+        <div>
+            <h4><i class="bi bi-clock-history me-2"></i>合同到期预警</h4>
+            <p class="text-muted mb-0" style="font-size: 0.9rem;">显示30天内即将到期和已到期的合同</p>
+        </div>
+    </div>
+
+    <div class="stat-cards" id="statCards">
+        <div class="stat-card danger">
+            <div class="number" id="countExpired">-</div>
+            <div class="label">已过期</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="number" id="countCritical">-</div>
+            <div class="label">7天内到期</div>
+        </div>
+        <div class="stat-card warning">
+            <div class="number" id="countWarning">-</div>
+            <div class="label">15天内到期</div>
+        </div>
+        <div class="stat-card safe">
+            <div class="number" id="countSoon">-</div>
+            <div class="label">30天内到期</div>
+        </div>
+    </div>
+
+    <div class="filter-bar">
+        <select class="form-select form-select-sm" id="filterDays" onchange="loadContracts()" style="width: auto; min-width: 140px;">
+            <option value="30">全部30天内</option>
+            <option value="7">7天内</option>
+            <option value="15">15天内</option>
+            <option value="0">已过期</option>
+        </select>
+        <select class="form-select form-select-sm" id="filterStatus" onchange="loadContracts()" style="width: auto; min-width: 120px;">
+            <option value="">全部状态</option>
+            <option value="active">执行中</option>
+            <option value="expired">已到期</option>
+            <option value="terminated">已终止</option>
+            <option value="draft">草稿</option>
+        </select>
+    </div>
+
+    <div class="contract-table-wrap">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>合同名称</th>
+                    <th>合同编号</th>
+                    <th>客户</th>
+                    <th>签约日期</th>
+                    <th>到期日期</th>
+                    <th>剩余天数</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody id="contractTableBody">
+                <tr><td colspan="8" class="text-center p-4"><i class="bi bi-hourglass-split me-2"></i>加载中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function daysBetween(dateStr) {
+    if (!dateStr) return null;
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const expire = new Date(dateStr);
+    expire.setHours(0,0,0,0);
+    return Math.floor((expire - today) / (1000 * 60 * 60 * 24));
+}
+
+function getBadge(daysLeft) {
+    if (daysLeft === null) return '<span class="badge-none expiring-badge">未设置</span>';
+    if (daysLeft < 0) return '<span class="badge-danger expiring-badge">已过期 ' + Math.abs(daysLeft) + '天</span>';
+    if (daysLeft <= 7) return '<span class="badge-danger expiring-badge">仅剩 ' + daysLeft + '天</span>';
+    if (daysLeft <= 15) return '<span class="badge-warning expiring-badge">' + daysLeft + '天</span>';
+    return '<span class="badge-safe expiring-badge">' + daysLeft + '天</span>';
+}
+
+function loadContracts() {
+    const filterDays = parseInt(document.getElementById('filterDays').value) || 30;
+    const filterStatus = document.getElementById('filterStatus').value;
+
+    fetch('/api/crm/contracts/?limit=500', { credentials: 'include' })
+        .then(r => r.json())
+        .then(data => {
+            const contracts = (data.results || data).filter(c => {
+                if (!c.expire_date) return false;
+                const days = daysBetween(c.expire_date);
+                if (days === null) return false;
+                if (filterDays === 0 && days >= 0) return false;
+                if (filterDays > 0 && days > filterDays) return false;
+                if (filterStatus && c.status !== filterStatus) return false;
+                return true;
+            }).sort((a, b) => daysBetween(a.expire_date) - daysBetween(b.expire_date));
+
+            // Stats
+            const allContracts = data.results || data;
+            const withExpire = allContracts.filter(c => c.expire_date);
+            const expired = withExpire.filter(c => daysBetween(c.expire_date) < 0).length;
+            const critical = withExpire.filter(c => { const d = daysBetween(c.expire_date); return d >= 0 && d <= 7; }).length;
+            const warning = withExpire.filter(c => { const d = daysBetween(c.expire_date); return d > 7 && d <= 15; }).length;
+            const soon = withExpire.filter(c => { const d = daysBetween(c.expire_date); return d > 15 && d <= 30; }).length;
+
+            document.getElementById('countExpired').textContent = expired;
+            document.getElementById('countCritical').textContent = critical;
+            document.getElementById('countWarning').textContent = warning;
+            document.getElementById('countSoon').textContent = soon;
+
+            // Table
+            const tbody = document.getElementById('contractTableBody');
+            if (!contracts.length) {
+                tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><i class="bi bi-clipboard-check" style="font-size:3rem;"></i><p class="mt-2">30天内无到期合同，一切正常</p></td></tr>';
+                return;
+            }
+            tbody.innerHTML = contracts.map(c => {
+                const days = daysBetween(c.expire_date);
+                const daysLabel = days === null ? '-' : (days < 0 ? '<span class="text-danger days-left">' + Math.abs(days) + '天前</span>' : '<span class="days-left">' + days + '</span>天');
+                return '<tr>' +
+                    '<td><strong>' + escapeHtml(c.name || '-') + '</strong></td>' +
+                    '<td><code>' + escapeHtml(c.contract_no || '-') + '</code></td>' +
+                    '<td>' + escapeHtml(c.client_name || '-') + '</td>' +
+                    '<td>' + (c.sign_date || '-') + '</td>' +
+                    '<td><strong>' + (c.expire_date || '未设置') + '</strong></td>' +
+                    '<td>' + daysLabel + '</td>' +
+                    '<td><span class="badge bg-secondary">' + escapeHtml(c.status_display || c.status || '-') + '</span></td>' +
+                    '<td><a href="/crm/contracts/" class="btn btn-sm btn-outline-primary">查看</a></td>' +
+                '</tr>';
+            }).join('');
+        })
+        .catch(err => {
+            document.getElementById('contractTableBody').innerHTML =
+                '<tr><td colspan="8" class="text-danger text-center p-3">加载失败: ' + err.message + '</td></tr>';
+        });
+}
+
+function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+document.addEventListener('DOMContentLoaded', loadContracts);
+</script>
+{% endblock %}
