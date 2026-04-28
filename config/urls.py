@@ -3,7 +3,7 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
-from apps.core.views import ChangePasswordView, PasswordResetRequestView, PasswordResetConfirmView
+from apps.core.views import ChangePasswordView
 
 # 页面视图
 def home_page(request):
@@ -194,10 +194,8 @@ urlpatterns = [
     path('warnings/', warning_center_page, name='warning_center'),
     path('api/auth/status/', api_auth_status, name='api_auth_status'),
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
-    path('api/auth/password-reset/', PasswordResetRequestView.as_view(), name='password-reset-request'),
-    path('api/auth/password-reset/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm-api'),
-    path('password-reset/<uidb64>/<token>/', password_reset_confirm_page, name='password-reset-confirm'),
     path('password-reset/', password_reset_request_page, name='password-reset-page'),
+    path('password-reset/<uidb64>/<token>/', password_reset_confirm_page, name='password-reset-confirm'),
     # API路由
     path('api/core/', include('apps.core.urls')),
     path('api/tasks/', include('apps.tasks.urls')),

@@ -7,6 +7,8 @@ from .views import (
     LoginView,
     LogoutView,
     ChangePasswordView,
+    PasswordResetRequestView,
+    PasswordResetConfirmView,
     CurrentUserView,
     MyPermissionsView,
     UserViewSet,
@@ -42,6 +44,8 @@ urlpatterns = [
     path('auth/logout/', LogoutView.as_view(), name='logout'),
     path('auth/user/my-permissions/', csrf_exempt(MyPermissionsView.as_view()), name='my-permissions'),
     path('auth/password/', ChangePasswordView.as_view(), name='change-password'),
+    path('auth/password-reset/', PasswordResetRequestView.as_view(), name='password-reset-request'),
+    path('auth/password-reset/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('auth/user/', CurrentUserView.as_view(), name='current-user'),
     
     # API路由
