@@ -22,8 +22,8 @@ class Project(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='owned_projects', verbose_name='负责人'
     )
-    start_date = models.DateField(verbose_name='开始日期', null=True, blank=True)
-    end_date = models.DateField(verbose_name='结束日期', null=True, blank=True)
+    start_date = models.DateTimeField(verbose_name='开始日期', null=True, blank=True)
+    end_date = models.DateTimeField(verbose_name='结束日期', null=True, blank=True)
     progress = models.DecimalField(
         verbose_name='进度%', max_digits=5, decimal_places=2, default=0,
         help_text='项目完成进度，0-100'
@@ -93,7 +93,7 @@ class Task(models.Model):
         User, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='reported_tasks', verbose_name='报告人'
     )
-    due_date = models.DateField(verbose_name='截止日期', null=True, blank=True)
+    due_date = models.DateTimeField(verbose_name='截止日期', null=True, blank=True)
     completed_at = models.DateTimeField(verbose_name='完成时间', null=True, blank=True)
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
