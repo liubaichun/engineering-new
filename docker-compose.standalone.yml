@@ -1,34 +1,32 @@
-# ============================================================
-# 企业信息化管理系统 GREEN — 买断版 Docker Compose
-#
-# 用途：买断版（Perpetual）一键部署
-# 特点：PostgreSQL + Redis 内置，无需外部数据库
-# 使用：cp .env.standalone.template .env && docker-compose -f docker-compose.standalone.yml up -d
-# ============================================================
-
-version: '3.8'
+# 企业信息化管理系统 GREEN — 买断版 Docker 容器编排
+# 使用方式：
+#   1. 复制 .env.standalone.template 为 .env，修改其中的值
+#   2. 运行 docker-compose -f docker-compose.standalone.yml up -d
 
 services:
   db:
     image: postgres:16-alpine
+    container_name: green_db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: engineering_new
-      POSTGRES_USER: engineer
-      POSTGRES_PASSWORD: engineer123
+      POSTGRES_DB: engineering
+      POSTGRES_USER: engineering
+      # POSTGRES_PASSWORD 在 .env 中配置
     volumes:
-      - pg_data:/var/lib/postgresql/data
-    networks:
-      - engnet
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U engineer -d engineering_new"]
+      test: ["CMD-SHELL", "pg_isready -U engineering -d engineering"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
-    networks:
-      - engnet
+    container_name: green_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -38,41 +36,54 @@ services:
   web:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.standalone
+    container_name: green_web
+    restart: unless-stopped
+    command: >
+      sh -c "
+        python manage.py migrate --noinput &&
+        python manage.py collectstatic --noinput &&
+        gunicorn config.wsgi:application
+          --bind 0.0.0.0:8001
+          --workers 2
+          --log-level info
+          --log-file /var/log/gunicorn.log
+          --access-logfile -
+          --error-logfile -
+          --chdir /app
+      "
     ports:
-      - "8001:8080"
-    environment:
-      - TENANT_MODE=standalone
-      - DEFAULT_COMPANY_ID=3
-      - PG_HOST=db
-      - PG_PORT=5432
-      - PG_DATABASE=engineering_new
-      - PG_USER=engineer
-      - PG_PASSWORD=engineer123
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - SECRET_KEY=change-me-in-production
-      - DEBUG=False
-      - ALLOWED_HOSTS=*
+      - "8001:8001"
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     volumes:
-      - ./company_files:/app/company_files
-      - static_data:/app/staticfiles
-    command: >
-      sh -c "python manage.py migrate &&
-             python manage.py collectstatic --noinput &&
-             gunicorn --bind :8080 --workers 2 --timeout 60 config.wsgi:application"
-    networks:
-      - engnet
+      - static_files:/app/staticfiles
+      - ./logs:/var/log
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/api/schema/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: green_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.standalone.conf:/etc/nginx/conf.d/default.conf:ro
+      - static_files:/staticfiles:ro
+    depends_on:
+      - web
 
 volumes:
-  pg_data:
-  static_data:
-
-networks:
-  engnet:
-    driver: bridge
+  postgres_data:
+  redis_data:
+  static_files:
