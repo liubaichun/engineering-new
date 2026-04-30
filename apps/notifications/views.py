@@ -7,6 +7,10 @@ from .serializers import NotificationChannelSerializer
 from . import services
 
 
+# ============================================================
+# Webhook 广播渠道（NotificationChannel）— 系统级广播
+# ============================================================
+
 class NotificationChannelViewSet(viewsets.ModelViewSet):
     """通知渠道管理 API"""
     serializer_class = NotificationChannelSerializer
@@ -14,10 +18,6 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         return NotificationChannel.objects.filter(is_deleted=False)
-
-    def perform_create(self, serializer):
-        # 创建时设置创建人
-        serializer.save()
 
     def perform_destroy(self, instance):
         instance.is_deleted = True
@@ -37,20 +37,14 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['post'])
     def test_all(self, request):
-        """
-        批量测试所有已启用渠道
-        POST /api/notifications/channels/test_all/
-        """
+        """批量测试所有已启用渠道"""
         channels = self.get_queryset().filter(status='active')
         results = []
         for ch in channels:
             result = services.test_connection(ch)
             results.append({
-                "id": ch.id,
-                "name": ch.name,
-                "channel_type": ch.channel_type,
-                "status": result['status'],
-                "message": result['message'],
+                "id": ch.id, "name": ch.name, "channel_type": ch.channel_type,
+                "status": result['status'], "message": result['message'],
             })
         return Response({
             "total": len(results),
@@ -61,10 +55,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def types(self, request):
-        """
-        返回支持的渠道类型列表
-        GET /api/notifications/channels/types/
-        """
+        """支持的渠道类型列表"""
         return Response({
             "types": [
                 {"value": "feishu", "label": "飞书", "has_secret": True},
@@ -77,11 +68,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def send(self, request, pk=None):
-        """
-        向指定渠道发送测试消息
-        POST /api/notifications/channels/{id}/send/
-        body: { "title": "...", "content": "..." }
-        """
+        """向指定渠道发送测试消息"""
         try:
             channel = self.get_object()
         except NotificationChannel.DoesNotExist:
@@ -95,11 +82,7 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
 
         try:
             result = services.send_notification(
-                channel.channel_type,
-                channel.webhook_url,
-                channel.secret,
-                title,
-                content
+                channel.channel_type, channel.webhook_url, channel.secret, title, content
             )
             return Response({"status": "ok", "message": "发送成功", "detail": result})
         except services.NotificationSendError as e:

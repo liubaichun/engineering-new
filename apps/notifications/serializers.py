@@ -3,7 +3,6 @@ from .models import NotificationChannel
 
 
 class NotificationChannelSerializer(serializers.ModelSerializer):
-    """通知渠道序列化器"""
     channel_type_display = serializers.CharField(
         source='get_channel_type_display', read_only=True
     )
@@ -21,7 +20,6 @@ class NotificationChannelSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'is_deleted', 'created_at', 'updated_at']
 
     def create(self, validated_data):
-        # 软删除过滤：确保不创建已删除的同名渠道
         name = validated_data.get('name', '').strip()
         channel_type = validated_data.get('channel_type', '')
         existing = NotificationChannel.all_objects.filter(

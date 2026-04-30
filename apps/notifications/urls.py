@@ -1,13 +1,12 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from . import views
+from .views import NotificationChannelViewSet
 
-router = DefaultRouter()
-router.register(r'channels', views.NotificationChannelViewSet, basename='notification-channel')
+# Webhook 广播渠道的 router
+channel_router = DefaultRouter()
+channel_router.register('', NotificationChannelViewSet, basename='notification-channel')
 
 urlpatterns = [
-    path('', views.notification_list, name='notification_list'),
-    path('channels/', include(router.urls)),
-    path('<int:notification_id>/read/', views.mark_as_read, name='mark_as_read'),
-    path('read-all/', views.mark_all_read, name='mark_all_read'),
+    # 广播渠道 API: /api/notifications/channels/
+    path('channels/', include(channel_router.urls)),
 ]
