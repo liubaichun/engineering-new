@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema
+
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
@@ -55,6 +57,7 @@ class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(tags=['auth'], summary='请求密码重置', description='输入邮箱，发送重置链接（即使邮箱不存在也返回成功，防止暴力探测）')
     def post(self, request):
         email = request.data.get('email', '').strip()
         if not email:
@@ -101,6 +104,7 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(tags=['auth'], summary='确认密码重置', description='使用 uidb64/token 验证链接，设置新密码')
     def post(self, request, uidb64, token):
         new_password = request.data.get('new_password', '')
         confirm_password = request.data.get('confirm_password', '')
@@ -133,6 +137,7 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(tags=['auth'], summary='用户注册', description='提交注册信息（买断版默认关闭注册入口），管理员审批后账号生效')
     def post(self, request):
         # 买断版关闭注册
         from django.conf import settings
@@ -157,12 +162,14 @@ class RegisterView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+@extend_schema(tags=['auth'], summary='用户登录', description='用户名+密码登录，返回会话Cookie')
 class LoginView(APIView):
     """用户登录视图"""
     permission_classes = [AllowAny]
     authentication_classes = []
 
-    def _get_client_ip(self, request):
+    @extend_schema(tags=['auth'], summary='用户登录', description='POST username/password，返回会话Cookie')
+    def post(self, request):
         x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded:
             return x_forwarded.split(',')[0].strip()
@@ -217,6 +224,7 @@ class LogoutView(APIView):
     """用户登出视图"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(tags=['auth'], summary='用户登出', description='清除会话Cookie')
     def post(self, request):
         logout(request)
         return Response({
@@ -284,6 +292,7 @@ class CurrentUserView(APIView):
     """当前用户信息视图"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(tags=['auth'], summary='获取当前用户信息', description='返回当前登录用户的信息，包括用户名/邮箱/角色/公司/权限码列表')
     def get(self, request):
         """GET /api/core/auth/user/ - 返回当前用户信息"""
         serializer = UserSerializer(request.user)
@@ -895,7 +904,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
 class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     操作审计日志视图集（仅读）
-    自动记录所有写操作：新增/修改/删除
+    支持按 app_label / action / username / date_from / date_to 筛选
     """
     queryset = OperationAuditLog.objects.all()
     serializer_class = OperationAuditLogSerializer
