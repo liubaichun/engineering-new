@@ -123,8 +123,10 @@ async function loadChannels() {
                 <td><span class="badge ${c.status === 'active' ? 'bg-success' : 'bg-secondary'}">${c.status === 'active' ? '启用' : '停用'}</span></td>
                 <td>${c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : '-'}</td>
                 <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="testChannel(${c.id})" title="测试连通性"><i class="bi bi-lightning-charge"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="copyUrl('${c.webhook_url}')" title="复制Webhook地址"><i class="bi bi-clipboard"></i></button>
                     <button class="btn btn-sm btn-outline-secondary me-1" onclick="editChannel(${c.id})"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="deleteChannel(${c.id})"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteChannel(${c.id})"><i class="bi bi-trash"></i></button>
                 </td>
             </tr>`).join('');
     } catch(e) {
@@ -194,6 +196,57 @@ async function deleteChannel(id) {
         if (!resp.ok && resp.status !== 204) { alert('删除失败'); return; }
         loadChannels();
     } catch(e) { alert('删除失败：' + e.message); }
+}
+
+async function testChannel(id) {
+    const btn = event.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const resp = await fetch('/api/notifications/channels/' + id + '/test_connection/', {
+            method: 'POST', credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        const d = await resp.json();
+        if (d.status === 'ok') {
+            showToast('✅ ' + d.message, 'success');
+        } else {
+            showToast('❌ ' + d.message, 'danger');
+        }
+    } catch(e) {
+        showToast('❌ 测试失败：' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-lightning-charge"></i>';
+    }
+}
+
+function copyUrl(url) {
+    if (!url) { showToast('Webhook地址为空', 'warning'); return; }
+    navigator.clipboard.writeText(url).then(() => {
+        showToast('✅ Webhook地址已复制', 'success');
+    }).catch(() => {
+        showToast('复制失败，请手动复制', 'warning');
+    });
+}
+
+function showToast(message, type) {
+    const container = document.getElementById('toastContainer') || createToastContainer();
+    const id = 'toast-' + Date.now();
+    const html = '<div id="' + id + '" class="toast align-items-center text-white bg-' + type + ' border-0" role="alert"><div class="d-flex"><div class="toast-body">' + message + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
+    container.insertAdjacentHTML('beforeend', html);
+    const toastEl = document.getElementById(id);
+    const toast = new bootstrap.Toast(toastEl);
+    toast.show();
+    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
+}
+
+function createToastContainer() {
+    const div = document.createElement('div');
+    div.id = 'toastContainer';
+    div.className = 'toast-container position-fixed top-0 end-0 p-3';
+    document.body.appendChild(div);
+    return div;
 }
 </script>
 {% endblock %}

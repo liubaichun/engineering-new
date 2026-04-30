@@ -1,6 +1,12 @@
 from django.db import models
 
 
+class AllObjectsManager(models.Manager):
+    """提供 all_objects 查询能力（包含软删除）"""
+    def get_queryset(self):
+        return super().get_queryset()
+
+
 class NotificationChannel(models.Model):
     """通知渠道配置 — 支持飞书/企微/钉钉 Webhook"""
     TYPE_CHOICES = [
@@ -24,6 +30,11 @@ class NotificationChannel(models.Model):
     is_deleted = models.BooleanField(default=False, verbose_name='已删除')
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    # 默认 objects（排除已删除）
+    objects = models.Manager()
+    # all_objects（包含已删除）
+    all_objects = AllObjectsManager()
 
     class Meta:
         db_table = 'notifications_channel'
