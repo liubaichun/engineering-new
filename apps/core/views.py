@@ -124,8 +124,15 @@ class RegisterView(APIView):
     """用户注册视图"""
     permission_classes = [AllowAny]
     authentication_classes = []
-    
+
     def post(self, request):
+        # 买断版关闭注册
+        from django.conf import settings
+        if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
+            return Response(
+                {'status': 'error', 'message': '注册入口已关闭，请联系系统管理员。'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()

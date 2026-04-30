@@ -1,0 +1,78 @@
+# ============================================================
+# 企业信息化管理系统 GREEN — 买断版 Docker Compose
+#
+# 用途：买断版（Perpetual）一键部署
+# 特点：PostgreSQL + Redis 内置，无需外部数据库
+# 使用：cp .env.standalone.template .env && docker-compose -f docker-compose.standalone.yml up -d
+# ============================================================
+
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: engineering_new
+      POSTGRES_USER: engineer
+      POSTGRES_PASSWORD: engineer123
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - engnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U engineer -d engineering_new"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    networks:
+      - engnet
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8080"
+    environment:
+      - TENANT_MODE=standalone
+      - DEFAULT_COMPANY_ID=3
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_DATABASE=engineering_new
+      - PG_USER=engineer
+      - PG_PASSWORD=engineer123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SECRET_KEY=change-me-in-production
+      - DEBUG=False
+      - ALLOWED_HOSTS=*
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./company_files:/app/company_files
+      - static_data:/app/staticfiles
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py collectstatic --noinput &&
+             gunicorn --bind :8080 --workers 2 --timeout 60 config.wsgi:application"
+    networks:
+      - engnet
+
+volumes:
+  pg_data:
+  static_data:
+
+networks:
+  engnet:
+    driver: bridge

@@ -39,6 +39,11 @@ def wage_list_page(request):
     return TemplateView.as_view(template_name='finance/wage_list.html')(request)
 
 def approval_list_page(request):
+    # 买断版关闭审批入口（无注册，无审批）
+    from django.conf import settings
+    if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
+        from django.http import Http404
+        raise Http404("该页面在买断版中不可用。")
     return TemplateView.as_view(template_name='approvals/approval_list.html')(request)
 
 def approval_template_list_page(request):
@@ -151,6 +156,11 @@ def file_list_page(request):
 def register_page(request):
     if request.user.is_authenticated:
         return redirect('/dashboard/')
+    # 买断版关闭注册入口
+    from django.conf import settings
+    if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
+        from django.http import Http404
+        raise Http404("注册入口已关闭，请联系系统管理员。")
     return TemplateView.as_view(template_name='register.html')(request)
 
 def profile_page(request):
