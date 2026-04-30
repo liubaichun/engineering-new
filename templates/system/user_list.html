@@ -259,7 +259,7 @@ function renderUsers() {
         if (user.is_superuser) {
             roleDisplay = '<span class="badge bg-danger"><i class="bi bi-shield-fill me-1"></i>管理员</span>';
         } else if (user.role_display) {
-            roleDisplay = '<span class="badge bg-info">' + escapeHtml(user.role_display) + '</span>';
+            roleDisplay = '<span class="badge bg-info">' + escapeHtml(user.role_name || '-') + '</span>';
         } else {
             roleDisplay = '-';
         }

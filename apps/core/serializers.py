@@ -123,7 +123,7 @@ class UserCompanyRoleSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """用户序列化器 — 字段与 core_user 表及 User 模型严格对应"""
-    role_display = serializers.CharField(source='get_role_display', read_only=True, allow_blank=True)
+    role_name = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
     role_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False,
@@ -139,7 +139,23 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'phone',
                   'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined',
-                  'role_display', 'roles', 'role_ids', 'company_roles', 'company_role_ids']
+                  'role_name', 'roles', 'role_ids', 'company_roles', 'company_role_ids']
+
+    def get_role_name(self, obj):
+        """返回用户角色名称 — 优先用 UserCompanyRole 的角色，否则用 User.role 字段"""
+        if obj.is_superuser:
+            return '系统管理员'
+        # 优先取第一个公司角色
+        link = obj.company_roles.first()
+        if link:
+            return dict(UserCompanyRole.ROLE_CHOICES).get(link.role, link.role)
+        # 兜底 User.role 字段（系统级角色代码）
+        role_map = {
+            'admin': '系统管理员',
+            'manager': '经理',
+            'staff': '员工',
+        }
+        return role_map.get(obj.role, obj.role) if obj.role else ''
         read_only_fields = ['id', 'is_staff', 'is_superuser', 'last_login', 'date_joined']
 
     def get_roles(self, obj):
