@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.core.views import ChangePasswordView
 
 # 页面视图
@@ -167,6 +168,9 @@ def api_auth_status(request):
         })
     return JsonResponse({'authenticated': False})
 
+def notification_channels_page(request):
+    return TemplateView.as_view(template_name='system/notification_channels.html')(request)
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', home_page, name='home'),
@@ -189,11 +193,14 @@ urlpatterns = [
     path('notifications/', notifications_page, name='notifications'),
     path('system/companies/', system_companies_page, name='system_companies'),
     path('system/settings/', system_settings_page, name='system_settings'),
+    path('system/notification-channels/', notification_channels_page, name='notification_channels'),
     path('approvals/', approval_list_page, name='approval_list'),
     path('approvals/templates/', approval_template_list_page, name='approval_template_list'),
     path('warnings/', warning_center_page, name='warning_center'),
     path('api/auth/status/', api_auth_status, name='api_auth_status'),
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('password-reset/', password_reset_request_page, name='password-reset-page'),
     path('password-reset/<uidb64>/<token>/', password_reset_confirm_page, name='password-reset-confirm'),
     # API路由

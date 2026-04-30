@@ -592,8 +592,17 @@
                 <i class="bi bi-clock-history"></i><span>审计日志</span>
             </a>
             {% if request.user.is_superuser %}
+            <a href="/api/docs/" class="nav-link" target="_blank">
+                <i class="bi bi-book"></i><span>API文档</span>
+            </a>
             <a href="/system/settings/" class="nav-link {% if '/system/settings' in request.path %}active{% endif %}">
                 <i class="bi bi-gear-wide-connected"></i><span>系统参数</span>
+            </a>
+            <a href="/system/notification-channels/" class="nav-link {% if '/system/notification-channels' in request.path %}active{% endif %}">
+                <i class="bi bi-speedometer"></i><span>通知渠道</span>
+            </a>
+            <a href="/api/docs/" class="nav-link" target="_blank">
+                <i class="bi bi-book"></i><span>API文档</span>
             </a>
             <a href="/warnings/" class="nav-link {% if '/warnings' in request.path %}active{% endif %}">
                 <i class="bi bi-shield-exclamation"></i><span>预警中心</span>

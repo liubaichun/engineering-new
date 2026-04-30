@@ -325,6 +325,15 @@ async function fetchWithTimeout(url, options = {}, timeout = 8000) {
     }
 }
 
+// 统一处理API返回格式：支持分页 {results,count} 和普通数组 [...]
+function getCount(data) {
+    if (!data) return 0;
+    if (typeof data.count === 'number') return data.count;
+    if (Array.isArray(data)) return data.length;
+    if (Array.isArray(data.results)) return data.results.length;
+    return 0;
+}
+
 async function loadDashboardStats() {
     const now = new Date();
     const year = now.getFullYear();
@@ -350,38 +359,35 @@ async function loadDashboardStats() {
 
     if (empRes) {
         const d = await empRes.json().catch(() => ({}));
-        document.getElementById('statEmployeeCount').textContent = d.count || 0;
+        document.getElementById('statEmployeeCount').textContent = getCount(d);
     }
     if (usersRes) {
         const d = await usersRes.json().catch(() => ({}));
-        document.getElementById('statTeamMembers').textContent = d.count || 0;
+        document.getElementById('statTeamMembers').textContent = getCount(d);
     }
     if (onlineRes) {
         const d = await onlineRes.json().catch(() => ({}));
-        document.getElementById('statOnlineUsers').textContent = d.count || 0;
+        document.getElementById('statOnlineUsers').textContent = getCount(d);
     }
     if (projRes) {
         const d = await projRes.json().catch(() => ({}));
-        document.getElementById('statActiveProjects').textContent = d.count || 0;
+        document.getElementById('statActiveProjects').textContent = getCount(d);
     }
     if (newProjRes) {
         const d = await newProjRes.json().catch(() => ({}));
-        document.getElementById('statNewProjects').textContent = d.count || 0;
+        document.getElementById('statNewProjects').textContent = getCount(d);
     }
     if (pendingRes) {
         const d = await pendingRes.json().catch(() => ({}));
-        const cnt = d.count !== undefined ? d.count : (Array.isArray(d) ? d.length : 0);
-        document.getElementById('statPendingTasks').textContent = cnt;
+        document.getElementById('statPendingTasks').textContent = getCount(d);
     }
     if (inProgRes) {
         const d = await inProgRes.json().catch(() => ({}));
-        const cnt = d.count !== undefined ? d.count : (Array.isArray(d) ? d.length : 0);
-        document.getElementById('statInProgressTasks').textContent = cnt;
+        document.getElementById('statInProgressTasks').textContent = getCount(d);
     }
     if (todayCompRes) {
         const d = await todayCompRes.json().catch(() => ({}));
-        const cnt = d.count !== undefined ? d.count : (Array.isArray(d) ? d.length : 0);
-        document.getElementById('statTodayCompleted').textContent = cnt;
+        document.getElementById('statTodayCompleted').textContent = getCount(d);
     }
     if (wageRes && wageRes.ok) {
         const d = await wageRes.json().catch(() => ({}));

@@ -8,7 +8,7 @@ from apps.finance.models import Company as FinanceCompany
 class UserRegisterSerializer(serializers.ModelSerializer):
     """用户注册序列化器"""
     password = serializers.CharField(write_only=True, min_length=8, label='密码')
-    password_confirm = serializers.CharField(write_only=True, label='确认密码')
+    password_confirm = serializers.CharField(write_only=True, required=False, label='确认密码')
     
     class Meta:
         model = User
@@ -29,12 +29,13 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         return value
     
     def validate(self, attrs):
-        if attrs['password'] != attrs['password_confirm']:
+        password_confirm = attrs.get('password_confirm')
+        if password_confirm and attrs['password'] != password_confirm:
             raise serializers.ValidationError({'password_confirm': '两次密码输入不一致'})
         return attrs
     
     def create(self, validated_data):
-        validated_data.pop('password_confirm')
+        validated_data.pop('password_confirm', None)
         password = validated_data.pop('password')
         validated_data['is_active'] = False   # 注册后需管理员审批才能登录
         validated_data['is_staff'] = False
