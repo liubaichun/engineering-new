@@ -3,6 +3,7 @@ from django.urls import path, include
 from django.views.generic import TemplateView
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.core.views import ChangePasswordView
 
@@ -211,6 +212,11 @@ urlpatterns = [
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    # 旧URL路径重定向（永久重定向）
+    path('system/api-docs/', RedirectView.as_view(url='/api/docs/', permanent=True)),
+    path('system/audit/', RedirectView.as_view(url='/system/audit-logs/', permanent=True)),
+    path('system/channels/', RedirectView.as_view(url='/system/notification-channels/', permanent=True)),
+    path('system/warnings/', RedirectView.as_view(url='/warnings/', permanent=True)),
     path('password-reset/', password_reset_request_page, name='password-reset-page'),
     path('password-reset/<uidb64>/<token>/', password_reset_confirm_page, name='password-reset-confirm'),
     # API路由
