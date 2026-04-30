@@ -41,6 +41,14 @@ def get_csrf_token(request):
     return {'csrf_token': get_token(request)}
 
 
+def get_client_ip(request):
+    """从请求中提取客户端IP"""
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded:
+        return x_forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class PasswordResetRequestView(APIView):
     """请求密码重置 - 发送邮件"""
@@ -165,7 +173,7 @@ class LoginView(APIView):
             user=user,
             username=username,
             status=status,
-            ip_address=self._get_client_ip(request),
+            ip_address=get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
             fail_reason=fail_reason,
         )
@@ -426,7 +434,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """批准用户注册 — 将 is_active 设为 True"""
+        """批准用户注册 — 将 is_active 设为 True，自动建公司+分配公司管理员角色"""
         user = self.get_object()
         if user.is_active:
             return Response({
@@ -436,6 +444,55 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user.is_active = True
         user.save(update_fields=['is_active'])
+
+        # === 注册闭环：自动建公司+分配公司管理员角色 ===
+        from apps.finance.models import Company
+
+        # 检查用户是否已有公司（通过 UserCompanyRole 判断）
+        existing_link = UserCompanyRole.objects.filter(user=user).first()
+        if not existing_link:
+            # 自动创建公司（以用户名作为公司名和代码）
+            company_code = user.username.replace(' ', '_').replace('/', '_').lower()
+            # 防止代码重复
+            base_code = company_code
+            counter = 1
+            while Company.objects.filter(code=company_code).exists():
+                company_code = f'{base_code}_{counter}'
+                counter += 1
+            company = Company.objects.create(
+                name=f'{user.username}的公司',
+                code=company_code,
+                status='active',
+                contact_person=user.username,
+                contact_phone=user.phone or '',
+            )
+
+            # 分配公司管理员角色
+            UserCompanyRole.objects.create(
+                user=user,
+                company=company,
+                role='admin',
+                assigned_by=request.user if request.user.is_authenticated else None,
+            )
+
+            # 审计日志
+            PermissionAuditLog.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                action='assign_role',
+                target_user=user,
+                role_name='公司管理员',
+                description=f'批准注册并创建公司[{company.name}]，分配公司管理员角色',
+                ip_address=get_client_ip(request),
+            )
+        else:
+            # 已有公司，单纯激活
+            PermissionAuditLog.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                action='activate_user',
+                target_user=user,
+                description='批准用户注册（账号激活）',
+                ip_address=get_client_ip(request),
+            )
 
         # 给用户发通知
         Notification.objects.create(
@@ -447,7 +504,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return Response({
             'status': 'success',
-            'message': f'已批准用户 {user.username} 的注册申请',
+            'message': f'已批准用户 {user.username} 的注册申请' + (f'，已创建公司[{company.name}]并分配公司管理员角色' if not existing_link else ''),
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
 
@@ -470,31 +527,72 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve_batch(self, request, pk=None):
-        """批量批准用户注册"""
+        """批量批准用户注册 — 自动建公司+分配公司管理员角色"""
         user_ids = request.data.get('user_ids', [])
         if not user_ids:
             return Response({'status': 'error', 'message': '未提供用户ID列表'}, status=status.HTTP_400_BAD_REQUEST)
 
+        from apps.finance.models import Company as FinanceCompany
+
         approved = []
+        skipped = []
         for uid in user_ids:
             try:
                 user = User.objects.get(id=uid, is_active=False)
-                user.is_active = True
-                user.save(update_fields=['is_active'])
-                Notification.objects.create(
-                    user=user,
-                    title='账号审批通过',
-                    content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
-                    notification_type='approval',
-                    level='success',
-                )
-                approved.append(user.username)
             except User.DoesNotExist:
-                pass
+                skipped.append(f'ID:{uid}不存在')
+                continue
 
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+
+            # 注册闭环
+            existing_link = UserCompanyRole.objects.filter(user=user).first()
+            if not existing_link:
+                company_code = user.username.replace(' ', '_').replace('/', '_').lower()
+                base_code = company_code
+                counter = 1
+                while FinanceCompany.objects.filter(code=company_code).exists():
+                    company_code = f'{base_code}_{counter}'
+                    counter += 1
+                company = FinanceCompany.objects.create(
+                    name=f'{user.username}的公司',
+                    code=company_code,
+                    status='active',
+                    contact_person=user.username,
+                    contact_phone=user.phone or '',
+                )
+                UserCompanyRole.objects.create(
+                    user=user, company=company, role='admin',
+                    assigned_by=request.user if request.user.is_authenticated else None,
+                )
+                PermissionAuditLog.objects.create(
+                    user=request.user if request.user.is_authenticated else None,
+                    action='assign_role', target_user=user, role_name='公司管理员',
+                    description=f'批量批准注册并创建公司[{company.name}]，分配公司管理员角色',
+                    ip_address=get_client_ip(request),
+                )
+            else:
+                PermissionAuditLog.objects.create(
+                    user=request.user if request.user.is_authenticated else None,
+                    action='activate_user', target_user=user,
+                    description='批量批准用户注册（账号激活）',
+                    ip_address=get_client_ip(request),
+                )
+
+            Notification.objects.create(
+                user=user,
+                title='账号审批通过',
+                content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
+                notification_type='approval',
+                level='success',
+            )
+            approved.append(user.username)
         return Response({
             'status': 'success',
-            'message': f'已批准 {len(approved)} 个用户：{", ".join(approved)}'
+            'message': f'批量批准完成：成功 {len(approved)} 个，失败 {len(skipped)} 个',
+            'approved': approved,
+            'skipped': skipped,
         }, status=status.HTTP_200_OK)
 
 
