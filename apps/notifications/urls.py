@@ -4,10 +4,8 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'channels', views.NotificationChannelViewSet, basename='notification-channel')
+router.register(r'bindings', views.NotifyBindingViewSet, basename='notify-binding')
 
 urlpatterns = [
-    path('', views.notification_list, name='notification_list'),
-    path('channels/', include(router.urls)),
-    path('<int:notification_id>/read/', views.mark_as_read, name='mark_as_read'),
-    path('read-all/', views.mark_all_read, name='mark_all_read'),
+    path('', include(router.urls)),
 ]
