@@ -35,6 +35,12 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0" id="roleDetailTitle">角色详情</h6>
                 <div>
+                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="expandAllModules()">
+                        <i class="bi bi-arrows-expand"></i>展开
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="collapseAllModules()">
+                        <i class="bi bi-arrows-collapse"></i>折叠
+                    </button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="editCurrentRole()">
                         <i class="bi bi-pencil"></i>编辑
                     </button>
@@ -80,8 +86,18 @@
                 </div>
                 <div class="mb-3">
                     <label class="form-label">权限分配 <span class="text-muted" style="font-size:0.8rem;">（勾选即为角色授予权限）</span></label>
-                    <div id="rolePermissionList" class="border rounded p-2" style="max-height:300px;overflow-y:auto;background:#fafafa;">
+                    <div class="mb-2">
+                        <input type="text" class="form-control form-control-sm" id="modalPermSearch" placeholder="搜索权限..." oninput="filterModalPermissions()">
+                    </div>
+                    <div id="modalPermCategories" class="border rounded p-2" style="max-height:300px;overflow-y:auto;background:#fafafa;">
                         <div class="text-muted text-center py-3">加载中...</div>
+                    </div>
+                    <div class="d-flex align-items-center gap-3 mt-2">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="modal_perm_select_all" onchange="toggleAllModalPermissions(this.checked)">
+                            <label class="form-check-label fw-bold" for="modal_perm_select_all">全选 / 取消全选</label>
+                        </div>
+                        <span class="ms-auto text-muted" style="font-size:0.8rem;" id="modalPermCount"></span>
                     </div>
                 </div>
             </div>
@@ -188,13 +204,13 @@ function showRoleDetail(roleId) {
         html += '<i class="bi bi-info-circle me-1"></i>您是超级管理员，拥有所有权限，无需为角色分配具体权限。';
         html += '</div>';
     } else {
-        html += '<p class="mb-2"><strong>权限分配：</strong> <span class="text-muted" style="font-size:0.8rem;">（勾选即为角色授予权限）</span></p>';
+        html += '<p class="mb-2"><strong>权限分配：</strong> <span class="text-muted" style="font-size:0.8rem;">（点击模块标题可折叠/展开）</span></p>';
     }
 
     if (permissions.length === 0) {
         html += '<span class="text-muted">暂无权限定义</span>';
     } else {
-        // 按分类分组
+        // 按分类分组，每组一个可折叠面板
         var grouped = {};
         permissions.forEach(function(p) {
             var cat = p.category || '其他';
@@ -202,30 +218,46 @@ function showRoleDetail(roleId) {
             grouped[cat].push(p);
         });
 
+        var catIndex = 0;
         for (var cat in grouped) {
-            html += '<div class="mb-3"><strong class="text-muted" style="font-size:0.85rem;">' + cat + '</strong>';
-            html += '<div class="row g-2 mt-1">';
-            grouped[cat].forEach(function(p) {
+            catIndex++;
+            var catId = 'cat_' + catIndex;
+            var perms = grouped[cat];
+            var checkedCount = perms.filter(function(p) { return rolePermIds.indexOf(p.id) !== -1; }).length;
+            html += '<div class="mb-2 border rounded">';
+            // 模块头部（可点击折叠）
+            html += '<div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light cursor-pointer" onclick="toggleModule(\'' + catId + '\')" style="cursor:pointer;">';
+            html += '<div class="form-check mb-0">';
+            html += '<input class="form-check-input" type="checkbox" id="cat_check_' + catId + '" onchange="toggleModuleCheck(\'' + catId + '\', this.checked, ' + roleId + ')" ' + (checkedCount === perms.length ? 'checked' : (checkedCount > 0 ? 'checked' : '')) + ' onclick="event.stopPropagation()">';
+            html += '</div>';
+            html += '<div class="flex-grow-1 ms-2">';
+            html += '<strong>' + escapeHtml(cat) + '</strong>';
+            html += ' <span class="text-muted" style="font-size:0.75rem;">' + checkedCount + ' / ' + perms.length + ' 项</span>';
+            html += '</div>';
+            html += '<i class="bi bi-chevron-down" id="icon_' + catId + '" style="transition:transform 0.2s;"></i>';
+            html += '</div>';
+            // 权限列表（折叠内容）
+            html += '<div class="px-3 py-2" id="' + catId + '" style="display:none;">';
+            html += '<div class="row g-2">';
+            perms.forEach(function(p) {
                 var has = rolePermIds.indexOf(p.id) !== -1;
-                // 超级管理员查看自己角色时，全部显示为已授权（只读模式）
                 var isSelfSuperuser = isSuperuser && isCurrentRole;
                 html += '<div class="col-md-6">';
                 html += '<div class="form-check">';
                 if (isSelfSuperuser) {
-                    // 超级管理员角色：只读展示，全部勾选
                     html += '<input class="form-check-input" type="checkbox" checked disabled>';
                     html += '<label class="form-check-label text-muted">';
                 } else {
-                    html += '<input class="form-check-input" type="checkbox" id="perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + ' onchange="toggleRolePermission(' + roleId + ', ' + p.id + ', this.checked)">';
-                    html += '<label class="form-check-label" for="perm_' + p.id + '" title="' + escapeHtml(p.resource || '') + '">';
+                    html += '<input class="form-check-input" type="checkbox" id="perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + ' onchange="toggleRolePermission(' + roleId + ', ' + p.id + ', this.checked); updateModuleCheck(\'' + catId + '\')">';
+                    html += '<label class="form-check-label" for="perm_' + p.id + '" title="' + escapeHtml(p.resource || p.description || '') + '">';
                 }
                 html += escapeHtml(p.name);
-                if (p.resource) {
-                    html += ' <small class="text-muted">(' + escapeHtml(p.resource) + ')</small>';
+                if (p.description) {
+                    html += ' <small class="text-muted" style="font-size:0.7rem;">— ' + escapeHtml(p.description) + '</small>';
                 }
                 html += '</label></div></div>';
             });
-            html += '</div></div>';
+            html += '</div></div></div>';
         }
         if (isSelfSuperuser) {
             html += '<div class="text-muted mt-2" style="font-size:0.8rem;">';
@@ -235,6 +267,76 @@ function showRoleDetail(roleId) {
     }
 
     document.getElementById('roleDetailBody').innerHTML = html;
+    // 默认展开前3个模块
+    for (var i = 1; i <= Math.min(3, catIndex); i++) {
+        toggleModule('cat_' + i, true);
+    }
+}
+
+function toggleModule(catId, forceOpen) {
+    var el = document.getElementById(catId);
+    var icon = document.getElementById('icon_' + catId);
+    if (!el) return;
+    var isHidden = el.style.display === 'none';
+    if (forceOpen !== undefined) {
+        el.style.display = forceOpen ? 'block' : 'none';
+        icon.style.transform = forceOpen ? 'rotate(180deg)' : '';
+    } else {
+        el.style.display = isHidden ? 'block' : 'none';
+        icon.style.transform = isHidden ? 'rotate(180deg)' : '';
+    }
+}
+
+function expandAllModules() {
+    document.querySelectorAll('[id^="cat_"]').forEach(function(el) { el.style.display = 'block'; });
+    document.querySelectorAll('[id^="icon_cat_"]').forEach(function(ic) { ic.style.transform = 'rotate(180deg)'; });
+}
+
+function collapseAllModules() {
+    document.querySelectorAll('[id^="cat_"]').forEach(function(el) { el.style.display = 'none'; });
+    document.querySelectorAll('[id^="icon_cat_"]').forEach(function(ic) { ic.style.transform = ''; });
+}
+
+function updateModuleCheck(catId) {
+    var container = document.getElementById(catId);
+    if (!container) return;
+    var checkboxes = container.querySelectorAll('input[type="checkbox"][id^="perm_"]');
+    var checked = container.querySelectorAll('input[type="checkbox"][id^="perm_"]:checked').length;
+    var catCheck = document.getElementById('cat_check_' + catId);
+    if (catCheck) {
+        catCheck.checked = checked === checkboxes.length;
+        catCheck.indeterminate = checked > 0 && checked < checkboxes.length;
+    }
+    // 更新计数
+    var header = container.previousElementSibling;
+    if (header) {
+        var countSpan = header.querySelector('.text-muted');
+        if (countSpan) {
+            var total = checkboxes.length;
+            countSpan.textContent = checked + ' / ' + total + ' 项';
+        }
+    }
+}
+
+function toggleModuleCheck(catId, checked, roleId) {
+    var container = document.getElementById(catId);
+    if (!container) return;
+    var checkboxes = container.querySelectorAll('input[type="checkbox"][id^="perm_"]');
+    checkboxes.forEach(function(cb) {
+        if (cb.checked !== checked) {
+            cb.checked = checked;
+            var permId = parseInt(cb.value);
+            var has = cb.closest('.col-md-6').querySelector('input[type="checkbox"]').checked;
+            // 找到permission id from the checkbox
+            var parts = cb.id.split('_');
+            var pid = parseInt(parts[1]);
+            toggleRolePermission(roleId, pid, checked);
+        }
+    });
+    var countSpan = container.previousElementSibling.querySelector('.text-muted');
+    if (countSpan) {
+        countSpan.textContent = (checked ? checkboxes.length : 0) + ' / ' + checkboxes.length + ' 项';
+    }
 }
 
 async function toggleRolePermission(roleId, permissionId, granted) {
@@ -351,7 +453,7 @@ async function saveRole() {
 }
 
 function renderModalPermissions(rolePermIds) {
-    var container = document.getElementById('rolePermissionList');
+    var container = document.getElementById('modalPermCategories');
     var permissions = window.allPermissions || [];
 
     if (permissions.length === 0) {
@@ -359,43 +461,115 @@ function renderModalPermissions(rolePermIds) {
         return;
     }
 
+    // 从 MODULE_ORDER 中提取中文 category 顺序
+    var MODULE_ORDER = ['系统', '审批', '项目', '任务', '财务', '客户', '合同', '文件', '工资', '物料', '设备', '其他'];
     var grouped = {};
-    var MODULE_ORDER = ['项目', '任务', '财务', '审批', '客户', '合同', '文件', '工资', '系统', '其他'];
     permissions.forEach(function(p) {
         var cat = p.category || '其他';
         if (!grouped[cat]) grouped[cat] = [];
         grouped[cat].push(p);
     });
 
+    // 搜索过滤
+    var search = document.getElementById('modalPermSearch').value.trim().toLowerCase();
+
     var html = '';
+    var totalShown = 0;
     MODULE_ORDER.forEach(function(cat) {
         if (!grouped[cat] || grouped[cat].length === 0) return;
+        var filteredPerms = grouped[cat];
+        if (search) {
+            filteredPerms = grouped[cat].filter(function(p) {
+                return (p.name && p.name.toLowerCase().includes(search)) ||
+                       (p.code && p.code.toLowerCase().includes(search)) ||
+                       (p.description && p.description.toLowerCase().includes(search));
+            });
+            if (filteredPerms.length === 0) return;
+        }
+        totalShown += filteredPerms.length;
+
         html += '<div class="mb-2">';
-        html += '<div class="fw-bold text-secondary border-bottom pb-1 mb-1" style="font-size:0.8rem;">' + cat + '</div>';
-        grouped[cat].forEach(function(p) {
+        // 模块头部（全选该模块）
+        var checkedInCat = filteredPerms.filter(function(p) { return rolePermIds && rolePermIds.indexOf(p.id) !== -1; }).length;
+        html += '<div class="d-flex align-items-center mb-1">';
+        html += '<div class="form-check mb-0">';
+        html += '<input class="form-check-input" type="checkbox" id="modal_cat_' + cat.replace(/\s+/g, '_') + '" onchange="toggleModalCat(\'' + cat.replace(/\s+/g, '_') + '\', this.checked, ' + (rolePermIds ? JSON.stringify(rolePermIds) : '[]') + ')" ' + (checkedInCat === filteredPerms.length ? 'checked' : '') + '>';
+        html += '</div>';
+        html += '<label class="form-check-label fw-bold text-secondary ms-2" for="modal_cat_' + cat.replace(/\s+/g, '_') + '" style="font-size:0.8rem;">' + cat + '</label>';
+        html += '</div>';
+
+        filteredPerms.forEach(function(p) {
             var has = rolePermIds && rolePermIds.indexOf(p.id) !== -1;
-            html += '<div class="form-check">';
+            html += '<div class="form-check" style="padding-left:1.8rem;">';
             html += '<input class="form-check-input" type="checkbox" id="modal_perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + '>';
-            html += '<label class="form-check-label" for="modal_perm_' + p.id + '" title="' + escapeHtml(p.resource || '') + '">';
+            html += '<label class="form-check-label" for="modal_perm_' + p.id + '" title="' + escapeHtml(p.code + (p.description ? ' — ' + p.description : '')) + '">';
             html += escapeHtml(p.name);
+            if (p.description) {
+                html += ' <small class="text-muted" style="font-size:0.7rem;">— ' + escapeHtml(p.description) + '</small>';
+            }
             html += '</label></div>';
         });
         html += '</div>';
     });
 
-    // 如果有未分类的
-    if (grouped['其他'] && grouped['其他'].length > 0) {
-        // 已包含在上面
+    // 剩余未分类的
+    var otherCats = Object.keys(grouped).filter(function(c) { return MODULE_ORDER.indexOf(c) === -1; });
+    if (search) {
+        otherCats.forEach(function(cat) {
+            var filteredPerms = grouped[cat].filter(function(p) {
+                return (p.name && p.name.toLowerCase().includes(search)) ||
+                       (p.code && p.code.toLowerCase().includes(search));
+            });
+            if (filteredPerms.length === 0) return;
+            totalShown += filteredPerms.length;
+            html += '<div class="mb-2"><div class="fw-bold text-secondary mb-1" style="font-size:0.8rem;">' + cat + '</div>';
+            filteredPerms.forEach(function(p) {
+                var has = rolePermIds && rolePermIds.indexOf(p.id) !== -1;
+                html += '<div class="form-check" style="padding-left:1.8rem;">';
+                html += '<input class="form-check-input" type="checkbox" id="modal_perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + '>';
+                html += '<label class="form-check-label" for="modal_perm_' + p.id + '">' + escapeHtml(p.name) + '</label></div>';
+            });
+            html += '</div>';
+        });
+    } else {
+        otherCats.forEach(function(cat) {
+            totalShown += grouped[cat].length;
+            html += '<div class="mb-2"><div class="fw-bold text-secondary mb-1" style="font-size:0.8rem;">' + cat + '</div>';
+            grouped[cat].forEach(function(p) {
+                var has = rolePermIds && rolePermIds.indexOf(p.id) !== -1;
+                html += '<div class="form-check" style="padding-left:1.8rem;">';
+                html += '<input class="form-check-input" type="checkbox" id="modal_perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + '>';
+                html += '<label class="form-check-label" for="modal_perm_' + p.id + '" title="' + escapeHtml(p.code) + '">' + escapeHtml(p.name) + '</label></div>';
+            });
+            html += '</div>';
+        });
     }
 
-    // 全选/取消全选
-    html += '<div class="border-top pt-2 mt-2">';
-    html += '<div class="form-check">';
-    html += '<input class="form-check-input" type="checkbox" id="modal_perm_select_all" onchange="toggleAllModalPermissions(this.checked)">';
-    html += '<label class="form-check-label fw-bold" for="modal_perm_select_all">全选 / 取消全选</label>';
-    html += '</div></div>';
+    if (!html) {
+        html = '<div class="text-muted text-center py-3">没有匹配的权限</div>';
+    }
 
     container.innerHTML = html;
+    document.getElementById('modalPermCount').textContent = '共 ' + totalShown + ' 项';
+}
+
+function filterModalPermissions() {
+    var rolePermIds = [];
+    var roleId = document.getElementById('roleId').value;
+    if (roleId) {
+        var role = allRoles.find(function(r) { return '' + r.id === '' + roleId; });
+        if (role) rolePermIds = role.permissions || [];
+    }
+    renderModalPermissions(rolePermIds);
+}
+
+function toggleModalCat(cat, checked, rolePermIds) {
+    var catKey = cat.replace(/_/g, ' ');
+    var perms = (window.allPermissions || []).filter(function(p) { return (p.category || '其他') === catKey; });
+    perms.forEach(function(p) {
+        var cb = document.getElementById('modal_perm_' + p.id);
+        if (cb) cb.checked = checked;
+    });
 }
 
 function toggleAllModalPermissions(checked) {
