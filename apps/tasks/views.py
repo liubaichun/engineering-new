@@ -232,7 +232,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated and not user.is_superuser:
-            queryset = queryset.filter(owner=user)
+            # 优先用 session 中的当前公司（auth_company），兼容旧方式 user.company_id
+            company_id = None
+            if hasattr(self.request, 'auth_company') and self.request.auth_company:
+                company_id = self.request.auth_company.id
+            elif hasattr(user, 'company_id') and user.company_id:
+                company_id = user.company_id
+            if company_id:
+                queryset = queryset.filter(company_id=company_id)
+            else:
+                queryset = queryset.filter(owner=user)
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -292,6 +301,16 @@ class TaskViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        # 公司隔离：普通用户只能看本公司项目下的任务
+        if user.is_authenticated and not user.is_superuser:
+            company_id = None
+            if hasattr(self.request, 'auth_company') and self.request.auth_company:
+                company_id = self.request.auth_company.id
+            elif hasattr(user, 'company_id') and user.company_id:
+                company_id = user.company_id
+            if company_id:
+                queryset = queryset.filter(project__company_id=company_id)
         queryset = queryset.select_related('project', 'assignee', 'reporter').prefetch_related('flow_instance__template', 'flow_instance__current_node')
         project_id = self.request.query_params.get('project', None)
         if project_id:
@@ -445,6 +464,16 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        # 公司隔离：通过 task__project__company 过滤
+        if user.is_authenticated and not user.is_superuser:
+            company_id = None
+            if hasattr(self.request, 'auth_company') and self.request.auth_company:
+                company_id = self.request.auth_company.id
+            elif hasattr(user, 'company_id') and user.company_id:
+                company_id = user.company_id
+            if company_id:
+                queryset = queryset.filter(task__project__company_id=company_id)
         task_id = self.request.query_params.get('task', None)
         if task_id:
             queryset = queryset.filter(task_id=task_id)

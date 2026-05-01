@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet
+from . import import_views
 
 router = DefaultRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -16,4 +17,8 @@ router.register(r'employee-companies', EmployeeCompanyViewSet, basename='employe
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('import/invoices/', import_views.import_invoices, name='import-invoices'),
+    path('import/incomes/', import_views.import_incomes, name='import-incomes'),
+    path('import/expenses/', import_views.import_expenses, name='import-expenses'),
+    path('import/employees/', import_views.import_employees, name='import-employees'),
 ]

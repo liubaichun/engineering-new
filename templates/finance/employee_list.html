@@ -350,7 +350,7 @@ function filterEmployees() {
     const filtered = allEmployees.filter(emp => {
         if (search && !emp.name.toLowerCase().includes(search) && !emp.code.toLowerCase().includes(search) && !(emp.phone || '').includes(search)) return false;
         if (status && emp.status !== status) return false;
-        if (company && !emp.companies.some(c => c.company == company)) return false;
+        if (company && !(emp.companies && emp.companies.some(c => c.company == company))) return false;
         if (department && emp.department !== department) return false;
         return true;
     });

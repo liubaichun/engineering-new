@@ -161,6 +161,8 @@ def _format_value(val, col_type):
             return val
     if col_type == 'date':
         if isinstance(val, datetime.datetime):
+            if val.tzinfo is not None:
+                val = val.replace(tzinfo=None)
             return val
         if isinstance(val, datetime.date):
             return datetime.datetime(val.year, val.month, val.day)
