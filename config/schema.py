@@ -69,21 +69,37 @@ def _resource_label(path: str) -> str:
     segments = [s for s in path.strip('/').split('/') if s]
     if not segments:
         return path
-    last = re.sub(r'\d+.*', '', segments[-1])  # 去掉末尾的数字ID
+    # 过滤掉路径参数（如 {id}）和非资源段
+    segments = [s for s in segments if not re.match(r'^\{[^}]+\}$', s)]
+    if not segments:
+        return path
+    last = re.sub(r'\{[^}]+\}', '', segments[-1])  # 去掉嵌入的 {xxx}
     return RESOURCE_LABEL_MAP.get(last, last)
 
 
-def _build_summary(method: str, operation: dict, resource: str) -> str:
-    """根据method和operationId构建中文summary"""
-    method_map = {'get': '获取', 'post': '创建', 'put': '完整更新', 'patch': '部分更新', 'delete': '删除'}
-    method_label = method_map.get(method.lower(), method.upper())
+def _custom_action_in_path(path: str) -> str:
+    """从URL路径中检测自定义动作（如 approve, reject, export）"""
+    segments = [s for s in path.strip('/').split('/') if s]
+    for seg in segments:
+        seg = re.sub(r'\{[^}]+\}', '', seg)  # 去掉 {id} 等
+        if seg in ACTION_SUMMARY_MAP and seg not in ('list', 'retrieve', 'create', 'update', 'partial_update', 'destroy', 'get', 'post', 'put', 'patch', 'delete'):
+            return ACTION_SUMMARY_MAP[seg]
+    return None
 
-    # 从operationId推导动作: "ContractViewSet_list" → list
+
+def _build_summary(method: str, operation: dict, resource: str, path: str = '') -> str:
+    """根据method、operationId和URL路径构建中文summary"""
+    # 1. 优先从URL路径检测自定义动作（approve, export, monthly 等）
+    if path:
+        custom_action = _custom_action_in_path(path)
+        if custom_action:
+            return f"{custom_action}{resource}"
+
+    # 2. 从operationId推导动作: "ContractViewSet_list" → list
     operation_id = operation.get('operationId', '')
     if operation_id:
         parts = re.split(r'[_\.]', operation_id)
         if len(parts) > 1:
-            # 处理 compound actions: partial_update
             if parts[1] in ('partial', 'partial_update'):
                 action = 'partial_update'
             else:
@@ -91,12 +107,14 @@ def _build_summary(method: str, operation: dict, resource: str) -> str:
             if action in ACTION_SUMMARY_MAP:
                 return f"{ACTION_SUMMARY_MAP[action]}{resource}"
 
-    # 从自定义action推导
+    # 3. 从自定义action字段推导
     action = operation.get('action', '')
     if action in ACTION_SUMMARY_MAP:
         return f"{ACTION_SUMMARY_MAP[action]}{resource}"
 
-    # 回退到HTTP方法
+    # 4. 回退到HTTP方法
+    method_map = {'get': '获取', 'post': '创建', 'put': '完整更新', 'patch': '部分更新', 'delete': '删除'}
+    method_label = method_map.get(method.lower(), method.upper())
     return f"{method_label}{resource}"
 
 
@@ -124,7 +142,7 @@ def autogenerate_chinese_summary(result, generator, **kwargs):
                     continue  # 已有summary，跳过
 
                 resource = _resource_label(path)
-                summary = _build_summary(method, operation, resource)
+                summary = _build_summary(method, operation, resource, path)
                 operation['summary'] = summary
                 modified += 1
 
