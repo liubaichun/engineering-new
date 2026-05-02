@@ -36,13 +36,28 @@ class MaterialViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        qs = Material.objects.all()
+        user = self.request.user
+        if user.is_superuser:
+            return qs
+        if hasattr(user, 'company') and user.company_id:
+            return qs.filter(project__company_id=user.company_id)
+        return qs.none()
+
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
+        user = self.request.user
+        project = serializer.validated_data.get('project')
+        if project and hasattr(user, 'company') and user.company_id:
+            if project.company_id != user.company_id:
+                from django.core.exceptions import PermissionDenied
+                raise PermissionDenied("无权在此项目下创建物料")
+        serializer.save(created_by=user if user.is_authenticated else None)
 
     @action(detail=False, methods=['get'])
     def stock_alerts(self, request):
         """获取所有库存告警的物料"""
-        items = self.queryset.filter(stock__lt=models.F('alert_threshold'))
+        items = self.get_queryset().filter(stock__lt=models.F('alert_threshold'))
         serializer = self.get_serializer(items, many=True)
         return Response(serializer.data)
 
@@ -51,7 +66,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
         """导出物料 Excel"""
         from apps.core.export_excel import export_materials, make_export_response
         from django.utils import timezone as tz
-        records = list(self.queryset.select_related('supplier'))
+        records = list(self.get_queryset().select_related('supplier'))
         buf = export_materials(records)
         return make_export_response(buf, f'物料_{tz.now().strftime("%Y%m%d")}.xlsx')
 
