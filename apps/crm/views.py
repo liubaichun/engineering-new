@@ -16,9 +16,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by=user)
+        # 多租户隔离已移除 - 所有用户可访问所有供应商数据
         return queryset
 
     def perform_create(self, serializer):
@@ -47,9 +45,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by=user)
+        # 多租户隔离已移除 - 所有用户可访问所有客户数据
         return queryset
 
     def perform_create(self, serializer):
@@ -78,9 +74,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by=user)
+        # 多租户隔离已移除 - 所有用户可访问所有合同数据
         return queryset
 
     def perform_create(self, serializer):

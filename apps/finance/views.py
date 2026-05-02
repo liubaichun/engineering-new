@@ -57,15 +57,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
     filterset_class = CompanyFilter
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
+        # 多租户隔离已移除 - 所有用户可访问所有公司数据
+        if not self.request.user.is_authenticated:
             return Company.objects.none()
-        if user.is_superuser or user.is_staff:
-            return Company.objects.all()
-        # 普通用户：只看自己所属公司
-        if hasattr(user, 'company') and user.company_id:
-            return Company.objects.filter(id=user.company_id)
-        return Company.objects.none()
+        return Company.objects.all()
 
     def perform_create(self, serializer):
         serializer.save()
@@ -112,12 +107,7 @@ class IncomeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -280,12 +270,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -434,12 +419,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related(
             'company', 'approver', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
         ).prefetch_related('approval_flow')
@@ -749,12 +729,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related('company', 'project')
 
     def perform_create(self, serializer):
@@ -882,17 +857,8 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        user = request.user
 
-        # 公司隔离：普通用户只能看自己公司的数据
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                if company_id and int(company_id) != user.company_id:
-                    company_id = str(user.company_id)
-                else:
-                    company_id = str(user.company_id)
-            else:
-                return Response({'results': [], 'summary': {}, 'year': None, 'month': None, 'company_id': None})
+        # 多租户隔离已移除 - 所有用户可访问所有公司数据
 
         # 构建筛选条件
         income_qs = Income.objects.all()
@@ -953,14 +919,7 @@ class ReportViewSet(viewsets.ViewSet):
         """年度报表 - 按公司+年份统计"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
-        user = request.user
-
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
-            else:
-                return Response({'year': None, 'company_id': None, 'results': [], 'summary': {}})
+        # 多租户隔离已移除
 
         income_qs = Income.objects.all()
         expense_qs = Expense.objects.all()
@@ -1016,14 +975,7 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        user = request.user
-
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
-            else:
-                return Response({'year': None, 'month': None, 'company_id': None, 'results': [], 'summary': {}})
+        # 多租户隔离已移除
 
         queryset = WageRecord.objects.all()
         if year:
@@ -1079,14 +1031,7 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
         invoice_type = request.query_params.get('type')  # income or expense
-        user = request.user
-
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
-            else:
-                return Response({'year': None, 'company_id': None, 'type': invoice_type, 'results': []})
+        # 多租户隔离已移除
 
         queryset = Invoice.objects.all()
         if year:
@@ -1212,17 +1157,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
+        # 多租户隔离已移除 - 所有用户可访问所有员工数据
+        if not self.request.user.is_authenticated:
             return Employee.objects.none()
-        if user.is_superuser or user.is_staff:
-            return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
-        # 普通用户：按公司隔离（通过 EmployeeCompany）
-        if hasattr(user, 'company') and user.company_id:
-            return Employee.objects.prefetch_related('company_links__company').filter(
-                company_links__company_id=user.company_id
-            ).distinct().order_by('-created_at')
-        return Employee.objects.none()
+        return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -1299,14 +1237,10 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
+        # 多租户隔离已移除 - 所有用户可访问所有社保配置
+        if not self.request.user.is_authenticated:
             return CompanySocialConfig.objects.none()
-        if user.is_superuser or user.is_staff:
-            return CompanySocialConfig.objects.all()
-        if hasattr(user, 'company') and user.company_id:
-            return CompanySocialConfig.objects.filter(company_id=user.company_id)
-        return CompanySocialConfig.objects.none()
+        return CompanySocialConfig.objects.all()
 
 
 class ARAPViewSet(viewsets.ViewSet):
@@ -1407,12 +1341,7 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs
 
     def perform_create(self, serializer):
