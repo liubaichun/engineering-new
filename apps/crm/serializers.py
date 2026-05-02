@@ -5,8 +5,8 @@ from .models import Client, Contract, Supplier, ClientSource
 class ClientSourceSerializer(serializers.ModelSerializer):
     class Meta:
         model = ClientSource
-        fields = ['id', 'name', 'tree_path', 'parent']
-        read_only_fields = ['tree_path']
+        fields = ['id', 'name']
+        # read_only_fields = []
 
 
 class SupplierSerializer(serializers.ModelSerializer):
