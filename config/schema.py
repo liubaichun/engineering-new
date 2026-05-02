@@ -69,7 +69,7 @@ RESOURCE_LABEL_MAP = {
 
 
 def _resource_label(path: str) -> str:
-    """从URL路径提取资源中文名称（排除 action 片段）"""
+    """从URL路径提取资源中文名称（排除末尾 action 片段）"""
     segments = [s for s in path.strip('/').split('/') if s]
     if not segments:
         return path
@@ -79,25 +79,23 @@ def _resource_label(path: str) -> str:
     if not segments:
         return path
 
-    last = segments[-1]
-
-    # 如果最后一段是 action（非资源），回退到前一段
-    if last in ACTION_SUMMARY_MAP:
+    # 如果最后一段是 action，回退到前一段（用于 /flows/{id}/approve 等场景）
+    if segments[-1] in ACTION_SUMMARY_MAP:
         if len(segments) >= 2:
-            last = segments[-2]
-        else:
-            last = segments[-1]
+            segments = segments[:-1]
 
-    last = re.sub(r'\{[^}]+\}', '', last)  # 去掉嵌入的 {xxx}
+    last = re.sub(r'\{[^}]+\}', '', segments[-1])  # 去掉嵌入的 {xxx}
     return RESOURCE_LABEL_MAP.get(last, last)
 
 
 def _custom_action_in_path(path: str) -> str:
-    """从URL路径中检测自定义动作（如 approve, reject, export）"""
+    """从URL路径中检测真正的嵌套自定义动作（approve, reject, export 等，非标准HTTP方法）"""
     segments = [s for s in path.strip('/').split('/') if s]
+    http_methods = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
+                    'get', 'post', 'put', 'patch', 'delete', 'options', 'head'}
     for seg in segments:
         seg = re.sub(r'\{[^}]+\}', '', seg)  # 去掉 {id} 等
-        if seg in ACTION_SUMMARY_MAP and seg not in ('list', 'retrieve', 'create', 'update', 'partial_update', 'destroy', 'get', 'post', 'put', 'patch', 'delete'):
+        if seg in ACTION_SUMMARY_MAP and seg not in http_methods:
             return ACTION_SUMMARY_MAP[seg]
     return None
 
@@ -110,17 +108,21 @@ def _build_summary(method: str, operation: dict, resource: str, path: str = '') 
         if custom_action:
             return f"{custom_action}{resource}"
 
-    # 2. 从operationId推导动作: "ContractViewSet_list" → list
+    # 2. 从operationId推导动作: "approvals_flows_approve_create" 或 "ApprovalFlowViewSet_approve" → approve
     operation_id = operation.get('operationId', '')
     if operation_id:
         parts = re.split(r'[_\.]', operation_id)
         if len(parts) > 1:
-            if parts[1] in ('partial', 'partial_update'):
-                action = 'partial_update'
-            else:
-                action = parts[1]
-            if action in ACTION_SUMMARY_MAP:
-                return f"{ACTION_SUMMARY_MAP[action]}{resource}"
+            # 方案A: parts[1] 是 action（如 ApprovalFlowViewSet_approve → approve）
+            # 方案B: parts[-2] 是 action（如 approvals_flows_approve_create → approve）
+            candidates = set()
+            if len(parts) >= 2:
+                candidates.add(parts[1])
+            if len(parts) >= 3:
+                candidates.add(parts[-2])
+            for action in ACTION_SUMMARY_MAP:
+                if action in candidates:
+                    return f"{ACTION_SUMMARY_MAP[action]}{resource}"
 
     # 3. 从自定义action字段推导
     action = operation.get('action', '')
