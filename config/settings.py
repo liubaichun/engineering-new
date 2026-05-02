@@ -209,6 +209,9 @@ GREEN 企业信息化管理系统 RESTful API
         {'name': 'material', 'description': '物料管理 — 物料台账'},
         {'name': 'files', 'description': '文件管理 — 文件上传 / 下载'},
     ],
+    'POSTPROCESSING_HOOKS': [
+        'config.schema.autogenerate_chinese_summary',
+    ],
 }
 
 # ─── 邮件配置 ───
