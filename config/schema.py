@@ -27,6 +27,12 @@ ACTION_SUMMARY_MAP = {
     'approve_node': '审批通过节点',
     'reject_node': '驳回节点',
     'approve_batch': '批量审批',
+    'submit': '提交审批',
+    'withdraw': '撤回审批',
+    'delegate': '委托审批',
+    'transfer': '转交审批',
+    'urge': '催办审批',
+    'cancel': '取消审批',
     'test': '测试',
     'my_bindings': '我的绑定',
     'active': '可用列表',
@@ -103,30 +109,37 @@ def _custom_action_in_path(path: str) -> str:
 
 def _build_summary(method: str, operation: dict, resource: str, path: str = '') -> str:
     """根据method、operationId和URL路径构建中文summary"""
-    # 1. 优先从operationId推导动作: "approvals_flows_approve_create" → approve
-    #    或 "ApprovalFlowViewSet_approve" → approve
+    # 1. 在 operationId 中搜索最长匹配的 action
+    #    逻辑：先尝试 n-gram 组合（如 reject_to_requester），再尝试单段匹配
     operation_id = operation.get('operationId', '')
     if operation_id:
-        parts = re.split(r'[_\.]', operation_id)
-        # 遍历所有非末尾、非HTTP动词的 parts，找 MAP 中的 action
+        sorted_actions = sorted(ACTION_SUMMARY_MAP.keys(), key=lambda x: len(x), reverse=True)
         http_like = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
                      'get', 'post', 'put', 'patch', 'delete', 'options', 'head'}
-        for part in parts:
-            if part in ACTION_SUMMARY_MAP and part not in http_like:
-                action = ACTION_SUMMARY_MAP[part]
-                # 避免 "月度报表报表"：如果 action 以 resource 结尾，直接用 action
-                if resource and action.endswith(resource):
-                    return action
-                return f"{action}{resource}"
-            # 支持复合 action: approve_node → 分割成 approve + node
-            if '_' in part:
-                subparts = part.split('_')
-                for sp in subparts:
-                    if sp in ACTION_SUMMARY_MAP and sp not in http_like:
-                        action = ACTION_SUMMARY_MAP[sp]
+        parts = operation_id.split('_')
+
+        # 1a. n-gram 组合优先（如 reject_to_requester，跨多个 _ 片段）
+        n = len(parts)
+        for act in sorted_actions:
+            if act in http_like:
+                continue
+            for start in range(n):
+                for end in range(start + 1, n + 1):
+                    if '_'.join(parts[start:end]) == act:
+                        action = ACTION_SUMMARY_MAP[act]
                         if resource and action.endswith(resource):
                             return action
                         return f"{action}{resource}"
+
+        # 1b. 单段 action（如 approve, reject, monthly）
+        for act in sorted_actions:
+            if act in http_like:
+                continue
+            if act in parts:
+                action = ACTION_SUMMARY_MAP[act]
+                if resource and action.endswith(resource):
+                    return action
+                return f"{action}{resource}"
 
     # 2. 从URL路径检测嵌套自定义动作（operationId 搞不定的边缘情况）
     if path:
