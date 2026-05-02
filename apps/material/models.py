@@ -2,24 +2,35 @@ from django.db import models
 from apps.core.models import User
 
 
+class MaterialCategory(models.Model):
+    """物料分类 - 用户可自行维护"""
+    name = models.CharField('分类名称', max_length=100, unique=True)
+    remark = models.CharField('备注', max_length=500, blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'material_category'
+        verbose_name = '物料分类'
+        verbose_name_plural = verbose_name
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Material(models.Model):
     """物料模型"""
-
-    CATEGORY_CHOICES = [
-        ('cable', '线缆类'),
-        ('network', '网络设备'),
-        ('server', '服务器/存储'),
-        ('cabinet', '机柜/配件'),
-        ('monitor', '监控设备'),
-        ('access', '门禁设备'),
-        ('software', '软件/许可'),
-        ('tool', '工具/耗材'),
-    ]
 
     code = models.CharField('物料编码', max_length=20, unique=True, editable=False)
     name = models.CharField('物料名称', max_length=200)
     spec = models.CharField('规格型号', max_length=200, blank=True, default='')
-    category = models.CharField('分类', max_length=20, choices=CATEGORY_CHOICES)
+    category = models.ForeignKey(
+        MaterialCategory,
+        verbose_name='分类',
+        on_delete=models.SET_NULL,
+        blank=True, null=True,
+        related_name='materials'
+    )
     unit = models.CharField('单位', max_length=20, default='个')
     stock = models.PositiveIntegerField('当前库存', default=0)
     alert_threshold = models.PositiveIntegerField('预警阈值', default=10)
