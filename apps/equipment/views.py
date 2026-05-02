@@ -36,6 +36,24 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        qs = Equipment.objects.all()
+        user = self.request.user
+        if user.is_superuser:
+            return qs
+        if hasattr(user, 'company') and user.company_id:
+            return qs.filter(project__company_id=user.company_id)
+        return qs.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        project = serializer.validated_data.get('project')
+        if project and hasattr(user, 'company') and user.company_id:
+            if project.company_id != user.company_id:
+                from django.core.exceptions import PermissionDenied
+                raise PermissionDenied("无权在此项目下创建设备")
+        serializer.save()
+
     @action(detail=True, methods=['get'])
     def get_usage_logs(self, request, pk=None):
         """获取设备的使用记录"""
