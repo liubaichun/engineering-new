@@ -23,6 +23,10 @@ ACTION_SUMMARY_MAP = {
     # Custom actions
     'approve': '审批通过',
     'reject': '审批拒绝',
+    'reject_to_requester': '驳回申请人',
+    'approve_node': '审批通过节点',
+    'reject_node': '驳回节点',
+    'approve_batch': '批量审批',
     'test': '测试',
     'my_bindings': '我的绑定',
     'active': '可用列表',
@@ -65,15 +69,26 @@ RESOURCE_LABEL_MAP = {
 
 
 def _resource_label(path: str) -> str:
-    """从URL路径提取资源中文名称"""
+    """从URL路径提取资源中文名称（排除 action 片段）"""
     segments = [s for s in path.strip('/').split('/') if s]
     if not segments:
         return path
-    # 过滤掉路径参数（如 {id}）和非资源段
+
+    # 过滤掉 {id} 等路径参数
     segments = [s for s in segments if not re.match(r'^\{[^}]+\}$', s)]
     if not segments:
         return path
-    last = re.sub(r'\{[^}]+\}', '', segments[-1])  # 去掉嵌入的 {xxx}
+
+    last = segments[-1]
+
+    # 如果最后一段是 action（非资源），回退到前一段
+    if last in ACTION_SUMMARY_MAP:
+        if len(segments) >= 2:
+            last = segments[-2]
+        else:
+            last = segments[-1]
+
+    last = re.sub(r'\{[^}]+\}', '', last)  # 去掉嵌入的 {xxx}
     return RESOURCE_LABEL_MAP.get(last, last)
 
 
