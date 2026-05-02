@@ -26,6 +26,13 @@ class CompanyFile(models.Model):
     file_name = models.CharField('文件名', max_length=300)
     file_size = models.BigIntegerField('文件大小', default=0)
     category = models.ForeignKey(FileCategory, on_delete=models.CASCADE, related_name='files', verbose_name='分类')
+    contract = models.ForeignKey(
+        'crm.Contract',
+        verbose_name='关联合同',
+        on_delete=models.SET_NULL,
+        blank=True, null=True,
+        related_name='files'
+    )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='files', verbose_name='公司')
     project = models.ForeignKey('tasks.Project', on_delete=models.SET_NULL, blank=True, null=True, related_name='company_files', verbose_name='关联项目')
     remark = models.TextField('备注', blank=True, null=True)

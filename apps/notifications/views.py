@@ -15,17 +15,11 @@ class NotificationChannelViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        """多租户隔离：普通用户只看自己公司的渠道；staff 可见全部"""
+        """多租户隔离已移除 - 所有用户可见所有通知渠道"""
         user = self.request.user
         queryset = NotificationChannel.objects.filter(is_deleted=False)
-        if user.is_superuser:
-            return queryset
-        company_id = getattr(self.request, 'company_id', None)
-        if company_id:
-            return queryset.filter(
-                Q(company_id=company_id) | Q(company__isnull=True)
-            )
-        return queryset.none()
+        # 所有认证用户都可访问所有渠道
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save()
@@ -121,14 +115,7 @@ class NotifyBindingViewSet(viewsets.ModelViewSet):
         return NotifyBinding.objects.filter(user=user)
 
     def perform_create(self, serializer):
-        # 验证 channel 归属（多租户安全）
-        channel = serializer.validated_data.get('channel')
-        if channel:
-            user = self.request.user
-            company_id = getattr(self.request, 'company_id', None)
-            if not user.is_superuser and company_id and channel.company_id != company_id:
-                from rest_framework.exceptions import PermissionDenied
-                raise PermissionDenied("不能绑定到其他公司的通知渠道")
+        # 多租户隔离已移除 - 不再验证 channel 归属
         serializer.save(user=self.request.user)
 
     @action(detail=False, methods=['get'])

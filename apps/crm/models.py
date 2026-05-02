@@ -2,6 +2,22 @@ from django.db import models
 from apps.core.models import User
 
 
+class ClientSource(models.Model):
+    """客户来源渠道 - 用户可自行维护"""
+    name = models.CharField('来源名称', max_length=100, unique=True)
+    remark = models.CharField('备注', max_length=500, blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'crm_client_source'
+        verbose_name = '客户来源'
+        verbose_name_plural = verbose_name
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+
 class Supplier(models.Model):
     """供应商模型"""
     STATUS_CHOICES = [
@@ -42,6 +58,13 @@ class Client(models.Model):
 
     code = models.CharField('客户编码', max_length=50, unique=True, blank=True)
     name = models.CharField('客户名称', max_length=200)
+    source = models.ForeignKey(
+        ClientSource,
+        verbose_name='客户来源',
+        on_delete=models.SET_NULL,
+        blank=True, null=True,
+        related_name='clients'
+    )
     category = models.CharField('客户分类', max_length=20, choices=CATEGORY_CHOICES, blank=True, default='')
     contact_person = models.CharField('联系人', max_length=100, blank=True, null=True)
     contact_phone = models.CharField('联系电话', max_length=50, blank=True, null=True)
@@ -109,6 +132,7 @@ class Contract(models.Model):
     sign_date = models.DateField('签署日期', null=True, blank=True)
     expire_date = models.DateField('到期日期', null=True, blank=True)
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='draft')
+    attachment = models.FileField('合同附件', upload_to='contracts/%Y%m/', blank=True, null=True)
     remark = models.TextField('备注', blank=True, null=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
@@ -119,6 +143,13 @@ class Contract(models.Model):
         verbose_name = '合同'
         verbose_name_plural = verbose_name
         ordering = ['-created_at']
+
+    @property
+    def attachment_name(self):
+        if self.attachment:
+            import os
+            return os.path.basename(self.attachment.name)
+        return ''
 
     def __str__(self):
         return f"{self.contract_no} - {self.name}"

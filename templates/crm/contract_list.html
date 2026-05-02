@@ -146,6 +146,12 @@
                         <label class="form-label">备注</label>
                         <textarea class="form-control" id="remark" rows="2" placeholder="备注信息"></textarea>
                     </div>
+                    <div class="col-12">
+                        <label class="form-label">附件</label>
+                        <input type="file" class="form-control" id="contractAttachment" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.png">
+                        <input type="text" class="form-control mt-2" id="contractAttachmentName" placeholder="附件显示名称（选填）">
+                        <div id="attachmentPreview" class="mt-1"></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -327,6 +333,9 @@ function showContractModal() {
     document.getElementById('expireDate').value = '';
     document.getElementById('contractStatus').value = 'draft';
     document.getElementById('remark').value = '';
+    document.getElementById('contractAttachment').value = '';
+    document.getElementById('contractAttachmentName').value = '';
+    document.getElementById('attachmentPreview').innerHTML = '';
     onPartyTypeChange();
     contractModal.show();
 }
@@ -349,6 +358,14 @@ function editContract(contractId) {
     document.getElementById('expireDate').value = c.expire_date || '';
     document.getElementById('contractStatus').value = c.status || 'draft';
     document.getElementById('remark').value = c.remark || '';
+    // 显示已有附件
+    var preview = document.getElementById('attachmentPreview');
+    if (c.attachment) {
+        var attName = c.attachment_name || c.attachment.split('/').pop();
+        preview.innerHTML = '<small class="text-success"><i class="bi bi-paperclip"></i>已有附件: ' + escapeHtml(attName) + '</small>';
+    } else {
+        preview.innerHTML = '';
+    }
     onPartyTypeChange();
     contractModal.show();
 }
@@ -370,19 +387,25 @@ async function saveContract() {
         if (!client) { showToast('请选择客户', 'warning'); return; }
     }
 
-    var payload = {
-        counterparty_type: partyType,
-        client: client || null,
-        supplier: supplier || null,
-        contract_no: contractNo,
-        name: name,
-        project: document.getElementById('contractProject').value || null,
-        amount: parseFloat(document.getElementById('amount').value) || 0,
-        sign_date: document.getElementById('signDate').value || null,
-        expire_date: document.getElementById('expireDate').value || null,
-        status: document.getElementById('contractStatus').value,
-        remark: document.getElementById('remark').value.trim()
-    };
+    var attachmentFile = document.getElementById('contractAttachment').files[0];
+    var attachmentName = document.getElementById('contractAttachmentName').value.trim();
+
+    var formData = new FormData();
+    formData.append('counterparty_type', partyType);
+    formData.append('client', client || '');
+    formData.append('supplier', supplier || '');
+    formData.append('contract_no', contractNo);
+    formData.append('name', name);
+    formData.append('project', document.getElementById('contractProject').value || '');
+    formData.append('amount', document.getElementById('amount').value || '0');
+    formData.append('sign_date', document.getElementById('signDate').value || '');
+    formData.append('expire_date', document.getElementById('expireDate').value || '');
+    formData.append('status', document.getElementById('contractStatus').value);
+    formData.append('remark', document.getElementById('remark').value.trim());
+    if (attachmentFile) {
+        formData.append('attachment', attachmentFile);
+        formData.append('attachment_name', attachmentName);
+    }
 
     var url = '/api/crm/contracts/';
     var method = 'POST';
@@ -394,11 +417,9 @@ async function saveContract() {
     try {
         var response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken'),
-            },
+            headers: { 'X-CSRFToken': getCookie('csrftoken') },
             credentials: 'include',
-            body: JSON.stringify(payload)
+            body: formData
         });
 
         if (!response.ok) {

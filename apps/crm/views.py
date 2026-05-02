@@ -2,9 +2,19 @@ from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Client, Contract, Supplier
-from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer
+from .models import Client, Contract, Supplier, ClientSource
+from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer, ClientSourceSerializer
 from rest_framework.permissions import IsAuthenticated
+
+class ClientSourceViewSet(viewsets.ModelViewSet):
+    """客户来源管理"""
+    queryset = ClientSource.objects.all()
+    serializer_class = ClientSourceSerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['name']
+
+    def get_queryset(self):
+        return ClientSource.objects.all()
 
 class SupplierViewSet(viewsets.ModelViewSet):
     """供应商管理"""
@@ -16,9 +26,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by__company_id=user.company_id)
+        # 多租户隔离已移除 - 所有用户可访问所有供应商数据
         return queryset
 
     def perform_create(self, serializer):
@@ -47,9 +55,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by__company_id=user.company_id)
+        # 多租户隔离已移除 - 所有用户可访问所有客户数据
         return queryset
 
     def perform_create(self, serializer):
@@ -78,9 +84,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by__company_id=user.company_id)
+        # 多租户隔离已移除 - 所有用户可访问所有合同数据
         return queryset
 
     def perform_create(self, serializer):
@@ -97,3 +101,22 @@ class ContractViewSet(viewsets.ModelViewSet):
         records = queryset.select_related('client', 'project', 'created_by')
         buf = export_contracts(list(records))
         return make_export_response(buf, f'合同_{timezone.now().strftime("%Y%m%d")}.xlsx')
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status not in ['draft', 'pending']:
+            return Response({'detail': f'当前状态不允许审批（当前状态：{contract.status}）'}, status=400)
+        contract.status = 'approved'
+        contract.save()
+        return Response({'detail': '已批准', 'status': contract.status})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        contract = self.get_object()
+        comment = request.data.get('comment', '')
+        if contract.status not in ['draft', 'pending']:
+            return Response({'detail': f'当前状态不允许驳回（当前状态：{contract.status}）'}, status=400)
+        contract.status = 'rejected'
+        contract.save()
+        return Response({'detail': '已驳回', 'comment': comment, 'status': contract.status})

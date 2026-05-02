@@ -57,15 +57,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
     filterset_class = CompanyFilter
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
+        # 多租户隔离已移除 - 所有用户可访问所有公司数据
+        if not self.request.user.is_authenticated:
             return Company.objects.none()
-        if user.is_superuser or user.is_staff:
-            return Company.objects.all()
-        # 普通用户：只看自己所属公司
-        if hasattr(user, 'company') and user.company_id:
-            return Company.objects.filter(id=user.company_id)
-        return Company.objects.none()
+        return Company.objects.all()
 
     def perform_create(self, serializer):
         serializer.save()
@@ -112,12 +107,7 @@ class IncomeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -280,12 +270,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -434,12 +419,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related(
             'company', 'approver', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
         ).prefetch_related('approval_flow')
@@ -646,6 +626,60 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
     @action(detail=False, methods=['post'])
+    def calc(self, request):
+        """工资自动计算接口"""
+        import re
+        def calc_tax(taxable):
+            if taxable <= 0:
+                return 0
+            thresholds = [0, 3000, 12000, 25000, 35000, 55000, 80000]
+            rates = [3, 10, 20, 25, 30, 35, 45]
+            quick_deductions = [0, 210, 1410, 2660, 4410, 7160, 15160]
+            for i in range(len(thresholds) - 1):
+                if taxable <= thresholds[i + 1]:
+                    return max(0, taxable * rates[i] / 100 - quick_deductions[i])
+            return max(0, taxable * 45 / 100 - 15160)
+
+        try:
+            base = float(request.data.get('base_salary') or 0)
+            pos = float(request.data.get('position_salary') or 0)
+            ot = float(request.data.get('overtime_pay') or 0)
+            bonus = float(request.data.get('bonus') or 0)
+            comm = float(request.data.get('commission') or 0)
+            meal = float(request.data.get('meal_allowance') or 0)
+            transport = float(request.data.get('transport_allowance') or 0)
+            comm_allow = float(request.data.get('communication_allowance') or 0)
+            other_allow = float(request.data.get('other_allowance') or 0)
+            social = float(request.data.get('social_insurance') or 0)
+            fund = float(request.data.get('housing_fund') or 0)
+            leave_ded = float(request.data.get('leave_deduction') or 0)
+            sick_ded = float(request.data.get('sick_leave_deduction') or 0)
+            other_ded = float(request.data.get('other_deductions') or 0)
+
+            gross = base + pos + ot + bonus + comm + meal + transport + comm_allow + other_allow
+            special_ded = social + fund
+            total_ded = special_ded + leave_ded + sick_ded + other_ded
+            taxable = max(gross - special_ded - 5000, 0)
+            tax = calc_tax(taxable)
+            net = gross - total_ded - tax
+
+            return Response({
+                'gross': round(gross, 2),
+                'social_insurance': round(social, 2),
+                'housing_fund': round(fund, 2),
+                'special_deduction': round(special_ded, 2),
+                'leave_deduction': round(leave_ded, 2),
+                'sick_leave_deduction': round(sick_ded, 2),
+                'other_deductions': round(other_ded, 2),
+                'total_deduction': round(total_ded, 2),
+                'taxable_salary': round(taxable, 2),
+                'tax': round(tax, 2),
+                'net_salary': round(net, 2),
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    @action(detail=False, methods=['post'])
     def import_records(self, request):
         """批量导入工资单 Excel"""
         from apps.core.import_excel import import_wage
@@ -749,12 +783,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs.select_related('company', 'project')
 
     def perform_create(self, serializer):
@@ -882,17 +911,8 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        user = request.user
 
-        # 公司隔离：普通用户只能看自己公司的数据
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                if company_id and int(company_id) != user.company_id:
-                    company_id = str(user.company_id)
-                else:
-                    company_id = str(user.company_id)
-            else:
-                return Response({'results': [], 'summary': {}, 'year': None, 'month': None, 'company_id': None})
+        # 多租户隔离已移除 - 所有用户可访问所有公司数据
 
         # 构建筛选条件
         income_qs = Income.objects.all()
@@ -953,14 +973,7 @@ class ReportViewSet(viewsets.ViewSet):
         """年度报表 - 按公司+年份统计"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
-        user = request.user
-
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
-            else:
-                return Response({'year': None, 'company_id': None, 'results': [], 'summary': {}})
+        # 多租户隔离已移除
 
         income_qs = Income.objects.all()
         expense_qs = Expense.objects.all()
@@ -1016,14 +1029,7 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        user = request.user
-
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
-            else:
-                return Response({'year': None, 'month': None, 'company_id': None, 'results': [], 'summary': {}})
+        # 多租户隔离已移除
 
         queryset = WageRecord.objects.all()
         if year:
@@ -1079,14 +1085,7 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
         invoice_type = request.query_params.get('type')  # income or expense
-        user = request.user
-
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
-            else:
-                return Response({'year': None, 'company_id': None, 'type': invoice_type, 'results': []})
+        # 多租户隔离已移除
 
         queryset = Invoice.objects.all()
         if year:
@@ -1212,17 +1211,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
+        # 多租户隔离已移除 - 所有用户可访问所有员工数据
+        if not self.request.user.is_authenticated:
             return Employee.objects.none()
-        if user.is_superuser or user.is_staff:
-            return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
-        # 普通用户：按公司隔离（通过 EmployeeCompany）
-        if hasattr(user, 'company') and user.company_id:
-            return Employee.objects.prefetch_related('company_links__company').filter(
-                company_links__company_id=user.company_id
-            ).distinct().order_by('-created_at')
-        return Employee.objects.none()
+        return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -1299,14 +1291,10 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        if not user.is_authenticated:
+        # 多租户隔离已移除 - 所有用户可访问所有社保配置
+        if not self.request.user.is_authenticated:
             return CompanySocialConfig.objects.none()
-        if user.is_superuser or user.is_staff:
-            return CompanySocialConfig.objects.all()
-        if hasattr(user, 'company') and user.company_id:
-            return CompanySocialConfig.objects.filter(company_id=user.company_id)
-        return CompanySocialConfig.objects.none()
+        return CompanySocialConfig.objects.all()
 
 
 class ARAPViewSet(viewsets.ViewSet):
@@ -1407,12 +1395,7 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company=user.company_id)
-            else:
-                return qs.none()
+        # 多租户隔离已移除 - 所有用户可访问所有数据
         return qs
 
     def perform_create(self, serializer):
