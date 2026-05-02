@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('finance', '0014_company_bank_account_company_bank_name_and_more'),
+        # notifications模块不引用finance表，无需依赖
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
