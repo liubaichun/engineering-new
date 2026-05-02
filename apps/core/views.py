@@ -385,12 +385,12 @@ class MyPermissionsView(APIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     """用户管理视图集"""
-    queryset = User.objects.all().select_related('role')
+    queryset = User.objects.all()
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        queryset = User.objects.all().select_related('role')
+        queryset = User.objects.all()
         role = self.request.query_params.get('role')
         is_active = self.request.query_params.get('is_active')
         last_login_since = self.request.query_params.get('last_login_since')  # 分钟内登录过
