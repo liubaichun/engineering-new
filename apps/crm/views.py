@@ -12,7 +12,6 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSourceSerializer
     permission_classes = [IsAuthenticated]
     search_fields = ['name']
-    filterset_fields = ['parent']
 
     def get_queryset(self):
         return ClientSource.objects.all()

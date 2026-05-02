@@ -144,5 +144,12 @@ class Contract(models.Model):
         verbose_name_plural = verbose_name
         ordering = ['-created_at']
 
+    @property
+    def attachment_name(self):
+        if self.attachment:
+            import os
+            return os.path.basename(self.attachment.name)
+        return ''
+
     def __str__(self):
         return f"{self.contract_no} - {self.name}"
