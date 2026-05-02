@@ -626,6 +626,60 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
     @action(detail=False, methods=['post'])
+    def calc(self, request):
+        """工资自动计算接口"""
+        import re
+        def calc_tax(taxable):
+            if taxable <= 0:
+                return 0
+            thresholds = [0, 3000, 12000, 25000, 35000, 55000, 80000]
+            rates = [3, 10, 20, 25, 30, 35, 45]
+            quick_deductions = [0, 210, 1410, 2660, 4410, 7160, 15160]
+            for i in range(len(thresholds) - 1):
+                if taxable <= thresholds[i + 1]:
+                    return max(0, taxable * rates[i] / 100 - quick_deductions[i])
+            return max(0, taxable * 45 / 100 - 15160)
+
+        try:
+            base = float(request.data.get('base_salary') or 0)
+            pos = float(request.data.get('position_salary') or 0)
+            ot = float(request.data.get('overtime_pay') or 0)
+            bonus = float(request.data.get('bonus') or 0)
+            comm = float(request.data.get('commission') or 0)
+            meal = float(request.data.get('meal_allowance') or 0)
+            transport = float(request.data.get('transport_allowance') or 0)
+            comm_allow = float(request.data.get('communication_allowance') or 0)
+            other_allow = float(request.data.get('other_allowance') or 0)
+            social = float(request.data.get('social_insurance') or 0)
+            fund = float(request.data.get('housing_fund') or 0)
+            leave_ded = float(request.data.get('leave_deduction') or 0)
+            sick_ded = float(request.data.get('sick_leave_deduction') or 0)
+            other_ded = float(request.data.get('other_deductions') or 0)
+
+            gross = base + pos + ot + bonus + comm + meal + transport + comm_allow + other_allow
+            special_ded = social + fund
+            total_ded = special_ded + leave_ded + sick_ded + other_ded
+            taxable = max(gross - special_ded - 5000, 0)
+            tax = calc_tax(taxable)
+            net = gross - total_ded - tax
+
+            return Response({
+                'gross': round(gross, 2),
+                'social_insurance': round(social, 2),
+                'housing_fund': round(fund, 2),
+                'special_deduction': round(special_ded, 2),
+                'leave_deduction': round(leave_ded, 2),
+                'sick_leave_deduction': round(sick_ded, 2),
+                'other_deductions': round(other_ded, 2),
+                'total_deduction': round(total_ded, 2),
+                'taxable_salary': round(taxable, 2),
+                'tax': round(tax, 2),
+                'net_salary': round(net, 2),
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=400)
+
+    @action(detail=False, methods=['post'])
     def import_records(self, request):
         """批量导入工资单 Excel"""
         from apps.core.import_excel import import_wage

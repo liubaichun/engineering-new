@@ -2,9 +2,20 @@ from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Client, Contract, Supplier
-from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer
+from .models import Client, Contract, Supplier, ClientSource
+from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer, ClientSourceSerializer
 from rest_framework.permissions import IsAuthenticated
+
+class ClientSourceViewSet(viewsets.ModelViewSet):
+    """客户来源管理"""
+    queryset = ClientSource.objects.all()
+    serializer_class = ClientSourceSerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['name']
+    filterset_fields = ['parent']
+
+    def get_queryset(self):
+        return ClientSource.objects.all()
 
 class SupplierViewSet(viewsets.ModelViewSet):
     """供应商管理"""

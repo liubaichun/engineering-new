@@ -107,6 +107,15 @@
                             <option value="special">特殊客户</option>
                         </select>
                     </div>
+                    <div class="col-md-6" id="clientSourceRow">
+                        <label class="form-label">客户来源</label>
+                        <div class="input-group">
+                            <select class="form-select" id="clientSource">
+                                <option value="">选择来源</option>
+                            </select>
+                            <button class="btn btn-outline-secondary" type="button" onclick="addNewClientSource()" title="新增来源">+</button>
+                        </div>
+                    </div>
                     <div class="col-12">
                         <label class="form-label">地址</label>
                         <input type="text" class="form-control" id="address" placeholder="公司地址">
@@ -135,6 +144,7 @@ var allClients = [];
 document.addEventListener('DOMContentLoaded', function() {
     clientModal = new bootstrap.Modal(document.getElementById('clientModal'));
     loadClients();
+    loadClientSources();
 });
 
 async function loadClients() {
@@ -205,6 +215,7 @@ function showClientModal() {
     document.getElementById('contactPhone').value = '';
     document.getElementById('contactEmail').value = '';
     document.getElementById('clientCategory').value = '';
+    document.getElementById('clientSource').value = '';
     document.getElementById('address').value = '';
     document.getElementById('remark').value = '';
     clientModal.show();
@@ -221,6 +232,7 @@ function editClient(clientId) {
     document.getElementById('contactPhone').value = client.contact_phone || '';
     document.getElementById('contactEmail').value = client.contact_email || '';
     document.getElementById('clientCategory').value = client.category || '';
+    document.getElementById('clientSource').value = client.source || '';
     document.getElementById('address').value = client.address || '';
     document.getElementById('remark').value = client.remark || '';
     clientModal.show();
@@ -238,6 +250,7 @@ async function saveClient() {
         contact_phone: document.getElementById('contactPhone').value.trim(),
         contact_email: document.getElementById('contactEmail').value.trim(),
         category: document.getElementById('clientCategory').value,
+        source: document.getElementById('clientSource').value || null,
         address: document.getElementById('address').value.trim(),
         remark: document.getElementById('remark').value.trim()
     };
@@ -304,6 +317,39 @@ function escapeHtml(text) {
     var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+async function loadClientSources() {
+    try {
+        var resp = await fetch('/api/crm/sources/', {credentials:'include'});
+        var data = await resp.json();
+        var sources = data.results || data;
+        var sel = document.getElementById('clientSource');
+        sources.forEach(function(s) {
+            sel.innerHTML += '<option value="'+s.id+'">'+escapeHtml(s.name)+'</option>';
+        });
+    } catch (error) {
+        console.error('加载客户来源失败:', error);
+    }
+}
+
+async function addNewClientSource() {
+    var name = prompt('请输入新来源名称（如：抖音/小红书、客户转介绍）:');
+    if (!name) return;
+    var resp = await fetch('/api/crm/sources/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {'Content-Type':'application/json', 'X-CSRFToken': getCookie('csrftoken')},
+        body: JSON.stringify({name: name})
+    });
+    if (resp.ok) {
+        var newSource = await resp.json();
+        var sel = document.getElementById('clientSource');
+        sel.innerHTML += '<option value="'+newSource.id+'" selected>'+escapeHtml(newSource.name)+'</option>';
+        showToast('来源已添加', 'success');
+    } else {
+        showToast('添加失败', 'error');
+    }
 }
 </script>
 {% endblock %}

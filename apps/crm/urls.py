@@ -7,6 +7,7 @@ router = routers.DefaultRouter()
 router.register(r'clients', views.ClientViewSet)
 router.register(r'contracts', views.ContractViewSet)
 router.register(r'suppliers', views.SupplierViewSet)
+router.register(r'sources', views.ClientSourceViewSet, basename='clientsource')
 
 urlpatterns = router.urls
 

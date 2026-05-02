@@ -1,5 +1,12 @@
 from rest_framework import serializers
-from .models import Client, Contract, Supplier
+from .models import Client, Contract, Supplier, ClientSource
+
+
+class ClientSourceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ClientSource
+        fields = ['id', 'name', 'tree_path', 'parent']
+        read_only_fields = ['tree_path']
 
 
 class SupplierSerializer(serializers.ModelSerializer):
@@ -34,12 +41,14 @@ class SupplierSerializer(serializers.ModelSerializer):
 class ClientSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     category_display = serializers.CharField(source='get_category_display', read_only=True)
+    source_name = serializers.CharField(source='source.name', read_only=True)
 
     class Meta:
         model = Client
         fields = ['id', 'code', 'name', 'category', 'category_display',
                   'contact_person', 'contact_phone', 'contact_email',
                   'address', 'remark', 'is_active',
+                  'source', 'source_name',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
         read_only_fields = ['code', 'created_by']
 
@@ -65,7 +74,8 @@ class ContractSerializer(serializers.ModelSerializer):
                   'client', 'client_name', 'supplier', 'supplier_name',
                   'project', 'project_name',
                   'contract_no', 'name', 'amount', 'sign_date', 'expire_date',
-                  'status', 'remark', 'created_at', 'updated_at', 'created_by', 'created_by_name']
+                  'status', 'remark', 'attachment', 'attachment_name',
+                  'created_at', 'updated_at', 'created_by', 'created_by_name']
         read_only_fields = ['created_by']
         extra_kwargs = {'contract_no': {'required': False}}
 

@@ -479,6 +479,47 @@ function autoCalc() {
     document.getElementById('calc_net').textContent = '¥' + r.net.toLocaleString();
 }
 
+async function autoCalcWage() {
+    // 从表单收集数据，调用后端计算接口，填回结果
+    var data = {
+        base_salary: document.getElementById('id_base_salary').value || 0,
+        position_salary: document.getElementById('id_position_salary').value || 0,
+        overtime_pay: document.getElementById('id_overtime_pay').value || 0,
+        bonus: document.getElementById('id_bonus').value || 0,
+        commission: document.getElementById('id_commission').value || 0,
+        meal_allowance: document.getElementById('id_meal_allowance').value || 0,
+        transport_allowance: document.getElementById('id_transport_allowance').value || 0,
+        communication_allowance: document.getElementById('id_communication_allowance').value || 0,
+        other_allowance: document.getElementById('id_other_allowance').value || 0,
+        social_insurance: document.getElementById('id_social_insurance').value || 0,
+        housing_fund: document.getElementById('id_housing_fund').value || 0,
+        leave_deduction: document.getElementById('id_leave_deduction').value || 0,
+        sick_leave_deduction: document.getElementById('id_sick_leave_deduction').value || 0,
+        other_deductions: document.getElementById('id_other_deductions').value || 0,
+    };
+    try {
+        var resp = await fetch('/api/finance/wages/calc/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify(data)
+        });
+        var result = await resp.json();
+        if (resp.ok) {
+            document.getElementById('calc_gross').textContent = '¥' + (result.gross || 0).toLocaleString();
+            document.getElementById('calc_total_ded').textContent = '¥' + (result.total_deduction || 0).toLocaleString();
+            document.getElementById('calc_taxable').textContent = '¥' + (result.taxable_salary || 0).toLocaleString();
+            document.getElementById('calc_tax').textContent = '¥' + (result.tax || 0).toLocaleString();
+            document.getElementById('calc_net').textContent = '¥' + (result.net_salary || 0).toLocaleString();
+            showToast('计算完成', 'success');
+        } else {
+            showToast(result.error || '计算失败', 'error');
+        }
+    } catch (e) {
+        showToast('计算请求失败', 'error');
+    }
+}
+
 async function submitWage(id) {
     if (!confirm('确定要提交此工资单进行审核吗？')) return;
     try {
@@ -1070,6 +1111,11 @@ function exportWages(selectedFields) {
                         <div class="col-3"><span class="label">实发工资 =</span></div>
                         <div class="col-6"><span class="label">应发合计 - 扣款合计 - 个税</span></div>
                         <div class="col-3"><span class="value total" id="calc_net">¥0</span></div>
+                    </div>
+                    <div class="mt-2 text-end">
+                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="autoCalcWage()">
+                            <i class="bi bi-calculator"></i> 自动计算
+                        </button>
                     </div>
                 </div>
 
