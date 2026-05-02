@@ -82,45 +82,49 @@ def _resource_label(path: str) -> str:
     return resource_map.get(last, last)
 
 
-def autogenerate_chinese_summary(registry, **kwargs):
+def autogenerate_chinese_summary(result, generator, **kwargs):
     """
     drf-spectacular postprocessing hook.
     Auto-fills 'summary' field for all operations that don't have one.
+    Uses operationId to derive Chinese action names.
+    
+    Args:
+        result: dict of {path: {method: operation_object}}
+        generator: the SchemaGenerator instance
+        **kwargs: additional keyword arguments from drf-spectacular
+    
+    Returns:
+        The modified result dict with auto-generated Chinese summaries.
     """
-    from drf_spectacular.generators import Generator
-    # `registry` is a dict-like: {path: {method: operation_object}}
-    for path, methods in registry.items():
+    for path, methods in result.items():
         for method, operation in methods.items():
-            if 'summary' in operation and operation['summary']:
-                continue  # already has summary
+            if operation.get('summary'):
+                continue  # already has summary, skip
 
-            # Build auto-summary from method + resource
             method_label = ACTION_SUMMARY_MAP.get(method.lower(), method.upper())
             action = operation.get('action', '')
             resource = _resource_label(path)
 
-            # Try to derive from operationId first (e.g., "ContractViewSet_retrieve")
+            # Derive from operationId: e.g. "ContractViewSet_list" → ["ContractViewSet", "list"]
             operation_id = operation.get('operationId', '')
             if operation_id:
-                # Extract action and model name
                 parts = re.split(r'[_\.]', operation_id)
-                if len(parts) >= 2:
-                    view_name = parts[0]  # e.g., ContractViewSet
-                    op_action = parts[1] if len(parts) > 1 else ''
-
-                    if op_action in ACTION_SUMMARY_MAP:
-                        summary = f"{_translate_action(op_action)}{resource}"
-                    else:
-                        summary = f"{_translate_action(op_action)}{resource}" if op_action else f"{method_label}{resource}"
+                # Handle compound actions like partial_update: ["partial", "update"] → "partial_update"
+                if len(parts) > 1 and parts[1] in ('partial', 'partial_update'):
+                    op_action = 'partial_update'
+                elif len(parts) > 1:
+                    op_action = parts[1]
                 else:
-                    summary = f"{method_label}{resource}"
+                    op_action = ''
+                if op_action in ACTION_SUMMARY_MAP:
+                    summary = f"{_translate_action(op_action)}{resource}"
+                else:
+                    summary = f"{_translate_action(op_action) if op_action else method_label}{resource}"
             elif action in ACTION_SUMMARY_MAP:
                 summary = f"{_translate_action(action)}{resource}"
-            elif method.lower() in ACTION_SUMMARY_MAP:
-                summary = f"{_translate_action(method.lower())}{resource}"
             else:
-                summary = f"{method_label} {resource}"
+                summary = f"{method_label}{resource}"
 
             operation['summary'] = summary
 
-    return registry
+    return result
