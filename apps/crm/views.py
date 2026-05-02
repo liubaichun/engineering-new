@@ -18,7 +18,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by=user)
+            queryset = queryset.filter(created_by__company_id=user.company_id)
         return queryset
 
     def perform_create(self, serializer):
@@ -49,7 +49,7 @@ class ClientViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by=user)
+            queryset = queryset.filter(created_by__company_id=user.company_id)
         return queryset
 
     def perform_create(self, serializer):
@@ -80,7 +80,7 @@ class ContractViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(created_by=user)
+            queryset = queryset.filter(created_by__company_id=user.company_id)
         return queryset
 
     def perform_create(self, serializer):
