@@ -15,7 +15,7 @@ def _load_env():
                     os.environ.setdefault(key.strip(), val.strip())
 _load_env()
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'CHANGE_ME_IN_PRODUCTION')
+SECRET_KEY = os.environ.get('SECRET_KEY', '02)mkk9yif^d!rsg26f1epk%%k)xe9cf6)0odggsf-3)8(!^yf')
 if not os.environ.get('SECRET_KEY'):
     import warnings
     warnings.warn('SECRET_KEY not set — using insecure default. Set SECRET_KEY env var.', RuntimeWarning)
