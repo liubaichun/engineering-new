@@ -102,10 +102,13 @@ def _custom_action_in_path(path: str) -> str:
 
 def _build_summary(method: str, operation: dict, resource: str, path: str = '') -> str:
     """根据method、operationId和URL路径构建中文summary"""
-    # 1. 优先从URL路径检测自定义动作（approve, export, monthly 等）
+    # 1. 优先从URL路径检测真正的嵌套自定义动作（approve, reject, export 等）
     if path:
         custom_action = _custom_action_in_path(path)
         if custom_action:
+            # 如果 action 中文已以 resource 结尾（避免"月度报表报表"），取 action 即可
+            if resource and custom_action.endswith(resource):
+                return custom_action
             return f"{custom_action}{resource}"
 
     # 2. 从operationId推导动作: "approvals_flows_approve_create" 或 "ApprovalFlowViewSet_approve" → approve
