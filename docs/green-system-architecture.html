@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>企业信息化管理系统 GREEN — 系统架构图</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'JetBrains Mono', monospace; background: #020617; min-height: 100vh; padding: 1.5rem; color: white; }
+    .container { max-width: 1400px; margin: 0 auto; }
+    .header { margin-bottom: 1.5rem; display: flex; align-items: center; gap: 1rem; }
+    .pulse-dot { width: 12px; height: 12px; background: #22d3ee; border-radius: 50%; animation: pulse 2s infinite; flex-shrink: 0; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.025em; }
+    .subtitle { color: #94a3b8; font-size: 0.8rem; margin-left: 1.75rem; }
+    .meta { color: #475569; font-size: 0.7rem; margin-left: auto; }
+    .diagram-container { background: rgba(15,23,42,0.5); border-radius: 1rem; border: 1px solid #1e293b; padding: 1rem; overflow-x: auto; }
+    svg { width: 100%; min-width: 1200px; display: block; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .card { background: rgba(15,23,42,0.5); border-radius: 0.75rem; border: 1px solid #1e293b; padding: 1rem; }
+    .card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .card-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .card h3 { font-size: 0.8rem; font-weight: 600; }
+    .card ul { list-style: none; color: #94a3b8; font-size: 0.7rem; line-height: 1.7; }
+    .card li { margin-bottom: 0.25rem; }
+    .card .tag { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 0.65rem; margin-left: 4px; }
+    .tag-cyan { background: rgba(34,211,238,0.2); color: #22d3ee; }
+    .tag-emerald { background: rgba(52,211,153,0.2); color: #34d399; }
+    .tag-violet { background: rgba(167,139,250,0.2); color: #a78bfa; }
+    .tag-amber { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .tag-rose { background: rgba(251,113,133,0.2); color: #fb7185; }
+    .footer { text-align: center; margin-top: 1rem; color: #475569; font-size: 0.7rem; }
+    .version-tag { display: inline-block; background: rgba(34,211,238,0.15); border: 1px solid rgba(34,211,238,0.3); color: #22d3ee; padding: 2px 8px; border-radius: 4px; font-size: 0.65rem; margin-left: 0.5rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <div class="pulse-dot"></div>
+    <h1>企业信息化管理系统 GREEN<span class="version-tag">v2.0</span></h1>
+    <p class="subtitle">Django + DRF + PostgreSQL | REST API Architecture</p>
+    <p class="meta">2026-05-02 | /root/engineering-new</p>
+  </div>
+
+  <div class="diagram-container">
+    <svg viewBox="0 0 1200 820" xmlns="http://www.w3.org/2000/svg">
+
+      <defs>
+        <marker id="arr" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#475569"/>
+        </marker>
+        <marker id="arr-cyan" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#22d3ee"/>
+        </marker>
+        <marker id="arr-emerald" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#34d399"/>
+        </marker>
+        <marker id="arr-violet" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#a78bfa"/>
+        </marker>
+        <marker id="arr-amber" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#fbbf24"/>
+        </marker>
+        <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+          <path d="M 40 0 L 0 0 0 40" fill="none" stroke="#1e293b" stroke-width="0.5"/>
+        </pattern>
+        <marker id="arr-rose" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+          <polygon points="0 0,8 3,0 6" fill="#fb7185"/>
+        </marker>
+      </defs>
+
+      <rect width="100%" height="100%" fill="url(#grid)"/>
+
+      <!-- ========== FRONTEND LAYER ========== -->
+      <!-- Frontend Group Label -->
+      <text x="20" y="22" fill="#22d3ee" font-size="9" font-weight="600" letter-spacing="1">FRONTEND</text>
+      <line x1="20" y1="28" x2="200" y2="28" stroke="#22d3ee" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <!-- Browser -->
+      <rect x="20" y="38" width="180" height="60" rx="8" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="1.5"/>
+      <text x="110" y="58" fill="white" font-size="10" font-weight="600" text-anchor="middle">Browser</text>
+      <text x="110" y="72" fill="#94a3b8" font-size="8" text-anchor="middle">HTML Templates + Bootstrap 5</text>
+      <text x="110" y="84" fill="#94a3b8" font-size="8" text-anchor="middle">jQuery AJAX → REST API</text>
+
+      <!-- API Gateway / Web Server -->
+      <rect x="240" y="38" width="160" height="60" rx="8" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="320" y="58" fill="white" font-size="10" font-weight="600" text-anchor="middle">Gunicorn + Nginx</text>
+      <text x="320" y="72" fill="#94a3b8" font-size="8" text-anchor="middle">反向代理 · 静态文件</text>
+      <text x="320" y="84" fill="#94a3b8" font-size="8" text-anchor="middle">端口: 80 / 8001</text>
+
+      <!-- Arrow: Browser → Gunicorn -->
+      <line x1="200" y1="68" x2="238" y2="68" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arr-cyan)"/>
+      <text x="219" y="64" fill="#94a3b8" font-size="8" text-anchor="middle">HTTP</text>
+
+      <!-- ========== BACKEND LAYER ========== -->
+      <text x="20" y="125" fill="#34d399" font-size="9" font-weight="600" letter-spacing="1">BACKEND — Django REST Framework</text>
+      <line x1="20" y1="131" x2="560" y2="131" stroke="#34d399" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <!-- Django App: Core -->
+      <rect x="20" y="140" width="175" height="90" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="107" y="158" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.core</text>
+      <text x="107" y="172" fill="#34d399" font-size="7" text-anchor="middle">User · Role · Permission</text>
+      <text x="107" y="184" fill="#94a3b8" font-size="7" text-anchor="middle">LoginLog · PermissionAudit</text>
+      <text x="107" y="196" fill="#94a3b8" font-size="7" text-anchor="middle">OperationAudit · SystemSetting</text>
+      <text x="107" y="212" fill="#fbbf24" font-size="7" text-anchor="middle">RBAC 权限体系</text>
+
+      <!-- Django App: CRM -->
+      <rect x="205" y="140" width="175" height="90" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="292" y="158" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.crm</text>
+      <text x="292" y="172" fill="#34d399" font-size="7" text-anchor="middle">Client · Supplier · Contract</text>
+      <text x="292" y="184" fill="#94a3b8" font-size="7" text-anchor="middle">ClientSource (来源渠道)</text>
+      <text x="292" y="196" fill="#94a3b8" font-size="7" text-anchor="middle">Contract.approval_flow FK</text>
+      <text x="292" y="212" fill="#fbbf24" font-size="7" text-anchor="middle">合同 + 自动审批流</text>
+
+      <!-- Django App: Finance -->
+      <rect x="390" y="140" width="175" height="90" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="477" y="158" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.finance</text>
+      <text x="477" y="172" fill="#34d399" font-size="7" text-anchor="middle">Company · Employee</text>
+      <text x="477" y="184" fill="#94a3b8" font-size="7" text-anchor="middle">Income · Expense · Invoice</text>
+      <text x="477" y="196" fill="#94a3b8" font-size="7" text-anchor="middle">WageRecord (7级累进税)</text>
+      <text x="477" y="212" fill="#fbbf24" font-size="7" text-anchor="middle">财务 + 工资自动计算</text>
+
+      <!-- Django App: Tasks -->
+      <rect x="20" y="240" width="175" height="90" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="107" y="258" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.tasks</text>
+      <text x="107" y="272" fill="#34d399" font-size="7" text-anchor="middle">Project · Task</text>
+      <text x="107" y="284" fill="#94a3b8" font-size="7" text-anchor="middle">FlowTemplate · FlowNodeTemplate</text>
+      <text x="107" y="296" fill="#94a3b8" font-size="7" text-anchor="middle">TaskStageInstance · TaskFlowInstance</text>
+      <text x="107" y="312" fill="#fbbf24" font-size="7" text-anchor="middle">项目任务 + 流程引擎</text>
+
+      <!-- Django App: Approvals -->
+      <rect x="205" y="240" width="175" height="90" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="292" y="258" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.approvals</text>
+      <text x="292" y="272" fill="#34d399" font-size="7" text-anchor="middle">Flow · Node · Template</text>
+      <text x="292" y="284" fill="#94a3b8" font-size="7" text-anchor="middle">nodes (JSON) · conditions (JSON)</text>
+      <text x="292" y="296" fill="#94a3b8" font-size="7" text-anchor="middle">delegated_to · node_order</text>
+      <text x="292" y="312" fill="#fbbf24" font-size="7" text-anchor="middle">审批流状态机</text>
+
+      <!-- Django App: Equipment + Material -->
+      <rect x="390" y="240" width="175" height="90" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="477" y="258" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.equipment / material</text>
+      <text x="477" y="272" fill="#34d399" font-size="7" text-anchor="middle">Equipment · Material</text>
+      <text x="477" y="284" fill="#94a3b8" font-size="7" text-anchor="middle">UsageLog · RepairLog</text>
+      <text x="477" y="296" fill="#94a3b8" font-size="7" text-anchor="middle">MaterialCategory</text>
+      <text x="477" y="312" fill="#fbbf24" font-size="7" text-anchor="middle">设备/物料台账</text>
+
+      <!-- Django App: Files -->
+      <rect x="20" y="340" width="175" height="70" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="107" y="358" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.files</text>
+      <text x="107" y="372" fill="#34d399" font-size="7" text-anchor="middle">FileCategory · CompanyFile</text>
+      <text x="107" y="384" fill="#94a3b8" font-size="7" text-anchor="middle">contract FK · version · remark</text>
+      <text x="107" y="396" fill="#fbbf24" font-size="7" text-anchor="middle">文件 + 版本 + 关联合同</text>
+
+      <!-- Django App: Notifications -->
+      <rect x="205" y="340" width="175" height="70" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="292" y="358" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.notifications</text>
+      <text x="292" y="372" fill="#34d399" font-size="7" text-anchor="middle">Channel · NotifyApp · NotifyBinding</text>
+      <text x="292" y="384" fill="#94a3b8" font-size="7" text-anchor="middle">platform · receive_all</text>
+      <text x="292" y="396" fill="#fbbf24" font-size="7" text-anchor="middle">多渠道通知 · 飞书/企微/邮件</text>
+
+      <!-- Channels Plugin -->
+      <rect x="390" y="340" width="175" height="70" rx="6" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1.5"/>
+      <text x="477" y="358" fill="white" font-size="10" font-weight="600" text-anchor="middle">apps.channels</text>
+      <text x="477" y="372" fill="#34d399" font-size="7" text-anchor="middle">Plugin · Binding · AuditLog</text>
+      <text x="477" y="384" fill="#94a3b8" font-size="7" text-anchor="middle">飞书 · 企微 · 钉钉 · 邮件</text>
+      <text x="477" y="396" fill="#fbbf24" font-size="7" text-anchor="middle">第三方渠道插件</text>
+
+      <!-- Arrow: Gunicorn → Core -->
+      <line x1="320" y1="68" x2="320" y2="138" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+      <text x="334" y="105" fill="#94a3b8" font-size="8">URL Router</text>
+      <text x="334" y="117" fill="#94a3b8" font-size="8">/api/core/</text>
+
+      <!-- Arrows: Gunicorn → Apps -->
+      <line x1="370" y1="68" x2="370" y2="138" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="420" y1="68" x2="420" y2="138" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="470" y1="68" x2="470" y2="138" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+      <line x1="520" y1="68" x2="520" y2="138" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+
+      <!-- ========== DATABASE LAYER ========== -->
+      <text x="20" y="438" fill="#a78bfa" font-size="9" font-weight="600" letter-spacing="1">DATABASE — PostgreSQL</text>
+      <line x1="20" y1="444" x2="560" y2="444" stroke="#a78bfa" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <!-- DB: Core Tables -->
+      <rect x="20" y="452" width="175" height="100" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="107" y="468" fill="white" font-size="9" font-weight="600" text-anchor="middle">core_*</text>
+      <text x="107" y="482" fill="#a78bfa" font-size="7" text-anchor="middle">user · role · permission</text>
+      <text x="107" y="494" fill="#94a3b8" font-size="7" text-anchor="middle">user_role (M2M)</text>
+      <text x="107" y="506" fill="#94a3b8" font-size="7" text-anchor="middle">user_company_role</text>
+      <text x="107" y="518" fill="#94a3b8" font-size="7" text-anchor="middle">login_log · permission_audit</text>
+      <text x="107" y="530" fill="#94a3b8" font-size="7" text-anchor="middle">operation_audit</text>
+      <text x="107" y="542" fill="#fbbf24" font-size="7" text-anchor="middle">company_id 隔离</text>
+
+      <!-- DB: Finance Tables -->
+      <rect x="205" y="452" width="175" height="100" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="292" y="468" fill="white" font-size="9" font-weight="600" text-anchor="middle">finance_*</text>
+      <text x="292" y="482" fill="#a78bfa" font-size="7" text-anchor="middle">company · employee</text>
+      <text x="292" y="494" fill="#94a3b8" font-size="7" text-anchor="middle">income · expense · invoice</text>
+      <text x="292" y="506" fill="#94a3b8" font-size="7" text-anchor="middle">wage_record</text>
+      <text x="292" y="518" fill="#94a3b8" font-size="7" text-anchor="middle">7级超额累进税率</text>
+      <text x="292" y="530" fill="#fbbf24" font-size="7" text-anchor="middle">approval_flow_id FK</text>
+      <text x="292" y="542" fill="#fbbf24" font-size="7" text-anchor="middle">≥1000自动触发审批</text>
+
+      <!-- DB: CRM Tables -->
+      <rect x="390" y="452" width="175" height="100" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="477" y="468" fill="white" font-size="9" font-weight="600" text-anchor="middle">crm_*</text>
+      <text x="477" y="482" fill="#a78bfa" font-size="7" text-anchor="middle">client · supplier · contract</text>
+      <text x="477" y="494" fill="#94a3b8" font-size="7" text-anchor="middle">client_source (来源)</text>
+      <text x="477" y="506" fill="#94a3b8" font-size="7" text-anchor="middle">contract.approval_flow FK</text>
+      <text x="477" y="518" fill="#94a3b8" font-size="7" text-anchor="middle">contract.amount ≥10000</text>
+      <text x="477" y="530" fill="#fbbf24" font-size="7" text-anchor="middle">自动触发审批流</text>
+      <text x="477" y="542" fill="#fbbf24" font-size="7" text-anchor="middle">attachment 上传</text>
+
+      <!-- DB: Tasks Tables -->
+      <rect x="20" y="562" width="175" height="80" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="107" y="578" fill="white" font-size="9" font-weight="600" text-anchor="middle">tasks_*</text>
+      <text x="107" y="592" fill="#a78bfa" font-size="7" text-anchor="middle">project · task</text>
+      <text x="107" y="604" fill="#94a3b8" font-size="7" text-anchor="middle">flow_template · flow_node_template</text>
+      <text x="107" y="616" fill="#94a3b8" font-size="7" text-anchor="middle">task_stage_instance</text>
+      <text x="107" y="628" fill="#94a3b8" font-size="7" text-anchor="middle">task_flow_instance</text>
+      <text x="107" y="640" fill="#fbbf24" font-size="7" text-anchor="middle">company_id 隔离</text>
+
+      <!-- DB: Approvals Tables -->
+      <rect x="205" y="562" width="175" height="80" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="292" y="578" fill="white" font-size="9" font-weight="600" text-anchor="middle">approvals_*</text>
+      <text x="292" y="592" fill="#a78bfa" font-size="7" text-anchor="middle">flow · node · template</text>
+      <text x="292" y="604" fill="#94a3b8" font-size="7" text-anchor="middle">nodes JSON · conditions JSON</text>
+      <text x="292" y="616" fill="#94a3b8" font-size="7" text-anchor="middle">status: pending/approved/rejected</text>
+      <text x="292" y="628" fill="#fbbf24" font-size="7" text-anchor="middle">requester_id FK → User</text>
+      <text x="292" y="640" fill="#fbbf24" font-size="7" text-anchor="middle">node_order 审批顺序</text>
+
+      <!-- DB: Other Tables -->
+      <rect x="390" y="562" width="175" height="80" rx="6" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1.5"/>
+      <text x="477" y="578" fill="white" font-size="9" font-weight="600" text-anchor="middle">equipment / material</text>
+      <text x="477" y="592" fill="#a78bfa" font-size="7" text-anchor="middle">equipment_* · material_*</text>
+      <text x="477" y="604" fill="#94a3b8" font-size="7" text-anchor="middle">usage_log · repair_log</text>
+      <text x="477" y="616" fill="#94a3b8" font-size="7" text-anchor="middle">company_file · file_category</text>
+      <text x="477" y="628" fill="#fbbf24" font-size="7" text-anchor="middle">company_id 隔离</text>
+      <text x="477" y="640" fill="#94a3b8" font-size="7" text-anchor="middle">notify_binding · notify_log</text>
+
+      <!-- Arrow: Backend → DB (main) -->
+      <line x1="107" y1="420" x2="107" y2="450" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arr-violet)"/>
+      <text x="122" y="437" fill="#94a3b8" font-size="8">ORM Query</text>
+
+      <!-- ========== BUSINESS FLOWS ========== -->
+      <text x="610" y="22" fill="#fb7185" font-size="9" font-weight="600" letter-spacing="1">KEY BUSINESS FLOWS</text>
+      <line x1="610" y1="28" x2="880" y2="28" stroke="#fb7185" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <!-- Flow 1: Approval Flow Trigger -->
+      <rect x="610" y="38" width="270" height="100" rx="8" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="745" y="56" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">① 审批流触发流程</text>
+      <text x="625" y="72" fill="#94a3b8" font-size="7">前端: Contract.amount ≥ 10000</text>
+      <text x="625" y="84" fill="#94a3b8" font-size="7">→ POST /api/crm/contracts/</text>
+      <text x="625" y="96" fill="#94a3b8" font-size="7">→ save() 检测金额阈值</text>
+      <text x="625" y="108" fill="#94a3b8" font-size="7">→ build_approval_flow() 创建审批</text>
+      <text x="625" y="120" fill="#fb7185" font-size="7">→ approvals_flow + approval_node 创建</text>
+      <text x="745" y="134" fill="#fbbf24" font-size="7" text-anchor="middle">金额触发 · 多级审批 · 状态机</text>
+
+      <!-- Flow 2: Wage Calculation -->
+      <rect x="610" y="148" width="270" height="100" rx="8" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="745" y="166" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">② 工资税务计算流程</text>
+      <text x="625" y="182" fill="#94a3b8" font-size="7">前端: 选择员工 + 年月 + 填写工资项</text>
+      <text x="625" y="194" fill="#94a3b8" font-size="7">→ POST /api/finance/wages/calc/</text>
+      <text x="625" y="206" fill="#94a3b8" font-size="7">→ 7级超额累进税率 (3%~45%)</text>
+      <text x="625" y="218" fill="#94a3b8" font-size="7">→ 专项扣除 · 社保 · 公积金</text>
+      <text x="625" y="230" fill="#fb7185" font-size="7">→ 应纳税所得额 → 税率 → 速算扣除</text>
+      <text x="745" y="244" fill="#fbbf24" font-size="7" text-anchor="middle">月度单独计税 · 实发工资</text>
+
+      <!-- Flow 3: Multi-channel Notification -->
+      <rect x="610" y="258" width="270" height="100" rx="8" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="745" y="276" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">③ 多渠道通知流程</text>
+      <text x="625" y="292" fill="#94a3b8" font-size="7">触发: 审批通过 / 任务变更 / 系统消息</text>
+      <text x="625" y="304" fill="#94a3b8" font-size="7">→ NotificationChannel 查询 (company_id)</text>
+      <text x="625" y="316" fill="#94a3b8" font-size="7">→ NotifyBinding 查找用户绑定</text>
+      <text x="625" y="328" fill="#94a3b8" font-size="7">→ 根据 channel_type 分发:</text>
+      <text x="625" y="340" fill="#fb7185" font-size="7">  飞书(Feishu) · 企微(Wecom) · 钉钉(Dingtalk)</text>
+      <text x="745" y="354" fill="#fbbf24" font-size="7" text-anchor="middle">company_id 隔离 · receive_all</text>
+
+      <!-- Flow 4: File Upload -->
+      <rect x="610" y="368" width="270" height="100" rx="8" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="745" y="386" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">④ 文件上传 + 合同关联</text>
+      <text x="625" y="402" fill="#94a3b8" font-size="7">前端: FormData, file + contract_id</text>
+      <text x="625" y="414" fill="#94a3b8" font-size="7">→ POST /api/files/company-files/</text>
+      <text x="625" y="426" fill="#94a3b8" font-size="7">→ 保存文件 → company_file DB记录</text>
+      <text x="625" y="438" fill="#94a3b8" font-size="7">→ contract FK 关联 (可选)</text>
+      <text x="625" y="450" fill="#94a3b8" font-size="7">→ remark 备注 · version 版本号</text>
+      <text x="745" y="464" fill="#fbbf24" font-size="7" text-anchor="middle">文件 + 合同双向关联</text>
+
+      <!-- Flow 5: Task Stage Flow -->
+      <rect x="610" y="478" width="270" height="100" rx="8" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1.5"/>
+      <text x="745" y="496" fill="#fb7185" font-size="9" font-weight="600" text-anchor="middle">⑤ 任务阶段流转流程</text>
+      <text x="625" y="512" fill="#94a3b8" font-size="7">Task → TaskFlowInstance (template_id)</text>
+      <text x="625" y="524" fill="#94a3b8" font-size="7">→ TaskStageInstance (node_template_id)</text>
+      <text x="625" y="536" fill="#94a3b8" font-size="7">→ 节点1 → 节点2 → ... → 完成</text>
+      <text x="625" y="548" fill="#94a3b8" font-size="7">→ StageActivity (action记录)</text>
+      <text x="625" y="560" fill="#fb7185" font-size="7">→ FlowTransition (from/to流转)</text>
+      <text x="745" y="574" fill="#fbbf24" font-size="7" text-anchor="middle">状态机 · 节点顺序 · 活动审计</text>
+
+      <!-- ========== DEPLOYMENT MODEL ========== -->
+      <text x="610" y="602" fill="#fbbf24" font-size="9" font-weight="600" letter-spacing="1">DEPLOYMENT — 两个版本</text>
+      <line x1="610" y1="608" x2="880" y2="608" stroke="#fbbf24" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <!-- Master (Multi-tenant) -->
+      <rect x="610" y="616" width="130" height="80" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="675" y="634" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">master 分支</text>
+      <text x="675" y="648" fill="#94a3b8" font-size="7" text-anchor="middle">多租户版本</text>
+      <text x="675" y="660" fill="#94a3b8" font-size="7" text-anchor="middle">company_id 隔离</text>
+      <text x="675" y="672" fill="#94a3b8" font-size="7" text-anchor="middle">UserCompanyRole</text>
+      <text x="675" y="684" fill="#94a3b8" font-size="7" text-anchor="middle">get_queryset 隔离</text>
+      <text x="675" y="696" fill="#22d3ee" font-size="7" text-anchor="middle">部署: 43开发机</text>
+
+      <!-- Standalone (Single-tenant) -->
+      <rect x="750" y="616" width="130" height="80" rx="6" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1.5"/>
+      <text x="815" y="634" fill="#fbbf24" font-size="9" font-weight="600" text-anchor="middle">standalone 分支</text>
+      <text x="815" y="648" fill="#94a3b8" font-size="7" text-anchor="middle">独立版(买断)</text>
+      <text x="815" y="660" fill="#94a3b8" font-size="7" text-anchor="middle">无租户隔离</text>
+      <text x="815" y="672" fill="#94a3b8" font-size="7" text-anchor="middle">Channels保留</text>
+      <text x="815" y="684" fill="#94a3b8" font-size="7" text-anchor="middle">飞书/企微/钉钉</text>
+      <text x="815" y="696" fill="#22d3ee" font-size="7" text-anchor="middle">部署: 124服务器</text>
+
+      <!-- Arrow between versions -->
+      <line x1="740" y1="656" x2="748" y2="656" stroke="#fbbf24" stroke-width="1" stroke-dasharray="3,3"/>
+      <text x="744" y="652" fill="#fbbf24" font-size="7" text-anchor="middle">cherry-pick</text>
+
+      <!-- ========== API ROUTES SUMMARY ========== -->
+      <text x="610" y="718" fill="#22d3ee" font-size="9" font-weight="600" letter-spacing="1">CORE API ROUTES</text>
+      <line x1="610" y1="724" x2="880" y2="724" stroke="#22d3ee" stroke-width="0.5" stroke-dasharray="2,2"/>
+
+      <rect x="610" y="730" width="270" height="80" rx="6" fill="rgba(8,51,68,0.4)" stroke="#22d3ee" stroke-width="1"/>
+      <text x="625" y="746" fill="#22d3ee" font-size="7">/api/core/users/ · /roles/ · /permissions/</text>
+      <text x="625" y="758" fill="#94a3b8" font-size="7">/api/crm/clients/ · /suppliers/ · /contracts/</text>
+      <text x="625" y="770" fill="#94a3b8" font-size="7">/api/finance/companies/ · /employees/ · /incomes/</text>
+      <text x="625" y="782" fill="#94a3b8" font-size="7">/api/finance/wages/ · /wages/calc/</text>
+      <text x="625" y="794" fill="#94a3b8" font-size="7">/api/tasks/projects/ · /tasks/ · /flow-templates/</text>
+      <text x="625" y="806" fill="#94a3b8" font-size="7">/api/approvals/flows/ · /nodes/ · /templates/</text>
+
+      <!-- ========== LEGEND ========== -->
+      <rect x="20" y="660" width="560" height="150" rx="8" fill="transparent" stroke="#1e293b" stroke-width="1"/>
+      <text x="30" y="678" fill="white" font-size="9" font-weight="600">Legend</text>
+
+      <rect x="30" y="686" width="14" height="10" rx="2" fill="rgba(8,51,68,0.5)" stroke="#22d3ee" stroke-width="1"/>
+      <text x="50" y="694" fill="#94a3b8" font-size="8">Frontend (HTML Templates)</text>
+
+      <rect x="160" y="686" width="14" height="10" rx="2" fill="rgba(6,78,59,0.4)" stroke="#34d399" stroke-width="1"/>
+      <text x="180" y="694" fill="#94a3b8" font-size="8">Backend (Django App)</text>
+
+      <rect x="320" y="686" width="14" height="10" rx="2" fill="rgba(76,29,149,0.4)" stroke="#a78bfa" stroke-width="1"/>
+      <text x="340" y="694" fill="#94a3b8" font-size="8">Database (PostgreSQL)</text>
+
+      <rect x="460" y="686" width="14" height="10" rx="2" fill="rgba(120,53,15,0.3)" stroke="#fbbf24" stroke-width="1"/>
+      <text x="480" y="694" fill="#94a3b8" font-size="8">Cloud/Server</text>
+
+      <rect x="30" y="704" width="14" height="10" rx="2" fill="rgba(136,19,55,0.3)" stroke="#fb7185" stroke-width="1"/>
+      <text x="50" y="712" fill="#94a3b8" font-size="8">Business Flow (Rose)</text>
+
+      <line x1="160" y1="709" x2="180" y2="709" stroke="#22d3ee" stroke-width="1.5" marker-end="url(#arr-cyan)"/>
+      <text x="185" y="712" fill="#94a3b8" font-size="8">HTTP Request</text>
+
+      <line x1="320" y1="709" x2="340" y2="709" stroke="#a78bfa" stroke-width="1.5" marker-end="url(#arr-violet)"/>
+      <text x="345" y="712" fill="#94a3b8" font-size="8">ORM Query</text>
+
+      <line x1="460" y1="709" x2="480" y2="709" stroke="#fbbf24" stroke-width="1.5" marker-end="url(#arr-amber)"/>
+      <text x="485" y="712" fill="#94a3b8" font-size="8">Internal Call</text>
+
+      <text x="30" y="730" fill="#fbbf24" font-size="7">⚠ Deployment Rule:</text>
+      <text x="30" y="742" fill="#94a3b8" font-size="7">1. git clone → migrate → migrate --fake-initial (新服务器)</text>
+      <text x="30" y="754" fill="#94a3b8" font-size="7">2. git pull → migrate (已有服务器) — 必须无循环依赖</text>
+      <text x="30" y="766" fill="#94a3b8" font-size="7">3. check --deploy 验证后再重启 gunicorn</text>
+      <text x="30" y="778" fill="#94a3b8" font-size="7">4. 新服务器 baseline: python manage.py migrate --fake-initial</text>
+      <text x="30" y="790" fill="#94a3b8" font-size="7">5. 禁止在生产环境用 migrate --fake 跳过错误，分析依赖链</text>
+      <text x="30" y="802" fill="#fb7185" font-size="7">❌ 迁移历史不一致 → Migrations are in an inconsistent state</text>
+
+      <!-- Footer -->
+      <line x1="20" y1="820" x2="880" y2="820" stroke="#1e293b" stroke-width="0.5"/>
+      <text x="20" y="812" fill="#475569" font-size="7">企业信息化管理系统 GREEN | /root/engineering-new | Django 4.2 + DRF 3.14 + PostgreSQL 14</text>
+      <text x="880" y="812" fill="#475569" font-size="7" text-anchor="end">2026-05-02</text>
+
+    </svg>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="cards">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-dot" style="background:#22d3ee"></div>
+        <h3>系统规模</h3>
+      </div>
+      <ul>
+        <li>• 9 个 Django App 模块</li>
+        <li>• 30+ 张数据库表 (PostgreSQL)</li>
+        <li>• 100+ REST API 端点</li>
+        <li>• 2 个代码分支 (master / standalone)</li>
+        <li>• 技术栈: Django 4.2 · DRF 3.14 · PostgreSQL · Gunicorn · Nginx</li>
+        <li>• 前端: Bootstrap 5 · jQuery · 原生 AJAX</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-dot" style="background:#34d399"></div>
+        <h3>部署checklist（每次必须执行）</h3>
+      </div>
+      <ul>
+        <li>• 1. git pull → 检查网络是否正常</li>
+        <li>• 2. python manage.py showmigrations --plan（查依赖链）</li>
+        <li>• 3. python manage.py check --deploy（安全检查）</li>
+        <li>• 4. python manage.py migrate（严格按顺序）</li>
+        <li>• 5. systemctl restart engineering-gunicorn</li>
+        <li>• 6. curl 冒烟测试核心 API（users/contracts/projects/）</li>
+        <li>• 7. 新服务器首次部署必须加 --fake-initial</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-dot" style="background:#fb7185"></div>
+        <h3>已知部署坑点（禁止再犯）</h3>
+      </div>
+      <ul>
+        <li>• ❌ 跳过 migrate 错误用 --fake → 迁移图有"洞"永远补不上</li>
+        <li>• ❌ DB schema 和代码不一致 → inconsistent state</li>
+        <li>• ❌ 多租户代码部署到独立版 → 500错误（company_id 不存在）</li>
+        <li>• ❌ cherry-pick 新功能时不包含 migrations → 新表不存在</li>
+        <li>• ❌ 124 服务器 DB 缺 equipment/material 表（未执行migrate）</li>
+        <li>• ❌ notifications 迁移链顺序: 0003 depends on 0002_initial（不存在）</li>
+        <li>• ✅ 新增 model → 立即 makemigrations + commit + push</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="footer">企业信息化管理系统 GREEN · 系统架构图 v2.0 · 2026-05-02 · /root/engineering-new</p>
+</div>
+</body>
+</html>
