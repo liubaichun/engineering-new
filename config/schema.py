@@ -59,6 +59,7 @@ RESOURCE_LABEL_MAP = {
     'incomes': '收入', 'expenses': '支出', 'invoices': '发票',
     'wages': '工资', 'ar-ap': '应收应付', 'reports': '报表',
     'social-configs': '社保配置', 'employee-companies': '员工公司',
+    'employees': '员工',
     'clients': '客户', 'suppliers': '供应商', 'contracts': '合同',
     'sources': '客户来源',
     'flows': '审批流', 'nodes': '审批节点', 'templates': '审批模板',
@@ -102,30 +103,38 @@ def _custom_action_in_path(path: str) -> str:
 
 def _build_summary(method: str, operation: dict, resource: str, path: str = '') -> str:
     """根据method、operationId和URL路径构建中文summary"""
-    # 1. 优先从URL路径检测真正的嵌套自定义动作（approve, reject, export 等）
-    if path:
-        custom_action = _custom_action_in_path(path)
-        if custom_action:
-            # 如果 action 中文已以 resource 结尾（避免"月度报表报表"），取 action 即可
-            if resource and custom_action.endswith(resource):
-                return custom_action
-            return f"{custom_action}{resource}"
-
-    # 2. 从operationId推导动作: "approvals_flows_approve_create" 或 "ApprovalFlowViewSet_approve" → approve
+    # 1. 优先从operationId推导动作: "approvals_flows_approve_create" → approve
+    #    或 "ApprovalFlowViewSet_approve" → approve
     operation_id = operation.get('operationId', '')
     if operation_id:
         parts = re.split(r'[_\.]', operation_id)
-        if len(parts) > 1:
-            # 方案A: parts[1] 是 action（如 ApprovalFlowViewSet_approve → approve）
-            # 方案B: parts[-2] 是 action（如 approvals_flows_approve_create → approve）
-            candidates = set()
-            if len(parts) >= 2:
-                candidates.add(parts[1])
-            if len(parts) >= 3:
-                candidates.add(parts[-2])
-            for action in ACTION_SUMMARY_MAP:
-                if action in candidates:
-                    return f"{ACTION_SUMMARY_MAP[action]}{resource}"
+        # 遍历所有非末尾、非HTTP动词的 parts，找 MAP 中的 action
+        http_like = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
+                     'get', 'post', 'put', 'patch', 'delete', 'options', 'head'}
+        for part in parts:
+            if part in ACTION_SUMMARY_MAP and part not in http_like:
+                action = ACTION_SUMMARY_MAP[part]
+                # 避免 "月度报表报表"：如果 action 以 resource 结尾，直接用 action
+                if resource and action.endswith(resource):
+                    return action
+                return f"{action}{resource}"
+            # 支持复合 action: approve_node → 分割成 approve + node
+            if '_' in part:
+                subparts = part.split('_')
+                for sp in subparts:
+                    if sp in ACTION_SUMMARY_MAP and sp not in http_like:
+                        action = ACTION_SUMMARY_MAP[sp]
+                        if resource and action.endswith(resource):
+                            return action
+                        return f"{action}{resource}"
+
+    # 2. 从URL路径检测嵌套自定义动作（operationId 搞不定的边缘情况）
+    if path:
+        custom_action = _custom_action_in_path(path)
+        if custom_action:
+            if resource and custom_action.endswith(resource):
+                return custom_action
+            return f"{custom_action}{resource}"
 
     # 3. 从自定义action字段推导
     action = operation.get('action', '')
