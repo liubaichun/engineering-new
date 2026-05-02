@@ -115,6 +115,10 @@
 .badge-create { background: #dcfce7; color: #166534; }
 .badge-update { background: #fef3c7; color: #92400e; }
 .badge-delete { background: #fee2e2; color: #991b1b; }
+.badge-approve { background: #dbeafe; color: #1e40af; }
+.badge-reject { background: #fee2e2; color: #991b1b; }
+.badge-permission_grant { background: #f0fdf4; color: #166534; border: 1px solid #86efac; }
+.badge-permission_revoke { background: #fff7ed; color: #c2410c; border: 1px solid #fdba74; }
 .badge-app { background: #e0e7ff; color: #3730a3; padding: 3px 8px; border-radius: 4px; font-size: 0.75rem; }
 .obj-repr { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; color: #475569; }
 .changes-preview { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; color: var(--text-muted); font-size: 0.8rem; }
@@ -178,6 +182,10 @@
             <option value="create">新增</option>
             <option value="update">修改</option>
             <option value="delete">删除</option>
+            <option value="approve">审批通过</option>
+            <option value="reject">审批拒绝</option>
+            <option value="permission_grant">权限授予</option>
+            <option value="permission_revoke">权限撤销</option>
         </select>
         <input type="text" id="filterUser" class="form-control form-control-sm" placeholder="操作用户" style="width: 130px;" onkeyup="if(event.key==='Enter')loadLogs(1)">
         <input type="date" id="filterDateFrom" class="form-control form-control-sm" style="width: 150px;" onchange="loadLogs(1)">
@@ -263,7 +271,7 @@ function renderTable(logs) {
     }
 
     const rows = logs.map(log => {
-        const actionClass = log.action === 'create' ? 'badge-create' : log.action === 'update' ? 'badge-update' : 'badge-delete';
+        const actionClass = log.action === 'create' ? 'badge-create' : log.action === 'update' ? 'badge-update' : log.action === 'delete' ? 'badge-delete' : log.action === 'permission_grant' ? 'badge-permission_grant' : log.action === 'permission_revoke' ? 'badge-permission_revoke' : log.action === 'approve' ? 'badge-approve' : 'badge-update';
         const time = new Date(log.created_at).toLocaleString('zh-CN');
         const changes = log.changes ? JSON.parse(log.changes) : {};
         const changesPreview = changes.type ? `${changes.type}: ${Object.keys(changes.data || {}).slice(0,3).join(', ')}` : (log.changes ? log.changes.slice(0,60) : '');

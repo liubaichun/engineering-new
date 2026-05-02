@@ -4,14 +4,15 @@
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
         <h4><i class="bi bi-speedometer me-2"></i>通知渠道配置</h4>
-        <p class="text-muted mb-0" style="font-size:0.9rem;">配置飞书、企业微信、钉钉等通知渠道</p>
+        <p class="text-muted mb-0" style="font-size:0.9rem;">配置飞书、企业微信、钉钉等通知渠道，绑定后可接收个人消息推送</p>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header">
+<!-- 渠道配置卡片 -->
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
         <span>已配置的通知渠道</span>
-        <button class="btn btn-primary btn-sm float-end" onclick="showAddChannelModal()">
+        <button class="btn btn-primary btn-sm" onclick="showAddChannelModal()">
             <i class="bi bi-plus-lg me-1"></i>添加渠道
         </button>
     </div>
@@ -25,18 +26,48 @@
                         <th>Webhook地址</th>
                         <th>状态</th>
                         <th>创建时间</th>
-                        <th style="width:120px">操作</th>
+                        <th style="width:160px">操作</th>
                     </tr>
                 </thead>
                 <tbody id="channelTableBody">
-                    <tr><td colspan="6" class="text-center text-muted py-4">暂无已配置的通知渠道</td></tr>
+                    <tr><td colspan="6" class="text-center text-muted py-4">加载中...</td></tr>
                 </tbody>
             </table>
         </div>
     </div>
 </div>
 
-<!-- Modal -->
+<!-- 用户绑定管理卡片 -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>我的通知绑定</span>
+        <button class="btn btn-outline-primary btn-sm" onclick="showBindModal()">
+            <i class="bi bi-link me-1"></i>添加绑定
+        </button>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table mb-0">
+                <thead>
+                    <tr>
+                        <th>平台</th>
+                        <th>渠道</th>
+                        <th>账号标识</th>
+                        <th>状态</th>
+                        <th>接收范围</th>
+                        <th>绑定时间</th>
+                        <th style="width:120px">操作</th>
+                    </tr>
+                </thead>
+                <tbody id="bindingTableBody">
+                    <tr><td colspan="7" class="text-center text-muted py-4">加载中...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 渠道 Modal -->
 <div class="modal fade" id="channelModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -63,11 +94,11 @@
                 <div class="mb-3">
                     <label class="form-label">Webhook地址 <span class="text-danger">*</span></label>
                     <input type="url" class="form-control" id="webhookUrl" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx">
-                    <div class="form-text">飞书/企微/钉钉的机器人Webhook地址</div>
+                    <div class="form-text">飞书/企微/钉钉的机器人Webhook地址，邮件渠道填收件邮箱</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Secret密钥（可选）</label>
-                    <input type="text" class="form-control" id="channelSecret" placeholder="用于签名校验">
+                    <input type="text" class="form-control" id="channelSecret" placeholder="用于签名校验，飞书/钉钉加签密钥">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">状态</label>
@@ -88,20 +119,76 @@
         </div>
     </div>
 </div>
+
+<!-- 绑定 Modal -->
+<div class="modal fade" id="bindModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-link me-2"></i>添加通知绑定</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small">
+                    <i class="bi bi-info-circle me-1"></i>
+                    请先在下方选择要绑定的渠道，然后在平台账号栏填入你的
+                    <strong>飞书 open_id</strong>、<strong>企微 userid</strong> 或 <strong>邮箱地址</strong>。
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">通知渠道 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="bindChannelId">
+                        <option value="">— 请选择渠道 —</option>
+                    </select>
+                    <div class="form-text">先在「通知渠道」中添加渠道并启用，再来这里绑定</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">平台 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="bindPlatform">
+                        <option value="feishu">飞书</option>
+                        <option value="wecom">企业微信</option>
+                        <option value="dingtalk">钉钉</option>
+                        <option value="email">邮件</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">平台账号标识 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="bindOpenId" placeholder="飞书open_id / 企微userid / 邮箱地址">
+                    <div class="form-text" id="bindOpenIdHint">飞书：用户的 open_id（从飞书管理后台获取）</div>
+                </div>
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="bindReceiveAll" checked>
+                        <label class="form-check-label" for="bindReceiveAll">接收全部通知</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveBinding()">绑定</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-var channelModal;
+var channelModal, bindModal;
+var channelList = [];
 
 document.addEventListener('DOMContentLoaded', function() {
     channelModal = new bootstrap.Modal(document.getElementById('channelModal'));
+    bindModal = new bootstrap.Modal(document.getElementById('bindModal'));
     loadChannels();
+    loadBindings();
+    initBindHints();
 });
 
 function getCsrfToken() {
     return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
 }
+
+// ── 渠道管理 ──
 
 async function loadChannels() {
     const tbody = document.getElementById('channelTableBody');
@@ -110,23 +197,22 @@ async function loadChannels() {
         const resp = await fetch('/api/notifications/channels/', { credentials: 'include' });
         if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">加载失败 (' + resp.status + ')</td></tr>'; return; }
         const data = await resp.json();
-        const channels = data.results || data || [];
-        if (!channels.length) {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">暂无已配置的通知渠道</td></tr>';
+        channelList = data.results || data || [];
+        if (!channelList.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">暂无通知渠道，请点击右上角「添加渠道」</td></tr>';
             return;
         }
-        tbody.innerHTML = channels.map(c => `
+        tbody.innerHTML = channelList.map(c => `
             <tr>
-                <td>${c.name || '-'}</td>
-                <td><span class="badge bg-secondary">${c.channel_type || '-'}</span></td>
-                <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.webhook_url || '-'}</td>
+                <td><strong>${escapeHtml(c.name || '-')}</strong></td>
+                <td><span class="badge bg-secondary">${c.channel_type_display || c.channel_type}</span></td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.webhook_url || '')}">${escapeHtml(c.webhook_url || '-')}</td>
                 <td><span class="badge ${c.status === 'active' ? 'bg-success' : 'bg-secondary'}">${c.status === 'active' ? '启用' : '停用'}</span></td>
                 <td>${c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : '-'}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline-primary me-1" onclick="testChannel(${c.id})" title="测试连通性"><i class="bi bi-lightning-charge"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="copyUrl('${c.webhook_url}')" title="复制Webhook地址"><i class="bi bi-clipboard"></i></button>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="editChannel(${c.id})"><i class="bi bi-pencil"></i></button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteChannel(${c.id})"><i class="bi bi-trash"></i></button>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="testChannel(${c.id})" title="测试"><i class="bi bi-lightning-charge"></i></button>
+                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="editChannel(${c.id})" title="编辑"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteChannel(${c.id})" title="删除"><i class="bi bi-trash"></i></button>
                 </td>
             </tr>`).join('');
     } catch(e) {
@@ -149,9 +235,9 @@ function showAddChannelModal() {
 async function editChannel(id) {
     try {
         const resp = await fetch('/api/notifications/channels/' + id + '/', { credentials: 'include' });
-        if (!resp.ok) { alert('获取渠道信息失败'); return; }
+        if (!resp.ok) { showToast('获取渠道信息失败', 'danger'); return; }
         const c = await resp.json();
-        document.getElementById('channelModalTitle').innerHTML = '<i class="bi bi-speedometer me-2"></i>编辑通知渠道';
+        document.getElementById('channelModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑通知渠道';
         document.getElementById('channelId').value = c.id;
         document.getElementById('channelName').value = c.name || '';
         document.getElementById('channelType').value = c.channel_type || 'feishu';
@@ -160,7 +246,7 @@ async function editChannel(id) {
         document.getElementById('channelStatus').value = c.status || 'active';
         document.getElementById('channelRemark').value = c.remark || '';
         channelModal.show();
-    } catch(e) { alert('获取渠道信息失败：' + e.message); }
+    } catch(e) { showToast('获取渠道信息失败：' + e.message, 'danger'); }
 }
 
 async function saveChannel() {
@@ -171,7 +257,7 @@ async function saveChannel() {
     const secret = document.getElementById('channelSecret').value.trim();
     const status = document.getElementById('channelStatus').value;
     const remark = document.getElementById('channelRemark').value.trim();
-    if (!name || !webhook_url) { alert('请填写必填项'); return; }
+    if (!name || !webhook_url) { showToast('请填写必填项', 'warning'); return; }
     const method = id ? 'PUT' : 'POST';
     const url = id ? '/api/notifications/channels/' + id + '/' : '/api/notifications/channels/';
     try {
@@ -180,10 +266,11 @@ async function saveChannel() {
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ name, channel_type, webhook_url, secret, status, remark })
         });
-        if (!resp.ok) { const d = await resp.json(); alert(d.detail || '保存失败'); return; }
+        if (!resp.ok) { const d = await resp.json(); showToast(d.detail || '保存失败', 'danger'); return; }
         channelModal.hide();
         loadChannels();
-    } catch(e) { alert('保存失败：' + e.message); }
+        showToast('保存成功', 'success');
+    } catch(e) { showToast('保存失败：' + e.message, 'danger'); }
 }
 
 async function deleteChannel(id) {
@@ -193,13 +280,15 @@ async function deleteChannel(id) {
             method: 'DELETE', credentials: 'include',
             headers: { 'X-CSRFToken': getCsrfToken() }
         });
-        if (!resp.ok && resp.status !== 204) { alert('删除失败'); return; }
+        if (!resp.ok && resp.status !== 204) { showToast('删除失败', 'danger'); return; }
         loadChannels();
-    } catch(e) { alert('删除失败：' + e.message); }
+        showToast('删除成功', 'success');
+    } catch(e) { showToast('删除失败：' + e.message, 'danger'); }
 }
 
 async function testChannel(id) {
     const btn = event.currentTarget;
+    const origHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     try {
@@ -208,26 +297,132 @@ async function testChannel(id) {
             headers: { 'X-CSRFToken': getCsrfToken() }
         });
         const d = await resp.json();
-        if (d.status === 'ok') {
-            showToast('✅ ' + d.message, 'success');
-        } else {
-            showToast('❌ ' + d.message, 'danger');
-        }
+        showToast(d.status === 'ok' ? '✅ ' + d.message : '❌ ' + d.message, d.status === 'ok' ? 'success' : 'danger');
     } catch(e) {
         showToast('❌ 测试失败：' + e.message, 'danger');
     } finally {
         btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-lightning-charge"></i>';
+        btn.innerHTML = origHtml;
     }
 }
 
-function copyUrl(url) {
-    if (!url) { showToast('Webhook地址为空', 'warning'); return; }
-    navigator.clipboard.writeText(url).then(() => {
-        showToast('✅ Webhook地址已复制', 'success');
-    }).catch(() => {
-        showToast('复制失败，请手动复制', 'warning');
+// ── 绑定管理 ──
+
+async function loadBindings() {
+    const tbody = document.getElementById('bindingTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>';
+    try {
+        const resp = await fetch('/api/notifications/bindings/', { credentials: 'include' });
+        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">加载失败</td></tr>'; return; }
+        const data = await resp.json();
+        const bindings = data.results || data || [];
+        if (!bindings.length) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">暂无绑定，点击右上角「添加绑定」</td></tr>';
+            return;
+        }
+        tbody.innerHTML = bindings.map(b => `
+            <tr>
+                <td><span class="badge bg-info">${b.platform_display || b.platform}</span></td>
+                <td>${escapeHtml(b.channel_name || '-')}</td>
+                <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(b.platform_open_id || '')}">${escapeHtml(b.platform_open_id || '-')}</td>
+                <td><span class="badge ${b.is_active ? 'bg-success' : 'bg-secondary'}">${b.is_active ? '启用' : '停用'}</span></td>
+                <td><span class="badge ${b.receive_all ? 'bg-primary' : 'bg-warning'}">${b.receive_all ? '全部' : '仅重要'}</span></td>
+                <td>${b.bound_at ? new Date(b.bound_at).toLocaleDateString('zh-CN') : '-'}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1" onclick="testBinding(${b.id})" title="测试"><i class="bi bi-lightning-charge"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteBinding(${b.id})" title="删除"><i class="bi bi-trash"></i></button>
+                </td>
+            </tr>`).join('');
+    } catch(e) {
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">加载失败</td></tr>';
+    }
+}
+
+function showBindModal() {
+    // 填充渠道下拉
+    const sel = document.getElementById('bindChannelId');
+    sel.innerHTML = '<option value="">— 请选择渠道 —</option>' +
+        channelList.filter(c => c.status === 'active').map(c =>
+            '<option value="' + c.id + '">' + escapeHtml(c.name) + ' (' + (c.channel_type_display || c.channel_type) + ')</option>'
+        ).join('');
+    document.getElementById('bindPlatform').value = 'feishu';
+    document.getElementById('bindOpenId').value = '';
+    document.getElementById('bindReceiveAll').checked = true;
+    bindModal.show();
+}
+
+function initBindHints() {
+    const hints = {
+        feishu: '飞书：填入用户的 open_id（从飞书管理后台 → 成员管理获取）',
+        wecom: '企微：填入成员的 userid（从企业微信后台 → 通讯录获取）',
+        dingtalk: '钉钉：填入用户的 staffId（从钉钉管理后台获取）',
+        email: '邮箱：填入对方的邮箱地址（如 zhangsan@company.com）',
+    };
+    document.getElementById('bindPlatform').addEventListener('change', function() {
+        document.getElementById('bindOpenIdHint').textContent = hints[this.value] || '';
     });
+}
+
+async function saveBinding() {
+    const channel_id = parseInt(document.getElementById('bindChannelId').value);
+    const platform = document.getElementById('bindPlatform').value;
+    const platform_open_id = document.getElementById('bindOpenId').value.trim();
+    const receive_all = document.getElementById('bindReceiveAll').checked;
+    if (!channel_id || !platform_open_id) { showToast('请填写必填项', 'warning'); return; }
+    try {
+        const resp = await fetch('/api/notifications/bindings/', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ channel: channel_id, platform, platform_open_id, receive_all })
+        });
+        if (!resp.ok) { const d = await resp.json(); showToast(d.detail || '绑定失败', 'danger'); return; }
+        bindModal.hide();
+        loadBindings();
+        showToast('绑定成功', 'success');
+    } catch(e) { showToast('绑定失败：' + e.message, 'danger'); }
+}
+
+async function testBinding(id) {
+    const btn = event.currentTarget;
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    try {
+        const resp = await fetch('/api/notifications/bindings/test/', {
+            method: 'POST', credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ binding_id: id })
+        });
+        const d = await resp.json();
+        showToast(d.status === 'ok' ? '✅ ' + d.message : '❌ ' + d.message, d.status === 'ok' ? 'success' : 'danger');
+    } catch(e) {
+        showToast('❌ 测试失败：' + e.message, 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+    }
+}
+
+async function deleteBinding(id) {
+    if (!confirm('确定要删除该绑定吗？')) return;
+    try {
+        const resp = await fetch('/api/notifications/bindings/' + id + '/', {
+            method: 'DELETE', credentials: 'include',
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        if (!resp.ok && resp.status !== 204) { showToast('删除失败', 'danger'); return; }
+        loadBindings();
+        showToast('删除成功', 'success');
+    } catch(e) { showToast('删除失败：' + e.message, 'danger'); }
+}
+
+// ── 通用 ──
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
 }
 
 function showToast(message, type) {

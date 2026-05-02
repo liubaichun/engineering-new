@@ -90,6 +90,17 @@ STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [h.strip() for h in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if h.strip()]
+
+# ─── 租户模式配置 ───
+# 'subscription' = 租赁版（多租户SaaS，注册入口开放，需审批）
+# 'standalone'   = 买断版（单公司部署，注册入口关闭，直接使用预置公司）
+TENANT_MODE = os.environ.get('TENANT_MODE', 'subscription')
+
+# 买断版专用：指定系统使用的默认公司ID（standalone模式必填）
+DEFAULT_COMPANY_ID = os.environ.get('DEFAULT_COMPANY_ID', None)
+if DEFAULT_COMPANY_ID:
+    DEFAULT_COMPANY_ID = int(DEFAULT_COMPANY_ID)
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': ['apps.core.auth.CSRFExemptSessionAuthentication'],
     'DEFAULT_PERMISSION_CLASSES': ['rest_framework.permissions.IsAuthenticated'],

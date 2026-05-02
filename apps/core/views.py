@@ -3,6 +3,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from drf_spectacular.utils import extend_schema
+
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.middleware.csrf import get_token
@@ -41,12 +43,21 @@ def get_csrf_token(request):
     return {'csrf_token': get_token(request)}
 
 
+def get_client_ip(request):
+    """从请求中提取客户端IP"""
+    x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
+    if x_forwarded:
+        return x_forwarded.split(',')[0].strip()
+    return request.META.get('REMOTE_ADDR', '')
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class PasswordResetRequestView(APIView):
     """请求密码重置 - 发送邮件"""
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(tags=['auth'], summary='请求密码重置', description='输入邮箱，发送重置链接（即使邮箱不存在也返回成功，防止暴力探测）')
     def post(self, request):
         email = request.data.get('email', '').strip()
         if not email:
@@ -93,6 +104,7 @@ class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(tags=['auth'], summary='确认密码重置', description='使用 uidb64/token 验证链接，设置新密码')
     def post(self, request, uidb64, token):
         new_password = request.data.get('new_password', '')
         confirm_password = request.data.get('confirm_password', '')
@@ -124,8 +136,16 @@ class RegisterView(APIView):
     """用户注册视图"""
     permission_classes = [AllowAny]
     authentication_classes = []
-    
+
+    @extend_schema(tags=['auth'], summary='用户注册', description='提交注册信息（买断版默认关闭注册入口），管理员审批后账号生效')
     def post(self, request):
+        # 买断版关闭注册
+        from django.conf import settings
+        if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
+            return Response(
+                {'status': 'error', 'message': '注册入口已关闭，请联系系统管理员。'},
+                status=status.HTTP_403_FORBIDDEN
+            )
         serializer = UserRegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
@@ -142,12 +162,14 @@ class RegisterView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+@extend_schema(tags=['auth'], summary='用户登录', description='用户名+密码登录，返回会话Cookie')
 class LoginView(APIView):
     """用户登录视图"""
     permission_classes = [AllowAny]
     authentication_classes = []
 
-    def _get_client_ip(self, request):
+    @extend_schema(tags=['auth'], summary='用户登录', description='POST username/password，返回会话Cookie')
+    def post(self, request):
         x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded:
             return x_forwarded.split(',')[0].strip()
@@ -158,7 +180,7 @@ class LoginView(APIView):
             user=user,
             username=username,
             status=status,
-            ip_address=self._get_client_ip(request),
+            ip_address=get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
             fail_reason=fail_reason,
         )
@@ -202,6 +224,7 @@ class LogoutView(APIView):
     """用户登出视图"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(tags=['auth'], summary='用户登出', description='清除会话Cookie')
     def post(self, request):
         logout(request)
         return Response({
@@ -269,6 +292,7 @@ class CurrentUserView(APIView):
     """当前用户信息视图"""
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(tags=['auth'], summary='获取当前用户信息', description='返回当前登录用户的信息，包括用户名/邮箱/角色/公司/权限码列表')
     def get(self, request):
         """GET /api/core/auth/user/ - 返回当前用户信息"""
         serializer = UserSerializer(request.user)
@@ -361,12 +385,12 @@ class MyPermissionsView(APIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     """用户管理视图集"""
-    queryset = User.objects.all()
+    queryset = User.objects.all().select_related('role')
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
-    
+
     def get_queryset(self):
-        queryset = User.objects.all()
+        queryset = User.objects.all().select_related('role')
         role = self.request.query_params.get('role')
         is_active = self.request.query_params.get('is_active')
         last_login_since = self.request.query_params.get('last_login_since')  # 分钟内登录过
@@ -419,7 +443,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
-        """批准用户注册 — 将 is_active 设为 True"""
+        """批准用户注册 — 将 is_active 设为 True，自动建公司+分配公司管理员角色"""
         user = self.get_object()
         if user.is_active:
             return Response({
@@ -429,6 +453,55 @@ class UserViewSet(viewsets.ModelViewSet):
 
         user.is_active = True
         user.save(update_fields=['is_active'])
+
+        # === 注册闭环：自动建公司+分配公司管理员角色 ===
+        from apps.finance.models import Company
+
+        # 检查用户是否已有公司（通过 UserCompanyRole 判断）
+        existing_link = UserCompanyRole.objects.filter(user=user).first()
+        if not existing_link:
+            # 自动创建公司（以用户名作为公司名和代码）
+            company_code = user.username.replace(' ', '_').replace('/', '_').lower()
+            # 防止代码重复
+            base_code = company_code
+            counter = 1
+            while Company.objects.filter(code=company_code).exists():
+                company_code = f'{base_code}_{counter}'
+                counter += 1
+            company = Company.objects.create(
+                name=f'{user.username}的公司',
+                code=company_code,
+                status='active',
+                contact_person=user.username,
+                contact_phone=user.phone or '',
+            )
+
+            # 分配公司管理员角色
+            UserCompanyRole.objects.create(
+                user=user,
+                company=company,
+                role='admin',
+                assigned_by=request.user if request.user.is_authenticated else None,
+            )
+
+            # 审计日志
+            PermissionAuditLog.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                action='assign_role',
+                target_user=user,
+                role_name='公司管理员',
+                description=f'批准注册并创建公司[{company.name}]，分配公司管理员角色',
+                ip_address=get_client_ip(request),
+            )
+        else:
+            # 已有公司，单纯激活
+            PermissionAuditLog.objects.create(
+                user=request.user if request.user.is_authenticated else None,
+                action='activate_user',
+                target_user=user,
+                description='批准用户注册（账号激活）',
+                ip_address=get_client_ip(request),
+            )
 
         # 给用户发通知
         Notification.objects.create(
@@ -440,7 +513,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
         return Response({
             'status': 'success',
-            'message': f'已批准用户 {user.username} 的注册申请',
+            'message': f'已批准用户 {user.username} 的注册申请' + (f'，已创建公司[{company.name}]并分配公司管理员角色' if not existing_link else ''),
             'user': UserSerializer(user).data
         }, status=status.HTTP_200_OK)
 
@@ -463,31 +536,72 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve_batch(self, request, pk=None):
-        """批量批准用户注册"""
+        """批量批准用户注册 — 自动建公司+分配公司管理员角色"""
         user_ids = request.data.get('user_ids', [])
         if not user_ids:
             return Response({'status': 'error', 'message': '未提供用户ID列表'}, status=status.HTTP_400_BAD_REQUEST)
 
+        from apps.finance.models import Company as FinanceCompany
+
         approved = []
+        skipped = []
         for uid in user_ids:
             try:
                 user = User.objects.get(id=uid, is_active=False)
-                user.is_active = True
-                user.save(update_fields=['is_active'])
-                Notification.objects.create(
-                    user=user,
-                    title='账号审批通过',
-                    content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
-                    notification_type='approval',
-                    level='success',
-                )
-                approved.append(user.username)
             except User.DoesNotExist:
-                pass
+                skipped.append(f'ID:{uid}不存在')
+                continue
 
+            user.is_active = True
+            user.save(update_fields=['is_active'])
+
+            # 注册闭环
+            existing_link = UserCompanyRole.objects.filter(user=user).first()
+            if not existing_link:
+                company_code = user.username.replace(' ', '_').replace('/', '_').lower()
+                base_code = company_code
+                counter = 1
+                while FinanceCompany.objects.filter(code=company_code).exists():
+                    company_code = f'{base_code}_{counter}'
+                    counter += 1
+                company = FinanceCompany.objects.create(
+                    name=f'{user.username}的公司',
+                    code=company_code,
+                    status='active',
+                    contact_person=user.username,
+                    contact_phone=user.phone or '',
+                )
+                UserCompanyRole.objects.create(
+                    user=user, company=company, role='admin',
+                    assigned_by=request.user if request.user.is_authenticated else None,
+                )
+                PermissionAuditLog.objects.create(
+                    user=request.user if request.user.is_authenticated else None,
+                    action='assign_role', target_user=user, role_name='公司管理员',
+                    description=f'批量批准注册并创建公司[{company.name}]，分配公司管理员角色',
+                    ip_address=get_client_ip(request),
+                )
+            else:
+                PermissionAuditLog.objects.create(
+                    user=request.user if request.user.is_authenticated else None,
+                    action='activate_user', target_user=user,
+                    description='批量批准用户注册（账号激活）',
+                    ip_address=get_client_ip(request),
+                )
+
+            Notification.objects.create(
+                user=user,
+                title='账号审批通过',
+                content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
+                notification_type='approval',
+                level='success',
+            )
+            approved.append(user.username)
         return Response({
             'status': 'success',
-            'message': f'已批准 {len(approved)} 个用户：{", ".join(approved)}'
+            'message': f'批量批准完成：成功 {len(approved)} 个，失败 {len(skipped)} 个',
+            'approved': approved,
+            'skipped': skipped,
         }, status=status.HTTP_200_OK)
 
 
@@ -790,7 +904,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
 class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     操作审计日志视图集（仅读）
-    自动记录所有写操作：新增/修改/删除
+    支持按 app_label / action / username / date_from / date_to 筛选
     """
     queryset = OperationAuditLog.objects.all()
     serializer_class = OperationAuditLogSerializer

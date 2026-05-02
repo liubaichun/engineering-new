@@ -9,6 +9,7 @@
         <p class="text-muted mb-0" style="font-size: 0.9rem;">管理系统权限配置</p>
     </div>
     <div class="d-flex gap-2">
+        <input type="text" class="form-control form-control-sm" id="permSearchInput" placeholder="搜索权限名称或代码..." style="width: 220px;" oninput="filterPermissions()">
         <button class="btn btn-primary btn-sm" onclick="showPermissionModal()" data-perm="permission.add">
             <i class="bi bi-plus-lg me-1"></i>新建权限
         </button>
@@ -17,16 +18,23 @@
 
 <div class="card">
     <div class="card-body">
+        <div class="d-flex align-items-center gap-2 mb-3">
+            <span class="text-muted" style="font-size:0.85rem;">分类筛选：</span>
+            <div class="btn-group btn-group-sm" role="group" id="categoryFilter">
+                <button type="button" class="btn btn-outline-primary active" onclick="filterByCategory('', this)">全部</button>
+            </div>
+            <span class="ms-auto text-muted" style="font-size:0.8rem;" id="permCount"></span>
+        </div>
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
                     <tr>
-                        <th>ID</th>
-                        <th>权限名称</th>
-                        <th>权限代码</th>
-                        <th>分类</th>
+                        <th style="width:50px;">ID</th>
+                        <th style="width:180px;">权限名称</th>
+                        <th style="width:200px;">权限代码</th>
+                        <th style="width:100px;">分类</th>
                         <th>描述</th>
-                        <th>操作</th>
+                        <th style="width:100px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="permissionTableBody">
@@ -110,11 +118,41 @@
 <script>
 var permissionModal;
 var allPermissions = [];
+var currentCategory = '';
+var currentSearch = '';
 
 document.addEventListener('DOMContentLoaded', function() {
-    permissionModal = new bootstrap.Modal(document.getElementById('permissionModal'));
-    loadPermissions();
+    // 权限控制：只有 system:role:manage 权限才能访问此页面
+    // 权限通过 loadPermissions() 异步加载，此处等待完成
+    waitForPermissions(function() {
+        if (!hasPermission('system:role:manage')) {
+            document.querySelector('.main-content').innerHTML =
+                '<div class="alert alert-danger m-4"><i class="bi bi-lock me-2"></i>您没有权限访问此页面，需要 system:role:manage 权限</div>';
+            return;
+        }
+        permissionModal = new bootstrap.Modal(document.getElementById('permissionModal'));
+        loadPermissions();
+    });
 });
+
+function waitForPermissions(callback) {
+    // 等待 USER_PERMS.codes 被填充（loadPermissions 完成后）
+    var attempts = 0;
+    var interval = setInterval(function() {
+        attempts++;
+        // 如果已有权限数据，直接回调
+        if (USER_PERMS.codes && USER_PERMS.codes.length > 0) {
+            clearInterval(interval);
+            callback();
+            return;
+        }
+        // 最多等待 3 秒，超时视为无权限
+        if (attempts >= 30) {
+            clearInterval(interval);
+            callback();
+        }
+    }, 100);
+}
 
 async function loadPermissions() {
     try {
@@ -129,17 +167,41 @@ async function loadPermissions() {
         } else {
             allPermissions = [];
         }
+        buildCategoryButtons();
         renderPermissions();
-        loadPermissionsForFilter();
     } catch (error) {
         console.error('加载权限失败: ' + error.message);
-        document.getElementById('permissionTableBody').innerHTML = 
+        document.getElementById('permissionTableBody').innerHTML =
             '<tr><td colspan="6" class="text-center text-danger py-4">加载失败</td></tr>';
     }
 }
 
-async function loadPermissionsForFilter() {
-    // 加载权限用于角色权限分配弹窗中的下拉筛选
+function buildCategoryButtons() {
+    var categories = {};
+    allPermissions.forEach(function(p) {
+        var cat = p.category || '其他';
+        if (!categories[cat]) categories[cat] = 0;
+        categories[cat]++;
+    });
+    var container = document.getElementById('categoryFilter');
+    var html = '<button type="button" class="btn btn-outline-primary active" onclick="filterByCategory(\'\', this)">全部</button>';
+    var cats = Object.keys(categories).sort();
+    cats.forEach(function(cat) {
+        html += '<button type="button" class="btn btn-outline-primary" onclick="filterByCategory(\'' + escapeHtml(cat) + '\', this)">' + escapeHtml(cat) + ' (' + categories[cat] + ')</button>';
+    });
+    container.innerHTML = html;
+}
+
+function filterByCategory(category, btn) {
+    currentCategory = category;
+    document.querySelectorAll('#categoryFilter button').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    renderPermissions();
+}
+
+function filterPermissions() {
+    currentSearch = document.getElementById('permSearchInput').value.trim().toLowerCase();
+    renderPermissions();
 }
 
 function renderPermissions() {
@@ -150,34 +212,50 @@ function renderPermissions() {
         return;
     }
 
+    var filtered = allPermissions;
+    if (currentCategory) {
+        filtered = filtered.filter(function(p) { return (p.category || '其他') === currentCategory; });
+    }
+    if (currentSearch) {
+        filtered = filtered.filter(function(p) {
+            return (p.name && p.name.toLowerCase().includes(currentSearch)) ||
+                   (p.code && p.code.toLowerCase().includes(currentSearch)) ||
+                   (p.description && p.description.toLowerCase().includes(currentSearch));
+        });
+    }
+
     var grouped = {};
-    allPermissions.forEach(function(p) {
+    filtered.forEach(function(p) {
         var cat = p.category || '其他';
         if (!grouped[cat]) grouped[cat] = [];
         grouped[cat].push(p);
     });
-    
+
+    var count = filtered.length;
+    document.getElementById('permCount').textContent = '共 ' + count + ' 条权限';
+
     var html = '';
     for (var cat in grouped) {
-        html += '<tr><td colspan="5" class="bg-light"><strong>' + cat + '</strong></td></tr>';
+        html += '<tr><td colspan="6" class="bg-light"><strong>' + escapeHtml(cat) + '</strong> <span class="badge bg-secondary ms-1">' + grouped[cat].length + '</span></td></tr>';
         grouped[cat].forEach(function(p) {
+            var desc = p.description ? '<span title="' + escapeHtml(p.description) + '">' + escapeHtml(p.description) + '</span>' : '<span class="text-muted">-</span>';
             html += '<tr>';
             html += '<td>' + p.id + '</td>';
             html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
             html += '<td><code>' + escapeHtml(p.code) + '</code></td>';
-            html += '<td><span class="badge bg-secondary">' + escapeHtml(p.category) + '</span></td>';
-            html += '<td>' + escapeHtml(p.description || '-') + '</td>';
+            html += '<td><span class="badge bg-secondary">' + escapeHtml(p.category || '其他') + '</span></td>';
+            html += '<td style="max-width:300px;"><small class="text-muted">' + desc + '</small></td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editPermission(' + p.id + ')"><i class="bi bi-pencil"></i></button>';
-            html += '<button class="btn btn-sm btn-outline-danger" onclick="deletePermission(' + p.id + ')" data-perm="permission.delete"><i class="bi bi-trash"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="confirmDeletePermission(' + p.id + ')"><i class="bi bi-trash"></i></button>';
             html += '</td></tr>';
         });
     }
-    
+
     if (!html) {
-        html = '<tr><td colspan="6" class="text-center text-muted py-4">暂无权限</td></tr>';
+        html = '<tr><td colspan="6" class="text-center text-muted py-4">没有匹配的权限</td></tr>';
     }
-    
+
     tbody.innerHTML = html;
 }
 
@@ -256,15 +334,40 @@ async function savePermission() {
     }
 }
 
-async function deletePermission(permId) {
-    if (!confirm('确定要删除此权限吗？')) return;
-    
+async function confirmDeletePermission(permId) {
+    var perm = allPermissions.find(function(p) { return p.id === permId; });
+    if (!perm) return;
+
+    // 查找使用该权限的角色
+    var roles = allRoles || [];
+    var usingRoles = [];
+    if (roles.length === 0) {
+        try {
+            var resp = await fetch('/api/core/roles/', { credentials: 'include' });
+            if (resp.ok) {
+                var rd = await resp.json();
+                roles = rd.results || rd;
+                allRoles = roles;
+            }
+        } catch(e) {}
+    }
+
+    usingRoles = roles.filter(function(r) {
+        return r.permissions && r.permissions.indexOf(permId) !== -1;
+    });
+
+    var msg = '确定要删除权限【' + perm.name + '】吗？';
+    if (usingRoles.length > 0) {
+        var roleNames = usingRoles.map(function(r) { return r.name; }).join('、');
+        msg = '警告：权限【' + perm.name + '】正在被以下角色使用：' + roleNames + '\n\n删除后将同时从这些角色中移除此权限。\n\n' + msg;
+    }
+    if (!confirm(msg)) return;
+
     try {
         var response = await fetch('/api/core/permissions/' + permId + '/', {
             method: 'DELETE',
             credentials: 'include'
         });
-        
         if (!response.ok) throw new Error('删除失败');
         showToast('权限已删除', 'success');
         loadPermissions();
