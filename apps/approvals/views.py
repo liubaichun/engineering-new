@@ -81,6 +81,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        # 多租户隔离：普通用户只看本公司创建的审批流
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(requester__company_id=user.company_id)
         flow_type = self.request.query_params.get('flow_type')
         if flow_type:
             queryset = queryset.filter(flow_type=flow_type)
@@ -396,6 +400,10 @@ class ApprovalNodeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        # 多租户隔离：通过 flow.requester 关联公司
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(flow__requester__company_id=user.company_id)
         flow_id = self.request.query_params.get('flow')
         if flow_id:
             queryset = queryset.filter(flow_id=flow_id)
