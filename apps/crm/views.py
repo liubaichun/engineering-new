@@ -101,3 +101,22 @@ class ContractViewSet(viewsets.ModelViewSet):
         records = queryset.select_related('client', 'project', 'created_by')
         buf = export_contracts(list(records))
         return make_export_response(buf, f'合同_{timezone.now().strftime("%Y%m%d")}.xlsx')
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        contract = self.get_object()
+        if contract.status not in ['draft', 'pending']:
+            return Response({'detail': f'当前状态不允许审批（当前状态：{contract.status}）'}, status=400)
+        contract.status = 'approved'
+        contract.save()
+        return Response({'detail': '已批准', 'status': contract.status})
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        contract = self.get_object()
+        comment = request.data.get('comment', '')
+        if contract.status not in ['draft', 'pending']:
+            return Response({'detail': f'当前状态不允许驳回（当前状态：{contract.status}）'}, status=400)
+        contract.status = 'rejected'
+        contract.save()
+        return Response({'detail': '已驳回', 'comment': comment, 'status': contract.status})
