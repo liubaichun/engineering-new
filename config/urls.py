@@ -210,8 +210,8 @@ urlpatterns = [
     path('warnings/', warning_center_page, name='warning_center'),
     path('api/auth/status/', api_auth_status, name='api_auth_status'),
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('api/schema/', SpectacularAPIView.as_view(authentication_classes=[], permission_classes=[]), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', authentication_classes=[], permission_classes=[]), name='swagger-ui'),
     # 旧URL路径重定向（永久重定向）
     path('system/api-docs/', RedirectView.as_view(url='/api/docs/', permanent=True)),
     path('system/audit/', RedirectView.as_view(url='/system/audit-logs/', permanent=True)),
