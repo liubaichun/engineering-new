@@ -30,12 +30,12 @@ class ProjectSerializer(serializers.ModelSerializer):
         return False
 
     def get_computed_progress(self, obj):
-        tasks = obj.tasks.all()
+        tasks = obj.tasks.exclude(status='cancelled')
         if not tasks.exists():
             return 0
         total = tasks.count()
-        completed = tasks.filter(status__in=['completed', 'approved']).count()
-        return round(completed / total * 100)
+        completed = tasks.filter(status='completed').count()
+        return round(completed / total * 100, 1)
 
     class Meta:
         model = Project
