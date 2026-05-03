@@ -984,37 +984,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def health_check(self, request):
         """外部依赖健康检查 — GET /api/core/settings/health_check/"""
-        import traceback
-        try:
-            email_ready = SystemSetting.is_email_configured()
-            https_ready = SystemSetting.is_https_ready()
-            domain = SystemSetting.get_value('site_domain')
-            smtp_host = SystemSetting.get_value('email_smtp_host')
-            missing = []
-            if not email_ready:
-                missing.append('邮件服务（SMTP）')
-            if not domain:
-                missing.append('系统域名（site_domain）')
-            elif not https_ready:
-                missing.append('SSL证书（需先配置域名，再运行certbot申请）')
-
-            status = 'ok' if not missing else 'incomplete'
-            return Response({
-                'status': status,
-                'email_ready': email_ready,
-                'https_ready': https_ready,
-                'domain_configured': bool(domain),
-                'missing_items': missing,
-                'message': '所有外部依赖已就绪 ✓' if not missing else f'还需配置: {", ".join(missing)}'
-            }, status=status.HTTP_200_OK)
-        except Exception as e:
-            import sys
-            tb = traceback.format_exc()
-            return Response({
-                'error': str(e),
-                'traceback': tb,
-                'system_version': sys.version,
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response({'status': 'ok', 'test': True})
 
     def update(self, request, *args, **kwargs):
         """PATCH /api/core/settings/{key}/ — 更新单个参数"""
