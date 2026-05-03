@@ -258,9 +258,9 @@ class RoleSerializer(serializers.ModelSerializer):
         self._update_permissions(role, permission_ids)
         return role
 
-    def update(self, validated_data):
+    def update(self, instance, validated_data):
         permission_ids = validated_data.pop('permission_ids', None)
-        role = super().update(validated_data)
+        role = super().update(instance, validated_data)
         if permission_ids is not None:
             self._update_permissions(role, permission_ids)
         return role
