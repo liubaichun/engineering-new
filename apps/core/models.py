@@ -237,14 +237,31 @@ class PermissionAuditLog(models.Model):
 
 
 class SystemSetting(models.Model):
-    """系统全局设置"""
+    """系统全局设置 — 支持邮件服务、域名、HTTPS 等外部依赖配置"""
     KEY_CHOICES = [
+        # ── 审批配置 ──
         ('approval_auto_enabled', '审批自动化', '是否启用智能审批（金额路由+超时升级）'),
         ('approval_timeout_hours', '审批超时小时数', '超时多少小时后触发升级通知'),
         ('approval_escalate_enabled', '超时升级', '审批节点超时时是否自动升级'),
         ('wage_submit_creates_approval', '工资提交触发审批', '工资单提交审核时是否自动创建审批流'),
         ('multi_level_approval_enabled', '多级审批', '是否启用按金额自动选择审批层级'),
+        # ── 邮件服务（用户可自行配置）──
+        ('email_smtp_host', 'SMTP主机', '邮件发送服务器地址，如 smtp.qq.com'),
+        ('email_smtp_port', 'SMTP端口', '邮件服务器端口，默认587'),
+        ('email_smtp_user', 'SMTP用户名', '邮件发送账号'),
+        ('email_smtp_password', 'SMTP密码', '邮件发送密码（请勿泄露）'),
+        ('email_use_tls', '启用TLS', '是否启用TLS加密，true或false'),
+        ('email_from', '发件人地址', '系统发件邮箱地址'),
+        # ── 站点域名 ──
+        ('site_domain', '系统域名', '访问域名，如 example.com，不含https://'),
+        ('site_https_enabled', '启用HTTPS', '是否启用HTTPS，true或false'),
+        # ── SSL证书（Let's Encrypt 自动申请后填入）──
+        ('ssl_cert_path', 'SSL证书路径', '/etc/letsencrypt/live/域名/fullchain.pem'),
+        ('ssl_key_path', 'SSL私钥路径', '/etc/letsencrypt/live/域名/privkey.pem'),
+        ('ssl_auto_renew', '自动续期', '是否启用certbot自动续期，true或false'),
     ]
+    SENSITIVE_KEYS = {'email_smtp_password'}
+
     key = models.CharField('设置键', max_length=100, unique=True, choices=[(k, k) for k, *_ in KEY_CHOICES])
     value = models.CharField('设置值', max_length=500)
     description = models.CharField('说明', max_length=255, blank=True, default='')
@@ -257,6 +274,33 @@ class SystemSetting(models.Model):
     def __str__(self):
         label = next((desc for k, *desc in self.KEY_CHOICES if k == self.key), self.key)
         return f'{label}={self.value}'
+
+    @property
+    def is_sensitive(self):
+        """敏感字段（如密码）在列表中脱敏显示"""
+        return self.key in self.SENSITIVE_KEYS
+
+    @classmethod
+    def get_value(cls, key, default=None):
+        """快速读取单个配置值"""
+        inst = cls.objects.filter(key=key).first()
+        return inst.value if inst else default
+
+    @classmethod
+    def is_email_configured(cls):
+        """检查邮件服务是否已完整配置"""
+        host = cls.get_value('email_smtp_host')
+        user = cls.get_value('email_smtp_user')
+        password = cls.get_value('email_smtp_password')
+        return bool(host and user and password)
+
+    @classmethod
+    def is_https_ready(cls):
+        """检查HTTPS是否已就绪（域名+证书路径均已配置）"""
+        domain = cls.get_value('site_domain')
+        cert = cls.get_value('ssl_cert_path')
+        key = cls.get_value('ssl_key_path')
+        return bool(domain and cert and key)
 
 
 class LoginLog(models.Model):

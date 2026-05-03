@@ -969,6 +969,10 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(key__startswith='approval')
         elif category == 'wage':
             queryset = queryset.filter(key__startswith='wage')
+        elif category == 'email':
+            queryset = queryset.filter(key__startswith='email')
+        elif category == 'domain':
+            queryset = queryset.filter(key__startswith='site_') | queryset.filter(key__startswith='ssl_')
         return queryset.order_by('key')
 
     @action(detail=False, methods=['get'])
@@ -976,6 +980,32 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
         """获取所有系统参数的键值对字典 — GET /api/core/settings/all_settings/"""
         settings = {s.key: s.value for s in SystemSetting.objects.all()}
         return Response({'status': 'success', 'settings': settings}, status=status.HTTP_200_OK)
+
+    @action(detail=False, methods=['get'])
+    def health_check(self, request):
+        """外部依赖健康检查 — GET /api/core/settings/health_check/
+        返回邮件服务、域名/HTTPS 的就绪状态，帮助用户知道还有哪些需要配置"""
+        email_ready = SystemSetting.is_email_configured()
+        https_ready = SystemSetting.is_https_ready()
+        domain = SystemSetting.get_value('site_domain')
+        smtp_host = SystemSetting.get_value('email_smtp_host')
+        missing = []
+        if not email_ready:
+            missing.append('邮件服务（SMTP）')
+        if not domain:
+            missing.append('系统域名（site_domain）')
+        elif not https_ready:
+            missing.append('SSL证书（需先配置域名，再运行certbot申请）')
+
+        status = 'ok' if not missing else 'incomplete'
+        return Response({
+            'status': status,
+            'email_ready': email_ready,
+            'https_ready': https_ready,
+            'domain_configured': bool(domain),
+            'missing_items': missing,
+            'message': '所有外部依赖已就绪 ✓' if not missing else f'还需配置: {", ".join(missing)}'
+        }, status=status.HTTP_200_OK)
 
     def update(self, request, *args, **kwargs):
         """PATCH /api/core/settings/{key}/ — 更新单个参数"""

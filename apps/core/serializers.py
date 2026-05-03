@@ -365,24 +365,58 @@ class SystemSettingSerializer(serializers.ModelSerializer):
     """系统参数序列化器"""
     key_display = serializers.SerializerMethodField()
     value_type = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
+    masked_value = serializers.SerializerMethodField()
 
     class Meta:
         model = SystemSetting
-        fields = ['id', 'key', 'value', 'key_display', 'value_type', 'description', 'updated_at']
+        fields = ['id', 'key', 'value', 'key_display', 'value_type',
+                  'category', 'description', 'masked_value', 'updated_at']
+
+    CATEGORY_MAP = {
+        'approval_auto_enabled': '审批',
+        'approval_timeout_hours': '审批',
+        'approval_escalate_enabled': '审批',
+        'wage_submit_creates_approval': '审批',
+        'multi_level_approval_enabled': '审批',
+        'email_smtp_host': '邮件服务',
+        'email_smtp_port': '邮件服务',
+        'email_smtp_user': '邮件服务',
+        'email_smtp_password': '邮件服务',
+        'email_use_tls': '邮件服务',
+        'email_from': '邮件服务',
+        'site_domain': '域名/HTTPS',
+        'site_https_enabled': '域名/HTTPS',
+        'ssl_cert_path': '域名/HTTPS',
+        'ssl_key_path': '域名/HTTPS',
+        'ssl_auto_renew': '域名/HTTPS',
+    }
+    SENSITIVE_KEYS = {'email_smtp_password'}
 
     def get_key_display(self, obj):
-        """返回人类可读的中文名称"""
         DISPLAY_NAMES = {
             'approval_auto_enabled': '审批自动化',
             'approval_timeout_hours': '审批超时小时数',
             'approval_escalate_enabled': '超时自动升级',
             'wage_submit_creates_approval': '工资提交触发审批',
             'multi_level_approval_enabled': '多级审批',
+            'email_smtp_host': 'SMTP主机',
+            'email_smtp_port': 'SMTP端口',
+            'email_smtp_user': 'SMTP用户名',
+            'email_smtp_password': 'SMTP密码',
+            'email_use_tls': '启用TLS',
+            'email_from': '发件人地址',
+            'site_domain': '系统域名',
+            'site_https_enabled': '启用HTTPS',
+            'ssl_cert_path': 'SSL证书路径',
+            'ssl_key_path': 'SSL私钥路径',
+            'ssl_auto_renew': '自动续期',
         }
         return DISPLAY_NAMES.get(obj.key, obj.key)
 
     def get_value_type(self, obj):
-        """推断值类型：布尔/数字/文本"""
+        if obj.key in ('email_smtp_port',):
+            return 'number'
         if obj.value.lower() in ('true', 'false'):
             return 'boolean'
         try:
@@ -390,6 +424,15 @@ class SystemSettingSerializer(serializers.ModelSerializer):
             return 'number'
         except ValueError:
             return 'text'
+
+    def get_category(self, obj):
+        return self.CATEGORY_MAP.get(obj.key, '其他')
+
+    def get_masked_value(self, obj):
+        """敏感字段（密码）显示为 ***，其余正常显示"""
+        if obj.key in self.SENSITIVE_KEYS and obj.value:
+            return '••••••••'
+        return obj.value
 
 
 class FinanceCompanySerializer(serializers.ModelSerializer):
