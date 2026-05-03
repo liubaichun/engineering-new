@@ -106,27 +106,32 @@ def _build_summary(method: str, operation: dict, resource: str, path: str = '') 
     # 1. 优先从operationId推导动作: "approvals_flows_approve_create" → approve
     #    或 "ApprovalFlowViewSet_approve" → approve
     operation_id = operation.get('operationId', '')
+    best_action = None
+    best_len = 0
     if operation_id:
         parts = re.split(r'[_\.]', operation_id)
-        # 遍历所有非末尾、非HTTP动词的 parts，找 MAP 中的 action
+        # 遍历所有非末尾、非HTTP动词的 parts，找 MAP 中最长匹配的 action
         http_like = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
                      'get', 'post', 'put', 'patch', 'delete', 'options', 'head'}
         for part in parts:
+            # 优先匹配完整的复合 action（reject_to_requester, approve_batch 等）
             if part in ACTION_SUMMARY_MAP and part not in http_like:
-                action = ACTION_SUMMARY_MAP[part]
-                # 避免 "月度报表报表"：如果 action 以 resource 结尾，直接用 action
-                if resource and action.endswith(resource):
-                    return action
-                return f"{action}{resource}"
-            # 支持复合 action: approve_node → 分割成 approve + node
+                if len(part) > best_len:
+                    best_len = len(part)
+                    best_action = ACTION_SUMMARY_MAP[part]
+            # 再支持 underscore 分割的复合 action: approve_node → 分割成 approve + node
             if '_' in part:
                 subparts = part.split('_')
                 for sp in subparts:
                     if sp in ACTION_SUMMARY_MAP and sp not in http_like:
-                        action = ACTION_SUMMARY_MAP[sp]
-                        if resource and action.endswith(resource):
-                            return action
-                        return f"{action}{resource}"
+                        if len(sp) > best_len:
+                            best_len = len(sp)
+                            best_action = ACTION_SUMMARY_MAP[sp]
+        if best_action:
+            # 避免 "月度报表报表"：如果 action 以 resource 结尾，直接用 action
+            if resource and best_action.endswith(resource):
+                return best_action
+            return f"{best_action}{resource}"
 
     # 2. 从URL路径检测嵌套自定义动作（operationId 搞不定的边缘情况）
     if path:

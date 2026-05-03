@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Material, MaterialUsageLog
+from .models import MATERIAL_CATEGORY_CHOICES
 
 
 class MaterialUsageLogSerializer(serializers.ModelSerializer):
@@ -21,8 +22,8 @@ class MaterialUsageLogSerializer(serializers.ModelSerializer):
 class MaterialSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True)
-    category_display = serializers.CharField(source='get_category_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    category_display = serializers.CharField(source='get_category_display', read_only=True)
     usage_logs = MaterialUsageLogSerializer(many=True, read_only=True)
 
     class Meta:

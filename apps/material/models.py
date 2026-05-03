@@ -18,18 +18,28 @@ class MaterialCategory(models.Model):
         return self.name
 
 
+# 物料分类选项（与 DB 中的 VARCHAR 值一致）
+MATERIAL_CATEGORY_CHOICES = [
+    ('cable', '线缆类'),
+    ('network', '网络设备'),
+    ('server', '服务器/存储'),
+    ('cabinet', '机柜/配件'),
+    ('monitor', '监控设备'),
+    ('access', '门禁设备'),
+    ('software', '软件/许可'),
+    ('tool', '工具/耗材'),
+]
+
+
 class Material(models.Model):
     """物料模型"""
 
     code = models.CharField('物料编码', max_length=20, unique=True, editable=False)
     name = models.CharField('物料名称', max_length=200)
     spec = models.CharField('规格型号', max_length=200, blank=True, default='')
-    category = models.ForeignKey(
-        MaterialCategory,
-        verbose_name='分类',
-        on_delete=models.SET_NULL,
-        blank=True, null=True,
-        related_name='materials'
+    category = models.CharField(
+        '分类', max_length=20, choices=MATERIAL_CATEGORY_CHOICES,
+        blank=True, default='', db_column='category'
     )
     unit = models.CharField('单位', max_length=20, default='个')
     stock = models.PositiveIntegerField('当前库存', default=0)
