@@ -984,7 +984,37 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def health_check(self, request):
         """外部依赖健康检查 — GET /api/core/settings/health_check/"""
-        return Response({'status': 'ok', 'test': True})
+        try:
+            # 逐步测试每个方法
+            count = SystemSetting.objects.count()
+            domain = SystemSetting.get_value('site_domain')
+            email_ok = SystemSetting.is_email_configured()
+            https_ok = SystemSetting.is_https_ready()
+
+            missing = []
+            if not email_ok:
+                missing.append('邮件服务（SMTP）')
+            if not domain:
+                missing.append('系统域名（site_domain）')
+            elif not https_ok:
+                missing.append('SSL证书')
+
+            return Response({
+                'status': 'ok' if not missing else 'incomplete',
+                'setting_count': count,
+                'domain': domain or '(未配置)',
+                'email_ok': email_ok,
+                'https_ok': https_ok,
+                'missing': missing,
+                'message': '所有外部依赖已就绪 ✓' if not missing else f'还需配置: {", ".join(missing)}'
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            import traceback
+            return Response({
+                'error': str(e),
+                'type': type(e).__name__,
+                'tb': traceback.format_exc(),
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     def update(self, request, *args, **kwargs):
         """PATCH /api/core/settings/{key}/ — 更新单个参数"""
