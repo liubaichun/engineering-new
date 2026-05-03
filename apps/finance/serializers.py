@@ -121,7 +121,7 @@ class WageRecordSerializer(serializers.ModelSerializer):
     approval_flow_id = serializers.SerializerMethodField()
     # employee_company: 员工在公司任职的记录（新增）
     employee_company = serializers.PrimaryKeyRelatedField(
-        queryset=EmployeeCompany.objects.all(), required=False, allow_null=True
+        required=False, allow_null=True, read_only=True
     )
     employee_company_display = serializers.SerializerMethodField()
 
