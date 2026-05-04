@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block title %}物料BOM清单 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.bom-page { }
+.bom-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 20px;
+}
+.bom-card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--bs-border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.bom-item-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+.bom-item-header {
+    background: #f8f9fa;
+    padding: 10px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+.bom-item-body {
+    padding: 12px 16px;
+    border-top: 1px solid var(--bs-border-color);
+}
+.sub-item-row {
+    display: flex;
+    align-items: center;
+    padding: 6px 0;
+    border-bottom: 1px dashed #f0f0f0;
+    font-size: 0.875rem;
+}
+.sub-item-row:last-child { border-bottom: none; }
+.sub-item-row .seq { width: 30px; color: #999; font-size: 0.75rem; }
+.sub-item-row .code { width: 80px; font-weight: 600; color: var(--primary); }
+.sub-item-row .name { flex: 1; }
+.sub-item-row .qty { width: 80px; text-align: right; color: #333; }
+.sub-item-row .unit { width: 50px; color: #666; }
+.sub-item-row .actions { width: 80px; text-align: right; }
+.empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-diagram-3 me-2"></i>物料BOM清单</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">为物料建立和维护BOM结构（物料清单）</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-primary btn-sm" onclick="showCreateBOMModal()">
+            <i class="bi bi-plus-lg me-1"></i>新建BOM
+        </button>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- BOM列表 -->
+    <div class="col-lg-5">
+        <div class="bom-card">
+            <div class="bom-card-header">
+                <span><i class="bi bi-list-ul me-2"></i>BOM列表</span>
+                <small class="text-muted" id="bomCount">0 个BOM</small>
+            </div>
+            <div class="card-body p-0" id="bomListContainer">
+                <div class="empty-state">
+                    <i class="bi bi-diagram-3" style="font-size:2.5rem;"></i>
+                    <p class="mt-2 mb-0">暂无BOM记录</p>
+                    <p class="text-muted" style="font-size:0.85rem;">点击上方"新建BOM"为此物料建立清单结构</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- BOM详情 -->
+    <div class="col-lg-7">
+        <div class="bom-card" id="bomDetailCard" style="display:none;">
+            <div class="bom-card-header">
+                <span id="bomDetailTitle">BOM详情</span>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showAddItemModal()">
+                        <i class="bi bi-plus-lg me-1"></i>添加子件
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentBOM()">
+                        <i class="bi bi-trash me-1"></i>删除
+                    </button>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <!-- BOM基本信息 -->
+                <div style="padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid var(--bs-border-color);">
+                    <div class="row g-2 small">
+                        <div class="col-4"><strong>主物料：</strong><span id="bomMaterialName">-</span></div>
+                        <div class="col-3"><strong>版本：</strong><span id="bomVersion">-</span></div>
+                        <div class="col-5"><strong>创建人：</strong><span id="bomCreator">-</span></div>
+                    </div>
+                    <div class="row g-2 small mt-1">
+                        <div class="col-12"><strong>备注：</strong><span id="bomRemark" class="text-muted">-</span></div>
+                    </div>
+                </div>
+                <!-- 子件列表 -->
+                <div id="bomItemsContainer" style="padding: 8px 16px;">
+                    <div class="text-center text-muted py-4">加载中...</div>
+                </div>
+            </div>
+        </div>
+        <div class="bom-card" id="bomEmptyDetail" style="display:none;">
+            <div class="empty-state">
+                <i class="bi bi-cursor-fill" style="font-size:2rem;"></i>
+                <p class="mt-2 mb-0">选择左侧BOM查看详情</p>
+            </div>
+        </div>
+        <div class="bom-card" id="bomNoSelection">
+            <div class="empty-state">
+                <i class="bi bi-hand-index" style="font-size:2.5rem;"></i>
+                <p class="mt-2 mb-0">请从左侧选择一个BOM</p>
+                <p class="text-muted" style="font-size:0.85rem;">或者点击"新建BOM"创建新的物料清单</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新建/编辑BOM Modal -->
+<div class="modal fade" id="bomModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bomModalTitle"><i class="bi bi-diagram-3 me-2"></i>新建BOM</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="bomId">
+                <div class="mb-3">
+                    <label class="form-label">BOM名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="bomName" placeholder="例如：网络设备包-V1">
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">主物料 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="bomMaterial">
+                            <option value="">选择物料</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">版本号</label>
+                        <input type="text" class="form-control" id="bomVersionInput" placeholder="1.0" value="1.0">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control" id="bomRemarkInput" rows="2" placeholder="备注说明"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveBOM()"><i class="bi bi-check-lg me-1"></i>保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 添加子件 Modal -->
+<div class="modal fade" id="itemModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>添加子件</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">子件物料 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="itemMaterial">
+                        <option value="">选择子件物料</option>
+                    </select>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">数量 <span class="text-danger">*</span></label>
+                        <input type="number" class="form-control" id="itemQuantity" placeholder="1" value="1" min="0.0001" step="0.0001">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">单位</label>
+                        <input type="text" class="form-control" id="itemUnit" placeholder="个" value="个">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">排序序号</label>
+                        <input type="number" class="form-control" id="itemSequence" placeholder="0" value="0">
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">备注</label>
+                        <input type="text" class="form-control" id="itemRemark" placeholder="备注">
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="addItem()"><i class="bi bi-check-lg me-1"></i>添加</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+var currentBOM = null;
+var allMaterials = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+    loadBOMs();
+    loadMaterialsForSelect();
+});
+
+// 加载BOM列表
+async function loadBOMs() {
+    try {
+        const response = await fetch('/api/material/boms/?page_size=200', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            renderBOMList(data.results || data);
+        }
+    } catch (e) { console.error('加载BOM失败', e); }
+}
+
+// 加载物料下拉选项
+async function loadMaterialsForSelect() {
+    try {
+        const response = await fetch('/api/material/?page_size=500', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            allMaterials = data.results || data;
+            const opts = allMaterials.map(m => `<option value="${m.id}">${m.code} - ${m.name}</option>`).join('');
+            document.getElementById('bomMaterial').innerHTML = '<option value="">选择物料</option>' + opts;
+            document.getElementById('itemMaterial').innerHTML = '<option value="">选择子件物料</option>' + opts;
+        }
+    } catch (e) { console.error('加载物料失败', e); }
+}
+
+function renderBOMList(boms) {
+    document.getElementById('bomCount').textContent = boms.length + ' 个BOM';
+    const container = document.getElementById('bomListContainer');
+    if (!boms || boms.length === 0) {
+        container.innerHTML = `<div class="empty-state">
+            <i class="bi bi-diagram-3" style="font-size:2.5rem;"></i>
+            <p class="mt-2 mb-0">暂无BOM记录</p>
+            <p class="text-muted" style="font-size:0.85rem;">点击"新建BOM"创建</p>
+        </div>`;
+        return;
+    }
+    container.innerHTML = boms.map(bom => `
+        <div class="bom-item-card ${currentBOM && currentBOM.id === bom.id ? 'border-primary' : ''}"
+             onclick="selectBOM(${bom.id})" style="cursor:pointer;">
+            <div class="bom-item-header">
+                <div>
+                    <strong>${escapeHtml(bom.name)}</strong>
+                    <span class="badge bg-secondary ms-2" style="font-size:0.7rem;">v${bom.version}</span>
+                </div>
+                <div class="d-flex gap-2 align-items-center">
+                    <span class="badge bg-primary" style="font-size:0.7rem;">${bom.item_count} 项</span>
+                    <i class="bi bi-chevron-right"></i>
+                </div>
+            </div>
+            <div class="px-3 pb-2 small text-muted">
+                <span>${escapeHtml(bom.material_name || '-')}</span>
+                <span class="ms-2">${escapeHtml(bom.remark || '')}</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function selectBOM(bomId) {
+    try {
+        const response = await fetch(`/api/material/boms/${bomId}/`, { credentials: 'include' });
+        if (response.ok) {
+            currentBOM = await response.json();
+            renderBOMDetail(currentBOM);
+            // 高亮选中
+            document.querySelectorAll('.bom-item-card').forEach(el => el.classList.remove('border-primary'));
+            event.currentTarget.classList.add('border-primary');
+        }
+    } catch (e) { console.error('加载BOM详情失败', e); }
+}
+
+function renderBOMDetail(bom) {
+    document.getElementById('bomNoSelection').style.display = 'none';
+    document.getElementById('bomEmptyDetail').style.display = 'none';
+    document.getElementById('bomDetailCard').style.display = 'block';
+    document.getElementById('bomDetailTitle').textContent = bom.name;
+    document.getElementById('bomMaterialName').textContent = (bom.material_code || '') + ' ' + (bom.material_name || '-');
+    document.getElementById('bomVersion').textContent = bom.version;
+    document.getElementById('bomCreator').textContent = bom.created_by_name || '-';
+    document.getElementById('bomRemark').textContent = bom.remark || '-';
+    renderBOMItems(bom.items || []);
+}
+
+function renderBOMItems(items) {
+    const container = document.getElementById('bomItemsContainer');
+    if (!items || items.length === 0) {
+        container.innerHTML = `<div class="text-center text-muted py-4">
+            <p class="mb-1">暂无子件</p>
+            <button class="btn btn-sm btn-outline-primary" onclick="showAddItemModal()">
+                <i class="bi bi-plus-lg me-1"></i>添加第一个子件
+            </button>
+        </div>`;
+        return;
+    }
+    container.innerHTML = `
+        <div class="sub-item-row" style="font-weight:600; color:#666; font-size:0.8rem;">
+            <span class="seq">#</span>
+            <span class="code">编码</span>
+            <span class="name">子件名称</span>
+            <span class="qty text-end">数量</span>
+            <span class="unit text-center">单位</span>
+            <span class="actions text-end">操作</span>
+        </div>
+        ${items.map((item, idx) => `
+        <div class="sub-item-row">
+            <span class="seq">${idx + 1}</span>
+            <span class="code">${escapeHtml(item.child_material_code || '-')}</span>
+            <span class="name">${escapeHtml(item.child_material_name || '-')}</span>
+            <span class="qty">${parseFloat(item.quantity).toFixed(4).replace(/\.?0+$/, '')}</span>
+            <span class="unit">${escapeHtml(item.unit || '个')}</span>
+            <span class="actions">
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItem(${item.id})">
+                    <i class="bi bi-trash" style="font-size:0.75rem;"></i>
+                </button>
+            </span>
+        </div>
+        `).join('')}
+    `;
+}
+
+function showCreateBOMModal() {
+    document.getElementById('bomId').value = '';
+    document.getElementById('bomName').value = '';
+    document.getElementById('bomMaterial').value = '';
+    document.getElementById('bomVersionInput').value = '1.0';
+    document.getElementById('bomRemarkInput').value = '';
+    document.getElementById('bomModalTitle').innerHTML = '<i class="bi bi-diagram-3 me-2"></i>新建BOM';
+    new bootstrap.Modal(document.getElementById('bomModal')).show();
+}
+
+async function saveBOM() {
+    const id = document.getElementById('bomId').value;
+    const name = document.getElementById('bomName').value.trim();
+    const material = document.getElementById('bomMaterial').value;
+    const version = document.getElementById('bomVersionInput').value.trim() || '1.0';
+    const remark = document.getElementById('bomRemarkInput').value.trim();
+    if (!name || !material) { showToast('请填写BOM名称和主物料', 'warning'); return; }
+    const payload = { name, material, version, remark, is_active: true };
+    try {
+        let response;
+        if (id) {
+            response = await fetch(`/api/material/boms/${id}/`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: JSON.stringify(payload)
+            });
+        } else {
+            response = await fetch('/api/material/boms/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+                body: JSON.stringify(payload)
+            });
+        }
+        if (response.ok) {
+            showToast(id ? 'BOM已更新' : 'BOM已创建', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('bomModal')).hide();
+            loadBOMs();
+        } else {
+            const err = await response.json();
+            showToast(err.detail || '保存失败', 'error');
+        }
+    } catch (e) { showToast('网络错误', 'error'); }
+}
+
+function showAddItemModal() {
+    if (!currentBOM) { showToast('请先选择BOM', 'warning'); return; }
+    document.getElementById('itemMaterial').value = '';
+    document.getElementById('itemQuantity').value = '1';
+    document.getElementById('itemUnit').value = '个';
+    document.getElementById('itemSequence').value = '0';
+    document.getElementById('itemRemark').value = '';
+    new bootstrap.Modal(document.getElementById('itemModal')).show();
+}
+
+async function addItem() {
+    const child_material = document.getElementById('itemMaterial').value;
+    const quantity = parseFloat(document.getElementById('itemQuantity').value) || 1;
+    const unit = document.getElementById('itemUnit').value.trim() || '个';
+    const sequence = parseInt(document.getElementById('itemSequence').value) || 0;
+    const remark = document.getElementById('itemRemark').value.trim();
+    if (!child_material) { showToast('请选择子件物料', 'warning'); return; }
+    try {
+        const response = await fetch(`/api/material/boms/${currentBOM.id}/add_item/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+            body: JSON.stringify({ child_material, quantity, unit, sequence, remark })
+        });
+        if (response.ok) {
+            showToast('子件已添加', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('itemModal')).hide();
+            // 刷新BOM详情
+            selectBOM(currentBOM.id);
+            loadBOMs();
+        } else {
+            const err = await response.json();
+            showToast(err.detail || JSON.stringify(err) || '添加失败', 'error');
+        }
+    } catch (e) { showToast('网络错误', 'error'); }
+}
+
+async function removeItem(itemId) {
+    if (!confirm('确定移除该子件？')) return;
+    try {
+        const response = await fetch(`/api/material/boms/${currentBOM.id}/remove_item/${itemId}/`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (response.ok) {
+            showToast('子件已移除', 'success');
+            selectBOM(currentBOM.id);
+            loadBOMs();
+        } else {
+            showToast('移除失败', 'error');
+        }
+    } catch (e) { showToast('网络错误', 'error'); }
+}
+
+async function deleteCurrentBOM() {
+    if (!currentBOM) return;
+    if (!confirm(`确定删除BOM"${currentBOM.name}"？此操作不可恢复。`)) return;
+    try {
+        const response = await fetch(`/api/material/boms/${currentBOM.id}/`, {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (response.ok) {
+            showToast('BOM已删除', 'success');
+            currentBOM = null;
+            document.getElementById('bomDetailCard').style.display = 'none';
+            document.getElementById('bomNoSelection').style.display = 'block';
+            loadBOMs();
+        } else {
+            showToast('删除失败', 'error');
+        }
+    } catch (e) { showToast('网络错误', 'error'); }
+}
+</script>
+{% endblock %}

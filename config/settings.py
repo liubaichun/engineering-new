@@ -20,7 +20,7 @@ if not os.environ.get('SECRET_KEY'):
     import warnings
     warnings.warn('SECRET_KEY not set — using insecure default. Set SECRET_KEY env var.', RuntimeWarning)
 
-DEBUG = os.environ.get('DEBUG', 'False').lower() in ('true', '1', 'yes')
+DEBUG = True  #  in ('true', '1', 'yes')
 
 ALLOWED_HOSTS = [
     h.strip()

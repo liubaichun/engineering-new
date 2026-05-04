@@ -62,7 +62,7 @@ class CompanyFileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CompanyFile
-        fields = ['id', 'file', 'file_name', 'file_size', 'file_url', 'category', 'company', 'project', 'project_name',
+        fields = ['id', 'file', 'file_name', 'alias', 'file_size', 'file_url', 'category', 'company', 'project', 'project_name',
                   'remark', 'uploaded_by', 'uploaded_by_name', 'created_at',
                   'version', 'is_current', 'previous_file', 'previous_version_id', 'version_count']
-        read_only_fields = ['uploaded_by', 'file_size', 'file_name', 'version', 'is_current', 'previous_file']
+        read_only_fields = ['uploaded_by', 'file_size', 'version', 'is_current', 'previous_file']

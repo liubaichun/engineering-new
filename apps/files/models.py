@@ -36,6 +36,7 @@ class CompanyFile(models.Model):
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='files', verbose_name='公司')
     project = models.ForeignKey('tasks.Project', on_delete=models.SET_NULL, blank=True, null=True, related_name='company_files', verbose_name='关联项目')
     remark = models.TextField('备注', blank=True, null=True)
+    alias = models.CharField('别名', max_length=300, blank=True, default='', help_text='用户自定义的文件别名，方便搜索识别')
     uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_files')
     version = models.IntegerField('版本号', default=1)
     previous_file = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='next_versions', verbose_name='上一版本')
