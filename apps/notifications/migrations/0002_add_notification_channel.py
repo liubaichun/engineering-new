@@ -1,4 +1,3 @@
-# Generated manually — adds NotificationChannel broadcast webhook table
 from django.db import migrations, models
 
 
