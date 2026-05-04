@@ -40,11 +40,6 @@ def wage_list_page(request):
     return TemplateView.as_view(template_name='finance/wage_list.html')(request)
 
 def approval_list_page(request):
-    # 买断版关闭审批入口（无注册，无审批）
-    from django.conf import settings
-    if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
-        from django.http import Http404
-        raise Http404("该页面在买断版中不可用。")
     return TemplateView.as_view(template_name='approvals/approval_list.html')(request)
 
 def approval_template_list_page(request):
