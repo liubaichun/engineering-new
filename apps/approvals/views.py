@@ -387,6 +387,32 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         return Response({'status': '已撤回'})
 
 
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出审批流 Excel"""
+        from apps.core.export_excel import export_to_xlsx, make_export_response
+        from django.utils import timezone
+        records = list(self.get_queryset().select_related('requester').prefetch_related('nodes', 'nodes__approver'))
+        rows = []
+        for flow in records:
+            rows.append([
+                flow.name or '',
+                flow.get_flow_type_display() if hasattr(flow, 'get_flow_type_display') else str(flow.flow_type),
+                flow.requester.username if flow.requester else '',
+                flow.get_status_display() if hasattr(flow, 'get_status_display') else str(flow.status),
+                str(flow.amount or ''),
+                flow.result_comment or '',
+                str(flow.created_at or ''),
+                str(flow.updated_at or ''),
+            ])
+        buf = export_to_xlsx([{
+            'title': '审批流清单',
+            'headers': ['名称', '类型', '申请人', '状态', '金额', '审批意见', '创建时间', '更新时间'],
+            'rows': rows,
+        }])
+        return make_export_response(buf, '审批流_{}.xlsx'.format(timezone.now().strftime('%Y%m%d')))
+
 class ApprovalNodeViewSet(viewsets.ModelViewSet):
     """
     审批节点记录

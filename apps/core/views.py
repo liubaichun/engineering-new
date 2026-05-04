@@ -605,6 +605,33 @@ class UserViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出用户 Excel"""
+        from apps.core.export_excel import export_to_xlsx, make_export_response
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        records = list(self.get_queryset())
+        rows = []
+        role_map = {'admin': '管理员', 'manager': '经理', 'staff': '员工'}
+        for u in records:
+            rows.append([
+                u.username,
+                u.email,
+                u.phone,
+                role_map.get(u.role, u.role or ''),
+                '是' if u.is_active else '否',
+                str(u.date_joined)[:19] if u.date_joined else '',
+                str(u.last_login)[:19] if u.last_login else '',
+            ])
+        buf = export_to_xlsx([{
+            'title': '用户列表',
+            'headers': ['用户名', '邮箱', '电话', '角色', '状态', '加入日期', '最后登录'],
+            'rows': rows,
+        }])
+        return make_export_response(buf, f'用户_{timezone.now().strftime("%Y%m%d")}.xlsx')
+
+
 class RoleViewSet(viewsets.ModelViewSet):
     """角色管理视图集"""
     queryset = Role.objects.all()
@@ -630,6 +657,28 @@ class RoleViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'permissions': serializer.data
         }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出角色 Excel"""
+        from apps.core.export_excel import export_to_xlsx, make_export_response
+        records = list(self.get_queryset())
+        rows = []
+        for r in records:
+            rows.append([
+                r.name,
+                r.code,
+                r.description or '',
+                '是' if r.is_active else '否',
+                str(r.created_at)[:19] if r.created_at else '',
+            ])
+        buf = export_to_xlsx([{
+            'title': '角色列表',
+            'headers': ['名称', '代码', '描述', '状态', '创建时间'],
+            'rows': rows,
+        }])
+        return make_export_response(buf, f'角色_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
 
 class PermissionViewSet(viewsets.ModelViewSet):
@@ -661,6 +710,29 @@ class PermissionViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'resources': list(resources)
         }, status=status.HTTP_200_OK)
+
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出权限 Excel"""
+        from apps.core.export_excel import export_to_xlsx, make_export_response
+        records = list(self.get_queryset())
+        rows = []
+        for p in records:
+            rows.append([
+                p.name,
+                p.code,
+                p.resource,
+                p.action,
+                p.category or '',
+                p.description or '',
+            ])
+        buf = export_to_xlsx([{
+            'title': '权限列表',
+            'headers': ['名称', '代码', '资源', '动作', '类别', '描述'],
+            'rows': rows,
+        }])
+        return make_export_response(buf, f'权限_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
 
 class RolePermissionViewSet(viewsets.ModelViewSet):
@@ -878,6 +950,15 @@ class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
 
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出权限审计日志 Excel"""
+        from apps.core.export_excel import export_audit_logs, make_export_response
+        queryset = self.get_queryset()
+        records = queryset[:5000]
+        buf = export_audit_logs(list(records))
+        return make_export_response(buf, f'权限审计日志_{timezone.now().strftime("%Y%m%d")}.xlsx')
 class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
     """登录日志视图集（仅读）"""
     queryset = LoginLog.objects.all()
@@ -899,6 +980,16 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         return queryset
+
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出权限审计日志 Excel"""
+        from apps.core.export_excel import export_audit_logs, make_export_response
+        queryset = self.get_queryset()
+        records = queryset[:5000]
+        buf = export_audit_logs(list(records))
+        return make_export_response(buf, f'权限审计日志_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
 
 class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):

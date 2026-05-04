@@ -184,3 +184,24 @@ class EquipmentBOMViewSet(viewsets.ModelViewSet):
             return Response(EquipmentBOMItemSerializer(item).data)
         except EquipmentBOMItem.DoesNotExist:
             return Response({'error': '子件不存在'}, status=404)
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出设备BOM Excel"""
+        from apps.core.export_excel import export_to_xlsx, make_export_response
+        records = list(self.get_queryset().select_related('equipment', 'created_by').prefetch_related('items', 'items__child_equipment'))
+        rows = []
+        for bom in records:
+            items = bom.items.all()
+            if not items:
+                rows.append([bom.name, bom.equipment.name if bom.equipment else '', bom.version, '', '', '', bom.remark or '', '是' if bom.is_active else '否'])
+            else:
+                for item in items:
+                    rows.append([bom.name, bom.equipment.name if bom.equipment else '', bom.version, item.child_equipment.name if item.child_equipment else str(item.child_equipment_id), str(item.quantity), item.unit or '', item.remark or '', '是' if bom.is_active else '否'])
+        buf = export_to_xlsx([{
+            'title': '设备BOM清单',
+            'headers': ['BOM名称', '主设备', '版本', '子件设备', '数量', '单位', '备注', '状态'],
+            'rows': rows,
+        }])
+        return make_export_response(buf, '设备BOM_{}.xlsx'.format(timezone.now().strftime('%Y%m%d')))
+
