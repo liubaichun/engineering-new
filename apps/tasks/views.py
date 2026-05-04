@@ -406,6 +406,33 @@ class TaskViewSet(viewsets.ModelViewSet):
         })
 
 
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出任务 Excel"""
+        from apps.core.export_excel import export_to_xlsx, make_export_response
+        from django.utils import timezone
+        records = list(self.get_queryset().select_related('project', 'assignee', 'reporter'))
+        rows = []
+        for task in records:
+            rows.append([
+                task.code or '',
+                task.title or '',
+                task.get_status_display() if hasattr(task, 'get_status_display') else str(task.status),
+                task.get_priority_display() if hasattr(task, 'get_priority_display') else str(task.priority),
+                task.project.name if task.project else '',
+                task.assignee.username if task.assignee else '',
+                task.reporter.username if task.reporter else '',
+                str(task.due_date or ''),
+                str(task.created_at or ''),
+            ])
+        buf = export_to_xlsx([{
+            'title': '任务清单',
+            'headers': ['编号', '标题', '状态', '优先级', '项目', '负责人', '报告人', '截止日期', '创建时间'],
+            'rows': rows,
+        }])
+        return make_export_response(buf, '任务_{}.xlsx'.format(timezone.now().strftime('%Y%m%d')))
+
 class FlowTemplateViewSet(viewsets.ModelViewSet):
     """流程模板视图集"""
     queryset = FlowTemplate.objects.all()
