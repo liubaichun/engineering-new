@@ -1,8 +1,8 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from config.routers import IntegerPkRouter
 from . import views
 
-router = DefaultRouter()
+router = IntegerPkRouter()
 router.register(r'channels', views.NotificationChannelViewSet, basename='notification-channel')
 router.register(r'bindings', views.NotifyBindingViewSet, basename='notify-binding')
 
