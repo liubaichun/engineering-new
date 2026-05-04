@@ -5,13 +5,12 @@ from apps.core.auth import CSRFExemptSessionAuthentication
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, DateFilter, NumberFilter
 from django.utils import timezone
-from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog, EquipmentBOM, EquipmentBOMItem
+from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog, EquipmentBOMRelation
 from .serializers import (
     EquipmentSerializer,
     EquipmentUsageLogSerializer,
     EquipmentRepairLogSerializer,
-    EquipmentBOMSerializer,
-    EquipmentBOMItemSerializer,
+    EquipmentBOMRelationSerializer,
 )
 
 
@@ -99,6 +98,30 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=400)
 
     @action(detail=True, methods=['post'])
+    @action(detail=True, methods=['get'])
+    def linked_boms(self, request, pk=None):
+        """获取设备关联的物料BOM列表"""
+        equipment = self.get_object()
+        from apps.material.serializers import MaterialBOMTreeSerializer
+        relations = equipment.bom_relations.select_related('material_bom').all()
+        result = []
+        for rel in relations:
+            bom = rel.material_bom
+            root_nodes = bom.nodes.filter(parent__isnull=True).select_related('child_material', 'child_bom')
+            tree = MaterialBOMTreeSerializer(root_nodes, many=True).data
+            result.append({
+                'id': rel.id,
+                'material_bom': bom.id,
+                'material_bom_name': bom.name,
+                'material_bom_version': bom.version,
+                'material_name': bom.material.name if bom.material else '-',
+                'quantity': rel.quantity,
+                'unit': rel.unit or '',
+                'remark': rel.remark or '',
+                'bom_tree': tree,
+            })
+        return Response(result)
+
     def record_repair(self, request, pk=None):
         """记录设备维修"""
         equipment = self.get_object()
@@ -122,19 +145,28 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         return make_export_response(buf, f'设备_{tz.now().strftime("%Y%m%d")}.xlsx')
 
 
-class EquipmentBOMViewSet(viewsets.ModelViewSet):
-    """设备内部BOM清单管理"""
-    queryset = EquipmentBOM.objects.all()
-    serializer_class = EquipmentBOMSerializer
+class EquipmentBOMRelationFilter(FilterSet):
+    equipment = CharFilter()
+    material_bom = CharFilter()
+
+    class Meta:
+        model = EquipmentBOMRelation
+        fields = ['equipment', 'material_bom']
+
+
+class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
+    """设备关联物料BOM管理"""
+    queryset = EquipmentBOMRelation.objects.all()
+    serializer_class = EquipmentBOMRelationSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['equipment', 'is_active']
-    search_fields = ['name', 'equipment__name']
-    ordering_fields = ['created_at', 'updated_at']
+    filterset_class = EquipmentBOMRelationFilter
+    search_fields = ['equipment__name', 'material_bom__name']
+    ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = EquipmentBOM.objects.all()
+        qs = EquipmentBOMRelation.objects.all()
         user = self.request.user
         if user.is_superuser:
             return qs
@@ -142,66 +174,36 @@ class EquipmentBOMViewSet(viewsets.ModelViewSet):
             return qs.filter(equipment__project__company_id=user.company_id)
         return qs.none()
 
-    def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
-
-    @action(detail=True, methods=['post'])
-    def add_item(self, request, pk=None):
-        """向BOM添加子设备"""
-        bom = self.get_object()
-        serializer = EquipmentBOMItemSerializer(data={
-            'bom': bom.id,
-            'child_equipment': request.data.get('child_equipment'),
-            'quantity': request.data.get('quantity', 1),
-            'unit': request.data.get('unit', '个'),
-            'sequence': request.data.get('sequence', 0),
-            'remark': request.data.get('remark', ''),
-        })
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
-
-    @action(detail=True, methods=['delete'], url_path='remove_item/(?P<item_id>[^/.]+)')
-    def remove_item(self, request, pk=None, item_id=None):
-        """从BOM移除子设备"""
+    @action(detail=True, methods=['delete'], url_path='remove_bom/(?P<bom_id>[^/.]+)')
+    def remove_bom(self, request, pk=None, bom_id=None):
+        """取消设备关联的BOM"""
         try:
-            item = EquipmentBOMItem.objects.get(pk=item_id, bom_id=pk)
-            item.delete()
+            rel = EquipmentBOMRelation.objects.get(pk=bom_id, equipment_id=pk)
+            rel.delete()
             return Response(status=204)
-        except EquipmentBOMItem.DoesNotExist:
-            return Response({'error': '子件不存在'}, status=404)
-
-    @action(detail=True, methods=['patch'], url_path='update_item/(?P<item_id>[^/.]+)')
-    def update_item(self, request, pk=None, item_id=None):
-        """更新BOM子设备"""
-        try:
-            item = EquipmentBOMItem.objects.get(pk=item_id, bom_id=pk)
-            for field in ['quantity', 'unit', 'sequence', 'remark']:
-                if field in request.data:
-                    setattr(item, field, request.data[field])
-            item.save()
-            return Response(EquipmentBOMItemSerializer(item).data)
-        except EquipmentBOMItem.DoesNotExist:
-            return Response({'error': '子件不存在'}, status=404)
+        except EquipmentBOMRelation.DoesNotExist:
+            return Response({'error': '关联不存在'}, status=404)
 
     @action(detail=False, methods=['get'])
     def export(self, request):
-        """导出设备BOM Excel"""
+        """导出设备BOM关联 Excel"""
         from apps.core.export_excel import export_to_xlsx, make_export_response
-        records = list(self.get_queryset().select_related('equipment', 'created_by').prefetch_related('items', 'items__child_equipment'))
+        records = list(self.get_queryset().select_related('equipment', 'material_bom', 'material_bom__material'))
         rows = []
-        for bom in records:
-            items = bom.items.all()
-            if not items:
-                rows.append([bom.name, bom.equipment.name if bom.equipment else '', bom.version, '', '', '', bom.remark or '', '是' if bom.is_active else '否'])
-            else:
-                for item in items:
-                    rows.append([bom.name, bom.equipment.name if bom.equipment else '', bom.version, item.child_equipment.name if item.child_equipment else str(item.child_equipment_id), str(item.quantity), item.unit or '', item.remark or '', '是' if bom.is_active else '否'])
+        for rel in records:
+            rows.append([
+                rel.equipment.code if rel.equipment else '',
+                rel.equipment.name if rel.equipment else '',
+                rel.material_bom.name if rel.material_bom else '',
+                rel.material_bom.material.name if rel.material_bom and rel.material_bom.material else '',
+                str(rel.quantity),
+                rel.remark or '',
+                rel.created_at.strftime('%Y-%m-%d') if rel.created_at else '',
+            ])
         buf = export_to_xlsx([{
-            'title': '设备BOM清单',
-            'headers': ['BOM名称', '主设备', '版本', '子件设备', '数量', '单位', '备注', '状态'],
+            'title': '设备BOM关联',
+            'headers': ['设备编码', '设备名称', 'BOM名称', '物料名称', '数量', '备注', '创建时间'],
             'rows': rows,
         }])
-        return make_export_response(buf, '设备BOM_{}.xlsx'.format(timezone.now().strftime('%Y%m%d')))
+        return make_export_response(buf, '设备BOM关联_{}.xlsx'.format(timezone.now().strftime('%Y%m%d')))
 
