@@ -1,7 +1,7 @@
-from rest_framework import routers
+from config.routers import IntegerPkRouter
 from . import views
 
-router = routers.DefaultRouter()
+router = IntegerPkRouter()
 router.register(r'categories', views.FileCategoryViewSet)
 router.register(r'files', views.CompanyFileViewSet)
 

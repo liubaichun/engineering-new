@@ -1,12 +1,12 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from config.routers import IntegerPkRouter
 from .views import (
     ProjectViewSet, TaskViewSet, FlowTemplateViewSet,
     FlowNodeTemplateViewSet, TaskStageInstanceViewSet,
     StageActivityViewSet, FlowTransitionViewSet, TaskFlowInstanceViewSet
 )
 
-router = DefaultRouter()
+router = IntegerPkRouter()
 router.register(r'projects', ProjectViewSet, basename='project')
 router.register(r'tasks', TaskViewSet, basename='task')
 router.register(r'flow-templates', FlowTemplateViewSet, basename='flowtemplate')

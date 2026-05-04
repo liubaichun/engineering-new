@@ -1,9 +1,9 @@
 from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from config.routers import IntegerPkRouter
 from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet
 from . import import_views
 
-router = DefaultRouter()
+router = IntegerPkRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
 router.register(r'ar-ap', ARAPViewSet, basename='ar-ap')
 router.register(r'incomes', IncomeViewSet, basename='income')

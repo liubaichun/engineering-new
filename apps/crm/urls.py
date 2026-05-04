@@ -1,9 +1,9 @@
 from django.urls import path
-from rest_framework import routers
+from config.routers import IntegerPkRouter
 from . import views
 from . import import_views
 
-router = routers.DefaultRouter()
+router = IntegerPkRouter()
 router.register(r'clients', views.ClientViewSet)
 router.register(r'contracts', views.ContractViewSet)
 router.register(r'suppliers', views.SupplierViewSet)

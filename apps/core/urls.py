@@ -1,6 +1,6 @@
 from django.urls import path, include
 from django.views.decorators.csrf import csrf_exempt
-from rest_framework.routers import DefaultRouter
+from config.routers import IntegerPkRouter
 
 from .views import (
     RegisterView,
@@ -24,7 +24,7 @@ from .views import (
     FinanceCompanyViewSet,
 )
 
-router = DefaultRouter()
+router = IntegerPkRouter()
 router.register(r'users', UserViewSet, basename='user')
 router.register(r'roles', RoleViewSet, basename='role')
 router.register(r'permissions', PermissionViewSet, basename='permission')
