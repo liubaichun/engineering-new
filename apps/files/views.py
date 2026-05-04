@@ -48,7 +48,7 @@ class CompanyFileViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
     filterset_fields = ['category', 'company']
-    search_fields = ['file_name']
+    search_fields = ['file_name', 'alias']
 
     def get_queryset(self):
         qs = super().get_queryset()

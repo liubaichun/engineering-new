@@ -5,11 +5,13 @@ from apps.core.auth import CSRFExemptSessionAuthentication
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, DateFilter, NumberFilter
 from django.utils import timezone
-from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog
+from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog, EquipmentBOM, EquipmentBOMItem
 from .serializers import (
     EquipmentSerializer,
     EquipmentUsageLogSerializer,
     EquipmentRepairLogSerializer,
+    EquipmentBOMSerializer,
+    EquipmentBOMItemSerializer,
 )
 
 
@@ -118,3 +120,67 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         records = queryset.select_related('project')
         buf = export_equipment(list(records))
         return make_export_response(buf, f'设备_{tz.now().strftime("%Y%m%d")}.xlsx')
+
+
+class EquipmentBOMViewSet(viewsets.ModelViewSet):
+    """设备内部BOM清单管理"""
+    queryset = EquipmentBOM.objects.all()
+    serializer_class = EquipmentBOMSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['equipment', 'is_active']
+    search_fields = ['name', 'equipment__name']
+    ordering_fields = ['created_at', 'updated_at']
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = EquipmentBOM.objects.all()
+        user = self.request.user
+        if user.is_superuser:
+            return qs
+        if hasattr(user, 'company') and user.company_id:
+            return qs.filter(equipment__project__company_id=user.company_id)
+        return qs.none()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
+
+    @action(detail=True, methods=['post'])
+    def add_item(self, request, pk=None):
+        """向BOM添加子设备"""
+        bom = self.get_object()
+        serializer = EquipmentBOMItemSerializer(data={
+            'bom': bom.id,
+            'child_equipment': request.data.get('child_equipment'),
+            'quantity': request.data.get('quantity', 1),
+            'unit': request.data.get('unit', '个'),
+            'sequence': request.data.get('sequence', 0),
+            'remark': request.data.get('remark', ''),
+        })
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    @action(detail=True, methods=['delete'], url_path='remove_item/(?P<item_id>[^/.]+)')
+    def remove_item(self, request, pk=None, item_id=None):
+        """从BOM移除子设备"""
+        try:
+            item = EquipmentBOMItem.objects.get(pk=item_id, bom_id=pk)
+            item.delete()
+            return Response(status=204)
+        except EquipmentBOMItem.DoesNotExist:
+            return Response({'error': '子件不存在'}, status=404)
+
+    @action(detail=True, methods=['patch'], url_path='update_item/(?P<item_id>[^/.]+)')
+    def update_item(self, request, pk=None, item_id=None):
+        """更新BOM子设备"""
+        try:
+            item = EquipmentBOMItem.objects.get(pk=item_id, bom_id=pk)
+            for field in ['quantity', 'unit', 'sequence', 'remark']:
+                if field in request.data:
+                    setattr(item, field, request.data[field])
+            item.save()
+            return Response(EquipmentBOMItemSerializer(item).data)
+        except EquipmentBOMItem.DoesNotExist:
+            return Response({'error': '子件不存在'}, status=404)

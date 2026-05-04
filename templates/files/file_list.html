@@ -81,6 +81,7 @@
                             <tr>
                                 <th style="width: 40px;"><input type="checkbox" id="selectAllFiles" onchange="toggleSelectAll()"></th>
                                 <th>文件名</th>
+                                <th>别名</th>
                                 <th>备注</th>
                                 <th>分类</th>
                                 <th>公司</th>
@@ -93,7 +94,7 @@
                         </thead>
                         <tbody id="fileTableBody">
                             <tr>
-                                <td colspan="9" class="text-center py-4">
+                                <td colspan="10" class="text-center py-4">
                                     <div class="spinner-border text-primary"></div>
                                 </td>
                             </tr>
@@ -145,6 +146,10 @@
                 <div class="mb-3">
                     <label class="form-label">备注</label>
                     <textarea class="form-control" id="fileRemark" rows="2" placeholder="可选备注"></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">别名</label>
+                    <input type="text" class="form-control" id="fileAlias" placeholder="自定义别名，方便搜索识别">
                 </div>
                 <div class="progress" id="uploadProgress" style="display: none;">
                     <div class="progress-bar" role="progressbar" style="width: 0%;"></div>
@@ -309,7 +314,7 @@ function renderFiles() {
     var tbody = document.getElementById('fileTableBody');
     
         if (allFiles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无文件</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无文件</td></tr>';
         return;
     }
     
@@ -326,6 +331,7 @@ function renderFiles() {
         html += '<td><i class="' + icon + ' me-2"></i>' + escapeHtml(f.file_name);
         if (f.version > 1) html += ' <span class="badge bg-secondary" style="font-size:0.65rem;">v' + f.version + '</span>';
         html += '</td>';
+        html += '<td><span class="text-muted">' + escapeHtml(f.alias || '-') + '</span></td>';
         html += '<td>' + escapeHtml(f.remark || '-') + '</td>';
         html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryMap[f.category] || '-') + '</span></td>';
         html += '<td>' + escapeHtml(companyMap[f.company] || '-') + '</td>';
@@ -443,16 +449,17 @@ async function uploadFile() {
     var project = document.getElementById('fileProject').value;
     var contract = document.getElementById('fileContract').value;
     var remark = document.getElementById('fileRemark').value.trim();
-    
+    var alias = document.getElementById('fileAlias').value.trim();
+
     if (!category) {
         showToast('请选择文件分类', 'warning');
         return;
     }
-    
+
     document.getElementById('btnUpload').disabled = true;
     var progress = document.getElementById('uploadProgress');
     progress.style.display = 'block';
-    
+
     var formData = new FormData();
     formData.append('file', selectedFile);
     formData.append('category', category);
@@ -460,6 +467,7 @@ async function uploadFile() {
     if (project) formData.append('project', project);
     if (contract) formData.append('contract', contract);
     if (remark) formData.append('remark', remark);
+    if (alias) formData.append('alias', alias);
     
     try {
         var xhr = new XMLHttpRequest();

@@ -128,3 +128,68 @@ class MaterialUsageLog(models.Model):
 
     def __str__(self):
         return f"{self.material.name} - {self.quantity}{self.material.unit}"
+
+
+class MaterialBOM(models.Model):
+    """物料BOM清单 — 用户可自行建立和维护物料的子件结构"""
+
+    name = models.CharField('BOM名称', max_length=200)
+    material = models.ForeignKey(
+        Material,
+        verbose_name='主物料',
+        on_delete=models.CASCADE,
+        related_name='bom_items',
+        help_text='选择要建立BOM结构的物料'
+    )
+    version = models.CharField('版本号', max_length=20, default='1.0')
+    remark = models.TextField('备注', blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    created_by = models.ForeignKey(
+        User,
+        verbose_name='创建人',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='created_boms'
+    )
+    is_active = models.BooleanField('是否当前版本', default=True)
+
+    class Meta:
+        db_table = 'material_bom'
+        verbose_name = '物料BOM'
+        verbose_name_plural = '物料BOM清单'
+        ordering = ['-created_at']
+        unique_together = ['material', 'version']
+
+    def __str__(self):
+        return f"{self.material.name} v{self.version}"
+
+
+class MaterialBOMItem(models.Model):
+    """BOM子件明细"""
+
+    bom = models.ForeignKey(
+        MaterialBOM,
+        verbose_name='所属BOM',
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    child_material = models.ForeignKey(
+        Material,
+        verbose_name='子件物料',
+        on_delete=models.CASCADE,
+        related_name='used_in_boms'
+    )
+    quantity = models.DecimalField('数量', max_digits=12, decimal_places=4, default=1)
+    unit = models.CharField('单位', max_length=20, default='个')
+    sequence = models.PositiveIntegerField('排序序号', default=0)
+    remark = models.CharField('备注', max_length=500, blank=True, default='')
+
+    class Meta:
+        db_table = 'material_bom_item'
+        verbose_name = 'BOM子件'
+        verbose_name_plural = 'BOM子件明细'
+        ordering = ['sequence', 'id']
+
+    def __str__(self):
+        return f"{self.child_material.name} x{self.quantity}"

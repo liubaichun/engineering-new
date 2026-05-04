@@ -239,5 +239,7 @@ urlpatterns = [
     path('system/audit-logs/', lambda request: render(request, 'audit_logs.html'), name='audit_logs'),
     path('system/login-logs/', lambda request: render(request, 'login_logs.html'), name='login_logs'),
     path('materials/', lambda request: render(request, 'material/material_list.html'), name='material_list'),
+    path('material/bom/', lambda request: render(request, 'material/bom_list.html'), name='material_bom'),
     path('equipment/', lambda request: render(request, 'equipment/equipment_list.html'), name='equipment_list'),
+    path('equipment/bom/', lambda request: render(request, 'equipment/bom_list.html'), name='equipment_bom'),
 ]
