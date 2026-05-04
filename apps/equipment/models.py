@@ -49,6 +49,13 @@ class Equipment(models.Model):
     remarks = models.TextField('备注', blank=True, default='')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
+    # 设备关联物料BOM（多对多 through 表）
+    boms = models.ManyToManyField(
+        'material.MaterialBOM',
+        through='EquipmentBOMRelation',
+        related_name='equipments',
+        blank=True,
+    )
 
     class Meta:
         db_table = 'equipment_equipment'
@@ -150,66 +157,31 @@ class EquipmentRepairLog(models.Model):
         return f"{self.equipment.name} - {self.repair_date}"
 
 
-class EquipmentBOM(models.Model):
-    """设备内部BOM清单 — 用户可自行建立和维护设备的内部组成结构"""
+class EquipmentBOMRelation(models.Model):
+    """设备关联物料BOM（多对多 through 表）"""
 
-    name = models.CharField('BOM名称', max_length=200)
     equipment = models.ForeignKey(
         Equipment,
         verbose_name='设备',
         on_delete=models.CASCADE,
-        related_name='bom_items',
-        help_text='选择要建立BOM结构的设备'
+        related_name='bom_relations'
     )
-    version = models.CharField('版本号', max_length=20, default='1.0')
-    remark = models.TextField('备注', blank=True, default='')
-    created_at = models.DateTimeField('创建时间', auto_now_add=True)
-    updated_at = models.DateTimeField('更新时间', auto_now=True)
-    created_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name='创建人',
-        on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='created_equipment_boms'
-    )
-    is_active = models.BooleanField('是否当前版本', default=True)
-
-    class Meta:
-        db_table = 'equipment_bom'
-        verbose_name = '设备BOM'
-        verbose_name_plural = '设备BOM清单'
-        ordering = ['-created_at']
-        unique_together = ['equipment', 'version']
-
-    def __str__(self):
-        return f"{self.equipment.name} v{self.version}"
-
-
-class EquipmentBOMItem(models.Model):
-    """设备BOM子件明细"""
-
-    bom = models.ForeignKey(
-        EquipmentBOM,
-        verbose_name='所属BOM',
+    material_bom = models.ForeignKey(
+        'material.MaterialBOM',
+        verbose_name='物料BOM',
         on_delete=models.CASCADE,
-        related_name='items'
-    )
-    child_equipment = models.ForeignKey(
-        Equipment,
-        verbose_name='子件设备',
-        on_delete=models.CASCADE,
-        related_name='used_in_boms'
+        related_name='equipment_relations'
     )
     quantity = models.DecimalField('数量', max_digits=12, decimal_places=4, default=1)
-    unit = models.CharField('单位', max_length=20, default='个')
-    sequence = models.PositiveIntegerField('排序序号', default=0)
     remark = models.CharField('备注', max_length=500, blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
-        db_table = 'equipment_bom_item'
-        verbose_name = '设备BOM子件'
-        verbose_name_plural = '设备BOM子件明细'
-        ordering = ['sequence', 'id']
+        db_table = 'equipment_bom_relation'
+        verbose_name = '设备BOM关联'
+        verbose_name_plural = '设备BOM关联'
+        ordering = ['-created_at']
+        unique_together = ['equipment', 'material_bom']
 
     def __str__(self):
-        return f"{self.child_equipment.name} x{self.quantity}"
+        return f"{self.equipment.name} - {self.material_bom.name}"

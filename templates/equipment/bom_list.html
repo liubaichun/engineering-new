@@ -1,30 +1,29 @@
 {% extends "base.html" %}
 
-{% block title %}设备BOM清单 - 企业信息化管理系统{% endblock %}
+{% block title %}设备配件管理 - 企业信息化管理系统{% endblock %}
 
 {% block styles %}
 <style>
-.bom-page { }
-.bom-card {
+.eq-card {
     background: #fff;
     border-radius: 12px;
     box-shadow: var(--card-shadow);
     margin-bottom: 20px;
 }
-.bom-card-header {
+.eq-card-header {
     padding: 14px 20px;
     border-bottom: 1px solid var(--bs-border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.bom-item-card {
+.eq-item-card {
     border: 1px solid var(--bs-border-color);
     border-radius: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     overflow: hidden;
 }
-.bom-item-header {
+.eq-item-header {
     background: #f8f9fa;
     padding: 10px 16px;
     display: flex;
@@ -32,24 +31,21 @@
     align-items: center;
     cursor: pointer;
 }
-.bom-item-body {
-    padding: 12px 16px;
-    border-top: 1px solid var(--bs-border-color);
-}
-.sub-item-row {
+.bom-badge { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+.bom-node-row {
     display: flex;
     align-items: center;
-    padding: 6px 0;
+    padding: 5px 8px;
     border-bottom: 1px dashed #f0f0f0;
-    font-size: 0.875rem;
+    font-size: 0.8rem;
 }
-.sub-item-row:last-child { border-bottom: none; }
-.sub-item-row .seq { width: 30px; color: #999; font-size: 0.75rem; }
-.sub-item-row .code { width: 80px; font-weight: 600; color: var(--primary); }
-.sub-item-row .name { flex: 1; }
-.sub-item-row .qty { width: 80px; text-align: right; color: #333; }
-.sub-item-row .unit { width: 50px; color: #666; }
-.sub-item-row .actions { width: 80px; text-align: right; }
+.bom-node-row:last-child { border-bottom: none; }
+.bom-node-row:hover { background: #f8f9fa; }
+.bom-indent { flex-shrink: 0; }
+.bom-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bom-qty { width: 60px; text-align: right; color: #333; }
+.bom-unit { width: 40px; color: #666; }
+.bom-actions { width: 60px; text-align: right; }
 .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
 </style>
 {% endblock %}
@@ -57,160 +53,92 @@
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
-        <h4><i class="bi bi-diagram-3 me-2"></i>设备BOM清单</h4>
-        <p class="text-muted mb-0" style="font-size: 0.9rem;">为设备建立和维护BOM结构（配件清单）</p>
-    </div>
-    <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="showCreateBOMModal()">
-            <i class="bi bi-plus-lg me-1"></i>新建BOM
-        </button>
+        <h4><i class="bi bi-cpu me-2"></i>设备配件管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理设备与物料BOM的关联关系</p>
     </div>
 </div>
 
 <div class="row g-4">
-    <!-- BOM列表 -->
-    <div class="col-lg-5">
-        <div class="bom-card">
-            <div class="bom-card-header">
-                <span><i class="bi bi-list-ul me-2"></i>BOM列表</span>
-                <small class="text-muted" id="bomCount">0 个BOM</small>
+    <!-- 设备列表 -->
+    <div class="col-lg-4">
+        <div class="eq-card">
+            <div class="eq-card-header">
+                <span><i class="bi bi-server me-2"></i>设备列表</span>
+                <small class="text-muted" id="eqCount">0 台设备</small>
             </div>
-            <div class="card-body p-0" id="bomListContainer">
+            <div class="card-body p-0" id="equipmentListContainer">
                 <div class="empty-state">
-                    <i class="bi bi-diagram-3" style="font-size:2.5rem;"></i>
-                    <p class="mt-2 mb-0">暂无BOM记录</p>
-                    <p class="text-muted" style="font-size:0.85rem;">点击上方"新建BOM"为此设备建立配件清单</p>
+                    <i class="bi bi-server" style="font-size:2.5rem;"></i>
+                    <p class="mt-2 mb-0">加载中...</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- BOM详情 -->
-    <div class="col-lg-7">
-        <div class="bom-card" id="bomDetailCard" style="display:none;">
-            <div class="bom-card-header">
-                <span id="bomDetailTitle">BOM详情</span>
+    <!-- 设备详情：BOM关联 -->
+    <div class="col-lg-8">
+        <div class="eq-card" id="eqDetailCard" style="display:none;">
+            <div class="eq-card-header">
+                <span id="eqDetailTitle">设备配件</span>
                 <div class="d-flex gap-2">
-                    <button class="btn btn-sm btn-outline-primary" onclick="showAddItemModal()">
-                        <i class="bi bi-plus-lg me-1"></i>添加子件
-                    </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentBOM()">
-                        <i class="bi bi-trash me-1"></i>删除
+                    <button class="btn btn-sm btn-success" onclick="showLinkBOMModal()">
+                        <i class="bi bi-link me-1"></i>关联BOM
                     </button>
                 </div>
             </div>
             <div class="card-body p-0">
-                <!-- BOM基本信息 -->
-                <div style="padding: 12px 16px; background: #f8f9fa; border-bottom: 1px solid var(--bs-border-color);">
+                <div style="padding:10px 16px;background:#f8f9fa;border-bottom:1px solid var(--bs-border-color);">
                     <div class="row g-2 small">
-                        <div class="col-4"><strong>主设备：</strong><span id="bomEquipmentName">-</span></div>
-                        <div class="col-3"><strong>版本：</strong><span id="bomVersion">-</span></div>
-                        <div class="col-5"><strong>创建人：</strong><span id="bomCreator">-</span></div>
-                    </div>
-                    <div class="row g-2 small mt-1">
-                        <div class="col-12"><strong>备注：</strong><span id="bomRemark" class="text-muted">-</span></div>
+                        <div class="col-4"><strong>设备编号：</strong><span id="eqCode">-</span></div>
+                        <div class="col-4"><strong>设备名称：</strong><span id="eqName">-</span></div>
+                        <div class="col-4"><strong>规格型号：</strong><span id="eqSpec">-</span></div>
                     </div>
                 </div>
-                <!-- 子件列表 -->
-                <div id="bomItemsContainer" style="padding: 8px 16px;">
-                    <div class="text-center text-muted py-4">加载中...</div>
+                <div id="linkedBOMsContainer" style="padding:8px;">
+                    <div class="text-center text-muted py-5">加载中...</div>
                 </div>
             </div>
         </div>
-        <div class="bom-card" id="bomEmptyDetail" style="display:none;">
-            <div class="empty-state">
-                <i class="bi bi-cursor-fill" style="font-size:2rem;"></i>
-                <p class="mt-2 mb-0">选择左侧BOM查看详情</p>
-            </div>
-        </div>
-        <div class="bom-card" id="bomNoSelection">
+        <div class="eq-card" id="eqNoSelection">
             <div class="empty-state">
                 <i class="bi bi-hand-index" style="font-size:2.5rem;"></i>
-                <p class="mt-2 mb-0">请从左侧选择一个BOM</p>
-                <p class="text-muted" style="font-size:0.85rem;">或者点击"新建BOM"创建新的设备配件清单</p>
+                <p class="mt-2 mb-0">请从左侧选择一台设备</p>
+                <p class="text-muted" style="font-size:0.85rem;">然后为其关联物料BOM（配件清单）</p>
             </div>
         </div>
     </div>
 </div>
 
-<!-- 新建/编辑BOM Modal -->
-<div class="modal fade" id="bomModal" tabindex="-1">
+<!-- 关联BOM Modal -->
+<div class="modal fade" id="linkBOMModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="bomModalTitle"><i class="bi bi-diagram-3 me-2"></i>新建BOM</h5>
+                <h5 class="modal-title"><i class="bi bi-link me-2"></i>关联物料BOM</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <input type="hidden" id="bomId">
+                <p class="text-muted small mb-3">选择一个物料BOM关联到当前设备</p>
                 <div class="mb-3">
-                    <label class="form-label">BOM名称 <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="bomName" placeholder="例如：服务器整机-BOM-V1">
-                </div>
-                <div class="row g-3 mb-3">
-                    <div class="col-6">
-                        <label class="form-label">主设备 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="bomEquipment">
-                            <option value="">选择设备</option>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">版本号</label>
-                        <input type="text" class="form-control" id="bomVersionInput" placeholder="1.0" value="1.0">
-                    </div>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">备注</label>
-                    <textarea class="form-control" id="bomRemarkInput" rows="2" placeholder="备注说明"></textarea>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="saveBOM()"><i class="bi bi-check-lg me-1"></i>保存</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 添加子件 Modal -->
-<div class="modal fade" id="itemModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="bi bi-box-seam me-2"></i>添加子件</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="mb-3">
-                    <label class="form-label">子件设备 <span class="text-danger">*</span></label>
-                    <select class="form-select" id="itemEquipment">
-                        <option value="">选择子件设备</option>
+                    <label class="form-label">物料BOM <span class="text-danger">*</span></label>
+                    <select class="form-select" id="linkBomSelect">
+                        <option value="">选择物料BOM</option>
                     </select>
                 </div>
                 <div class="row g-3 mb-3">
                     <div class="col-6">
-                        <label class="form-label">数量 <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" id="itemQuantity" placeholder="1" value="1" min="0.0001" step="0.0001">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">单位</label>
-                        <input type="text" class="form-control" id="itemUnit" placeholder="个" value="个">
-                    </div>
-                </div>
-                <div class="row g-3 mb-3">
-                    <div class="col-6">
-                        <label class="form-label">排序序号</label>
-                        <input type="number" class="form-control" id="itemSequence" placeholder="0" value="0">
+                        <label class="form-label">配套数量</label>
+                        <input type="number" class="form-form-control" id="linkQuantity" value="1" min="1" step="1">
                     </div>
                     <div class="col-6">
                         <label class="form-label">备注</label>
-                        <input type="text" class="form-control" id="itemRemark" placeholder="备注">
+                        <input type="text" class="form-control" id="linkRemark" placeholder="备注">
                     </div>
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-primary btn-sm" onclick="addItem()"><i class="bi bi-check-lg me-1"></i>添加</button>
+                <button type="button" class="btn btn-success btn-sm" onclick="linkBOM()"><i class="bi bi-check-lg me-1"></i>确认关联</button>
             </div>
         </div>
     </div>
@@ -220,245 +148,181 @@
 
 {% block scripts %}
 <script>
-var currentBOM = null;
+var currentEquipment = null;
 var allEquipments = [];
+var allBOMs = [];
+var currentRelationId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadBOMs();
-    loadEquipmentsForSelect();
+    loadEquipments();
+    loadAllBOMs();
 });
 
-// 加载BOM列表
-async function loadBOMs() {
-    try {
-        const response = await fetch('/api/equipment/boms/?page_size=200', { credentials: 'include' });
-        if (response.ok) {
-            const data = await response.json();
-            renderBOMList(data.results || data);
-        }
-    } catch (e) { console.error('加载BOM失败', e); }
-}
-
-// 加载设备下拉选项
-async function loadEquipmentsForSelect() {
+async function loadEquipments() {
     try {
         const response = await fetch('/api/equipment/?page_size=500', { credentials: 'include' });
         if (response.ok) {
             const data = await response.json();
             allEquipments = data.results || data;
-            const opts = allEquipments.map(e => `<option value="${e.id}">${e.code} - ${e.name}</option>`).join('');
-            document.getElementById('bomEquipment').innerHTML = '<option value="">选择设备</option>' + opts;
-            document.getElementById('itemEquipment').innerHTML = '<option value="">选择子件设备</option>' + opts;
+            renderEquipmentList(allEquipments);
         }
-    } catch (e) { console.error('加载设备失败', e); }
+    } catch (e) { console.error(e); }
 }
 
-function renderBOMList(boms) {
-    document.getElementById('bomCount').textContent = boms.length + ' 个BOM';
-    const container = document.getElementById('bomListContainer');
-    if (!boms || boms.length === 0) {
-        container.innerHTML = `<div class="empty-state">
-            <i class="bi bi-diagram-3" style="font-size:2.5rem;"></i>
-            <p class="mt-2 mb-0">暂无BOM记录</p>
-            <p class="text-muted" style="font-size:0.85rem;">点击"新建BOM"创建</p>
-        </div>`;
+async function loadAllBOMs() {
+    try {
+        const response = await fetch('/api/material/boms/?page_size=500', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            allBOMs = data.results || data;
+            const opts = allBOMs.map(b => '<option value="' + b.id + '">' + escapeHtml(b.name) + ' (' + escapeHtml(b.material_name || '-') + ', v' + b.version + ')</option>').join('');
+            document.getElementById('linkBomSelect').innerHTML = '<option value="">选择物料BOM</option>' + opts;
+        }
+    } catch (e) {}
+}
+
+function renderEquipmentList(equipments) {
+    document.getElementById('eqCount').textContent = (equipments.length || 0) + ' 台设备';
+    const container = document.getElementById('equipmentListContainer');
+    if (!equipments || equipments.length === 0) {
+        container.innerHTML = '<div class="empty-state"><i class="bi bi-server" style="font-size:2.5rem;"></i><p class="mt-2 mb-0">暂无设备</p></div>';
         return;
     }
-    container.innerHTML = boms.map(bom => `
-        <div class="bom-item-card ${currentBOM && currentBOM.id === bom.id ? 'border-primary' : ''}"
-             onclick="selectBOM(${bom.id})" style="cursor:pointer;">
-            <div class="bom-item-header">
-                <div>
-                    <strong>${escapeHtml(bom.name)}</strong>
-                    <span class="badge bg-secondary ms-2" style="font-size:0.7rem;">v${bom.version}</span>
-                </div>
-                <div class="d-flex gap-2 align-items-center">
-                    <span class="badge bg-primary" style="font-size:0.7rem;">${bom.item_count} 项</span>
-                    <i class="bi bi-chevron-right"></i>
-                </div>
-            </div>
-            <div class="px-3 pb-2 small text-muted">
-                <span>${escapeHtml(bom.equipment_name || '-')}</span>
-                <span class="ms-2">${escapeHtml(bom.remark || '')}</span>
-            </div>
-        </div>
-    `).join('');
+    container.innerHTML = equipments.map(eq => {
+        const selected = currentEquipment && currentEquipment.id === eq.id;
+        return '<div class="eq-item-card ' + (selected ? 'border-primary' : '') + '" onclick="selectEquipment(' + eq.id + ')" style="cursor:pointer;">' +
+            '<div class="eq-item-header">' +
+            '<div><strong>' + escapeHtml(eq.name) + '</strong></div>' +
+            '<span class="badge bg-secondary" style="font-size:0.7rem;">' + escapeHtml(eq.code || '') + '</span>' +
+            '</div>' +
+            '<div class="px-3 pb-2 small text-muted">' + escapeHtml(eq.spec || '') + '</div>' +
+            '</div>';
+    }).join('');
 }
 
-async function selectBOM(bomId) {
+async function selectEquipment(eqId) {
     try {
-        const response = await fetch(`/api/equipment/boms/${bomId}/`, { credentials: 'include' });
+        const response = await fetch('/api/equipment/' + eqId + '/', { credentials: 'include' });
         if (response.ok) {
-            currentBOM = await response.json();
-            renderBOMDetail(currentBOM);
-            // 高亮选中
-            document.querySelectorAll('.bom-item-card').forEach(el => el.classList.remove('border-primary'));
+            currentEquipment = await response.json();
+            renderEquipmentDetail(currentEquipment);
+            loadLinkedBOMs(eqId);
+            document.querySelectorAll('.eq-item-card').forEach(el => el.classList.remove('border-primary'));
             event.currentTarget.classList.add('border-primary');
         }
-    } catch (e) { console.error('加载BOM详情失败', e); }
+    } catch (e) { console.error(e); }
 }
 
-function renderBOMDetail(bom) {
-    document.getElementById('bomNoSelection').style.display = 'none';
-    document.getElementById('bomEmptyDetail').style.display = 'none';
-    document.getElementById('bomDetailCard').style.display = 'block';
-    document.getElementById('bomDetailTitle').textContent = bom.name;
-    document.getElementById('bomEquipmentName').textContent = (bom.equipment_code || '') + ' ' + (bom.equipment_name || '-');
-    document.getElementById('bomVersion').textContent = bom.version;
-    document.getElementById('bomCreator').textContent = bom.created_by_name || '-';
-    document.getElementById('bomRemark').textContent = bom.remark || '-';
-    renderBOMItems(bom.items || []);
+function renderEquipmentDetail(eq) {
+    document.getElementById('eqNoSelection').style.display = 'none';
+    document.getElementById('eqDetailCard').style.display = 'block';
+    document.getElementById('eqDetailTitle').textContent = eq.name;
+    document.getElementById('eqCode').textContent = eq.code || '-';
+    document.getElementById('eqName').textContent = eq.name || '-';
+    document.getElementById('eqSpec').textContent = eq.spec || '-';
 }
 
-function renderBOMItems(items) {
-    const container = document.getElementById('bomItemsContainer');
-    if (!items || items.length === 0) {
-        container.innerHTML = `<div class="text-center text-muted py-4">
-            <p class="mb-1">暂无子件</p>
-            <button class="btn btn-sm btn-outline-primary" onclick="showAddItemModal()">
-                <i class="bi bi-plus-lg me-1"></i>添加第一个子件
-            </button>
-        </div>`;
+async function loadLinkedBOMs(eqId) {
+    try {
+        const response = await fetch('/api/equipment/' + eqId + '/boms/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            renderLinkedBOMs(data.results || data);
+        } else {
+            document.getElementById('linkedBOMsContainer').innerHTML = '<div class="text-center text-muted py-4">加载失败</div>';
+        }
+    } catch (e) {
+        document.getElementById('linkedBOMsContainer').innerHTML = '<div class="text-center text-muted py-4">网络错误</div>';
+    }
+}
+
+function renderLinkedBOMs(relations) {
+    const container = document.getElementById('linkedBOMsContainer');
+    if (!relations || relations.length === 0) {
+        container.innerHTML = '<div class="text-center text-muted py-4">' +
+            '<p class="mb-1">暂无关联的物料BOM</p>' +
+            '<button class="btn btn-sm btn-success" onclick="showLinkBOMModal()"><i class="bi bi-link me-1"></i>关联BOM</button>' +
+            '</div>';
         return;
     }
-    container.innerHTML = `
-        <div class="sub-item-row" style="font-weight:600; color:#666; font-size:0.8rem;">
-            <span class="seq">#</span>
-            <span class="code">编码</span>
-            <span class="name">子件名称</span>
-            <span class="qty text-end">数量</span>
-            <span class="unit text-center">单位</span>
-            <span class="actions text-end">操作</span>
-        </div>
-        ${items.map((item, idx) => `
-        <div class="sub-item-row">
-            <span class="seq">${idx + 1}</span>
-            <span class="code">${escapeHtml(item.child_equipment_code || '-')}</span>
-            <span class="name">${escapeHtml(item.child_equipment_name || '-')}</span>
-            <span class="qty">${parseFloat(item.quantity).toFixed(4).replace(/\.?0+$/, '')}</span>
-            <span class="unit">${escapeHtml(item.unit || '个')}</span>
-            <span class="actions">
-                <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="removeItem(${item.id})">
-                    <i class="bi bi-trash" style="font-size:0.75rem;"></i>
-                </button>
-            </span>
-        </div>
-        `).join('')}
-    `;
-}
-
-function showCreateBOMModal() {
-    document.getElementById('bomId').value = '';
-    document.getElementById('bomName').value = '';
-    document.getElementById('bomEquipment').value = '';
-    document.getElementById('bomVersionInput').value = '1.0';
-    document.getElementById('bomRemarkInput').value = '';
-    document.getElementById('bomModalTitle').innerHTML = '<i class="bi bi-diagram-3 me-2"></i>新建BOM';
-    new bootstrap.Modal(document.getElementById('bomModal')).show();
-}
-
-async function saveBOM() {
-    const id = document.getElementById('bomId').value;
-    const name = document.getElementById('bomName').value.trim();
-    const equipment = document.getElementById('bomEquipment').value;
-    const version = document.getElementById('bomVersionInput').value.trim() || '1.0';
-    const remark = document.getElementById('bomRemarkInput').value.trim();
-    if (!name || !equipment) { showToast('请填写BOM名称和主设备', 'warning'); return; }
-    const payload = { name, equipment, version, remark, is_active: true };
-    try {
-        let response;
-        if (id) {
-            response = await fetch(`/api/equipment/boms/${id}/`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-                body: JSON.stringify(payload)
+    let html = '';
+    relations.forEach(function(rel) {
+        const bomName = rel.material_bom_name || '-';
+        const bomVer = rel.material_bom_version || '';
+        const eqQty = rel.quantity || '-';
+        const eqUnit = rel.unit || '';
+        html += '<div class="mb-3">' +
+            '<div class="d-flex justify-content-between align-items-center mb-1 px-2">' +
+            '<div><span class="badge bom-badge me-2">' + escapeHtml(bomName) + '</span><span class="text-muted small">v' + escapeHtml(bomVer) + '</span></div>' +
+            '<div class="d-flex gap-2 align-items-center">' +
+            '<span class="small text-muted">配套：' + escapeHtml(eqQty) + ' ' + escapeHtml(eqUnit) + '</span>' +
+            '<button class="btn btn-sm btn-outline-danger py-0 px-2" onclick="unlinkBOM(' + rel.id + ')"><i class="bi bi-unlink" style="font-size:0.75rem;"></i></button>' +
+            '</div>' +
+            '</div>';
+        // 显示BOM的子节点（只显示一层）
+        if (rel.bom_tree && rel.bom_tree.length > 0) {
+            html += '<div style="padding-left:16px;">';
+            rel.bom_tree.forEach(function(node) {
+                const nodeName = node.child_material_name || node.child_bom_name || '-';
+                const nodeQty = parseFloat(node.quantity || 1).toFixed(4).replace(/\.?0+$/, '');
+                const nodeUnit = node.unit || '个';
+                const nodeType = node.child_material ? '🎯' : '📦';
+                html += '<div class="bom-node-row">' +
+                    '<span class="bom-indent" style="width:16px;"></span>' +
+                    '<span class="bom-name" title="' + escapeHtml(nodeName) + '">' + nodeType + ' ' + escapeHtml(nodeName) + '</span>' +
+                    '<span class="bom-qty">' + nodeQty + '</span>' +
+                    '<span class="bom-unit">' + escapeHtml(nodeUnit) + '</span>' +
+                    '</div>';
             });
-        } else {
-            response = await fetch('/api/equipment/boms/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-                body: JSON.stringify(payload)
-            });
+            html += '</div>';
         }
-        if (response.ok) {
-            showToast(id ? 'BOM已更新' : 'BOM已创建', 'success');
-            bootstrap.Modal.getInstance(document.getElementById('bomModal')).hide();
-            loadBOMs();
-        } else {
-            const err = await response.json();
-            showToast(err.detail || '保存失败', 'error');
-        }
-    } catch (e) { showToast('网络错误', 'error'); }
+        html += '</div>';
+    });
+    container.innerHTML = html;
 }
 
-function showAddItemModal() {
-    if (!currentBOM) { showToast('请先选择BOM', 'warning'); return; }
-    document.getElementById('itemEquipment').value = '';
-    document.getElementById('itemQuantity').value = '1';
-    document.getElementById('itemUnit').value = '个';
-    document.getElementById('itemSequence').value = '0';
-    document.getElementById('itemRemark').value = '';
-    new bootstrap.Modal(document.getElementById('itemModal')).show();
+function showLinkBOMModal() {
+    if (!currentEquipment) { showToast('请先选择设备', 'warning'); return; }
+    document.getElementById('linkBomSelect').value = '';
+    document.getElementById('linkQuantity').value = '1';
+    document.getElementById('linkRemark').value = '';
+    new bootstrap.Modal(document.getElementById('linkBOMModal')).show();
 }
 
-async function addItem() {
-    const child_equipment = document.getElementById('itemEquipment').value;
-    const quantity = parseFloat(document.getElementById('itemQuantity').value) || 1;
-    const unit = document.getElementById('itemUnit').value.trim() || '个';
-    const sequence = parseInt(document.getElementById('itemSequence').value) || 0;
-    const remark = document.getElementById('itemRemark').value.trim();
-    if (!child_equipment) { showToast('请选择子件设备', 'warning'); return; }
+async function linkBOM() {
+    if (!currentEquipment) return;
+    const material_bom = document.getElementById('linkBomSelect').value;
+    const quantity = parseInt(document.getElementById('linkQuantity').value) || 1;
+    const remark = document.getElementById('linkRemark').value.trim();
+    if (!material_bom) { showToast('请选择物料BOM', 'warning'); return; }
+    const payload = { equipment: currentEquipment.id, material_bom: material_bom, quantity: quantity, remark: remark };
     try {
-        const response = await fetch(`/api/equipment/boms/${currentBOM.id}/add_item/`, {
+        const resp = await fetch('/api/equipment/bom_relations/', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({ child_equipment, quantity, unit, sequence, remark })
+            headers: {'Content-Type':'application/json','X-CSRFToken':getCsrfToken()},
+            body: JSON.stringify(payload),
+            credentials: 'include'
         });
-        if (response.ok) {
-            showToast('子件已添加', 'success');
-            bootstrap.Modal.getInstance(document.getElementById('itemModal')).hide();
-            selectBOM(currentBOM.id);
-            loadBOMs();
+        if (resp.ok) {
+            showToast('BOM已关联', 'success');
+            bootstrap.Modal.getInstance(document.getElementById('linkBOMModal')).hide();
+            loadLinkedBOMs(currentEquipment.id);
         } else {
-            const err = await response.json();
-            showToast(err.detail || JSON.stringify(err) || '添加失败', 'error');
+            const err = await resp.json();
+            showToast(err.detail || JSON.stringify(err) || '关联失败', 'error');
         }
     } catch (e) { showToast('网络错误', 'error'); }
 }
 
-async function removeItem(itemId) {
-    if (!confirm('确定移除该子件？')) return;
+async function unlinkBOM(relId) {
+    if (!confirm('确定取消关联？')) return;
     try {
-        const response = await fetch(`/api/equipment/boms/${currentBOM.id}/remove_item/${itemId}/`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        if (response.ok) {
-            showToast('子件已移除', 'success');
-            selectBOM(currentBOM.id);
-            loadBOMs();
+        const resp = await fetch('/api/equipment/bom_relations/' + relId + '/', { method: 'DELETE', credentials: 'include' });
+        if (resp.ok) {
+            showToast('已取消关联', 'success');
+            loadLinkedBOMs(currentEquipment.id);
         } else {
-            showToast('移除失败', 'error');
-        }
-    } catch (e) { showToast('网络错误', 'error'); }
-}
-
-async function deleteCurrentBOM() {
-    if (!currentBOM) return;
-    if (!confirm(`确定删除BOM"${currentBOM.name}"？此操作不可恢复。`)) return;
-    try {
-        const response = await fetch(`/api/equipment/boms/${currentBOM.id}/`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        if (response.ok) {
-            showToast('BOM已删除', 'success');
-            currentBOM = null;
-            document.getElementById('bomDetailCard').style.display = 'none';
-            document.getElementById('bomNoSelection').style.display = 'block';
-            loadBOMs();
-        } else {
-            showToast('删除失败', 'error');
+            showToast('取消关联失败', 'error');
         }
     } catch (e) { showToast('网络错误', 'error'); }
 }

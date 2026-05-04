@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog, EquipmentBOM, EquipmentBOMItem
+from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog, EquipmentBOMRelation
 
 
 class EquipmentUsageLogSerializer(serializers.ModelSerializer):
@@ -51,31 +51,18 @@ class EquipmentSerializer(serializers.ModelSerializer):
         read_only_fields = ['code', 'created_at', 'updated_at']
 
 
-class EquipmentBOMItemSerializer(serializers.ModelSerializer):
-    child_equipment_code = serializers.CharField(source='child_equipment.code', read_only=True)
-    child_equipment_name = serializers.CharField(source='child_equipment.name', read_only=True)
-
-    class Meta:
-        model = EquipmentBOMItem
-        fields = ['id', 'bom', 'child_equipment', 'child_equipment_code',
-                  'child_equipment_name', 'quantity', 'unit', 'sequence', 'remark']
-        read_only_fields = ['bom']
-
-
-class EquipmentBOMSerializer(serializers.ModelSerializer):
+class EquipmentBOMRelationSerializer(serializers.ModelSerializer):
     equipment_code = serializers.CharField(source='equipment.code', read_only=True)
     equipment_name = serializers.CharField(source='equipment.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
-    items = EquipmentBOMItemSerializer(many=True, read_only=True)
-    item_count = serializers.SerializerMethodField()
-
-    def get_item_count(self, obj):
-        return obj.items.count()
+    material_bom_name = serializers.CharField(source='material_bom.name', read_only=True)
+    material_name = serializers.CharField(source='material_bom.material.name', read_only=True)
+    material_code = serializers.CharField(source='material_bom.material.code', read_only=True)
 
     class Meta:
-        model = EquipmentBOM
-        fields = ['id', 'name', 'equipment', 'equipment_code', 'equipment_name',
-                  'version', 'remark', 'created_at', 'updated_at',
-                  'created_by', 'created_by_name', 'is_active',
-                  'items', 'item_count']
-        read_only_fields = ['created_at', 'updated_at', 'created_by']
+        model = EquipmentBOMRelation
+        fields = [
+            'id', 'equipment', 'equipment_code', 'equipment_name',
+            'material_bom', 'material_bom_name', 'material_name', 'material_code',
+            'quantity', 'remark', 'created_at'
+        ]
+        read_only_fields = ['created_at']

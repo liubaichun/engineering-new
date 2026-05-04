@@ -165,20 +165,38 @@ class MaterialBOM(models.Model):
         return f"{self.material.name} v{self.version}"
 
 
-class MaterialBOMItem(models.Model):
-    """BOM子件明细"""
+class MaterialBOMNode(models.Model):
+    """BOM树形节点 — 支持自引用形成树结构"""
 
     bom = models.ForeignKey(
         MaterialBOM,
         verbose_name='所属BOM',
         on_delete=models.CASCADE,
-        related_name='items'
+        related_name='nodes'
+    )
+    parent = models.ForeignKey(
+        'self',
+        verbose_name='父节点',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='children'
     )
     child_material = models.ForeignKey(
         Material,
         verbose_name='子件物料',
         on_delete=models.CASCADE,
-        related_name='used_in_boms'
+        null=True,
+        blank=True,
+        related_name='bom_nodes_as_child'
+    )
+    child_bom = models.ForeignKey(
+        MaterialBOM,
+        verbose_name='子件BOM',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name='bom_nodes_as_child'
     )
     quantity = models.DecimalField('数量', max_digits=12, decimal_places=4, default=1)
     unit = models.CharField('单位', max_length=20, default='个')
@@ -186,10 +204,25 @@ class MaterialBOMItem(models.Model):
     remark = models.CharField('备注', max_length=500, blank=True, default='')
 
     class Meta:
-        db_table = 'material_bom_item'
-        verbose_name = 'BOM子件'
-        verbose_name_plural = 'BOM子件明细'
+        db_table = 'material_bom_node'
+        verbose_name = 'BOM节点'
+        verbose_name_plural = 'BOM节点'
         ordering = ['sequence', 'id']
 
     def __str__(self):
-        return f"{self.child_material.name} x{self.quantity}"
+        if self.child_material:
+            return f"{self.child_material.name} x{self.quantity}"
+        elif self.child_bom:
+            return f"BOM:{self.child_bom.name} x{self.quantity}"
+        return f"Node:{self.id}"
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if not self.child_material and not self.child_bom:
+            raise ValidationError('child_material和child_bom至少必须指定一个')
+        if self.child_material and self.child_bom:
+            raise ValidationError('child_material和child_bom不能同时指定')
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
