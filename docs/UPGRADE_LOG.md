@@ -60,12 +60,12 @@
 
 | 问题 | 路径 | 说明 |
 |------|------|------|
-| 通知渠道404 | /notifications/channels/ | nav导航栏有入口但返回404，需修复URL |
-| 通知渠道404 | /channels/ | 同上，路径错误 |
-| 旧路径残留 | /finance/contracts/ | 历史URL，与当前路由不一致 |
-| 旧路径残留 | /core/users/ | 历史URL，与当前路由不一致 |
-
----
+| ~~通知渠道404~~ | ~~/notifications/channels/~~ | ✅ 已修复（301→/system/notification-channels/）|
+| ~~旧路径残留~~ | ~~/finance/contracts/~~ | ✅ 已修复（301→/crm/contracts/）|
+| ~~旧路径残留~~ | ~~/core/users/~~ | ✅ 已修复（301→/system/users/）|
+| ~~旧路径残留~~ | ~~/users/~~ | ✅ 已修复（301→/system/users/）|
+| ~~错误路径~~ | ~~/equipment/boms/~~ | ✅ 已修复（301→/equipment/bom/）|
+| ~~错误路径~~ | ~~/projects/equipment-boms/~~ | ✅ 已修复（301→/equipment/bom/）|
 
 ## 三、124服务器待同步项
 
