@@ -53,8 +53,8 @@
 | 15 | 用户管理（旧路径） | /users/ | ❌ 404 | 正确路径为 /system/users/ |
 | 16 | 设备BOM（错误路径） | /equipment/boms/ | ❌ 404 | 正确路径为 /equipment/bom/ |
 | 17 | 设备BOM（错误路径） | /projects/equipment-boms/ | ❌ 404 | 正确路径为 /equipment/bom/ |
-| 18 | 通知渠道（旧路径） | /notifications/channels/ | ❌ 404 | 导航链接指向404，路径待查 |
-| 19 | 通知渠道（旧路径） | /channels/ | ❌ 404 | 导航链接指向404，路径待查 |
+| 18 | 通知渠道（旧路径） | /notifications/channels/ | ❌ 404 | 正确路径为 /system/notification-channels/ |
+| 19 | 通知渠道（旧路径） | /channels/ | ❌ 404 | 正确路径为 /system/notification-channels/ |
 
 ### 遗留问题
 
