@@ -212,6 +212,12 @@ urlpatterns = [
     path('system/audit/', RedirectView.as_view(url='/system/audit-logs/', permanent=True)),
     path('system/channels/', RedirectView.as_view(url='/system/notification-channels/', permanent=True)),
     path('system/warnings/', RedirectView.as_view(url='/warnings/', permanent=True)),
+    path('finance/contracts/', RedirectView.as_view(url='/crm/contracts/', permanent=True)),
+    path('core/users/', RedirectView.as_view(url='/system/users/', permanent=True)),
+    path('users/', RedirectView.as_view(url='/system/users/', permanent=True)),
+    path('equipment/boms/', RedirectView.as_view(url='/equipment/bom/', permanent=True)),
+    path('projects/equipment-boms/', RedirectView.as_view(url='/equipment/bom/', permanent=True)),
+    path('notifications/channels/', RedirectView.as_view(url='/system/notification-channels/', permanent=True)),
     path('password-reset/', password_reset_request_page, name='password-reset-page'),
     path('password-reset/<uidb64>/<token>/', password_reset_confirm_page, name='password-reset-confirm'),
     # API路由
