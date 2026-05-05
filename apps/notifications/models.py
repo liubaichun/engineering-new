@@ -144,9 +144,9 @@ class NotifyBinding(models.Model):
     )
     notify_app = models.ForeignKey(
         NotifyApp,
-        on_delete=models.CASCADE,
-        related_name='bindings',
-        verbose_name='通知应用'
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        verbose_name="通知应用",
     )
     channel = models.ForeignKey(
         NotificationChannel,
