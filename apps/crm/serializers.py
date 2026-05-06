@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog, Opportunity
 
 
 class ClientSourceSerializer(serializers.ModelSerializer):
@@ -211,3 +211,52 @@ class ContractChangeLogSerializer(serializers.ModelSerializer):
                   'old_value', 'new_value', 'reason', 'change_date',
                   'created_by', 'created_by_name']
         read_only_fields = ['id', 'contract', 'contract_name', 'change_type_display', 'created_by', 'created_by_name', 'change_date']
+
+
+class OpportunitySerializer(serializers.ModelSerializer):
+    """CRM商机序列化器"""
+    client_name = serializers.CharField(source='client.name', read_only=True, default='')
+    contact_name = serializers.CharField(source='contact.name', read_only=True, default='')
+    stage_display = serializers.CharField(source='get_stage_display', read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True, default='')
+    weighted_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Opportunity
+        fields = [
+            'id', 'company', 'client', 'client_name', 'contact', 'contact_name',
+            'name', 'stage', 'stage_display', 'priority', 'priority_display',
+            'expected_amount', 'probability', 'weighted_amount',
+            'estimated_close_date', 'actual_close_date',
+            'product_lines', 'competitor', 'lost_reason',
+            'remark', 'is_active', 'created_at', 'updated_at',
+            'created_by', 'created_by_name',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+
+    def get_weighted_amount(self, obj):
+        """加权金额 = 预计金额 × 赢单概率"""
+        if obj.expected_amount and obj.probability:
+            return float(obj.expected_amount) * obj.probability / 100
+        return 0
+
+    def validate_probability(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("赢单概率必须在0-100之间")
+        return value
+
+    def validate_stage(self, value):
+        # 成交时记录实际成交日期，失败时记录失败原因
+        return value
+
+
+class OpportunityStageStatsSerializer(serializers.Serializer):
+    """商机阶段统计（Pipeline视图用）"""
+    stage = serializers.CharField()
+    stage_display = serializers.CharField()
+    count = serializers.IntegerField()
+    total_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_weighted = serializers.DecimalField(max_digits=15, decimal_places=2)
+    probability = serializers.IntegerField()
+

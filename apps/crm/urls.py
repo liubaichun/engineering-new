@@ -12,6 +12,7 @@ router.register(r'contract-changes', views.ContractChangeLogViewSet, basename='c
 router.register(r'sources', views.ClientSourceViewSet, basename='clientsource')
 router.register(r'contacts', views.ContactViewSet)
 router.register(r'followups', views.FollowUpRecordViewSet, basename='followup')
+router.register(r'opportunities', views.OpportunityViewSet, basename='opportunity')
 
 urlpatterns = router.urls
 

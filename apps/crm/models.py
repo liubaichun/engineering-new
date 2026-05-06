@@ -323,3 +323,68 @@ class FollowUpRecord(models.Model):
 
     def __str__(self):
         return f"{self.client_id}-{self.id}"
+
+
+class Opportunity(models.Model):
+    """CRM商机模型 — 销售漏斗管理"""
+    STAGE_CHOICES = [
+        ('lead', '线索'),
+        ('qualify', '意向'),
+        ('proposal', '方案'),
+        ('negotiation', '商务'),
+        ('won', '成交'),
+        ('lost', '失败'),
+    ]
+    PRIORITY_CHOICES = [
+        ('low', '低'),
+        ('medium', '中'),
+        ('high', '高'),
+        ('urgent', '紧急'),
+    ]
+
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='opportunities', null=True, blank=True, verbose_name='所属公司'
+    )
+    client = models.ForeignKey(
+        Client, on_delete=models.CASCADE, related_name='opportunities',
+        verbose_name='客户', null=True, blank=True
+    )
+    contact = models.ForeignKey(
+        Contact, on_delete=models.SET_NULL, related_name='opportunities',
+        verbose_name='联系人', null=True, blank=True
+    )
+    name = models.CharField('商机名称', max_length=300)
+    stage = models.CharField('销售阶段', max_length=20, choices=STAGE_CHOICES, default='lead')
+    priority = models.CharField('优先级', max_length=20, choices=PRIORITY_CHOICES, default='medium')
+    expected_amount = models.DecimalField('预计金额', max_digits=15, decimal_places=2, default=0)
+    probability = models.IntegerField('赢单概率%', default=10, help_text='0-100')
+    estimated_close_date = models.DateField('预计成交日期', null=True, blank=True)
+    actual_close_date = models.DateField('实际成交日期', null=True, blank=True)
+    product_lines = models.CharField('产品线', max_length=500, blank=True, default='', help_text='逗号分隔')
+    competitor = models.CharField('竞争对手', max_length=300, blank=True, default='')
+    lost_reason = models.TextField('失败原因', blank=True, default='')
+    remark = models.TextField('备注', blank=True, default='')
+    is_active = models.BooleanField('是否有效', default=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_opportunities')
+
+    class Meta:
+        db_table = 'crm_opportunity'
+        verbose_name = '商机'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.name
+
+    def save(self, *args, **kwargs):
+        # 根据阶段自动更新概率
+        stage_probabilities = {
+            'lead': 10, 'qualify': 30, 'proposal': 50,
+            'negotiation': 80, 'won': 100, 'lost': 0
+        }
+        if self.stage in stage_probabilities and not self.probability:
+            self.probability = stage_probabilities[self.stage]
+        super().save(*args, **kwargs)

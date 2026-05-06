@@ -2,11 +2,12 @@ from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog, Opportunity
 from .serializers import (
     ClientSerializer, ContractSerializer, SupplierSerializer,
     ClientSourceSerializer, ContactSerializer, FollowUpRecordSerializer,
     PaymentPlanSerializer, ContractChangeLogSerializer,
+    OpportunitySerializer, OpportunityStageStatsSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
 
@@ -343,3 +344,90 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
         if hasattr(user, 'company') and user.company_id:
             kwargs['company_id'] = user.company_id
         serializer.save(**kwargs)
+
+
+class OpportunityViewSet(viewsets.ModelViewSet):
+    """CRM商机视图集 — 销售漏斗管理"""
+    queryset = Opportunity.objects.all()
+    serializer_class = OpportunitySerializer
+    permission_classes = [IsAuthenticated]
+    filter_fields = ['stage', 'priority', 'client', 'is_active']
+    search_fields = ['name', 'client__name', 'product_lines', 'competitor']
+    ordering_fields = ['expected_amount', 'probability', 'created_at', 'estimated_close_date']
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Opportunity.objects.select_related('client', 'contact', 'created_by')
+        if user.is_superuser:
+            return qs
+        if hasattr(user, 'company') and user.company_id:
+            return qs.filter(company_id=user.company_id)
+        return qs.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        kwargs = {}
+        if user.is_authenticated:
+            kwargs['created_by'] = user
+        if hasattr(user, 'company') and user.company_id:
+            kwargs['company_id'] = user.company_id
+        serializer.save(**kwargs)
+
+    @action(detail=False, methods=['get'])
+    def pipeline(self, request):
+        """获取销售漏斗各阶段统计"""
+        queryset = self.get_queryset().filter(is_active=True)
+        stage_order = ['lead', 'qualify', 'proposal', 'negotiation', 'won', 'lost']
+        stage_probs = {'lead': 10, 'qualify': 30, 'proposal': 50, 'negotiation': 80, 'won': 100, 'lost': 0}
+        from django.db.models import Sum
+        result = []
+        for stage in stage_order:
+            items = queryset.filter(stage=stage)
+            count = items.count()
+            total = items.aggregate(total_amount=Sum('expected_amount'))['total_amount'] or 0
+            weighted = sum(float(i.expected_amount or 0) * i.probability / 100 for i in items)
+            result.append({
+                'stage': stage,
+                'stage_display': dict(Opportunity.STAGE_CHOICES).get(stage, stage),
+                'count': count,
+                'total_amount': total,
+                'total_weighted': round(weighted, 2),
+                'probability': stage_probs.get(stage, 0),
+            })
+        return Response(result)
+
+    @action(detail=True, methods=['post'])
+    def advance_stage(self, request, pk=None):
+        """推进商机阶段"""
+        opp = self.get_object()
+        stage_order = ['lead', 'qualify', 'proposal', 'negotiation', 'won', 'lost']
+        if opp.stage in stage_order:
+            idx = stage_order.index(opp.stage)
+            if idx < len(stage_order) - 1:
+                next_stage = stage_order[idx + 1]
+                opp.stage = next_stage
+                if next_stage == 'won':
+                    from datetime import date
+                    opp.actual_close_date = date.today()
+                opp.save()
+                return Response(OpportunitySerializer(opp).data)
+        return Response({'detail': '已是最后阶段'}, status=400)
+
+    @action(detail=True, methods=['post'])
+    def win(self, request, pk=None):
+        """标记为成交"""
+        opp = self.get_object()
+        opp.stage = 'won'
+        from datetime import date
+        opp.actual_close_date = date.today()
+        opp.save()
+        return Response(OpportunitySerializer(opp).data)
+
+    @action(detail=True, methods=['post'])
+    def lose(self, request, pk=None):
+        """标记为失败"""
+        opp = self.get_object()
+        opp.stage = 'lost'
+        opp.lost_reason = request.data.get('lost_reason', '')
+        opp.save()
+        return Response(OpportunitySerializer(opp).data)
