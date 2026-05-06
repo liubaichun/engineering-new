@@ -340,16 +340,27 @@ async function doPreview() {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>解析中...';
 
-    const formData = new FormData();
-    formData.append('file', currentFile);
-    formData.append('company_id', companyId);
-    if (currentBankAccount) formData.append('bank_account_id', currentBankAccount);
+    // ── base64 + JSON 方式（绕过 multipart 上传问题）───────────────
+    const fileBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(currentFile);
+    });
+
+    const payload = {
+        company_id: companyId,
+        bank_code: document.getElementById('selBank').value || '',
+        bank_account_id: currentBankAccount || '',
+        file_base64: fileBase64
+    };
 
     try {
         const resp = await fetch('/api/finance/import/bank-statement/preview/', {
             method: 'POST',
             credentials: 'include',
-            body: formData
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
         });
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || '预览失败');

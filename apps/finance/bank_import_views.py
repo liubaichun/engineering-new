@@ -72,21 +72,7 @@ def match_counterparty(t: ParsedTransaction):
     if not name and not account:
         return '', ''
 
-    # 精确匹配：账号
-    if account:
-        client = Client.objects.filter(
-            bank_account=account
-        ).first()
-        if client:
-            return 'customer', client.name
-
-        supplier = Supplier.objects.filter(
-            bank_account=account
-        ).first()
-        if supplier:
-            return 'supplier', supplier.name
-
-    # 模糊匹配：名称
+    # 模糊匹配：名称（优先）
     if name:
         client = Client.objects.filter(name__contains=name).first()
         if client:

@@ -254,8 +254,8 @@ ALL_ADAPTERS = [CMBAdapter, ICBCAdapter]  # CMB在前（更具体，先检测）
 
 def detect_and_parse(file_content: bytes):
     """自动识别格式并解析，返回 (bank_code, transactions)"""
-    import openpyxl
-    wb = openpyxl.load_workbook(file_content, data_only=True)
+    import io, openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
     ws = wb.active
 
     for adapter_cls in ALL_ADAPTERS:
@@ -271,6 +271,6 @@ def parse_with_adapter(file_content: bytes, bank_code: str):
     adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
     if bank_code not in adapters:
         raise ValueError(f"不支持的银行: {bank_code}")
-    import openpyxl
-    wb = openpyxl.load_workbook(file_content, data_only=True)
+    import io, openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
     return adapters[bank_code].parse(wb.active)
