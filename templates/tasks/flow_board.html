@@ -263,6 +263,64 @@
     color: var(--primary);
     border-bottom-color: var(--primary);
 }
+
+/* 任务详情弹窗 Tab */
+.detail-tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 8px 0 0 0;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 12px;
+}
+.detail-tab-btn {
+    padding: 6px 16px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: #64748b;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.2s;
+}
+.detail-tab-btn:hover { color: var(--primary); background: #f1f5f9; }
+.detail-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); background: #eff6ff; }
+.detail-tab-content { display: none; }
+.detail-tab-content.active { display: block; }
+.comment-item {
+    padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9;
+}
+.comment-item:last-child { border-bottom: none; }
+.comment-meta { font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+.comment-body { font-size: 0.85rem; color: #334155; }
+.comment-input-area { display: flex; gap: 8px; margin-top: 10px; }
+.comment-input-area textarea { flex: 1; font-size: 0.85rem; }
+.attachment-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.82rem;
+}
+.attachment-item:last-child { border-bottom: none; }
+.dependency-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f5f9;
+    font-size: 0.82rem;
+}
+.dependency-item:last-child { border-bottom: none; }
+.dependency-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; }
+.dependency-badge.blocks { background: #fef3c7; color: #d97706; }
+.dependency-badge.depends_on { background: #dbeafe; color: #2563eb; }
+.dep-status-done { color: var(--success); }
+.dep-status-pending { color: var(--warning); }
 .gantt-container {
     display: none;
     background: #fff;
@@ -472,8 +530,56 @@
                 <h5 class="modal-title" id="taskDetailTitle">任务详情</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="taskDetailBody">
-                <div class="text-center py-4"><div class="spinner-border text-primary"></div></div>
+            <div class="modal-body">
+            <div class="detail-tab-bar">
+                <button class="detail-tab-btn active" onclick="switchDetailTab('info', this)">详情</button>
+                <button class="detail-tab-btn" onclick="switchDetailTab('comments', this)">评论 <span id="commentCountBadge" class="badge bg-primary" style="font-size:0.65rem;padding:0 4px;display:inline-block;margin-left:2px;">0</span></button>
+                <button class="detail-tab-btn" onclick="switchDetailTab('attachments', this)">附件 <span id="attachmentCountBadge" class="badge bg-secondary" style="font-size:0.65rem;padding:0 4px;display:inline-block;margin-left:2px;">0</span></button>
+                <button class="detail-tab-btn" onclick="switchDetailTab('dependencies', this)">依赖</button>
+            </div>
+
+            <div id="detailTabInfo" class="detail-tab-content active">
+            <div class="mb-3">
+                <span class="text-muted me-2" id="detailTaskCode"></span>
+                <span class="badge ${priorityClass}" id="detailPriorityBadge"></span>
+                ${statusHtml}
+            </div>
+            <p><strong>项目：</strong><span id="detailProject"></span></p>
+            <p><strong>处理人：</strong><span id="detailAssignee"></span></p>
+            <p><strong>报告人：</strong><span id="detailReporter"></span></p>
+            <p><strong>截止日期：</strong><span id="detailDueDate"></span></p>
+            <p><strong>创建时间：</strong><span id="detailCreatedAt"></span></p>
+            <p id="detailCompletedAtP" style="display:none"><strong>完成时间：</strong><span id="detailCompletedAt"></span></p>
+            <div id="detailFlowStatus"></div>
+            <p id="detailDescP" style="display:none" class="mt-3"><strong>描述：</strong></p><p id="detailDesc" style="background:#f8fafc;padding:12px;border-radius:8px;display:none;"></p>
+            </div>
+
+            <div id="detailTabComments" class="detail-tab-content">
+                <div id="commentListArea"></div>
+                <div class="comment-input-area">
+                    <textarea id="commentInput" class="form-control" placeholder="写下你的评论..." rows="2"></textarea>
+                    <button class="btn btn-primary btn-sm" onclick="submitComment()" style="white-space:nowrap;">发送</button>
+                </div>
+            </div>
+
+            <div id="detailTabAttachments" class="detail-tab-content">
+                <div id="attachmentListArea"></div>
+                <div class="mt-2">
+                    <input type="file" id="attachmentFileInput" class="form-control form-control-sm" multiple>
+                    <button class="btn btn-outline-primary btn-sm mt-2" onclick="submitAttachment()"><i class="bi bi-upload"></i> 上传附件</button>
+                </div>
+            </div>
+
+            <div id="detailTabDependencies" class="detail-tab-content">
+                <div id="dependencyListArea"></div>
+                <div id="addDependencyArea" class="mt-2" style="display:none;">
+                    <select id="depTaskSelect" class="form-select form-select-sm mb-2"></select>
+                    <select id="depTypeSelect" class="form-select form-select-sm mb-2">
+                        <option value="depends_on">依赖（需前置任务完成后才能开始）</option>
+                        <option value="blocks">阻塞（当前任务完成后才能开始被阻塞任务）</option>
+                    </select>
+                    <button class="btn btn-primary btn-sm" onclick="submitDependency()">添加依赖</button>
+                </div>
             </div>
             <div class="modal-footer" id="taskDetailFooter">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
@@ -879,18 +985,18 @@ async function saveTask() {
 async function showTaskDetail(taskId) {
     currentTaskId = taskId;
     taskDetailModal.show();
-    
+
     try {
         var response = await fetch('/api/tasks/tasks/' + taskId + '/', { credentials: 'include' });
         var task = await response.json();
-        
+
         document.getElementById('taskDetailTitle').textContent = task.title;
-        
+
         var priorityText = priorityMap[task.priority] || task.priority || '中';
-        var priorityClass = task.priority === 'critical' ? 'bg-danger' : 
-                            task.priority === 'high' ? 'bg-warning' : 
+        var priorityClass = task.priority === 'critical' ? 'bg-danger' :
+                            task.priority === 'high' ? 'bg-warning' :
                             task.priority === 'medium' ? 'bg-primary' : 'bg-secondary';
-        
+
         var statusHtml = '';
         if (task.status === 'pending') {
             statusHtml = '<span class="badge bg-secondary">待开始</span>';
@@ -899,32 +1005,61 @@ async function showTaskDetail(taskId) {
         } else if (task.status === 'completed') {
             statusHtml = '<span class="badge badge-completed">已完成</span>';
         }
-        
-        document.getElementById('taskDetailBody').innerHTML = `
-            <div class="mb-3">
-                <span class="text-muted me-2">${escapeHtml(task.code)}</span>
-                <span class="badge ${priorityClass}">${priorityText}</span>
-                ${statusHtml}
-            </div>
-            <p><strong>项目：</strong>${escapeHtml(task.project_name || '-')}</p>
-            <p><strong>处理人：</strong>${escapeHtml(task.assignee_name || '未分配')}</p>
-            <p><strong>报告人：</strong>${escapeHtml(task.reporter_name || '-')}</p>
-            <p><strong>截止日期：</strong>${task.due_date || '-'}</p>
-            <p><strong>创建时间：</strong>${formatDate(task.created_at)}</p>
-            ${task.completed_at ? '<p><strong>完成时间：</strong>' + formatDate(task.completed_at) + '</p>' : ''}
-            ${task.flow_instance && task.flow_instance.current_node_name ? 
-                '<div class="mt-3 p-3" style="background:#f8fafc;border-radius:8px;">' +
+
+        // 填充详情Tab各字段
+        document.getElementById('detailTaskCode').textContent = task.code;
+        document.getElementById('detailPriorityBadge').className = 'badge ' + priorityClass;
+        document.getElementById('detailPriorityBadge').textContent = priorityText;
+        // 状态HTML用插入方式
+        var priorityBadge = document.getElementById('detailPriorityBadge');
+        var nextEl = priorityBadge.nextSibling;
+        if (nextEl && nextEl.nodeType === 8 || (nextEl && nextEl.tagName === 'SPAN')) {
+            // already has status span, replace
+        }
+
+        document.getElementById('detailProject').textContent = task.project_name || '-';
+        document.getElementById('detailAssignee').textContent = task.assignee_name || '未分配';
+        document.getElementById('detailReporter').textContent = task.reporter_name || '-';
+        document.getElementById('detailDueDate').textContent = task.due_date ? formatDate(task.due_date) : '-';
+        document.getElementById('detailCreatedAt').textContent = formatDate(task.created_at);
+
+        if (task.completed_at) {
+            document.getElementById('detailCompletedAtP').style.display = '';
+            document.getElementById('detailCompletedAt').textContent = formatDate(task.completed_at);
+        } else {
+            document.getElementById('detailCompletedAtP').style.display = 'none';
+        }
+
+        if (task.flow_instance && task.flow_instance.current_node_name) {
+            document.getElementById('detailFlowStatus').innerHTML =
+                '<div class="mt-3 p-3" style="background:#f8afc;border-radius:8px;">' +
                 '<strong>流程状态：</strong>' +
                 '<div class="mt-2"><span class="flow-node-badge ' + (task.flow_instance.current_node_status || 'pending') + '">' +
-                '<span class="node-dot"></span>' +
-                escapeHtml(task.flow_instance.current_node_name) +
+                '<span class="node-dot"></span>' + escapeHtml(task.flow_instance.current_node_name) +
                 '</span></div>' +
                 '<p class="mb-0 mt-2"><strong>流程模板：</strong>' + escapeHtml(task.flow_instance.template_name || '-') + '</p>' +
-                '</div>' : ''
-            }
-            ${task.description ? '<p class="mt-3"><strong>描述：</strong></p><p style="background:#f8fafc;padding:12px;border-radius:8px;">' + escapeHtml(task.description) + '</p>' : ''}
-        `;
-        
+                '</div>';
+        } else {
+            document.getElementById('detailFlowStatus').innerHTML = '';
+        }
+
+        if (task.description) {
+            document.getElementById('detailDescP').style.display = '';
+            document.getElementById('detailDesc').style.display = '';
+            document.getElementById('detailDesc').textContent = task.description;
+        } else {
+            document.getElementById('detailDescP').style.display = 'none';
+            document.getElementById('detailDesc').style.display = 'none';
+        }
+
+        // Switch to info tab
+        switchDetailTab('info', document.querySelector('.detail-tab-btn'));
+
+        // 异步加载评论/附件/依赖
+        loadTaskComments(taskId);
+        loadTaskAttachments(taskId);
+        loadTaskDependencies(taskId);
+
         // Show/hide action buttons based on status
         var btnStart = document.getElementById('btnStartTask');
         var btnComplete = document.getElementById('btnCompleteTask');
@@ -938,12 +1073,187 @@ async function showTaskDetail(taskId) {
             btnStart.style.display = 'none';
             btnComplete.style.display = 'none';
         }
-        
+
     } catch (error) {
         console.error('加载任务详情失败:', error);
-        document.getElementById('taskDetailBody').innerHTML = 
+        document.getElementById('detailTabInfo').innerHTML =
             '<p class="text-center text-danger py-4">加载失败，请重试</p>';
     }
+}
+
+function switchDetailTab(tab, btn) {
+    document.querySelectorAll('.detail-tab-btn').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.detail-tab-content').forEach(function(c){ c.classList.remove('active'); });
+    btn.classList.add('active');
+    document.getElementById('detailTab' + capitalize(tab)).classList.add('active');
+}
+function capitalize(s){ return s.charAt(0).toUpperCase() + s.slice(1); }
+
+async function loadTaskComments(taskId) {
+    try {
+        var res = await fetch('/api/tasks/task-comments/?task=' + taskId, { credentials: 'include' });
+        var data = await res.json();
+        var badge = document.getElementById('commentCountBadge');
+        badge.textContent = data.count || 0;
+        badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+        var area = document.getElementById('commentListArea');
+        if (!data.results || data.results.length === 0) {
+            area.innerHTML = '<p class="text-muted text-center py-3" style="font-size:0.85rem;">暂无评论</p>';
+            return;
+        }
+        var html = '';
+        data.results.forEach(function(c) {
+            html += '<div class="comment-item">' +
+                '<div class="comment-meta"><strong>' + escapeHtml(c.author_name || '用户') + '</strong> · ' + formatDate(c.created_at) + '</div>' +
+                '<div class="comment-body">' + escapeHtml(c.content) + '</div>' +
+                '</div>';
+        });
+        area.innerHTML = html;
+    } catch(e) { document.getElementById('commentListArea').innerHTML = '<p class="text-danger">加载失败</p>'; }
+}
+
+async function submitComment() {
+    var content = document.getElementById('commentInput').value.trim();
+    if (!content) return;
+    var btn = document.querySelector('#detailTabComments .btn-primary');
+    btn.disabled = true;
+    try {
+        var res = await fetch('/api/tasks/task-comments/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ task: currentTaskId, content: content })
+        });
+        if (res.ok) {
+            document.getElementById('commentInput').value = '';
+            await loadTaskComments(currentTaskId);
+        } else {
+            var err = await res.json();
+            alert('发送失败：' + JSON.stringify(err));
+        }
+    } finally { btn.disabled = false; }
+}
+
+async function loadTaskAttachments(taskId) {
+    try {
+        var res = await fetch('/api/tasks/task-attachments/?task=' + taskId, { credentials: 'include' });
+        var data = await res.json();
+        var badge = document.getElementById('attachmentCountBadge');
+        badge.textContent = data.count || 0;
+        badge.style.display = data.count > 0 ? 'inline-block' : 'none';
+        var area = document.getElementById('attachmentListArea');
+        if (!data.results || data.results.length === 0) {
+            area.innerHTML = '<p class="text-muted text-center py-3" style="font-size:0.85rem;">暂无附件</p>';
+            return;
+        }
+        var html = '';
+        data.results.forEach(function(a) {
+            var sizeStr = a.file_size ? (a.file_size > 1024*1024 ? (a.file_size/1024/1024).toFixed(1)+'MB' : (a.file_size/1024).toFixed(0)+'KB') : '';
+            html += '<div class="attachment-item">' +
+                '<i class="bi bi-paperclip text-secondary"></i>' +
+                '<a href="' + a.file_url + '" target="_blank" class="text-primary" style="flex:1;">' + escapeHtml(a.file_name) + '</a>' +
+                '<span class="text-muted" style="font-size:0.75rem;">' + sizeStr + '</span>' +
+                '</div>';
+        });
+        area.innerHTML = html;
+    } catch(e) { document.getElementById('attachmentListArea').innerHTML = '<p class="text-danger">加载失败</p>'; }
+}
+
+async function submitAttachment() {
+    var fileInput = document.getElementById('attachmentFileInput');
+    if (!fileInput.files || fileInput.files.length === 0) { alert('请选择文件'); return; }
+    var formData = new FormData();
+    formData.append('task', currentTaskId);
+    for (var i = 0; i < fileInput.files.length; i++) { formData.append('file', fileInput.files[i]); }
+    var btn = document.querySelector('#detailTabAttachments .btn-outline-primary');
+    btn.disabled = true;
+    try {
+        var res = await fetch('/api/tasks/task-attachments/', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+        if (res.ok) {
+            fileInput.value = '';
+            await loadTaskAttachments(currentTaskId);
+        } else {
+            var err = await res.json();
+            alert('上传失败：' + JSON.stringify(err));
+        }
+    } finally { btn.disabled = false; }
+}
+
+async function loadTaskDependencies(taskId) {
+    try {
+        var res = await fetch('/api/tasks/task-dependencies/?task=' + taskId, { credentials: 'include' });
+        var data = await res.json();
+        var area = document.getElementById('dependencyListArea');
+        // Also load reverse deps (tasks that depend on this one - blocks)
+        var res2 = await fetch('/api/tasks/task-dependencies/?depends_on=' + taskId, { credentials: 'include' });
+        var data2 = await res2.ok ? await res2.json() : { results: [] };
+        var allDeps = (data.results || []).concat(data2.results || []);
+        if (allDeps.length === 0) {
+            area.innerHTML = '<p class="text-muted text-center py-3" style="font-size:0.85rem;">暂无依赖关系</p>';
+            document.getElementById('addDependencyArea').style.display = '';
+            return;
+        }
+        var html = '';
+        allDeps.forEach(function(d) {
+            var isBlocked = d.depends_on == taskId; // reverse
+            var badgeClass = isBlocked ? 'blocks' : 'depends_on';
+            var badgeText = isBlocked ? '阻塞' : '依赖';
+            var otherTitle = isBlocked ? d.task_title : d.depends_on_title;
+            var otherCode = isBlocked ? d.task_code : d.depends_on_code;
+            var otherStatus = isBlocked ? d.task_status : d.depends_on_status;
+            var statusClass = otherStatus === 'completed' ? 'dep-status-done' : 'dep-status-pending';
+            var statusIcon = otherStatus === 'completed' ? '✓' : '○';
+            html += '<div class="dependency-item">' +
+                '<span class="dependency-badge ' + badgeClass + '">' + badgeText + '</span>' +
+                '<span class="text-muted" style="font-size:0.75rem;">' + escapeHtml(otherCode) + '</span>' +
+                '<span style="flex:1;">' + escapeHtml(otherTitle || '') + '</span>' +
+                '<span class="' + statusClass + '" style="font-size:0.75rem;">' + statusIcon + '</span>' +
+                '</div>';
+        });
+        area.innerHTML = html;
+        document.getElementById('addDependencyArea').style.display = '';
+        // Populate task select dropdown
+        var sel = document.getElementById('depTaskSelect');
+        sel.innerHTML = '<option value="">选择关联任务...</option>';
+        var tasksRes = await fetch('/api/tasks/tasks/?page_size=100', { credentials: 'include' });
+        if (tasksRes.ok) {
+            var tasksData = await tasksRes.json();
+            tasksData.results.forEach(function(t) {
+                if (t.id != taskId) {
+                    sel.innerHTML += '<option value="' + t.id + '">' + escapeHtml(t.code) + ' - ' + escapeHtml(t.title) + '</option>';
+                }
+            });
+        }
+    } catch(e) { document.getElementById('dependencyListArea').innerHTML = '<p class="text-danger">加载失败</p>'; }
+}
+
+async function submitDependency() {
+    var taskSel = document.getElementById('depTaskSelect');
+    var depType = document.getElementById('depTypeSelect').value;
+    if (!taskSel.value) { alert('请选择关联任务'); return; }
+    var dependsOn = depType === 'depends_on' ? taskSel.value : currentTaskId;
+    var blockedBy = depType === 'blocks' ? taskSel.value : currentTaskId;
+    var body = depType === 'depends_on'
+        ? { task: currentTaskId, depends_on: taskSel.value, dependency_type: 'depends_on' }
+        : { task: taskSel.value, depends_on: currentTaskId, dependency_type: 'depends_on' };
+    try {
+        var res = await fetch('/api/tasks/task-dependencies/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (res.ok) {
+            await loadTaskDependencies(currentTaskId);
+        } else {
+            var err = await res.json();
+            alert('添加失败：' + JSON.stringify(err));
+        }
+    } catch(e) { alert('添加失败'); }
 }
 
 function editCurrentTask() {
