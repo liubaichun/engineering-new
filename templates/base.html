@@ -481,6 +481,7 @@
         <!-- ===== 简化侧边栏：9分组，20项 ===== -->
         <!-- 分组1：首页 -->
         <div class="sidebar-section">
+            <div class="sidebar-section-title">导航</div>
             <a href="/dashboard/" class="nav-link {% if request.path == '/dashboard/' %}active{% endif %}">
                 <i class="bi bi-speedometer2"></i><span>控制台</span>
             </a>
@@ -488,6 +489,7 @@
 
         <!-- 分组2：项目 -->
         <div class="sidebar-section">
+            <div class="sidebar-section-title">项目</div>
             {% if 'project.view' in user_menu_codes or request.user.is_superuser %}
             <a href="/projects/" class="nav-link {% if '/projects' in request.path and '/gantt' not in request.path %}active{% endif %}">
                 <i class="bi bi-briefcase"></i><span>项目管理</span>
@@ -502,6 +504,7 @@
 
         <!-- 分组3：审批 -->
         <div class="sidebar-section">
+            <div class="sidebar-section-title">审批</div>
             {% if 'approval.view' in user_menu_codes or request.user.is_superuser %}
             <a href="/approvals/" class="nav-link {% if '/approvals' in request.path and '/approvals/templates' not in request.path %}active{% endif %}">
                 <i class="bi bi-git-branch"></i><span>审批管理</span>
@@ -650,6 +653,7 @@
         <!-- 分组9：数据 -->
         {% if 'stats.view' in user_menu_codes or 'notification.view' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
+            <div class="sidebar-section-title">数据</div>
             {% if 'stats.view' in user_menu_codes or request.user.is_superuser %}
             <a href="/stats/" class="nav-link">
                 <i class="bi bi-pie-chart"></i><span>数据统计</span>
