@@ -51,6 +51,7 @@
 .source-badge.contract { background: #dbeafe; color: #1e40af; }
 .source-badge.project { background: #d1fae5; color: #065f46; }
 .source-badge.service { background: #fef3c7; color: #92400e; }
+.source-badge.bank_import { background: #e0f2fe; color: #075985; }
 .source-badge.other { background: #f3f4f6; color: #6b7280; }
 .amount-display {
     font-weight: 600;
@@ -451,6 +452,7 @@ function renderIncomes(data) {
             'contract': '合同收入', '合同收入': '合同收入',
             'project': '项目收入', '项目收入': '项目收入',
             'service': '服务收入', '服务收入': '服务收入',
+            'bank_import': '银行流水', '银行流水': '银行流水',
             'other': '其他', '其他': '其他'
         }[sourceClass] || '其他';
         const statusClass = income.status === 'approved' ? 'badge-approved' : income.status === 'rejected' ? 'badge-rejected' : 'badge-pending';

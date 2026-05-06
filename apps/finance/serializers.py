@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
+from .models_bank import BankStatement
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -25,6 +26,8 @@ class IncomeSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     source_display = serializers.SerializerMethodField()
     approval_status = serializers.SerializerMethodField()
+    # 反向追溯：关联的银行流水
+    bank_statement = serializers.SerializerMethodField()
 
     class Meta:
         model = Income
@@ -34,6 +37,7 @@ class IncomeSerializer(serializers.ModelSerializer):
             'project', 'project_name',
             'customer', 'description', 'attachment', 'operator',
             'operator_name', 'approval_flow', 'approval_status',
+            'bank_statement',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'operator', 'operator_name', 'approval_flow', 'approval_status', 'created_at', 'updated_at']
@@ -51,9 +55,15 @@ class IncomeSerializer(serializers.ModelSerializer):
             'contract': '合同收入',
             'project': '项目收入',
             'service': '服务收入',
-            'other': '其他收入'
+            'bank_import': '银行流水',
+            'other': '其他'
         }
         return source_map.get(obj.source, '其他')
+
+    def get_bank_statement(self, obj):
+        """反向追溯：关联的银行流水摘要"""
+        stmts = obj.matched_statements.all()
+        return BankStatementSerializer(stmts, many=True).data
 
     def create(self, validated_data):
         income = super().create(validated_data)
@@ -71,6 +81,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
     expense_date = serializers.DateField(help_text='支出日期', required=False, allow_null=True)
     approval_status = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
+    bank_statement = serializers.SerializerMethodField()
 
     class Meta:
         model = Expense
@@ -79,6 +90,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
             'date', 'expense_date', 'expense_category', 'project', 'project_name',
             'supplier', 'note', 'description', 'attachment', 'operator',
             'operator_name', 'approval_flow', 'approval_status', 'status', 'status_display',
+            'bank_statement',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'operator', 'operator_name', 'approval_flow', 'approval_status', 'created_at', 'updated_at']
@@ -95,6 +107,11 @@ class ExpenseSerializer(serializers.ModelSerializer):
         if obj.date:
             return obj.date.isoformat()
         return None
+
+    def get_bank_statement(self, obj):
+        """反向追溯：关联的银行流水摘要"""
+        stmts = obj.matched_statements.all()
+        return BankStatementSerializer(stmts, many=True).data
 
     def create(self, validated_data):
         expense_date = validated_data.pop('expense_date', None)
@@ -422,3 +439,39 @@ class CompanySocialConfigSerializer(serializers.ModelSerializer):
             'housing_fund_rate_employee', 'housing_fund_rate_company',
         ]
         read_only_fields = ['id']
+
+
+class BankStatementSerializer(serializers.ModelSerializer):
+    """银行流水序列化器"""
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    bank_account_name = serializers.CharField(source='bank_account.account_name', read_only=True, default='')
+    direction_display = serializers.CharField(source='get_direction_display', read_only=True)
+    reconcile_status_display = serializers.CharField(source='get_reconcile_status_display', read_only=True, default='')
+    matched_income_amount = serializers.SerializerMethodField()
+    matched_expense_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BankStatement
+        fields = [
+            'id', 'company', 'company_name',
+            'bank_account', 'bank_account_name',
+            'transaction_date', 'transaction_time',
+            'direction', 'direction_display',
+            'amount', 'balance',
+            'counterparty_name', 'counterparty_account', 'counterparty_bank',
+            'summary', 'usage',
+            'matched_income', 'matched_expense',
+            'matched_income_amount', 'matched_expense_amount',
+            'reconcile_status', 'reconcile_status_display',
+            'source_bank', 'import_batch', 'created_at',
+        ]
+
+    def get_matched_income_amount(self, obj):
+        if obj.matched_income:
+            return str(obj.matched_income.amount)
+        return ''
+
+    def get_matched_expense_amount(self, obj):
+        if obj.matched_expense:
+            return str(obj.matched_expense.amount)
+        return ''
