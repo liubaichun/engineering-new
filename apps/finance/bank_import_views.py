@@ -138,6 +138,10 @@ def preview_bank_statement(request):
 
     file_obj = request.FILES['file']
     content = file_obj.read()
+    import sys
+    print(f"DEBUG: file size={len(content)}, bank_code={bank_code}", flush=True)
+    sys.stderr.write(f"DEBUG VIEW: content_len={len(content)}\n")
+    sys.stderr.flush()
 
     # 解析
     try:
@@ -146,9 +150,16 @@ def preview_bank_statement(request):
             used_bank = bank_code
         else:
             used_bank, transactions = detect_and_parse(content)
+        print(f"DEBUG: parsed {len(transactions)} transactions", flush=True)
     except ValueError as e:
+        import traceback
+        sys.stderr.write(f"ValueError: {e}\n{traceback.format_exc()}\n")
+        sys.stderr.flush()
         return Response({'error': str(e)}, status=400)
     except Exception as e:
+        import traceback
+        sys.stderr.write(f"Exception: {e}\n{traceback.format_exc()}\n")
+        sys.stderr.flush()
         return Response({'error': f'解析失败: {str(e)}'}, status=500)
 
     # 批量匹配
