@@ -12,7 +12,7 @@ class PurchaseRequestItemSerializer(serializers.ModelSerializer):
         model = PurchaseRequestItem
         fields = ['id', 'material', 'material_name', 'material_code', 'quantity', 'unit',
                   'unit_display', 'estimated_unit_price', 'estimated_amount', 'description',
-                  'is_optional', 'ordered_quantity', 'received_quantity']
+                  'is_optional', 'ordered_quantity', 'received_quantity', 'company_id']
 
 
 class PurchaseRequestListSerializer(serializers.ModelSerializer):
@@ -64,7 +64,8 @@ class PurchaseOrderItemSerializer(serializers.ModelSerializer):
         model = PurchaseOrderItem
         fields = ['id', 'request_item', 'material', 'material_name', 'material_code',
                   'specification', 'quantity', 'unit', 'unit_display', 'unit_price', 'amount',
-                  'tax_rate', 'tax_amount', 'delivered_quantity', 'received_quantity', 'description']
+                  'tax_rate', 'tax_amount', 'delivered_quantity', 'received_quantity', 'description',
+                  'company_id']
 
 
 class PurchaseOrderListSerializer(serializers.ModelSerializer):
@@ -125,7 +126,7 @@ class PurchaseReceiveItemSerializer(serializers.ModelSerializer):
         model = PurchaseReceiveItem
         fields = ['id', 'order_item', 'order_item_text', 'material', 'material_name',
                   'material_code', 'quantity', 'unit', 'qualified_quantity', 'defective_quantity',
-                  'batch_no', 'expire_date', 'remark']
+                  'batch_no', 'expire_date', 'remark', 'company_id']
 
 
 class PurchaseReceiveListSerializer(serializers.ModelSerializer):

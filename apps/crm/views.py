@@ -232,11 +232,44 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base_qs = PaymentPlan.objects.select_related('contract')
-        if user.is_superuser:
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            base_qs = base_qs.filter(contract__company_id=company_id)
+        elif user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
+        elif hasattr(user, 'company') and user.company_id:
             return base_qs.filter(contract__company_id=user.company_id)
         return PaymentPlan.objects.none()
+
+    def perform_create(self, serializer):
+        plan = serializer.save()
+        self._sync_contract_payment(plan.contract)
+
+    def perform_update(self, serializer):
+        plan = serializer.save()
+        self._sync_contract_payment(plan.contract)
+
+    def perform_destroy(self, instance):
+        contract = instance.contract
+        instance.delete()
+        self._sync_contract_payment(contract)
+
+    def _sync_contract_payment(self, contract):
+        """同步合同实付总额和付款状态"""
+        from django.db.models import Sum
+        agg = contract.payment_plans.aggregate(total=Sum('paid_amount'))
+        total_paid = agg['total'] or 0
+        total_amount = contract.amount or 0
+        if total_paid >= total_amount and total_amount > 0:
+            payment_status = 'paid'
+        elif total_paid > 0:
+            payment_status = 'partial'
+        else:
+            payment_status = 'pending'
+        contract.total_paid = total_paid
+        contract.payment_status = payment_status
+        contract.save(update_fields=['total_paid', 'payment_status'])
 
     @action(detail=True, methods=['post'])
     def mark_paid(self, request, pk=None):
@@ -246,14 +279,7 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
         plan.paid_amount = request.data.get('paid_amount', plan.amount)
         plan.status = 'paid'
         plan.save()
-        # 更新合同的 total_paid 和 payment_status
-        contract = plan.contract
-        contract.total_paid = contract.paid_amount
-        if contract.total_paid >= contract.amount:
-            contract.payment_status = 'paid'
-        else:
-            contract.payment_status = 'partial'
-        contract.save(update_fields=['total_paid', 'payment_status'])
+        self._sync_contract_payment(plan.contract)
         return Response({'detail': '已标记为已付款', 'status': plan.status})
 
     @action(detail=True, methods=['post'])
@@ -265,9 +291,7 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
         if 'paid_amount' in request.data:
             plan.paid_amount = request.data['paid_amount']
         plan.save()
-        contract = plan.contract
-        contract.total_paid = contract.paid_amount
-        contract.save(update_fields=['total_paid'])
+        self._sync_contract_payment(plan.contract)
         return Response(PaymentPlanSerializer(plan).data)
 
 
@@ -281,15 +305,25 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base_qs = ContractChangeLog.objects.select_related('contract', 'created_by')
-        if user.is_superuser:
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            base_qs = base_qs.filter(contract__company_id=company_id)
+        elif user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
+        elif hasattr(user, 'company') and user.company_id:
             return base_qs.filter(contract__company_id=user.company_id)
         return ContractChangeLog.objects.none()
 
     def perform_create(self, serializer):
-        if self.request.user.is_authenticated:
-            serializer.save(created_by=self.request.user)
+        # 自动从contract继承company_id
+        contract = serializer.validated_data.get('contract')
+        if hasattr(contract, 'company_id'):
+            company_id = contract.company_id
+        else:
+            co = Contract.objects.get(pk=contract.pk)
+            company_id = co.company_id
+        serializer.save(created_by=self.request.user, company_id=company_id)
 
 
 class ContactViewSet(viewsets.ModelViewSet):

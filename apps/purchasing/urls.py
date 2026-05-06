@@ -9,6 +9,7 @@ router.register(r'request-items', views.PurchaseRequestItemViewSet, basename='pu
 router.register(r'orders', views.PurchaseOrderViewSet, basename='purchase-order')
 router.register(r'order-items', views.PurchaseOrderItemViewSet, basename='purchase-order-item')
 router.register(r'receives', views.PurchaseReceiveViewSet, basename='purchase-receive')
+router.register(r'receive-items', views.PurchaseReceiveItemViewSet, basename='purchase-receive-item')
 
 urlpatterns = [
     path('', include(router.urls)),

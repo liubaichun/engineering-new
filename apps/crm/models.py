@@ -145,6 +145,12 @@ class Contract(models.Model):
     contract_no = models.CharField('合同编号', max_length=100, unique=True)
     name = models.CharField('合同名称', max_length=300)
     amount = models.DecimalField('合同金额', max_digits=15, decimal_places=2, default=0)
+    total_paid = models.DecimalField('已收款', max_digits=15, decimal_places=2, default=0)
+    payment_status = models.CharField('付款状态', max_length=20, choices=[
+        ('pending', '待收款'),
+        ('partial', '部分收款'),
+        ('paid', '已收款'),
+    ], default='pending')
     sign_date = models.DateField('签署日期', null=True, blank=True)
     expire_date = models.DateField('到期日期', null=True, blank=True)
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='draft')
@@ -206,6 +212,7 @@ class PaymentPlan(models.Model):
     payment_method = models.CharField('付款方式', max_length=50, blank=True, null=True)
     payment_account = models.CharField('付款账户', max_length=200, blank=True, null=True)
     remark = models.TextField('备注', blank=True, null=True)
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -242,6 +249,7 @@ class ContractChangeLog(models.Model):
         'core.User', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='contract_changes', verbose_name='变更人'
     )
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'crm_contract_change_log'

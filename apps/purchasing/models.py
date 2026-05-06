@@ -62,6 +62,7 @@ class PurchaseRequestItem(models.Model):
     is_optional = models.BooleanField('可选采购', default=False)
     ordered_quantity = models.DecimalField('已下单数量', max_digits=12, decimal_places=3, default=0)
     received_quantity = models.DecimalField('已入库数量', max_digits=12, decimal_places=3, default=0)
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'purchasing_purchase_request_item'
@@ -149,6 +150,7 @@ class PurchaseOrderItem(models.Model):
     delivered_quantity = models.DecimalField('已发货数量', max_digits=12, decimal_places=3, default=0)
     received_quantity = models.DecimalField('已入库数量', max_digits=12, decimal_places=3, default=0)
     description = models.TextField('备注', blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'purchasing_purchase_order_item'
@@ -200,6 +202,7 @@ class PurchaseReceiveItem(models.Model):
     batch_no = models.CharField('批号', max_length=64, blank=True, default='')
     expire_date = models.DateField('有效期', null=True, blank=True)
     remark = models.TextField('备注', blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'purchasing_purchase_receive_item'

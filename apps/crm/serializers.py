@@ -71,17 +71,21 @@ class ContractSerializer(serializers.ModelSerializer):
     paid_amount_display = serializers.SerializerMethodField()
 
     def get_payment_progress(self, obj):
-        return obj.payment_progress if hasattr(obj, 'payment_progress') else 0
+        if obj.amount and obj.amount > 0:
+            return float(obj.total_paid or 0) / float(obj.amount) * 100
+        return 0
 
     def get_paid_amount_display(self, obj):
-        return obj.paid_amount if hasattr(obj, 'paid_amount') else 0
+        return obj.total_paid if hasattr(obj, 'total_paid') else 0
 
     class Meta:
         model = Contract
         fields = ['id', 'counterparty_type', 'counterparty_name',
                   'client', 'client_name', 'supplier', 'supplier_name',
                   'project', 'project_name',
-                  'contract_no', 'name', 'amount', 'sign_date', 'expire_date',
+                  'contract_no', 'name', 'amount',
+                  'total_paid', 'payment_status',
+                  'sign_date', 'expire_date',
                   'status', 'remark', 'attachment', 'attachment_name',
                   'payment_progress', 'paid_amount_display',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
@@ -194,7 +198,7 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
         fields = ['id', 'contract', 'contract_name',
                   'plan_date', 'amount',
                   'paid_date', 'paid_amount', 'status', 'status_display',
-                  'payment_method', 'payment_account', 'remark',
+                  'payment_method', 'payment_account', 'remark', 'company_id',
                   'created_at', 'updated_at']
         read_only_fields = ['id', 'contract', 'contract_name', 'status_display', 'created_at']
 
@@ -209,7 +213,7 @@ class ContractChangeLogSerializer(serializers.ModelSerializer):
         fields = ['id', 'contract', 'contract_name',
                   'change_type', 'change_type_display',
                   'old_value', 'new_value', 'reason', 'change_date',
-                  'created_by', 'created_by_name']
+                  'created_by', 'created_by_name', 'company_id']
         read_only_fields = ['id', 'contract', 'contract_name', 'change_type_display', 'created_by', 'created_by_name', 'change_date']
 
 

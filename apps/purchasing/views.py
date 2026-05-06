@@ -110,15 +110,25 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseRequestItemSerializer
 
     def get_queryset(self):
-        qs = PurchaseRequestItem.objects.select_related('material')
+        qs = PurchaseRequestItem.objects.select_related('material', 'request__company')
         request_id = self.request.query_params.get('request_id')
         if request_id:
             qs = qs.filter(request_id=request_id)
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            qs = qs.filter(request__company_id=company_id)
         return qs
 
     def perform_create(self, serializer):
-        item = serializer.save()
-        # 更新主单总金额
+        # 自动从request继承company_id
+        request_id = serializer.validated_data.get('request')
+        if hasattr(request_id, 'company_id'):
+            company_id = request_id.company_id
+        else:
+            pr = PurchaseRequest.objects.get(pk=request_id.pk)
+            company_id = pr.company_id
+        item = serializer.save(company_id=company_id)
         self._update_request_total(item.request)
 
     def perform_update(self, serializer):
@@ -232,14 +242,25 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderItemSerializer
 
     def get_queryset(self):
-        qs = PurchaseOrderItem.objects.select_related('material', 'order', 'request_item')
+        qs = PurchaseOrderItem.objects.select_related('material', 'order__company')
         order_id = self.request.query_params.get('order_id')
         if order_id:
             qs = qs.filter(order_id=order_id)
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            qs = qs.filter(order__company_id=company_id)
         return qs
 
     def perform_create(self, serializer):
-        item = serializer.save()
+        # 自动从order继承company_id
+        order_id = serializer.validated_data.get('order')
+        if hasattr(order_id, 'company_id'):
+            company_id = order_id.company_id
+        else:
+            po = PurchaseOrder.objects.get(pk=order_id.pk)
+            company_id = po.company_id
+        item = serializer.save(company_id=company_id)
         self._update_order_totals(item.order)
 
     def perform_update(self, serializer):
@@ -302,3 +323,54 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
         obj.status = 'completed'
         obj.save(update_fields=['status'])
         return Response(PurchaseReceiveDetailSerializer(obj).data)
+
+
+class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
+    """采购入库明细"""
+    queryset = PurchaseReceiveItem.objects.all()
+    serializer_class = PurchaseReceiveItemSerializer
+
+    def get_queryset(self):
+        qs = PurchaseReceiveItem.objects.select_related('material', 'receive__company')
+        receive_id = self.request.query_params.get('receive_id')
+        if receive_id:
+            qs = qs.filter(receive_id=receive_id)
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            qs = qs.filter(receive__company_id=company_id)
+        return qs
+
+    def perform_create(self, serializer):
+        # 自动从receive继承company_id
+        receive_id = serializer.validated_data.get('receive')
+        if hasattr(receive_id, 'company_id'):
+            company_id = receive_id.company_id
+        else:
+            pr = PurchaseReceive.objects.get(pk=receive_id.pk)
+            company_id = pr.company_id
+        item = serializer.save(company_id=company_id)
+        # 更新入库单状态
+        self._update_receive_status(item.receive)
+
+    def perform_update(self, serializer):
+        item = serializer.save()
+        self._update_receive_status(item.receive)
+
+    def perform_destroy(self, instance):
+        receive = instance.receive
+        instance.delete()
+        self._update_receive_status(receive)
+
+    def _update_receive_status(self, receive):
+        total = receive.items.count()
+        received = receive.items.filter(qualified_quantity__gt=0).count()
+        if total == 0:
+            return
+        if received == 0:
+            receive.status = 'pending'
+        elif received < total:
+            receive.status = 'partial'
+        else:
+            receive.status = 'completed'
+        receive.save(update_fields=['status'])
