@@ -797,6 +797,144 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return Response({'records': data, 'count': queryset.count()})
 
     @action(detail=False, methods=['post'])
+    def import_excel(self, request):
+        """批量导入工资 Excel（按姓名匹配员工）
+        POST 上传 Excel file，form-data 字段名: file
+        Query params: year=&month=&company_id=
+        Excel 格式：第1行表头，数据从第2行起，必需列：姓名
+        """
+        from apps.finance.services.wage_import import import_wage_excel, WageImportError
+        from apps.finance.models import WageRecord, Employee, EmployeeCompany
+
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+
+        year = request.POST.get('year') or request.data.get('year')
+        month = request.POST.get('month') or request.data.get('month')
+        company_id = request.data.get('company_id')
+
+        cid = _get_user_company_id(request.user)
+        if cid is not None:
+            company_id = cid
+
+        defaults = {}
+        if year:
+            defaults['year'] = int(year)
+        if month:
+            defaults['month'] = int(month)
+
+        try:
+            file_bytes = file.read()
+            records, parse_errors = import_wage_excel(file_bytes, int(company_id), defaults)
+        except WageImportError as e:
+            return Response({'success': False, 'message': str(e)}, status=400)
+        except Exception as e:
+            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+
+        if not records:
+            return Response({
+                'success': False,
+                'message': 'Excel 中无有效数据行',
+                'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors]
+            }, status=400)
+
+        created = 0
+        skipped = []
+        for rec in records:
+            # 按姓名查找员工
+            emp_name = rec.get('employee_name', '').strip()
+            ec = None
+            if company_id:
+                ec = EmployeeCompany.objects.filter(
+                    employee__name=emp_name, company_id=company_id
+                ).select_related('employee').order_by('-is_primary').first()
+            if not ec:
+                ec = EmployeeCompany.objects.filter(
+                    employee__name=emp_name
+                ).select_related('employee').order_by('-is_primary').first()
+
+            if not ec:
+                skipped.append(f"「{emp_name}」未找到对应员工")
+                continue
+
+            # 检查是否已存在
+            existing = WageRecord.objects.filter(
+                company_id=company_id or ec.company_id,
+                employee_company=ec,
+                year=rec.get('year'),
+                month=rec.get('month'),
+            ).exists()
+            if existing:
+                skipped.append(f"「{emp_name}」{rec.get('year')}年{rec.get('month')}月工资记录已存在，跳过")
+                continue
+
+            # 构建工资记录（自动计算实发）
+            from decimal import Decimal as D
+            net = (
+                Decimal(str(rec.get('base_salary') or 0)) +
+                Decimal(str(rec.get('position_salary') or 0)) +
+                Decimal(str(rec.get('overtime_pay') or 0)) +
+                Decimal(str(rec.get('bonus') or 0)) +
+                Decimal(str(rec.get('commission') or 0)) +
+                Decimal(str(rec.get('meal_allowance') or 0)) +
+                Decimal(str(rec.get('transport_allowance') or 0)) +
+                Decimal(str(rec.get('communication_allowance') or 0)) +
+                Decimal(str(rec.get('other_allowance') or 0))
+            ) - (
+                Decimal(str(rec.get('social_insurance') or 0)) +
+                Decimal(str(rec.get('housing_fund') or 0)) +
+                Decimal(str(rec.get('leave_deduction') or 0)) +
+                Decimal(str(rec.get('sick_leave_deduction') or 0)) +
+                Decimal(str(rec.get('other_deductions') or 0))
+            )
+
+            gross = (
+                D(str(rec.get('base_salary') or 0)) + D(str(rec.get('position_salary') or 0)) +
+                D(str(rec.get('overtime_pay') or 0)) + D(str(rec.get('bonus') or 0)) +
+                D(str(rec.get('commission') or 0)) + D(str(rec.get('meal_allowance') or 0)) +
+                D(str(rec.get('transport_allowance') or 0)) +
+                D(str(rec.get('communication_allowance') or 0)) + D(str(rec.get('other_allowance') or 0))
+            )
+
+            WageRecord.objects.create(
+                company_id=ec.company_id,
+                employee_company=ec,
+                employee=ec.employee,
+                employee_name=ec.employee.name,
+                bank_card=rec.get('bank_card') or ec.employee.bank_card or '',
+                year=rec.get('year'),
+                month=rec.get('month'),
+                base_salary=rec.get('base_salary') or D('0'),
+                position_salary=rec.get('position_salary') or D('0'),
+                overtime_pay=rec.get('overtime_pay') or D('0'),
+                bonus=rec.get('bonus') or D('0'),
+                commission=rec.get('commission') or D('0'),
+                meal_allowance=rec.get('meal_allowance') or D('0'),
+                transport_allowance=rec.get('transport_allowance') or D('0'),
+                communication_allowance=rec.get('communication_allowance') or D('0'),
+                other_allowance=rec.get('other_allowance') or D('0'),
+                social_insurance=rec.get('social_insurance') or D('0'),
+                housing_fund=rec.get('housing_fund') or D('0'),
+                leave_days=rec.get('leave_days') or 0,
+                leave_deduction=rec.get('leave_deduction') or D('0'),
+                sick_leave_days=rec.get('sick_leave_days') or 0,
+                sick_leave_deduction=rec.get('sick_leave_deduction') or D('0'),
+                other_deductions=rec.get('other_deductions') or D('0'),
+                gross_salary=gross,
+                net_salary=net,
+                status='draft',
+            )
+            created += 1
+
+        return Response({
+            'success': created > 0,
+            'message': f'成功导入 {created} 条工资记录' + (f'，跳过 {len(skipped)} 条' if skipped else ''),
+            'skipped': skipped[:20],
+            'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors],
+        })
+
+    @action(detail=False, methods=['post'])
     def calc(self, request):
         """工资自动计算接口"""
         import re
