@@ -67,20 +67,25 @@ class ContractSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     counterparty_name = serializers.SerializerMethodField()
-    payment_progress = serializers.IntegerField(source='payment_progress', read_only=True)
-    paid_amount_display = serializers.DecimalField(source='paid_amount', max_digits=15, decimal_places=2, read_only=True)
+    payment_progress = serializers.SerializerMethodField()
+    paid_amount_display = serializers.SerializerMethodField()
+
+    def get_payment_progress(self, obj):
+        return obj.payment_progress if hasattr(obj, 'payment_progress') else 0
+
+    def get_paid_amount_display(self, obj):
+        return obj.paid_amount if hasattr(obj, 'paid_amount') else 0
 
     class Meta:
         model = Contract
         fields = ['id', 'counterparty_type', 'counterparty_name',
                   'client', 'client_name', 'supplier', 'supplier_name',
                   'project', 'project_name',
-                  'contract_no', 'name', 'amount', 'sign_date', 'expire_date', 'signed_date',
+                  'contract_no', 'name', 'amount', 'sign_date', 'expire_date',
                   'status', 'remark', 'attachment', 'attachment_name',
-                  'approval_flow', 'payment_status', 'total_paid',
                   'payment_progress', 'paid_amount_display',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
-        read_only_fields = ['created_by', 'approval_flow', 'total_paid']
+        read_only_fields = ['created_by', 'total_paid', 'payment_progress', 'paid_amount_display']
         extra_kwargs = {'contract_no': {'required': False}}
 
     def get_counterparty_name(self, obj):
