@@ -191,7 +191,7 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
                   'paid_date', 'paid_amount', 'status', 'status_display',
                   'payment_method', 'payment_account', 'remark',
                   'created_at', 'updated_at']
-        read_only_fields = ['created_at']
+        read_only_fields = ['id', 'contract', 'contract_name', 'status_display', 'created_at']
 
 
 class ContractChangeLogSerializer(serializers.ModelSerializer):
@@ -205,4 +205,4 @@ class ContractChangeLogSerializer(serializers.ModelSerializer):
                   'change_type', 'change_type_display',
                   'old_value', 'new_value', 'reason', 'change_date',
                   'created_by', 'created_by_name']
-        read_only_fields = ['created_by', 'change_date']
+        read_only_fields = ['id', 'contract', 'contract_name', 'change_type_display', 'created_by', 'created_by_name', 'change_date']
