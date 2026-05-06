@@ -554,6 +554,11 @@
                 <i class="bi bi-file-earmark-text"></i><span>合同</span>
             </a>
             {% endif %}
+            {% if 'opportunity.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/crm/opportunities/" class="nav-link {% if '/crm/opportunities' in request.path %}active{% endif %}">
+                <i class="bi bi-graph-up"></i><span>商机</span>
+            </a>
+            {% endif %}
             {% if 'supplier_view' in user_menu_codes or request.user.is_superuser %}
             <a href="/crm/suppliers/" class="nav-link {% if '/crm/suppliers' in request.path %}active{% endif %}">
                 <i class="bi bi-truck"></i><span>供应商</span>
