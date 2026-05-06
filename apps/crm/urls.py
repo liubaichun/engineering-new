@@ -8,6 +8,8 @@ router.register(r'clients', views.ClientViewSet)
 router.register(r'contracts', views.ContractViewSet)
 router.register(r'suppliers', views.SupplierViewSet)
 router.register(r'sources', views.ClientSourceViewSet, basename='clientsource')
+router.register(r'contacts', views.ContactViewSet)
+router.register(r'followups', views.FollowUpRecordViewSet, basename='followup')
 
 urlpatterns = router.urls
 

@@ -169,3 +169,75 @@ class Contract(models.Model):
 
     def __str__(self):
         return f"{self.contract_no} - {self.name}"
+
+
+class Contact(models.Model):
+    """CRM联系人模型"""
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='crm_contacts', null=True, blank=True, verbose_name='所属公司'
+    )
+    client = models.ForeignKey(
+        Client, on_delete=models.CASCADE, related_name='contacts',
+        verbose_name='所属客户', null=True, blank=True
+    )
+    name = models.CharField('姓名', max_length=100)
+    position = models.CharField('职位', max_length=100, blank=True, default='')
+    phone = models.CharField('手机', max_length=50, blank=True, default='')
+    email = models.EmailField('邮箱', blank=True, default='')
+    is_primary = models.BooleanField('主要联系人', default=False)
+    remark = models.TextField('备注', blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'crm_contact'
+        verbose_name = '联系人'
+        verbose_name_plural = verbose_name
+        ordering = ['-is_primary', '-created_at']
+
+    def __str__(self):
+        return self.name
+
+
+class FollowUpRecord(models.Model):
+    """CRM跟进记录模型"""
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='crm_followups', null=True, blank=True, verbose_name='所属公司'
+    )
+    contact = models.ForeignKey(
+        Contact, on_delete=models.CASCADE, related_name='follow_ups',
+        verbose_name='关联联系人', null=True, blank=True
+    )
+    client = models.ForeignKey(
+        Client, on_delete=models.CASCADE, related_name='follow_ups',
+        verbose_name='所属客户', null=True, blank=True
+    )
+    follow_type = models.CharField(
+        '跟进方式', max_length=20,
+        choices=[
+            ('call', '电话'),
+            ('visit', '拜访'),
+            ('email', '邮件'),
+            ('meeting', '会议'),
+            ('other', '其他'),
+        ],
+        default='call'
+    )
+    content = models.TextField('跟进内容')
+    next_plan = models.TextField('下次计划', blank=True, default='')
+    next_date = models.DateField('下次跟进日期', null=True, blank=True)
+    attachment = models.FileField('附件', upload_to='followups/%Y%m/', blank=True, null=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_followups')
+
+    class Meta:
+        db_table = 'crm_followup_record'
+        verbose_name = '跟进记录'
+        verbose_name_plural = verbose_name
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.client_id}-{self.id}"

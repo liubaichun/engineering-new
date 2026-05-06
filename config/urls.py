@@ -137,6 +137,9 @@ def contract_list_page(request):
 def supplier_list_page(request):
     return TemplateView.as_view(template_name='crm/supplier_list.html')(request)
 
+def contact_followup_page(request):
+    return TemplateView.as_view(template_name='crm/contact_followup_list.html')(request)
+
 def employee_list_page(request):
     return TemplateView.as_view(template_name='finance/employee_list.html')(request)
 
@@ -242,6 +245,7 @@ urlpatterns = [
     path('crm/contracts/expiring/', lambda request: render(request, 'contracts/contract_expiring_list.html'), name='contract_expiring'),
     path('crm/contracts/', contract_list_page, name='contract_list'),
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
+    path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
     path('finance/employees/', employee_list_page, name='employee_list'),
     path('finance/social-configs/', social_config_list_page, name='social_config_list'),
     path('files/', file_list_page, name='file_list'),

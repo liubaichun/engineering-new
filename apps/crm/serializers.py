@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, Contract, Supplier, ClientSource
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord
 
 
 class ClientSourceSerializer(serializers.ModelSerializer):
@@ -130,3 +130,47 @@ class ContractSerializer(serializers.ModelSerializer):
                 instance.created_by = request.user
             instance.save()
             return instance
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+
+    class Meta:
+        model = Contact
+        fields = ['id', 'client', 'client_name', 'name', 'position',
+                  'phone', 'email', 'is_primary', 'remark',
+                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        read_only_fields = ['created_by']
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        instance = Contact(**validated_data)
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            instance.created_by = request.user
+        instance.save()
+        return instance
+
+
+class FollowUpRecordSerializer(serializers.ModelSerializer):
+    contact_name = serializers.CharField(source='contact.name', read_only=True)
+    client_name = serializers.CharField(source='client.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    follow_type_display = serializers.CharField(source='get_follow_type_display', read_only=True)
+
+    class Meta:
+        model = FollowUpRecord
+        fields = ['id', 'contact', 'contact_name', 'client', 'client_name',
+                  'follow_type', 'follow_type_display',
+                  'content', 'next_plan', 'next_date', 'attachment',
+                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        read_only_fields = ['created_by']
+        extra_kwargs = {'attachment': {'required': False}}
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        instance = FollowUpRecord(**validated_data)
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            instance.created_by = request.user
+        instance.save()
+        return instance

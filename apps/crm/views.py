@@ -2,8 +2,8 @@ from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Client, Contract, Supplier, ClientSource
-from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer, ClientSourceSerializer
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord
+from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer, ClientSourceSerializer, ContactSerializer, FollowUpRecordSerializer
 from rest_framework.permissions import IsAuthenticated
 
 class ClientSourceViewSet(viewsets.ModelViewSet):
@@ -14,7 +14,12 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
 
     def get_queryset(self):
-        return ClientSource.objects.all()
+        user = self.request.user
+        if user.is_superuser:
+            return ClientSource.objects.all()
+        if hasattr(user, 'company') and user.company_id:
+            return ClientSource.objects.filter(company_id=user.company_id)
+        return ClientSource.objects.none()
 
 class SupplierViewSet(viewsets.ModelViewSet):
     """供应商管理"""
@@ -25,9 +30,12 @@ class SupplierViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有供应商数据
-        return queryset
+        user = self.request.user
+        if user.is_superuser:
+            return Supplier.objects.all()
+        if hasattr(user, 'company') and user.company_id:
+            return Supplier.objects.filter(company_id=user.company_id)
+        return Supplier.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -54,9 +62,12 @@ class ClientViewSet(viewsets.ModelViewSet):
     filterset_fields = ['category', 'is_active']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有客户数据
-        return queryset
+        user = self.request.user
+        if user.is_superuser:
+            return Client.objects.all()
+        if hasattr(user, 'company') and user.company_id:
+            return Client.objects.filter(company_id=user.company_id)
+        return Client.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -83,9 +94,12 @@ class ContractViewSet(viewsets.ModelViewSet):
     filterset_fields = ['counterparty_type', 'client', 'supplier', 'project', 'status']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有合同数据
-        return queryset
+        user = self.request.user
+        if user.is_superuser:
+            return Contract.objects.all()
+        if hasattr(user, 'company') and user.company_id:
+            return Contract.objects.filter(company_id=user.company_id)
+        return Contract.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -120,3 +134,55 @@ class ContractViewSet(viewsets.ModelViewSet):
         contract.status = 'rejected'
         contract.save()
         return Response({'detail': '已驳回', 'comment': comment, 'status': contract.status})
+
+
+class ContactViewSet(viewsets.ModelViewSet):
+    """联系人管理"""
+    queryset = Contact.objects.all()
+    serializer_class = ContactSerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['name', 'phone', 'email']
+    filterset_fields = ['client', 'is_primary']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Contact.objects.all()
+        if hasattr(user, 'company') and user.company_id:
+            return Contact.objects.filter(company_id=user.company_id)
+        return Contact.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        kwargs = {}
+        if user.is_authenticated:
+            kwargs['created_by'] = user
+        if hasattr(user, 'company') and user.company_id:
+            kwargs['company_id'] = user.company_id
+        serializer.save(**kwargs)
+
+
+class FollowUpRecordViewSet(viewsets.ModelViewSet):
+    """跟进记录管理"""
+    queryset = FollowUpRecord.objects.all()
+    serializer_class = FollowUpRecordSerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['content', 'next_plan']
+    filterset_fields = ['contact', 'client', 'follow_type']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return FollowUpRecord.objects.all()
+        if hasattr(user, 'company') and user.company_id:
+            return FollowUpRecord.objects.filter(company_id=user.company_id)
+        return FollowUpRecord.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        kwargs = {}
+        if user.is_authenticated:
+            kwargs['created_by'] = user
+        if hasattr(user, 'company') and user.company_id:
+            kwargs['company_id'] = user.company_id
+        serializer.save(**kwargs)
