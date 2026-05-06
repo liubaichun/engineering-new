@@ -813,10 +813,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         year = request.POST.get('year') or request.data.get('year')
         month = request.POST.get('month') or request.data.get('month')
         company_id = request.data.get('company_id')
-
         cid = _get_user_company_id(request.user)
-        if cid is not None:
+        if company_id is None and cid is not None:
             company_id = cid
+        company_id = int(company_id) if company_id else None
 
         defaults = {}
         if year:
@@ -826,7 +826,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         try:
             file_bytes = file.read()
-            records, parse_errors = import_wage_excel(file_bytes, int(company_id), defaults)
+            records, parse_errors = import_wage_excel(file_bytes, company_id or 0, defaults)
         except WageImportError as e:
             return Response({'success': False, 'message': str(e)}, status=400)
         except Exception as e:
