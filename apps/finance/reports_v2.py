@@ -4,8 +4,7 @@
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from django.db.models import Sum, Count, Q, F, DecimalField, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Sum, Count, Q, F
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -16,8 +15,12 @@ from apps.finance.models_bank import BankStatement
 from apps.crm.models import Client, Supplier
 
 
-def coalesce_decimal(qs, field, default=0):
-    return float(qs.aggregate(t=Coalesce(field, DecimalField(default=default), output_field=DecimalField()))['t'] or 0)
+def agg(qs, field):
+    """安全聚合，返回float，None当0处理"""
+    v = qs.aggregate(t=Sum(field))['t']
+    return float(v) if v is not None else 0.0
+
+
 
 
 # ─── 通用筛选逻辑 ─────────────────────────────────────────────────────────
@@ -64,16 +67,14 @@ def cash_flow_report(request):
             begin_inc = begin_inc.filter(date__lt=f"{year}-01-01")
             begin_exp = begin_exp.filter(date__lt=f"{year}-01-01")
         begin_balance = (
-            float(begin_inc.aggregate(t=Coalesce(Sum('amount'), Value(0)))['t'] or 0) -
-            float(begin_exp.aggregate(t=Coalesce(Sum('amount'), Value(0)))['t'] or 0)
+            agg(begin_inc, 'amount') -
+            agg(begin_exp, 'amount')
         )
 
         monthly_data = []
         for month in range(1, 13):
-            inc_total = float(build_qs(Income, company.id, year, month).aggregate(
-                t=Coalesce(Sum('amount'), Value(0)))['t'] or 0)
-            exp_total = float(build_qs(Expense, company.id, year, month).aggregate(
-                t=Coalesce(Sum('amount'), Value(0)))['t'] or 0)
+            inc_total = agg(build_qs(Income, company.id, year, month), 'amount')
+            exp_total = agg(build_qs(Expense, company.id, year, month), 'amount')
             begin_balance = begin_balance + inc_total - exp_total
 
             monthly_data.append({
@@ -297,10 +298,8 @@ def tax_summary_report(request):
             inv_qs = inv_qs.filter(issue_date__month=month)
             w_qs = w_qs.filter(month=month)
 
-        invoice_tax = float(inv_qs.aggregate(
-            t=Coalesce(Sum('tax_amount'), Value(0)))['t'] or 0)
-        personal_tax = float(w_qs.aggregate(
-            t=Coalesce(Sum('personal_tax'), Value(0)))['t'] or 0)
+        invoice_tax = agg(inv_qs, 'tax_amount')
+        personal_tax = agg(w_qs, 'personal_tax')
 
         results.append({
             'company_id': company.id,
@@ -357,18 +356,12 @@ def budget_execution_report(request):
         type_totals = []
         for exp_type, label in EXPENSE_TYPES:
             if exp_type == 'salary':
-                total = float(WageRecord.objects.filter(
-                    company=company, year=year).aggregate(
-                    t=Coalesce(Sum('gross_wage'), Value(0)))['t'] or 0)
+                total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_wage')
             elif exp_type == 'social':
-                total = float(WageRecord.objects.filter(
-                    company=company, year=year).aggregate(
-                    t=Coalesce(Sum('social_security'), Value(0)))['t'] or 0)
+                total = agg(WageRecord.objects.filter(company=company, year=year), 'social_security')
             else:
-                total = float(Expense.objects.filter(
-                    company=company, date__year=year,
-                    expense_type=exp_type).aggregate(
-                    t=Coalesce(Sum('amount'), Value(0)))['t'] or 0)
+                total = agg(Expense.objects.filter(
+                    company=company, date__year=year, expense_type=exp_type), 'amount')
             type_totals.append({'type': exp_type, 'label': label, 'actual': total})
 
         total_actual = sum(t['actual'] for t in type_totals)
