@@ -443,9 +443,12 @@ class WageRecord(models.Model):
             pass  # 出错时保持原值不变
 
     def calculate_gross_and_tax(self):
-        """计算应发合计、社保公积金自动扣款、个税、实发工资"""
+        """计算应发合计、社保公积金自动扣款、累计预扣法个税、实发工资"""
+        from decimal import Decimal
+
         # Step 1: 自动计算五险一金（根据员工基数+公司配置比例）
         self.auto_calculate_social_insurance()
+
         # 自动从 employee_company 填充 employee_name（支持多公司任职）
         if self.employee_company_id and not self.employee_name:
             try:
@@ -455,55 +458,85 @@ class WageRecord(models.Model):
             except Exception:
                 pass
 
-        # 应发合计 = 基本工资 + 岗位工资 + 加班费 + 奖金 + 提成 + 餐补 + 交通补贴 + 通讯补贴 + 其他应发
-        gross = (
-            float(self.base_salary or 0) +
-            float(self.position_salary or 0) +
-            float(self.overtime_pay or 0) +
-            float(self.bonus or 0) +
-            float(self.commission or 0) +
-            float(self.meal_allowance or 0) +
-            float(self.transport_allowance or 0) +
-            float(self.communication_allowance or 0) +
-            float(self.other_allowance or 0)
-        )
+        # === Step 2: 计算当月应发工资 ===
+        gross = float(self.base_salary or 0) + float(self.position_salary or 0) \
+                + float(self.overtime_pay or 0) + float(self.bonus or 0) \
+                + float(self.commission or 0) + float(self.meal_allowance or 0) \
+                + float(self.transport_allowance or 0) + float(self.communication_allowance or 0) \
+                + float(self.other_allowance or 0)
 
-        # 专项扣除 = 社保 + 公积金
-        special_deduction = float(self.social_insurance or 0) + float(self.housing_fund or 0)
+        # 当月社保公积金（auto_calculate已填入）
+        social_ins = float(self.social_insurance or 0)
+        housing_ins = float(self.housing_fund or 0)
+        special_ded = float(self.special_deduction or 0)  # 专项附加扣除（子女教育等）
 
-        # 其他扣款合计
-        total_ded = (
-            special_deduction +
-            float(self.leave_deduction or 0) +
-            float(self.sick_leave_deduction or 0) +
-            float(self.employee_loan_repayment or 0) +
-            float(self.other_loan or 0) +
-            float(self.other_deductions or 0)
-        )
+        # === Step 3: 累计预扣法 ===
+        # 查找本员工本年1月至上月已申报记录
+        prior_records = list(WageRecord.objects.filter(
+            employee_company=self.employee_company,
+            employee=self.employee,
+            company=self.company,
+            year=self.year,
+            month__lt=self.month
+        ).order_by('month'))
 
-        # 按月单独计税：taxable_salary 为当月计税基数，直接套7级累进税率
-        monthly_taxable = max(gross - special_deduction - 5000, 0)
+        # 累计应发工资
+        cum_gross = sum(float(w.gross_salary or 0) for w in prior_records) + gross
+        # 累计社保
+        cum_social = sum(float(w.social_insurance or 0) for w in prior_records) + social_ins
+        # 累计公积金
+        cum_housing = sum(float(w.housing_fund or 0) for w in prior_records) + housing_ins
+        # 累计专项附加扣除
+        cum_special = special_ded * self.month
 
-        def calc_tax(taxable):
-            """7级超额累进税率（按月）"""
-            if taxable <= 0:
-                return 0.0
-            thresholds = [0, 3000, 12000, 25000, 35000, 55000, 80000]
-            rates = [3, 10, 20, 25, 30, 35, 45]
-            quick_deductions = [0, 210, 1410, 2660, 4410, 7160, 15160]
-            for i in range(len(thresholds) - 1):
-                if taxable <= thresholds[i + 1]:
-                    return max(taxable * rates[i] / 100 - quick_deductions[i], 0)
-            return max(taxable * 45 / 100 - 15160, 0)
+        # 月份数
+        month_count = self.month
+        # 累计应纳税所得额 = 累计收入 - 累计三险一金 - 累计专项附加扣除 - 5000×月份
+        cum_taxable = cum_gross - cum_social - cum_housing - cum_special - 5000 * month_count
+        cum_taxable = max(cum_taxable, 0)
 
-        self.tax = round(calc_tax(monthly_taxable), 2)
-        self.cumulative_tax = round(self.tax, 2)  # 按月计税时与当月税额相同
+        # 上月累计已扣税
+        prior_cum_tax = float(self.prior_cumulative_tax or 0)
+
+        # === Step 4: 累计预扣税率表（7级超额累进） ===
+        thresholds = [0, 36000, 144000, 252000, 324000, 648000, 960000]
+        rates = [3, 10, 20, 25, 30, 35, 45]
+        quick_deds = [0, 2520, 16920, 31920, 52920, 85920, 181920]
+
+        cum_tax = 0.0
+        for i in range(len(thresholds) - 1):
+            if cum_taxable <= thresholds[i + 1]:
+                cum_tax = cum_taxable * rates[i] / 100 - quick_deds[i]
+                break
+        else:
+            cum_tax = cum_taxable * 45 / 100 - 181920
+
+        cum_tax = max(cum_tax, 0)
+
+        # 当月应扣个税 = 累计税额 - 上月累计已扣税
+        monthly_tax = cum_tax - prior_cum_tax
+
+        # === Step 5: 保存计算结果 ===
+        self.cumulative_gross = round(cum_gross, 2)
+        self.cumulative_social_insurance = round(cum_social, 2)
+        self.cumulative_housing_fund = round(cum_housing, 2)
+        self.cumulative_taxable_income = round(cum_taxable, 2)
+
+        # 扣款合计 = 社保 + 公积金 + 请假 + 借款 + 其他
+        total_ded = (social_ins + housing_ins
+                     + float(self.leave_deduction or 0)
+                     + float(self.sick_leave_deduction or 0)
+                     + float(self.employee_loan_repayment or 0)
+                     + float(self.other_loan or 0)
+                     + float(self.other_deductions or 0))
+
         self.gross_salary = round(gross, 2)
         self.total_deduction = round(total_ded, 2)
-        self.taxable_salary = round(monthly_taxable, 2)
-
-        # 实发工资 = 应发合计 - 扣款合计 - 个税
-        self.net_salary = round(gross - total_ded - float(self.tax or 0), 2)
+        self.taxable_salary = round(cum_taxable, 2)  # 保留当月计税基数
+        self.cumulative_tax = round(cum_tax, 2)       # 累计总税额
+        self.tax = round(max(monthly_tax, 0), 2)     # 当月应扣税额
+        # 实发工资 = 应发合计 - 扣款合计 - 当月个税
+        self.net_salary = round(gross - total_ded - max(monthly_tax, 0), 2)
 
     def save(self, *args, **kwargs):
         self.calculate_gross_and_tax()
