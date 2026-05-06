@@ -653,6 +653,11 @@
                 <i class="bi bi-tools"></i><span>设备</span>
             </a>
             {% endif %}
+            {% if request.user.is_superuser %}
+            <a href="/repair/requests/" class="nav-link {% if '/repair/requests' in request.path %}active{% endif %}">
+                <i class="bi bi-wrench"></i><span>设备报修</span>
+            </a>
+            {% endif %}
         </div>
         {% endif %}
         {% endblock %}

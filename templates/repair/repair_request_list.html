@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>设备故障报修</title>
+<link href="/static/bootstrap-5.3.0.min.css" rel="stylesheet">
+<link href="/static/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
+<script src="/static/bootstrap-5.3.0.bundle.min.js"></script>
+<script src="/static/axios.min.js"></script>
+<style>
+.card-stat { border-left: 4px solid #0d6efd; }
+.card-stat2 { border-left: 4px solid #ffc107; }
+.card-stat3 { border-left: 4px solid #fd7e14; }
+.card-stat4 { border-left: 4px solid #198754; }
+.stat-num { font-size:1.6rem; font-weight:700; }
+.table-actions .btn { padding: 2px 8px; font-size: 12px; }
+.badge-submitted { background:#6c757d; }
+.badge-assigned { background:#0d6efd; }
+.badge-in_progress { background:#fd7e14; }
+.badge-completed { background:#198754; }
+.badge-accepted { background:#20c997; }
+.badge-cancelled { background:#dc3545; }
+.badge-low { background:#6c757d; }
+.badge-medium { background:#ffc107; color:#000; }
+.badge-high { background:#fd7e14; }
+.badge-critical { background:#dc3545; }
+.modal-form-row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.form-label { font-size:13px; color:#495057; font-weight:600; margin-bottom:3px; }
+.text-muted-small { font-size:12px; color:#adb5bd; }
+th { white-space:nowrap; font-size:13px; }
+td { font-size:13px; vertical-align:middle; }
+</style>
+</head>
+<body>
+{% include 'base.html' %}
+
+<div class="container-fluid" style="margin-top:60px;">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4><i class="bi bi-wrench"></i> 设备故障报修</h4>
+        <button class="btn btn-primary btn-sm" onclick="openCreateModal()">
+            <i class="bi bi-plus-circle"></i> 新建报修单
+        </button>
+    </div>
+
+    <!-- 统计卡片 -->
+    <div class="row g-3 mb-3">
+        <div class="col-6 col-md-2">
+            <div class="card card-stat">
+                <div class="card-body py-2">
+                    <div class="text-muted-small">总报修数</div>
+                    <div class="stat-num" id="stat-total">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card card-stat2">
+                <div class="card-body py-2">
+                    <div class="text-muted-small">已派工</div>
+                    <div class="stat-num" id="stat-assigned">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card card-stat3">
+                <div class="card-body py-2">
+                    <div class="text-muted-small">维修中</div>
+                    <div class="stat-num" id="stat-in_progress">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card card-stat4">
+                <div class="card-body py-2">
+                    <div class="text-muted-small">已完成</div>
+                    <div class="stat-num" id="stat-completed">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card" style="border-left:4px solid #20c997;">
+                <div class="card-body py-2">
+                    <div class="text-muted-small">已验收</div>
+                    <div class="stat-num" id="stat-accepted">-</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card card-stat4" style="border-left-color:#dc3545;">
+                <div class="card-body py-2">
+                    <div class="text-muted-small">今日新增</div>
+                    <div class="stat-num" id="stat-today">-</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 筛选栏 -->
+    <div class="card mb-3">
+        <div class="card-body py-2 d-flex gap-2 flex-wrap align-items-center">
+            <select class="form-select form-select-sm" style="width:130px" id="filter-status">
+                <option value="">全部状态</option>
+                <option value="submitted">已提交</option>
+                <option value="assigned">已派工</option>
+                <option value="in_progress">维修中</option>
+                <option value="completed">已完成</option>
+                <option value="accepted">已验收</option>
+                <option value="cancelled">已取消</option>
+            </select>
+            <select class="form-select form-select-sm" style="width:120px" id="filter-priority">
+                <option value="">全部优先级</option>
+                <option value="low">一般</option>
+                <option value="medium">紧急</option>
+                <option value="high">紧急</option>
+                <option value="critical">关键</option>
+            </select>
+            <input type="date" class="form-control form-control-sm" style="width:150px" id="filter-date-from" placeholder="开始日期">
+            <input type="date" class="form-control form-control-sm" style="width:150px" id="filter-date-to" placeholder="结束日期">
+            <input type="text" class="form-control form-control-sm" style="width:180px" id="filter-keyword" placeholder="单号/设备名称">
+            <button class="btn btn-outline-secondary btn-sm" onclick="loadData(1)">
+                <i class="bi bi-search"></i> 搜索
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                <i class="bi bi-x-circle"></i> 清空
+            </button>
+        </div>
+    </div>
+
+    <!-- 数据表格 -->
+    <div class="card">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0" style="table-layout:fixed">
+                    <thead class="table-light">
+                        <tr>
+                            <th style="width:130px">报修单号</th>
+                            <th>设备</th>
+                            <th style="width:80px">优先级</th>
+                            <th style="width:90px">状态</th>
+                            <th style="width:120px">故障时间</th>
+                            <th>报修人</th>
+                            <th>维修负责人</th>
+                            <th style="width:80px">维修费</th>
+                            <th style="width:140px">创建时间</th>
+                            <th style="width:160px">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 分页 -->
+    <div class="d-flex justify-content-between align-items-center mt-2">
+        <div class="text-muted small" id="page-info"></div>
+        <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
+    </div>
+</div>
+
+<!-- 新建/编辑弹窗 -->
+<div class="modal fade" id="formModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modal-title">新建报修单</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="form-id">
+                <div class="modal-form-row">
+                    <div>
+                        <label class="form-label">设备 <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="form-equipment" required></select>
+                    </div>
+                    <div>
+                        <label class="form-label">报修人 <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="form-reporter" required></select>
+                    </div>
+                </div>
+                <div class="modal-form-row mt-2">
+                    <div>
+                        <label class="form-label">公司 <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="form-company" required></select>
+                    </div>
+                    <div>
+                        <label class="form-label">关联项目</label>
+                        <select class="form-select form-select-sm" id="form-project">
+                            <option value="">-- 无 --</option></select>
+                    </div>
+                </div>
+                <div class="modal-form-row mt-2">
+                    <div>
+                        <label class="form-label">故障发生时间 <span class="text-danger">*</span></label>
+                        <input type="datetime-local" class="form-control form-control-sm" id="form-fault-time" required>
+                    </div>
+                    <div>
+                        <label class="form-label">优先级 <span class="text-danger">*</span></label>
+                        <select class="form-select form-select-sm" id="form-priority" required>
+                            <option value="low">一般</option>
+                            <option value="medium" selected>紧急</option>
+                            <option value="high">紧急</option>
+                            <option value="critical">关键</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label">故障描述 <span class="text-danger">*</span></label>
+                    <textarea class="form-control form-control-sm" id="form-fault-description" rows="3" placeholder="请详细描述故障现象" required></textarea>
+                </div>
+                <div class="mt-2">
+                    <label class="form-label">备注</label>
+                    <textarea class="form-control form-control-sm" id="form-remark" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="submitForm()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">报修单详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="detail-content"></div>
+            <div class="modal-footer">
+                <div class="me-auto" id="detail-actions"></div>
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 派工弹窗 -->
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">派工</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="assign-request-id">
+                <p class="text-muted small">选择维修负责人：</p>
+                <select class="form-select" id="assign-employee"></select>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="submitAssign()">确认派工</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 完成维修弹窗 -->
+<div class="modal fade" id="completeModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">维修完成</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="complete-request-id">
+                <div class="mb-2">
+                    <label class="form-label">维修方案/结果</label>
+                    <textarea class="form-control" id="complete-solution" rows="3" placeholder="描述维修过程和结果"></textarea>
+                </div>
+                <div class="mb-2">
+                    <label class="form-label">维修费用（元）</label>
+                    <input type="number" class="form-control" id="complete-cost" step="0.01" min="0" value="0">
+                </div>
+                <div>
+                    <label class="form-label">维修单位</label>
+                    <input type="text" class="form-control" id="complete-company" placeholder="如：内部维修/第三方">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success btn-sm" onclick="submitComplete()">确认完成</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const API = '/api/repair/requests/';
+let modal, detailModal, assignModal, completeModal;
+let currentPage = 1;
+
+document.addEventListener('DOMContentLoaded', () => {
+    modal = new bootstrap.Modal(document.getElementById('formModal'));
+    detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+    assignModal = new bootstrap.Modal(document.getElementById('assignModal'));
+    completeModal = new bootstrap.Modal(document.getElementById('completeModal'));
+    loadData(1);
+    loadLookups();
+});
+
+function loadLookups() {
+    axios.get('/api/equipment/equipment/?page_size=200).then(r => {
+        const list = r.data.results || r.data;
+        const sel = document.getElementById('form-equipment');
+        sel.innerHTML = '<option value="">-- 选择设备 --</option>' +
+            list.map(e => `<option value="${e.id}">${e.name}（${e.code}）</option>`).join('');
+    });
+    axios.get('/api/finance/employees/?page_size=200).then(r => {
+        const list = r.data.results || r.data;
+        const sel = document.getElementById('form-reporter');
+        sel.innerHTML = '<option value="">-- 选择报修人 --</option>' +
+            list.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+        const sel2 = document.getElementById('assign-employee');
+        sel2.innerHTML = '<option value="">-- 选择维修负责人 --</option>' +
+            list.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
+    });
+    axios.get('/api/finance/companies/?page_size=100).then(r => {
+        const list = r.data.results || r.data;
+        const sel = document.getElementById('form-company');
+        sel.innerHTML = '<option value="">-- 选择公司 --</option>' +
+            list.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    });
+    axios.get('/api/tasks/projects/?page_size=200).then(r => {
+        const list = r.data.results || r.data;
+        const sel = document.getElementById('form-project');
+        sel.innerHTML = '<option value="">-- 无 --</option>' +
+            list.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    });
+}
+
+function loadData(page) {
+    currentPage = page;
+    const params = new URLSearchParams({ page });
+    const st = document.getElementById('filter-status').value;
+    const pr = document.getElementById('filter-priority').value;
+    const kw = document.getElementById('filter-keyword').value.trim();
+    const df = document.getElementById('filter-date-from').value;
+    const dt = document.getElementById('filter-date-to').value;
+    if (st) params.append('status', st);
+    if (pr) params.append('priority', pr);
+    if (kw) params.append('search', kw);
+    if (df) params.append('date_from', df);
+    if (dt) params.append('date_to', dt);
+
+    axios.get(API + '?' + params.toString()).then(r => {
+        const d = r.data;
+        renderTable(d.results || d);
+        renderStats(d.results || d);
+        renderPagination(d);
+    }).catch(e => console.error(e));
+}
+
+function renderStats(items) {
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('stat-total').textContent = items.length;
+    document.getElementById('stat-assigned').textContent = items.filter(i => i.status === 'assigned').length;
+    document.getElementById('stat-in_progress').textContent = items.filter(i => i.status === 'in_progress').length;
+    document.getElementById('stat-completed').textContent = items.filter(i => i.status === 'completed').length;
+    document.getElementById('stat-accepted').textContent = items.filter(i => i.status === 'accepted').length;
+    document.getElementById('stat-today').textContent = items.filter(i => i.created_at && i.created_at.slice(0, 10) === today).length;
+}
+
+function renderTable(items) {
+    const tbody = document.getElementById('table-body');
+    if (!items.length) {
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
+        return;
+    }
+    tbody.innerHTML = items.map(item => `
+        <tr>
+            <td><span class="text-primary fw-bold">${item.request_no}</span></td>
+            <td><div class="fw-semibold">${item.equipment_name || '-'}</div><div class="text-muted-small">${item.equipment_code || ''}</div></td>
+            <td><span class="badge badge-${item.priority}">${item.priority_display || item.priority}</span></td>
+            <td><span class="badge badge-${item.status}">${item.status_display || item.status}</span></td>
+            <td>${item.fault_time ? item.fault_time.slice(0, 16) : '-'}</td>
+            <td>${item.reporter_name || '-'}</td>
+            <td>${item.assigned_to_name || '<span class="text-muted">未派工</span>'}</td>
+            <td>${item.repair_cost > 0 ? '¥' + item.repair_cost : '-'}</td>
+            <td>${item.created_at ? item.created_at.slice(0, 16) : '-'}</td>
+            <td class="table-actions">
+                <button class="btn btn-outline-primary btn-sm" onclick="viewDetail(${item.id})"><i class="bi bi-eye"></i></button>
+                ${item.status === 'submitted' ? `<button class="btn btn-outline-info btn-sm" onclick="openAssign(${item.id})"><i class="bi bi-person-plus"></i></button>` : ''}
+                ${item.status === 'assigned' ? `<button class="btn btn-outline-warning btn-sm" onclick="startRepair(${item.id})"><i class="bi bi-play"></i></button>` : ''}
+                ${item.status === 'in_progress' || item.status === 'assigned' ? `<button class="btn btn-outline-success btn-sm" onclick="openComplete(${item.id})"><i class="bi bi-check2-all"></i></button>` : ''}
+                ${item.status === 'completed' ? `<button class="btn btn-success btn-sm" onclick="acceptRepair(${item.id})"><i class="bi bi-check-circle"></i></button>` : ''}
+                ${item.status === 'completed' ? `<button class="btn btn-outline-danger btn-sm" onclick="rejectAcceptance(${item.id})"><i class="bi bi-x-circle"></i></button>` : ''}
+                ${!['completed','accepted','cancelled'].includes(item.status) ? `<button class="btn btn-outline-secondary btn-sm" onclick="cancelRepair(${item.id})"><i class="bi bi-x-lg"></i></button>` : ''}
+            </td>
+        </tr>`).join('');
+}
+
+function renderPagination(d) {
+    document.getElementById('page-info').textContent = `共 ${d.count || 0} 条`;
+    const pg = document.getElementById('pagination');
+    if (!d.count || d.count <= 10) { pg.innerHTML = ''; return; }
+    let html = '';
+    const total = Math.ceil(d.count / 10);
+    const cur = d.current_page || 1;
+    for (let i = 1; i <= Math.min(total, 5); i++) {
+        html += `<li class="page-item ${i === cur ? 'active' : ''}"><a class="page-link" href="#" onclick="loadData(${i});return false">${i}</a></li>`;
+    }
+    pg.innerHTML = html;
+}
+
+function clearFilters() {
+    ['filter-status','filter-priority','filter-date-from','filter-date-to','filter-keyword'].forEach(id => document.getElementById(id).value = '');
+    loadData(1);
+}
+
+function openCreateModal() {
+    document.getElementById('modal-title').textContent = '新建报修单';
+    document.getElementById('form-id').value = '';
+    ['form-equipment','form-reporter','form-company','form-project'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('form-fault-time').value = '';
+    document.getElementById('form-priority').value = 'medium';
+    document.getElementById('form-fault-description').value = '';
+    document.getElementById('form-remark').value = '';
+    modal.show();
+}
+
+function submitForm() {
+    const payload = {
+        equipment: document.getElementById('form-equipment').value,
+        reporter: document.getElementById('form-reporter').value,
+        company: document.getElementById('form-company').value,
+        project: document.getElementById('form-project').value || null,
+        fault_time: document.getElementById('form-fault-time').value,
+        priority: document.getElementById('form-priority').value,
+        fault_description: document.getElementById('form-fault-description').value,
+        remark: document.getElementById('form-remark').value,
+    };
+    if (!payload.equipment || !payload.reporter || !payload.company || !payload.fault_time || !payload.fault_description) {
+        alert('请填写必填字段'); return;
+    }
+    const id = document.getElementById('form-id').value;
+    const req = id ? axios.patch(API + id + '/', payload) : axios.post(API, payload);
+    req.then(() => { modal.hide(); loadData(currentPage); })
+       .catch(e => { alert('保存失败: ' + (e.response?.data?.error || e.message)); });
+}
+
+function viewDetail(id) {
+    axios.get(API + id + '/').then(r => {
+        const d = r.data;
+        let html = `<div class="row g-3">
+            <div class="col-md-6"><p class="mb-1 text-muted small">报修单号</p><p class="fw-bold">${d.request_no}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">状态</p><p><span class="badge badge-${d.status}">${d.status_display}</span></p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">设备</p><p>${d.equipment_name}（${d.equipment_code}）</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">存放位置</p><p>${d.equipment_location || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">报修人</p><p>${d.reporter_name}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">报修人电话</p><p>${d.reporter_phone || '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">维修负责人</p><p>${d.assigned_to_name || '<span class=text-muted>未派工</span>'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">优先级</p><p><span class="badge badge-${d.priority}">${d.priority_display}</span></p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">故障发生时间</p><p>${d.fault_time ? d.fault_time.slice(0, 16) : '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">派工时间</p><p>${d.assigned_at ? d.assigned_at.slice(0, 16) : '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">完成时间</p><p>${d.completed_at ? d.completed_at.slice(0, 16) : '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">验收时间</p><p>${d.accepted_at ? d.accepted_at.slice(0, 16) : '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">维修费用</p><p>${d.repair_cost > 0 ? '¥' + d.repair_cost : '-'}</p></div>
+            <div class="col-md-6"><p class="mb-1 text-muted small">维修单位</p><p>${d.repair_company || '-'}</p></div>
+            <div class="col-12"><p class="mb-1 text-muted small">故障描述</p><div class="p-2 bg-light rounded">${d.fault_description}</div></div>
+            <div class="col-12"><p class="mb-1 text-muted small">维修方案/结果</p><div class="p-2 bg-light rounded">${d.solution || '-'}</div></div>
+            <div class="col-12"><p class="mb-1 text-muted small">备注</p><div class="p-2 bg-light rounded">${d.remark || '-'}</div></div>`;
+
+        if (d.images && d.images.length) {
+            html += `<div class="col-12"><p class="mb-1 text-muted small">报修图片（${d.images.length}张）</p><div class="d-flex flex-wrap gap-2">` +
+                d.images.map(img => `<img src="${img.image}" style="height:80px;object-fit:cover;border-radius:4px;">`).join('') + '</div></div>';
+        }
+        if (d.spare_parts && d.spare_parts.length) {
+            html += `<div class="col-12"><p class="mb-1 text-muted small">维修配件</p><table class="table table-sm table-bordered mb-0"><thead><tr><th>物料</th><th>规格</th><th>数量</th><th>单价</th></tr></thead><tbody>` +
+                d.spare_parts.map(sp => `<tr><td>${sp.material_name}</td><td>${sp.material_code}</td><td>${sp.quantity}</td><td>¥${sp.unit_price}</td></tr>`).join('') + '</tbody></table></div>';
+        }
+        html += '</div>';
+
+        let actions = '';
+        if (d.status === 'submitted')
+            actions += `<button class="btn btn-info btn-sm me-1" onclick="openAssign(${d.id}); detailModal.hide()"><i class="bi bi-person-plus"></i> 派工</button>`;
+        if (d.status === 'assigned')
+            actions += `<button class="btn btn-warning btn-sm me-1" onclick="startRepair(${d.id}); detailModal.hide()"><i class="bi bi-play"></i> 开始维修</button>`;
+        if (d.status === 'in_progress' || d.status === 'assigned')
+            actions += `<button class="btn btn-success btn-sm me-1" onclick="openComplete(${d.id}); detailModal.hide()"><i class="bi bi-check2-all"></i> 完成维修</button>`;
+        if (d.status === 'completed') {
+            actions += `<button class="btn btn-success btn-sm me-1" onclick="acceptRepair(${d.id}); detailModal.hide()"><i class="bi bi-check-circle"></i> 验收通过</button>`;
+            actions += `<button class="btn btn-outline-danger btn-sm me-1" onclick="rejectAcceptance(${d.id}); detailModal.hide()"><i class="bi bi-x-circle"></i> 退回重修</button>`;
+        }
+        if (!['completed','accepted','cancelled'].includes(d.status))
+            actions += `<button class="btn btn-outline-secondary btn-sm" onclick="cancelRepair(${d.id}); detailModal.hide()"><i class="bi bi-x-lg"></i> 取消</button>`;
+
+        document.getElementById('detail-content').innerHTML = html;
+        document.getElementById('detail-actions').innerHTML = actions;
+        detailModal.show();
+    });
+}
+
+function openAssign(id) {
+    document.getElementById('assign-request-id').value = id;
+    assignModal.show();
+}
+
+function submitAssign() {
+    const id = document.getElementById('assign-request-id').value;
+    const emp = document.getElementById('assign-employee').value;
+    if (!emp) { alert('请选择维修负责人'); return; }
+    axios.post(API + id + '/assign/', { assigned_to: emp })
+        .then(() => { assignModal.hide(); loadData(currentPage); })
+        .catch(e => { alert('派工失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+}
+
+function startRepair(id) {
+    axios.post(API + id + '/start_repair/')
+        .then(() => loadData(currentPage))
+        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+}
+
+function openComplete(id) {
+    document.getElementById('complete-request-id').value = id;
+    document.getElementById('complete-solution').value = '';
+    document.getElementById('complete-cost').value = '0';
+    document.getElementById('complete-company').value = '';
+    completeModal.show();
+}
+
+function submitComplete() {
+    const id = document.getElementById('complete-request-id').value;
+    axios.post(API + id + '/complete/', {
+        solution: document.getElementById('complete-solution').value,
+        repair_cost: document.getElementById('complete-cost').value,
+        repair_company: document.getElementById('complete-company').value,
+    }).then(() => { completeModal.hide(); loadData(currentPage); })
+      .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+}
+
+function acceptRepair(id) {
+    axios.post(API + id + '/accept/')
+        .then(() => loadData(currentPage))
+        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+}
+
+function rejectAcceptance(id) {
+    axios.post(API + id + '/reject_acceptance/')
+        .then(() => loadData(currentPage))
+        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+}
+
+function cancelRepair(id) {
+    if (!confirm('确认取消此报修单？')) return;
+    axios.post(API + id + '/cancel/')
+        .then(() => loadData(currentPage))
+        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+}
+</script>
+</body>
+</html>
