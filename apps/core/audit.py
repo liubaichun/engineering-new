@@ -79,6 +79,13 @@ def _log_operation(instance, action, **kwargs):
 
         changes = _build_changes(instance, action)
 
+        # 尝试从 instance 提取 company_id
+        company_id = None
+        if hasattr(instance, 'company_id') and instance.company_id:
+            company_id = instance.company_id
+        elif request is not None:
+            company_id = getattr(request, 'company_id', None)
+
         OperationAuditLog.objects.create(
             user=user,
             username=username,
@@ -90,6 +97,7 @@ def _log_operation(instance, action, **kwargs):
             object_repr=str(instance)[:500],
             action=action,
             changes=changes,
+            company_id=company_id,
         )
     except Exception:
         # 审计日志失败不能影响主业务

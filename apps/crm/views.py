@@ -394,7 +394,9 @@ class OpportunityViewSet(viewsets.ModelViewSet):
                 'total_weighted': round(weighted, 2),
                 'probability': stage_probs.get(stage, 0),
             })
-        return Response(result)
+        # 漏斗整体加权总额汇总
+        grand_weighted = round(sum(s['total_weighted'] for s in result), 2)
+        return Response({'stages': result, 'total_weighted': grand_weighted})
 
     @action(detail=True, methods=['post'])
     def advance_stage(self, request, pk=None):

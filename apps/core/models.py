@@ -354,6 +354,7 @@ class OperationAuditLog(models.Model):
     action = models.CharField(max_length=10, choices=ACTION_CHOICES, verbose_name='操作类型')
     changes = models.TextField(blank=True, verbose_name='变更内容')
     approval_flow_id = models.PositiveIntegerField(null=True, blank=True, db_index=True, verbose_name='关联审批流')
+    company_id = models.PositiveIntegerField(null=True, blank=True, db_index=True, verbose_name='所属公司')
     created_at = models.DateTimeField(auto_now_add=True, db_index=True, verbose_name='操作时间')
 
     class Meta:

@@ -1007,9 +1007,15 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = OperationAuditLog.objects.select_related('user')
-        # 仅管理员可查看全部审计日志
-        if not self.request.user.is_superuser:
-            return queryset.none()
+        user = self.request.user
+
+        # 超级管理员：跨公司查看全部；普通管理员：仅本公司
+        if user.is_superuser:
+            pass  # 不过滤
+        elif hasattr(user, 'company_id') and user.company_id:
+            queryset = queryset.filter(company_id=user.company_id)
+        else:
+            queryset = queryset.filter(company_id__isnull=True)
 
         app_label = self.request.query_params.get('app_label')
         if app_label:
