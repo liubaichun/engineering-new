@@ -180,32 +180,36 @@ class UserSerializer(serializers.ModelSerializer):
                 UserRole.objects.create(user=instance, role_id=rid)
             # 写审计日志
             if request and (added or removed):
-                try:
-                    from .models import PermissionAuditLog
-                    ip = request.META.get('REMOTE_ADDR', '') if request else ''
-                    ua = request.META.get('HTTP_USER_AGENT', '')[:500] if request else ''
-                    for rid in added:
-                        PermissionAuditLog.objects.create(
-                            user=request.user if request and hasattr(request, 'user') else None,
-                            action='assign_role',
-                            target_user=instance,
-                            role_id=rid,
-                            ip_address=ip,
-                            user_agent=ua,
-                            details=f'分配角色 {rid}',
-                        )
-                    for rid in removed:
-                        PermissionAuditLog.objects.create(
-                            user=request.user if request and hasattr(request, 'user') else None,
-                            action='remove_role',
-                            target_user=instance,
-                            role_id=rid,
-                            ip_address=ip,
-                            user_agent=ua,
-                            details=f'移除角色 {rid}',
-                        )
-                except Exception:
-                    pass
+                    try:
+                        from .models import PermissionAuditLog
+                        ip = request.META.get('REMOTE_ADDR', '') if request else ''
+                        ua = request.META.get('HTTP_USER_AGENT', '')[:500] if request else ''
+                        req = self.context.get('request')
+                        auth_company = getattr(req, 'auth_company', None) if req else None
+                        for rid in added:
+                            PermissionAuditLog.objects.create(
+                                user=request.user if request and hasattr(request, 'user') else None,
+                                action='assign_role',
+                                target_user=instance,
+                                role_id=rid,
+                                ip_address=ip,
+                                user_agent=ua,
+                                details=f'分配角色 {rid}',
+                                company=auth_company,
+                            )
+                        for rid in removed:
+                            PermissionAuditLog.objects.create(
+                                user=request.user if request and hasattr(request, 'user') else None,
+                                action='remove_role',
+                                target_user=instance,
+                                role_id=rid,
+                                ip_address=ip,
+                                user_agent=ua,
+                                details=f'移除角色 {rid}',
+                                company=auth_company,
+                            )
+                    except Exception:
+                        pass
         # 处理公司角色分配（批量覆盖）
         if company_role_ids is not None:
             existing = {ucr.company_id: ucr for ucr in instance.company_roles.all()}

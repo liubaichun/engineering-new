@@ -176,6 +176,12 @@ class LoginView(APIView):
         return request.META.get('REMOTE_ADDR')
 
     def _log_login(self, request, username, status, user=None, fail_reason=''):
+        # 登录时从用户公司角色取默认公司
+        company_id = None
+        if user:
+            links = user.company_roles.all()
+            if links.exists():
+                company_id = links.first().company_id
         LoginLog.objects.create(
             user=user,
             username=username,
@@ -183,6 +189,7 @@ class LoginView(APIView):
             ip_address=get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
             fail_reason=fail_reason,
+            company_id=company_id,
         )
 
     def post(self, request):
@@ -492,6 +499,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 role_name='公司管理员',
                 description=f'批准注册并创建公司[{company.name}]，分配公司管理员角色',
                 ip_address=get_client_ip(request),
+                company=company,
             )
         else:
             # 已有公司，单纯激活
@@ -501,6 +509,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 target_user=user,
                 description='批准用户注册（账号激活）',
                 ip_address=get_client_ip(request),
+                company=existing_link.company if existing_link else None,
             )
 
         # 给用户发通知
@@ -510,6 +519,7 @@ class UserViewSet(viewsets.ModelViewSet):
             content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
             notification_type='approval',
             level='success',
+            company=company if not existing_link else (existing_link.company if existing_link else None),
         )
         return Response({
             'status': 'success',
@@ -580,6 +590,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     action='assign_role', target_user=user, role_name='公司管理员',
                     description=f'批量批准注册并创建公司[{company.name}]，分配公司管理员角色',
                     ip_address=get_client_ip(request),
+                    company=company,
                 )
             else:
                 PermissionAuditLog.objects.create(
@@ -587,6 +598,7 @@ class UserViewSet(viewsets.ModelViewSet):
                     action='activate_user', target_user=user,
                     description='批量批准用户注册（账号激活）',
                     ip_address=get_client_ip(request),
+                    company=existing_link.company if existing_link else None,
                 )
 
             Notification.objects.create(
@@ -595,6 +607,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
                 notification_type='approval',
                 level='success',
+                company=company if not existing_link else (existing_link.company if existing_link else None),
             )
             approved.append(user.username)
         return Response({

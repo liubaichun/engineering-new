@@ -198,6 +198,11 @@ class Notification(models.Model):
     is_read = models.BooleanField(default=False, verbose_name='已读')
     related_id = models.IntegerField(null=True, blank=True, verbose_name='关联ID')
     related_type = models.CharField(max_length=50, blank=True, verbose_name='关联类型')
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='notifications',
+        verbose_name='公司'
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -221,6 +226,7 @@ class PermissionAuditLog(models.Model):
     target_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+', verbose_name='目标用户')
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='角色')
     permission = models.ForeignKey(Permission, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='权限')
+    company = models.ForeignKey('finance.Company', on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='公司')
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP地址')
     user_agent = models.TextField(blank=True, verbose_name='User Agent')
     details = models.TextField(blank=True, verbose_name='变更详情')
@@ -318,6 +324,11 @@ class LoginLog(models.Model):
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP地址')
     user_agent = models.TextField(blank=True, verbose_name='User Agent')
     fail_reason = models.CharField(max_length=200, blank=True, default='', verbose_name='失败原因')
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='login_logs',
+        verbose_name='公司'
+    )
     created_at = models.DateTimeField(auto_now_add=True, verbose_name='登录时间')
 
     class Meta:
