@@ -4,7 +4,11 @@ from apps.core.models import User
 
 class ClientSource(models.Model):
     """客户来源渠道 - 用户可自行维护"""
-    name = models.CharField('来源名称', max_length=100, unique=True)
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='client_sources', null=True, blank=True, verbose_name='所属公司'
+    )
+    name = models.CharField('来源名称', max_length=100)
     remark = models.CharField('备注', max_length=500, blank=True, default='')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
@@ -20,6 +24,10 @@ class ClientSource(models.Model):
 
 class Supplier(models.Model):
     """供应商模型"""
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='suppliers', null=True, blank=True, verbose_name='所属公司'
+    )
     STATUS_CHOICES = [
         ('active', '合作中'),
         ('inactive', '已停止'),
@@ -50,6 +58,10 @@ class Supplier(models.Model):
 
 class Client(models.Model):
     """客户模型"""
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='clients', null=True, blank=True, verbose_name='所属公司'
+    )
     CATEGORY_CHOICES = [
         ('enterprise', '企业客户'),
         ('government', '政府事业单位'),
@@ -102,6 +114,10 @@ class Client(models.Model):
 
 class Contract(models.Model):
     """合同模型"""
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='contracts', null=True, blank=True, verbose_name='所属公司'
+    )
     STATUS_CHOICES = [
         ('draft', '草稿'),
         ('active', '执行中'),
