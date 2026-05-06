@@ -299,7 +299,7 @@ def tax_summary_report(request):
             w_qs = w_qs.filter(month=month)
 
         invoice_tax = agg(inv_qs, 'tax_amount')
-        personal_tax = agg(w_qs, 'personal_tax')
+        personal_tax = agg(w_qs, 'tax')
 
         results.append({
             'company_id': company.id,
@@ -356,9 +356,9 @@ def budget_execution_report(request):
         type_totals = []
         for exp_type, label in EXPENSE_TYPES:
             if exp_type == 'salary':
-                total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_wage')
+                total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_salary')
             elif exp_type == 'social':
-                total = agg(WageRecord.objects.filter(company=company, year=year), 'social_security')
+                total = agg(WageRecord.objects.filter(company=company, year=year), 'social_insurance')
             else:
                 total = agg(Expense.objects.filter(
                     company=company, date__year=year, expense_type=exp_type), 'amount')

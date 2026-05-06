@@ -725,7 +725,7 @@ function renderCustomerRevenueReport(data, container) {
 <td>${escapeHtml(r.company)}</td>
 <td class="text-success fw-bold">¥${fmt(r.total)}</td>
 <td>${r.count}</td>
-<td>¥${fmt(r.avg_amount)}</td>
+<td>¥${fmt(r.avg_amount || (r.count ? r.total/r.count : 0))}</td>
 </tr>`;
     });
     html += `</tbody></table></div>`;
@@ -744,14 +744,14 @@ function renderSupplierExpenseReport(data, container) {
     html += `<div class="table-responsive"><table class="table report-table">
 <thead><tr><th>排行</th><th>供应商</th><th>公司</th><th>支出合计</th><th>笔数</th><th>平均单笔</th></tr></thead><tbody>`;
     rows.forEach(r => {
-        const types = Object.entries(r.expense_types || {}).map(([k, v]) => `${escapeHtml(k)}:¥${fmt(v)}`).join(', ');
+        const types = Object.entries(r.types || {}).map(([k, v]) => `${escapeHtml(k)}:¥${fmt(v)}`).join(', ');
         html += `<tr>
 <td><span class="badge bg-secondary">${r.rank}</span></td>
 <td>${escapeHtml(r.supplier)}</td>
-<td>${escapeHtml(r.company_name)}</td>
-<td class="text-danger fw-bold">¥${fmt(r.total_expense)}</td>
-<td>${r.transaction_count}</td>
-<td>¥${fmt(r.avg_amount)}</td>
+<td>${escapeHtml(r.company)}</td>
+<td class="text-danger fw-bold">¥${fmt(r.total)}</td>
+<td>${r.count}</td>
+<td>¥${fmt(r.count ? r.total/r.count : 0)}</td>
 </tr>
 <tr><td colspan="6" class="text-muted" style="font-size:0.78rem;padding-left:50px">${escapeHtml(types)}</td></tr>`;
     });
@@ -773,11 +773,11 @@ function renderTaxSummaryReport(data, container) {
     html += `<div class="table-responsive"><table class="table report-table">
 <thead><tr><th>公司</th><th>发票税额</th><th>工资代扣个税</th><th>税费合计</th></tr></thead><tbody>`;
     rows.forEach(r => {
-        const total = r.total_invoice_tax + r.personal_tax_from_wages;
+        const total = (r.invoice_tax || 0) + (r.personal_tax || 0);
         html += `<tr>
 <td>${escapeHtml(r.company_name)}</td>
-<td>¥${fmt(r.total_invoice_tax)}</td>
-<td>¥${fmt(r.personal_tax_from_wages)}</td>
+<td>¥${fmt(r.invoice_tax || 0)}</td>
+<td>¥${fmt(r.personal_tax || 0)}</td>
 <td class="fw-bold text-danger">¥${fmt(total)}</td>
 </tr>`;
     });
@@ -785,9 +785,9 @@ function renderTaxSummaryReport(data, container) {
 
     if (data.summary) {
         html += `<div class="alert alert-danger">
-发票税额合计: <b>¥${fmt(data.summary.total_invoice_tax)}</b> |
-工资个税合计: <b>¥${fmt(data.summary.total_personal_tax)}</b> |
-<b>税费总计: ¥${fmt(data.summary.total_tax)}</b>
+发票税额合计: <b>¥${fmt(data.summary.total_invoice_tax || 0)}</b> |
+工资个税合计: <b>¥${fmt(data.summary.total_personal_tax || 0)}</b> |
+<b>税费总计: ¥${fmt((data.summary.total_invoice_tax || 0) + (data.summary.total_personal_tax || 0))}</b>
 </div>`;
     }
     container.innerHTML = html;
