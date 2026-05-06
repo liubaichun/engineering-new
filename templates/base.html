@@ -39,6 +39,14 @@
     }
 
     /* Sidebar */
+    /* 如果在iframe中，隐藏侧边栏（避免俄罗斯套娃） */
+    body.iframe-child .sidebar,
+    body.iframe-child .sidebar-brand,
+    body.iframe-child .sidebar-nav,
+    body.iframe-child .sidebar-footer { display: none !important; }
+    body.iframe-child .main-content { margin-left: 0 !important; }
+    body.iframe-child .sidebar ~ * { display: none; }
+    body.iframe-child .container-fluid { display: block !important; }
     .sidebar {
         position: fixed;
         top: 0;
@@ -458,6 +466,13 @@
 
     {% block styles %}{% endblock %}
     </style>
+<script>
+(function() {
+    // 检测是否在iframe中加载，自动隐藏侧边栏
+    if (window.self !== window.top) {
+        document.body.classList.add('iframe-child');
+    }
+</script>
 </head>
 <body>
 
