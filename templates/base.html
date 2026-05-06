@@ -555,7 +555,7 @@
         {% if 'file.view' in user_menu_codes or 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">运营</div>
-            <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or ('/equipment' in request.path and '/repair' not in request.path) or ('/files' in request.path and request.path == '/files/') %}active{% endif %}">
+            <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or '/equipment' in request.path and '/repair' not in request.path or '/files' in request.path %}active{% endif %}">
                 <i class="bi bi-box-seam"></i><span>运营管理</span>
             </a>
             {% if request.user.is_superuser %}
