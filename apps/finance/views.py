@@ -870,7 +870,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
                 continue
 
             # 构建工资记录（自动计算实发）
-            from decimal import Decimal as D
+            from decimal import Decimal
             net = (
                 Decimal(str(rec.get('base_salary') or 0)) +
                 Decimal(str(rec.get('position_salary') or 0)) +
@@ -890,11 +890,11 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             )
 
             gross = (
-                D(str(rec.get('base_salary') or 0)) + D(str(rec.get('position_salary') or 0)) +
-                D(str(rec.get('overtime_pay') or 0)) + D(str(rec.get('bonus') or 0)) +
-                D(str(rec.get('commission') or 0)) + D(str(rec.get('meal_allowance') or 0)) +
-                D(str(rec.get('transport_allowance') or 0)) +
-                D(str(rec.get('communication_allowance') or 0)) + D(str(rec.get('other_allowance') or 0))
+                Decimal(str(rec.get('base_salary') or 0)) + Decimal(str(rec.get('position_salary') or 0)) +
+                Decimal(str(rec.get('overtime_pay') or 0)) + Decimal(str(rec.get('bonus') or 0)) +
+                Decimal(str(rec.get('commission') or 0)) + Decimal(str(rec.get('meal_allowance') or 0)) +
+                Decimal(str(rec.get('transport_allowance') or 0)) +
+                Decimal(str(rec.get('communication_allowance') or 0)) + Decimal(str(rec.get('other_allowance') or 0))
             )
 
             WageRecord.objects.create(
@@ -905,22 +905,22 @@ class WageRecordViewSet(viewsets.ModelViewSet):
                 bank_card=rec.get('bank_card') or ec.employee.bank_card or '',
                 year=rec.get('year'),
                 month=rec.get('month'),
-                base_salary=rec.get('base_salary') or D('0'),
-                position_salary=rec.get('position_salary') or D('0'),
-                overtime_pay=rec.get('overtime_pay') or D('0'),
-                bonus=rec.get('bonus') or D('0'),
-                commission=rec.get('commission') or D('0'),
-                meal_allowance=rec.get('meal_allowance') or D('0'),
-                transport_allowance=rec.get('transport_allowance') or D('0'),
-                communication_allowance=rec.get('communication_allowance') or D('0'),
-                other_allowance=rec.get('other_allowance') or D('0'),
-                social_insurance=rec.get('social_insurance') or D('0'),
-                housing_fund=rec.get('housing_fund') or D('0'),
+                base_salary=rec.get('base_salary') or Decimal('0'),
+                position_salary=rec.get('position_salary') or Decimal('0'),
+                overtime_pay=rec.get('overtime_pay') or Decimal('0'),
+                bonus=rec.get('bonus') or Decimal('0'),
+                commission=rec.get('commission') or Decimal('0'),
+                meal_allowance=rec.get('meal_allowance') or Decimal('0'),
+                transport_allowance=rec.get('transport_allowance') or Decimal('0'),
+                communication_allowance=rec.get('communication_allowance') or Decimal('0'),
+                other_allowance=rec.get('other_allowance') or Decimal('0'),
+                social_insurance=rec.get('social_insurance') or Decimal('0'),
+                housing_fund=rec.get('housing_fund') or Decimal('0'),
                 leave_days=rec.get('leave_days') or 0,
-                leave_deduction=rec.get('leave_deduction') or D('0'),
+                leave_deduction=rec.get('leave_deduction') or Decimal('0'),
                 sick_leave_days=rec.get('sick_leave_days') or 0,
-                sick_leave_deduction=rec.get('sick_leave_deduction') or D('0'),
-                other_deductions=rec.get('other_deductions') or D('0'),
+                sick_leave_deduction=rec.get('sick_leave_deduction') or Decimal('0'),
+                other_deductions=rec.get('other_deductions') or Decimal('0'),
                 gross_salary=gross,
                 net_salary=net,
                 status='draft',
