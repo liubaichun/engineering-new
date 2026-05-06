@@ -38,7 +38,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = Equipment.objects.select_related('project', 'project__company', 'category')
+        qs = Equipment.objects.select_related('project', 'project__company')
         user = self.request.user
         if user.is_superuser:
             return qs
