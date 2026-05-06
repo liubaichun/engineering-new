@@ -115,18 +115,34 @@ def list_banks(request):
 def preview_bank_statement(request):
     """
     预览银行流水（不写入数据库）
-    POST body:
-      - file: Excel/CSV文件
-      - bank_code: 银行代码（可选，自动识别时可不传）
-      - company_id: 公司ID
-      - bank_account_id: 银行账户ID（可选）
+    支持两种格式:
+      1) multipart/form-data (原有方式): file + company_id
+      2) application/json (新增): { company_id, bank_code, file_base64 }
     """
-    if 'file' not in request.FILES:
-        return Response({'error': '请上传文件'}, status=400)
+    import base64
 
-    company_id = request.data.get('company_id')
-    bank_account_id = request.data.get('bank_account_id')
-    bank_code = request.data.get('bank_code', '')
+    # ── 解析请求体 ───────────────────────────────────────────────────────
+    content_type = request.content_type or ''
+
+    if 'application/json' in content_type or (
+        hasattr(request, 'data') and isinstance(request.data, dict) and 'file_base64' in request.data
+    ):
+        # JSON 方式: { company_id, bank_code?, file_base64 }
+        body = request.data
+        company_id = body.get('company_id')
+        bank_code = body.get('bank_code', '')
+        file_base64 = body.get('file_base64', '')
+        try:
+            content = base64.b64decode(file_base64)
+        except Exception as e:
+            return Response({'error': f'文件解码失败: {e}'}, status=400)
+    else:
+        # multipart 方式
+        if 'file' not in request.FILES:
+            return Response({'error': '请上传文件'}, status=400)
+        company_id = request.data.get('company_id') or request.data.get('company')
+        bank_code = request.data.get('bank_code', '')
+        content = request.FILES['file'].read()
 
     if not company_id:
         return Response({'error': '缺少 company_id'}, status=400)
@@ -136,31 +152,17 @@ def preview_bank_statement(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
-    file_obj = request.FILES['file']
-    content = file_obj.read()
-    import sys
-    print(f"DEBUG: file size={len(content)}, bank_code={bank_code}", flush=True)
-    sys.stderr.write(f"DEBUG VIEW: content_len={len(content)}\n")
-    sys.stderr.flush()
-
-    # 解析
+    # ── 解析银行流水 ──────────────────────────────────────────────────────
     try:
         if bank_code:
             transactions = parse_with_adapter(content, bank_code)
             used_bank = bank_code
         else:
             used_bank, transactions = detect_and_parse(content)
-        print(f"DEBUG: parsed {len(transactions)} transactions", flush=True)
     except ValueError as e:
-        import traceback
-        sys.stderr.write(f"ValueError: {e}\n{traceback.format_exc()}\n")
-        sys.stderr.flush()
         return Response({'error': str(e)}, status=400)
     except Exception as e:
-        import traceback
-        sys.stderr.write(f"Exception: {e}\n{traceback.format_exc()}\n")
-        sys.stderr.flush()
-        return Response({'error': f'解析失败: {str(e)}'}, status=500)
+        return Response({'error': f'解析失败: {type(e).__name__}: {e}'}, status=500)
 
     # 批量匹配
     preview_rows = []
