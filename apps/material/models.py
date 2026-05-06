@@ -6,6 +6,7 @@ class MaterialCategory(models.Model):
     """物料分类 - 用户可自行维护"""
     name = models.CharField('分类名称', max_length=100, unique=True)
     remark = models.CharField('备注', max_length=500, blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:
@@ -60,6 +61,7 @@ class Material(models.Model):
         related_name='materials'
     )
     remark = models.TextField('备注', blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
     created_by = models.ForeignKey(
@@ -80,6 +82,9 @@ class Material(models.Model):
         return f"{self.code} - {self.name}"
 
     def save(self, *args, **kwargs):
+        # 自动从关联Project填充company_id
+        if not self.company_id and self.project_id:
+            self.company_id = getattr(self.project, 'company_id', None)
         if not self.code:
             year = 2026
             last = Material.objects.filter(code__startswith='WL-').order_by('-code').first()
@@ -110,6 +115,7 @@ class MaterialUsageLog(models.Model):
         related_name='material_usage_logs'
     )
     quantity = models.PositiveIntegerField('使用数量', default=1)
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     used_by = models.ForeignKey(
         User,
         verbose_name='领用人',
@@ -153,6 +159,7 @@ class MaterialBOM(models.Model):
         related_name='created_boms'
     )
     is_active = models.BooleanField('是否当前版本', default=True)
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'material_bom'
@@ -202,6 +209,7 @@ class MaterialBOMNode(models.Model):
     unit = models.CharField('单位', max_length=20, default='个')
     sequence = models.PositiveIntegerField('排序序号', default=0)
     remark = models.CharField('备注', max_length=500, blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
 
     class Meta:
         db_table = 'material_bom_node'

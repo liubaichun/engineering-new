@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
 from rest_framework.permissions import AllowAny
+from django.db import models
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, DateFilter, NumberFilter
 from django.utils import timezone
 from .models import Equipment, EquipmentUsageLog, EquipmentRepairLog, EquipmentBOMRelation
@@ -42,18 +43,24 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return qs
-        if hasattr(user, 'company') and user.company_id:
-            return qs.filter(project__company_id=user.company_id)
+        if hasattr(user, 'company_id') and user.company_id:
+            # 直接按company_id过滤，同时保留project__company_id兜底（无project的设备也能查到）
+            return qs.filter(models.Q(company_id=user.company_id) | models.Q(project__company_id=user.company_id))
         return qs.none()
 
     def perform_create(self, serializer):
         user = self.request.user
         project = serializer.validated_data.get('project')
-        if project and hasattr(user, 'company') and user.company_id:
+        company_id = getattr(user, 'company_id', None)
+        if project and hasattr(user, 'company_id') and user.company_id:
             if project.company_id != user.company_id:
                 from django.core.exceptions import PermissionDenied
                 raise PermissionDenied("无权在此项目下创建设备")
-        serializer.save()
+        # 自动填充company_id
+        if company_id and not serializer.validated_data.get('company_id'):
+            serializer.save(company_id=company_id)
+        else:
+            serializer.save()
 
     @action(detail=True, methods=['get'])
     def get_usage_logs(self, request, pk=None):
@@ -170,8 +177,11 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.is_superuser:
             return qs
-        if hasattr(user, 'company') and user.company_id:
-            return qs.filter(equipment__project__company_id=user.company_id)
+        if hasattr(user, 'company_id') and user.company_id:
+            return qs.filter(
+                models.Q(equipment__company_id=user.company_id) |
+                models.Q(equipment__project__company_id=user.company_id)
+            )
         return qs.none()
 
     @action(detail=True, methods=['delete'], url_path='remove_bom/(?P<bom_id>[^/.]+)')
