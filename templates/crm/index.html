@@ -32,7 +32,7 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
     </li>
 </ul>
 
-<div class="tab-content" style="width:100%;">
+<div class="tab-content" style="width:calc(100vw - var(--sidebar-width));">
     <div id="clients" style="display:{% if active_tab == 'clients' or not active_tab %}block{% else %}none{% endif %};">
         <iframe src="/crm/clients/" class="tab-iframe" id="frame-clients" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
