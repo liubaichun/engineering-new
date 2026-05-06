@@ -176,12 +176,12 @@ class LoginView(APIView):
         return request.META.get('REMOTE_ADDR')
 
     def _log_login(self, request, username, status, user=None, fail_reason=''):
-        # 登录时从用户公司角色取默认公司
-        company_id = None
+        # 登录时从用户公司角色取默认公司（传 FK 实例而非 _id）
+        company = None
         if user:
-            links = user.company_roles.all()
-            if links.exists():
-                company_id = links.first().company_id
+            link = user.company_roles.all().first()
+            if link:
+                company = link.company
         LoginLog.objects.create(
             user=user,
             username=username,
@@ -189,7 +189,7 @@ class LoginView(APIView):
             ip_address=get_client_ip(request),
             user_agent=request.META.get('HTTP_USER_AGENT', '')[:500],
             fail_reason=fail_reason,
-            company_id=company_id,
+            company=company,
         )
 
     def post(self, request):
