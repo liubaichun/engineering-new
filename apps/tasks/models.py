@@ -36,6 +36,21 @@ class Project(models.Model):
         'finance.Company', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='projects', verbose_name='所属公司'
     )
+    approval_flow = models.ForeignKey(
+        'approvals.ApprovalFlow', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='projects',
+        verbose_name='立项审批流'
+    )
+    approval_status = models.CharField(
+        '审批状态', max_length=20, blank=True, default='',
+        choices=[
+            ('draft', '草稿'),
+            ('pending', '待审批'),
+            ('approved', '已批准'),
+            ('rejected', '已拒绝'),
+            ('cancelled', '已取消'),
+        ]
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
     

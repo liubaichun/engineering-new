@@ -5,6 +5,7 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
+from datetime import timedelta
 from django.db.models import Q
 
 from .models import (
@@ -45,6 +46,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             'id', 'name', 'code', 'description', 'status', 'status_display',
             'owner', 'owner_name', 'start_date', 'end_date', 'progress',
             'budget', 'company', 'company_name',
+            'approval_flow', 'approval_status',
             'created_at', 'updated_at', 'is_owner', 'computed_progress'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -345,6 +347,127 @@ class ProjectViewSet(viewsets.ModelViewSet):
         records = queryset.select_related('owner', 'company')
         buf = export_projects(list(records))
         return make_export_response(buf, f'项目_{tz.now().strftime("%Y%m%d")}.xlsx')
+
+    @action(detail=True, methods=['post'])
+    def submit_approval(self, request, pk=None):
+        """提交项目立项审批"""
+        from apps.approvals.models import ApprovalFlow
+        from apps.approvals.flow_builder import build_approval_flow
+        from django.utils import timezone
+
+        project = self.get_object()
+        if project.approval_status not in ('', 'draft', 'rejected', 'cancelled'):
+            return Response({'error': '当前状态不允许提交审批'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 构建审批流
+        flow = build_approval_flow(
+            flow_type='project',
+            amount=project.budget,
+            name=f'项目立项：{project.name}',
+            requester=request.user,
+        )
+        flow.related_type = 'project'
+        flow.related_id = project.id
+        flow.save()
+
+        # 更新项目状态
+        project.approval_flow = flow
+        project.approval_status = 'pending'
+        project.save(update_fields=['approval_flow', 'approval_status'])
+
+        return Response({
+            'message': '立项审批已提交',
+            'flow_id': flow.id,
+            'approval_status': project.approval_status,
+        })
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """激活项目（审批通过后手动启动）"""
+        project = self.get_object()
+        if project.approval_status not in ('approved',):
+            return Response({'error': '项目必须先通过审批才能激活'}, status=status.HTTP_400_BAD_REQUEST)
+        if project.status != 'active':
+            project.status = 'active'
+            project.save(update_fields=['status'])
+        return Response({'message': '项目已激活', 'status': project.status})
+
+    @action(detail=True, methods=['get'])
+    def gantt_data(self, request, pk=None):
+        """甘特图数据（项目+任务）"""
+        project = self.get_object()
+        tasks = project.tasks.all().select_related('assignee', 'reporter')
+
+        # 项目条
+        project_bar = {
+            'id': f'project-{project.id}',
+            'name': project.name,
+            'type': 'project',
+            'start': project.start_date.isoformat() if project.start_date else None,
+            'end': project.end_date.isoformat() if project.end_date else None,
+            'progress': float(project.progress or 0),
+            'status': project.status,
+        }
+
+        # 任务条
+        task_bars = [{
+            'id': f'task-{t.id}',
+            'name': t.title,
+            'type': 'task',
+            'parent': f'project-{project.id}',
+            'start': (t.due_date - timedelta(days=7)).isoformat() if t.due_date else None,
+            'end': t.due_date.isoformat() if t.due_date else None,
+            'progress': 100 if t.status == 'completed' else 0,
+            'status': t.status,
+            'assignee': t.assignee.username if t.assignee else None,
+            'priority': t.priority,
+        } for t in tasks if t.due_date]
+
+        return Response({
+            'project': project_bar,
+            'tasks': task_bars,
+            'project_name': project.name,
+            'today': timezone.now().isoformat(),
+        })
+
+    @action(detail=False, methods=['get'])
+    def gantt_all(self, request):
+        """全部项目的甘特图数据"""
+        from datetime import timedelta
+        projects = Project.objects.filter(
+            status__in=['active', 'completed']
+        ).prefetch_related('tasks').select_related('owner')
+
+        bars = []
+        for p in projects:
+            if not p.start_date and not p.end_date and not p.tasks.exists():
+                continue
+            bars.append({
+                'id': f'project-{p.id}',
+                'name': p.name,
+                'type': 'project',
+                'start': p.start_date.isoformat() if p.start_date else None,
+                'end': p.end_date.isoformat() if p.end_date else None,
+                'progress': float(p.progress or 0),
+                'status': p.status,
+                'owner': p.owner.username if p.owner else None,
+            })
+            for t in p.tasks.all():
+                if not t.due_date:
+                    continue
+                bars.append({
+                    'id': f'task-{t.id}',
+                    'name': t.title,
+                    'type': 'task',
+                    'parent': f'project-{p.id}',
+                    'start': t.start_date.isoformat() if t.start_date else (t.due_date - timedelta(days=7)).isoformat(),
+                    'end': t.due_date.isoformat(),
+                    'progress': 100 if t.status == 'completed' else 0,
+                    'status': t.status,
+                    'assignee': t.assignee.username if t.assignee else None,
+                    'priority': t.priority,
+                })
+        return Response(bars)
 
 
 class TaskViewSet(viewsets.ModelViewSet):

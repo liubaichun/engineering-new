@@ -484,8 +484,11 @@
                 <i class="bi bi-speedometer2"></i><span>控制台</span>
             </a>
             {% if 'project.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/projects/" class="nav-link {% if '/projects' in request.path %}active{% endif %}">
+            <a href="/projects/" class="nav-link {% if '/projects' in request.path and '/gantt' not in request.path %}active{% endif %}">
                 <i class="bi bi-briefcase"></i><span>项目管理</span>
+            </a>
+            <a href="/projects/gantt/" class="nav-link {% if '/projects/gantt' in request.path %}active{% endif %}" style="padding-left:2rem;font-size:0.85rem;">
+                <i class="bi bi-bar-chart"></i><span>甘特图</span>
             </a>
             {% endif %}
             {% if 'task_board.view' in user_menu_codes or request.user.is_superuser %}

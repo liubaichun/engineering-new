@@ -205,6 +205,7 @@ urlpatterns = [
     path('login/', login_page, name='login'),
     path('register/', register_page, name='register'),
     path('projects/', projects_page, name='projects'),
+    path('projects/gantt/', lambda request: render(request, 'projects/gantt.html'), name='project_gantt'),
     path('tasks/board/', tasks_board_page, name='tasks_board'),
     path('tasks/flow-templates/', flow_template_list_page, name='flow_template_list'),
     path('finance/wages/', wage_list_page, name='wage_list'),
