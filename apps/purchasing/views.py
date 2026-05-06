@@ -85,6 +85,24 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['status'])
         return Response(PurchaseRequestDetailSerializer(obj).data)
 
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """采购申请统计看板 /summary/ 或 /summary/?monthly=1"""
+        qs = self.get_queryset()
+        # 本月数据
+        now = timezone.now()
+        month_qs = qs.filter(created_at__year=now.year, created_at__month=now.month)
+        by_status = qs.values('status').annotate(count=Count('id'), total=Sum('total_amount'))
+        monthly_qs = month_qs
+        monthly_by_status = monthly_qs.values('status').annotate(count=Count('id'), total=Sum('total_amount'))
+        return Response({
+            'total_count': qs.count(),
+            'total_amount': float(qs.aggregate(t=Sum('total_amount'))['t'] or 0),
+            'monthly_count': monthly_qs.count(),
+            'monthly_amount': float(monthly_qs.aggregate(t=Sum('total_amount'))['t'] or 0),
+            'by_status': [{'status': s['status'], 'count': s['count'], 'total': float(s['total'] or 0)} for s in by_status],
+        })
+
 
 class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     """采购申请明细"""
@@ -193,15 +211,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """采购订单统计看板"""
+        """采购订单统计看板 /summary/"""
         qs = self.get_queryset()
-        by_status = qs.values('status').annotate(
-            count=Count('id'), total=Sum('actual_amount')
-        )
+        now = timezone.now()
+        month_qs = qs.filter(created_at__year=now.year, created_at__month=now.month)
+        by_status = qs.values('status').annotate(count=Count('id'), total=Sum('actual_amount'))
+        monthly_by_status = month_qs.values('status').annotate(count=Count('id'), total=Sum('actual_amount'))
         return Response({
             'total_count': qs.count(),
-            'total_amount': qs.aggregate(total=Sum('actual_amount'))['total'] or 0,
-            'by_status': list(by_status),
+            'total_amount': float(qs.aggregate(t=Sum('actual_amount'))['t'] or 0),
+            'monthly_count': month_qs.count(),
+            'monthly_amount': float(month_qs.aggregate(t=Sum('actual_amount'))['t'] or 0),
+            'by_status': [{'status': s['status'], 'count': s['count'], 'total': float(s['total'] or 0)} for s in by_status],
         })
 
 

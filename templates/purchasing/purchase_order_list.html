@@ -116,6 +116,7 @@
 
 <script>
 const API = '/api/purchasing/orders/';
+const API_STATS = '/api/purchasing/orders/summary/';
 let page = 1, detailModal;
 document.addEventListener('DOMContentLoaded', function() {
   detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
@@ -134,22 +135,22 @@ async function loadData(p) {
   try {
     const r = await axios.get(API, { params });
     render(r.data);
-    refreshStats(r.data);
+    refreshStats();
   } catch(e) { console.error(e); }
 }
 
-function refreshStats(data) {
-  const all = data.count || 0;
-  document.getElementById('s-total').textContent = all;
-  let totalAmt = 0, completed = 0, active = 0;
-  (data.results||[]).forEach(r => {
-    totalAmt += parseFloat(r.actual_amount || 0);
-    if (r.status === 'completed') completed++;
-    else if (!['cancelled','draft'].includes(r.status)) active++;
-  });
-  document.getElementById('s-amount').textContent = totalAmt > 0 ? '¥'+totalAmt.toLocaleString() : '—';
-  document.getElementById('s-completed').textContent = completed;
-  document.getElementById('s-active').textContent = active;
+async function refreshStats() {
+  try {
+    const r = await axios.get(API_STATS);
+    const d = r.data;
+    document.getElementById('s-total').textContent = d.total_count || 0;
+    document.getElementById('s-amount').textContent = d.total_amount > 0 ? '¥'+d.total_amount.toLocaleString() : '—';
+    const byStatus = {};
+    (d.by_status||[]).forEach(s => { byStatus[s.status] = s.count; });
+    document.getElementById('s-completed').textContent = byStatus['completed'] || 0;
+    document.getElementById('s-active').textContent = byStatus['received'] || byStatus['invoiced'] || byStatus['shipped'] || byStatus['partial_received'] || 0;
+    document.getElementById('s-monthly').textContent = d.monthly_count || 0;
+  } catch(e) {}
 }
 
 function stBadge(s) {

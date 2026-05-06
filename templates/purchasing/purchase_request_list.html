@@ -227,6 +227,7 @@
 
 <script>
 const API = '/api/purchasing/requests/';
+const API_STATS = '/api/purchasing/requests/summary/';
 const API_ITEM = '/api/purchasing/request-items/';
 const API_ORDER = '/api/purchasing/orders/';
 let modal, detailModal;
@@ -285,14 +286,15 @@ async function loadData(page) {
 
 async function updateStats() {
   try {
-    const r = await axios.get(API, { params: { page_size: 1 } });
-    const all = r.data.count || 0;
-    document.getElementById('stat-total').textContent = all;
-    const drafts = r.data.results ? r.data.results.filter(x => x.status === 'draft').length : 0;
-    const approved = r.data.results ? r.data.results.filter(x => x.status === 'approved').length : 0;
-    document.getElementById('stat-draft').textContent = drafts;
-    document.getElementById('stat-approved').textContent = approved;
-    document.getElementById('stat-rejected').textContent = r.data.results ? r.data.results.filter(x => x.status === 'rejected').length : 0;
+    const r = await axios.get(API_STATS);
+    const d = r.data;
+    document.getElementById('stat-total').textContent = d.total_count || 0;
+    document.getElementById('stat-amount').textContent = d.total_amount > 0 ? '¥'+d.total_amount.toLocaleString() : '—';
+    const byStatus = {};
+    (d.by_status || []).forEach(s => { byStatus[s.status] = s.count; });
+    document.getElementById('stat-draft').textContent = byStatus['draft'] || 0;
+    document.getElementById('stat-approved').textContent = byStatus['approved'] || 0;
+    document.getElementById('stat-rejected').textContent = byStatus['rejected'] || 0;
   } catch(e) {}
 }
 
@@ -463,7 +465,7 @@ async function showDetail(id) {
       </div>
       <h6 class="mt-2">明细 (${(d.items||[]).length} 项)</h6>
       <table class="table table-sm table-bordered">
-        <thead><tr><th>物料</th><th>规格</th><th>数量</th><th>单位</th><th>预估单价</th><th>预估金额</th></tr></thead>
+        <thead><tr><th>物料</th><th>规格说明</th><th>数量</th><th>单位</th><th>预估单价</th><th>预估金额</th></tr></thead>
         <tbody>
           ${(d.items||[]).map(function(i) {
             return `<tr><td>${i.material_name||i.material}(${i.material_code||''})</td><td>${i.description||'—'}</td>
