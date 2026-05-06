@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog
 
 
 class ClientSourceSerializer(serializers.ModelSerializer):
@@ -67,16 +67,20 @@ class ContractSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     counterparty_name = serializers.SerializerMethodField()
+    payment_progress = serializers.IntegerField(source='payment_progress', read_only=True)
+    paid_amount_display = serializers.DecimalField(source='paid_amount', max_digits=15, decimal_places=2, read_only=True)
 
     class Meta:
         model = Contract
         fields = ['id', 'counterparty_type', 'counterparty_name',
                   'client', 'client_name', 'supplier', 'supplier_name',
                   'project', 'project_name',
-                  'contract_no', 'name', 'amount', 'sign_date', 'expire_date',
+                  'contract_no', 'name', 'amount', 'sign_date', 'expire_date', 'signed_date',
                   'status', 'remark', 'attachment', 'attachment_name',
+                  'approval_flow', 'payment_status', 'total_paid',
+                  'payment_progress', 'paid_amount_display',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
-        read_only_fields = ['created_by']
+        read_only_fields = ['created_by', 'approval_flow', 'total_paid']
         extra_kwargs = {'contract_no': {'required': False}}
 
     def get_counterparty_name(self, obj):
@@ -174,3 +178,31 @@ class FollowUpRecordSerializer(serializers.ModelSerializer):
             instance.created_by = request.user
         instance.save()
         return instance
+
+
+class PaymentPlanSerializer(serializers.ModelSerializer):
+    contract_name = serializers.CharField(source='contract.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = PaymentPlan
+        fields = ['id', 'contract', 'contract_name',
+                  'plan_date', 'amount',
+                  'paid_date', 'paid_amount', 'status', 'status_display',
+                  'payment_method', 'payment_account', 'remark',
+                  'created_at', 'updated_at']
+        read_only_fields = ['created_at']
+
+
+class ContractChangeLogSerializer(serializers.ModelSerializer):
+    contract_name = serializers.CharField(source='contract.name', read_only=True)
+    change_type_display = serializers.CharField(source='get_change_type_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+
+    class Meta:
+        model = ContractChangeLog
+        fields = ['id', 'contract', 'contract_name',
+                  'change_type', 'change_type_display',
+                  'old_value', 'new_value', 'reason', 'change_date',
+                  'created_by', 'created_by_name']
+        read_only_fields = ['created_by', 'change_date']

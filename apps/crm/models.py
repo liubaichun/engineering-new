@@ -170,6 +170,88 @@ class Contract(models.Model):
     def __str__(self):
         return f"{self.contract_no} - {self.name}"
 
+    @property
+    def paid_amount(self):
+        """已付款总额（从付款计划汇总）"""
+        from decimal import Decimal
+        total = sum((p.paid_amount or Decimal('0')) for p in self.payment_plans.all())
+        return total
+
+    @property
+    def payment_progress(self):
+        """付款进度百分比"""
+        if not self.amount or float(self.amount) == 0:
+            return 0
+        paid = float(self.paid_amount or 0)
+        return round(paid / float(self.amount) * 100, 1)
+
+
+class PaymentPlan(models.Model):
+    """合同付款计划"""
+    STATUS_CHOICES = [
+        ('pending', '待付'),
+        ('partial', '部分付款'),
+        ('paid', '已付'),
+        ('overdue', '逾期'),
+    ]
+    contract = models.ForeignKey(
+        Contract, on_delete=models.CASCADE, related_name='payment_plans',
+        verbose_name='关联合同'
+    )
+    plan_date = models.DateField('计划日期')
+    amount = models.DecimalField('计划金额', max_digits=15, decimal_places=2)
+    paid_date = models.DateField('实际付款日期', null=True, blank=True)
+    paid_amount = models.DecimalField('实付金额', max_digits=15, decimal_places=2, default=0)
+    status = models.CharField('付款状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    payment_method = models.CharField('付款方式', max_length=50, blank=True, null=True)
+    payment_account = models.CharField('付款账户', max_length=200, blank=True, null=True)
+    remark = models.TextField('备注', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'crm_payment_plan'
+        verbose_name = '付款计划'
+        verbose_name_plural = verbose_name
+        ordering = ['plan_date']
+
+    def __str__(self):
+        return f"{self.contract.name} - {self.plan_date} - {self.amount}"
+
+
+class ContractChangeLog(models.Model):
+    """合同变更记录"""
+    CHANGE_TYPE_CHOICES = [
+        ('amount', '金额变更'),
+        ('term', '期限变更'),
+        ('party', '对方主体变更'),
+        ('content', '合同内容变更'),
+        ('terminate', '终止'),
+    ]
+    contract = models.ForeignKey(
+        Contract, on_delete=models.CASCADE, related_name='change_logs',
+        verbose_name='关联合同'
+    )
+    change_type = models.CharField('变更类型', max_length=20, choices=CHANGE_TYPE_CHOICES)
+    old_value = models.TextField('变更前', blank=True, null=True)
+    new_value = models.TextField('变更后', blank=True, null=True)
+    reason = models.TextField('变更原因', blank=True, null=True)
+    change_date = models.DateField('变更日期', auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='contract_changes', verbose_name='变更人'
+    )
+
+    class Meta:
+        db_table = 'crm_contract_change_log'
+        verbose_name = '合同变更记录'
+        verbose_name_plural = verbose_name
+        ordering = ['-change_date']
+
+    def __str__(self):
+        return f"{self.contract.name} - {self.get_change_type_display()}"
+
 
 class Contact(models.Model):
     """CRM联系人模型"""
