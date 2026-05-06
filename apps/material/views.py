@@ -126,7 +126,7 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = MaterialBOM.objects.select_related('material', 'material__project', 'material__category')
+        qs = MaterialBOM.objects.select_related('material', 'material__project')
         user = self.request.user
         if user.is_superuser:
             return qs
