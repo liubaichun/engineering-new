@@ -98,111 +98,223 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
-    <div>
-        <h4><i class="bi bi-currency-yen me-2"></i>收入管理</h4>
-        <p class="text-muted mb-0" style="font-size: 0.9rem;">
-            <span class="income-source"><i class="bi bi-calendar3"></i>2026年度</span>
-        </p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-        <div class="filter-bar">
-            <select class="form-select form-select-sm" id="filterCompany" onchange="loadIncomes()">
-                <option value="">全部公司</option>
-            </select>
-            <div class="date-range">
-                <input type="date" class="form-control form-control-sm" id="filterDateStart" placeholder="开始日期">
-                <span class="text-muted">-</span>
-                <input type="date" class="form-control form-control-sm" id="filterDateEnd" placeholder="结束日期">
+<!-- 收支管理Tab -->
+<div class="page-header">
+    <h4><i class="bi bi-cash-stack me-2"></i>收支管理</h4>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="incomeExpenseTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="income-tab" data-bs-toggle="tab" data-bs-target="#income-panel" type="button" role="tab">
+            <i class="bi bi-arrow-down-circle me-1"></i>收入管理
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="expense-tab" data-bs-toggle="tab" data-bs-target="#expense-panel" type="button" role="tab">
+            <i class="bi bi-arrow-up-circle me-1"></i>支出管理
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="incomeExpenseTabContent">
+    <!-- 收入面板 -->
+    <div class="tab-pane fade show active" id="income-panel" role="tabpanel">
+        <div class="page-header-sub d-flex justify-content-between align-items-center flex-wrap gap-3" style="margin-bottom:16px;">
+            <div>
+                <p class="text-muted mb-0" style="font-size:0.9rem;">
+                    <i class="bi bi-calendar3"></i> 2026年度
+                </p>
             </div>
-            <button class="btn btn-outline-secondary btn-sm" onclick="loadIncomes()">
-                <i class="bi bi-search me-1"></i>筛选
-            </button>
-            <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
-                <i class="bi bi-x-lg me-1"></i>清空
-            </button>
+            <div class="d-flex gap-2 flex-wrap">
+                <div class="filter-bar">
+                    <select class="form-select form-select-sm" id="filterCompany" onchange="loadIncomes()">
+                        <option value="">全部公司</option>
+                    </select>
+                    <div class="date-range">
+                        <input type="date" class="form-control form-control-sm" id="filterDateStart" placeholder="开始日期">
+                        <span class="text-muted">-</span>
+                        <input type="date" class="form-control form-control-sm" id="filterDateEnd" placeholder="结束日期">
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadIncomes()">
+                        <i class="bi bi-search me-1"></i>筛选
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
+                        <i class="bi bi-x-lg me-1"></i>清空
+                    </button>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="showAddIncomeModal()" data-perm="income.add">
+                    <i class="bi bi-plus-lg me-1"></i>新建收入
+                </button>
+                <button class="btn btn-success btn-sm" onclick="exportIncomes()">
+                    <i class="bi bi-download me-1"></i>导出
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('income')" data-perm="income.add">
+                    <i class="bi bi-upload me-1"></i>导入
+                </button>
+            </div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="showAddIncomeModal()" data-perm="income.add">
-            <i class="bi bi-plus-lg me-1"></i>新建收入
-        </button>
-        <button class="btn btn-success btn-sm" onclick="exportIncomes()">
-            <i class="bi bi-download me-1"></i>导出
-        </button>
-        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('income')" data-perm="income.add">
-            <i class="bi bi-upload me-1"></i>导入
-        </button>
-    </div>
-</div>
 
-<!-- 汇总信息 -->
-<div class="income-summary">
-    <div class="summary-card">
-        <div class="label">本年收入总额</div>
-        <div class="value primary" id="totalIncome">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalCount">0</span> 笔</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">本月收入</div>
-        <div class="value success" id="monthIncome">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="monthCount">0</span> 笔</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">待确认收入</div>
-        <div class="value warning" id="pendingIncome">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">待确认</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">已到账收入</div>
-        <div class="value success" id="confirmedIncome">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">已确认</div>
-    </div>
-</div>
+        <div class="income-summary">
+            <div class="summary-card">
+                <div class="label">本年收入总额</div>
+                <div class="value primary" id="totalIncome">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalCount">0</span> 笔</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">本月收入</div>
+                <div class="value success" id="monthIncome">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="monthCount">0</span> 笔</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">待确认收入</div>
+                <div class="value warning" id="pendingIncome">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">待确认</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">已到账收入</div>
+                <div class="value success" id="confirmedIncome">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">已确认</div>
+            </div>
+        </div>
 
-<!-- 收入列表 -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>收入明细列表</span>
-        <div class="d-flex gap-2 align-items-center">
-            <span style="font-size:0.85rem; color:var(--text-secondary);">
-                共 <strong id="recordCount">0</strong> 条记录
-            </span>
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>收入明细列表</span>
+                <span style="font-size:0.85rem; color:var(--text-secondary);">共 <strong id="recordCount">0</strong> 条记录</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table income-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;"><input class="form-check-input" type="checkbox"></th>
+                                <th>公司</th>
+                                <th>金额</th>
+                                <th>日期</th>
+                                <th>来源</th>
+                                <th>客户</th>
+                                <th>关联项目</th>
+                                <th>状态</th>
+                                <th>审批状态</th>
+                                <th style="width:120px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incomeTableBody">
+                            <tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+                <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
+            </div>
         </div>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table income-table mb-0">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">
-                            <input class="form-check-input" type="checkbox">
-                        </th>
-                        <th>公司</th>
-                        <th>金额</th>
-                        <th>日期</th>
-                        <th>来源</th>
-                        <th>客户</th>
-                        <th>关联项目</th>
-                        <th>状态</th>
-                        <th>审批状态</th>
-                        <th style="width: 120px;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="incomeTableBody">
-                    <tr>
-                        <td colspan="9" class="text-center text-muted py-4">加载中...</td>
-                    </tr>
-                </tbody>
-            </table>
+
+    <!-- 支出面板 -->
+    <div class="tab-pane fade" id="expense-panel" role="tabpanel">
+        <div class="page-header-sub d-flex justify-content-between align-items-center flex-wrap gap-3" style="margin-bottom:16px;">
+            <div>
+                <p class="text-muted mb-0" style="font-size:0.9rem;">
+                    <i class="bi bi-calendar3"></i> 2026年度
+                </p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                <div class="filter-bar">
+                    <select class="form-select form-select-sm" id="filterExpenseCompany" onchange="loadExpenses()">
+                        <option value="">全部公司</option>
+                    </select>
+                    <select class="form-select form-select-sm" id="filterExpenseType" onchange="loadExpenses()" style="min-width:120px;">
+                        <option value="">全类型</option>
+                        <option value="材料费">材料费</option>
+                        <option value="人工费">人工费</option>
+                        <option value="差旅费">差旅费</option>
+                        <option value="办公费">办公费</option>
+                        <option value="招待费">招待费</option>
+                        <option value="运输费">运输费</option>
+                        <option value="税费">税费</option>
+                        <option value="工资支出">工资支出</option>
+                        <option value="其他">其他</option>
+                    </select>
+                    <div class="date-range">
+                        <input type="date" class="form-control form-control-sm" id="filterExpenseDateStart" placeholder="开始日期">
+                        <span class="text-muted">-</span>
+                        <input type="date" class="form-control form-control-sm" id="filterExpenseDateEnd" placeholder="结束日期">
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="loadExpenses()">
+                        <i class="bi bi-search me-1"></i>筛选
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm" onclick="clearExpenseFilters()">
+                        <i class="bi bi-x-lg me-1"></i>清空
+                    </button>
+                </div>
+                <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()" data-perm="expense.add">
+                    <i class="bi bi-plus-lg me-1"></i>新建支出
+                </button>
+                <button class="btn btn-success btn-sm" onclick="exportExpenses()">
+                    <i class="bi bi-download me-1"></i>导出
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('expense')" data-perm="expense.add">
+                    <i class="bi bi-upload me-1"></i>导入
+                </button>
+            </div>
         </div>
-    </div>
-    
-    <!-- 分页 -->
-    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
-        <nav>
-            <ul class="pagination pagination-sm mb-0" id="pagination">
-            </ul>
-        </nav>
+
+        <div class="income-summary" style="margin-bottom:20px;">
+            <div class="summary-card">
+                <div class="label">本年支出总额</div>
+                <div class="value danger" id="totalExpenseSummary">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalExpenseCount">0</span> 笔</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">本月支出</div>
+                <div class="value danger" id="monthExpenseSummary">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="monthExpenseCount">0</span> 笔</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">待审批支出</div>
+                <div class="value warning" id="pendingExpenseSummary">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">待审批</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">已批准支出</div>
+                <div class="value success" id="approvedExpenseSummary">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">已批准</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>支出明细列表</span>
+                <span style="font-size:0.85rem; color:var(--text-secondary);">共 <strong id="expenseRecordCount">0</strong> 条记录</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table expense-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;"><input class="form-check-input" type="checkbox"></th>
+                                <th>公司</th>
+                                <th>支出类型</th>
+                                <th>金额</th>
+                                <th>日期</th>
+                                <th>付款方式</th>
+                                <th>状态</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenseTableBody">
+                            <tr><td colspan="8" class="text-center text-muted py-4">点击"支出管理"标签加载数据</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span style="font-size:0.85rem; color:var(--text-secondary);" id="expensePaginationInfo">显示 0 条</span>
+                <nav><ul class="pagination pagination-sm mb-0" id="expensePagination"></ul></nav>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -905,5 +1017,159 @@ function downloadTemplate() {
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
 }
+
+// ===== 支出管理函数 =====
+async function loadExpenses() {
+    var company = document.getElementById('filterExpenseCompany').value;
+    var type = document.getElementById('filterExpenseType').value;
+    var dateStart = document.getElementById('filterExpenseDateStart').value;
+    var dateEnd = document.getElementById('filterExpenseDateEnd').value;
+    var page = currentExpensePage || 1;
+
+    var params = new URLSearchParams({page: page});
+    if (company) params.append('company_id', company);
+    if (type) params.append('expense_type', type);
+    if (dateStart) params.append('date_start', dateStart);
+    if (dateEnd) params.append('date_end', dateEnd);
+
+    try {
+        var resp = await fetch('/api/finance/expenses/?' + params.toString(), {credentials:'include'});
+        var data = await resp.json();
+        var results = data.results || [];
+
+        // 更新汇总
+        var now = new Date();
+        var thisMonth = results.filter(function(r) {
+            if (!r.date) return false;
+            var d = new Date(r.date);
+            return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        });
+        var total = results.reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+        var monthTotal = thisMonth.reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+        var pending = results.filter(function(r) { return r.status === 'pending' || r.approval_status === 'pending'; }).reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+        var approved = results.filter(function(r) { return r.status === 'approved' || r.approval_status === 'approved'; }).reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+
+        document.getElementById('totalExpenseSummary').textContent = '¥' + total.toLocaleString('zh-CN', {minimumFractionDigits:0});
+        document.getElementById('totalExpenseCount').textContent = results.length;
+        document.getElementById('monthExpenseSummary').textContent = '¥' + monthTotal.toLocaleString('zh-CN', {minimumFractionDigits:0});
+        document.getElementById('monthExpenseCount').textContent = thisMonth.length;
+        document.getElementById('pendingExpenseSummary').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits:0});
+        document.getElementById('approvedExpenseSummary').textContent = '¥' + approved.toLocaleString('zh-CN', {minimumFractionDigits:0});
+
+        // 渲染表格
+        var tbody = document.getElementById('expenseTableBody');
+        if (!results.length) {
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>';
+            return;
+        }
+        tbody.innerHTML = results.map(function(r) {
+            var statusMap = {'pending':'badge-pending','approved':'badge-approved','rejected':'badge-rejected'};
+            var statusTextMap = {'pending':'待审批','approved':'已批准','rejected':'已拒绝'};
+            var expTypeMap = {'expense':'费用报销','advance':'预付款','deposit':'押金','wage':'工资支出','other':'其他'};
+            return '<tr>' +
+                '<td><input class="form-check-input" type="checkbox" value="' + r.id + '"></td>' +
+                '<td>' + (r.company_name || '-') + '</td>' +
+                '<td>' + (expTypeMap[r.expense_type] || r.expense_type || '-') + '</td>' +
+                '<td>¥' + parseFloat(r.amount||0).toLocaleString('zh-CN') + '</td>' +
+                '<td>' + (r.date || '-') + '</td>' +
+                '<td>' + (r.payment_method || '-') + '</td>' +
+                '<td><span class="badge ' + (statusMap[r.status] || 'badge-pending') + '">' + (statusTextMap[r.status] || r.status || '-') + '</span></td>' +
+                '<td><button class="btn btn-sm btn-outline-primary" onclick="viewExpense(' + r.id + ')"><i class="bi bi-eye"></i></button></td>' +
+                '</tr>';
+        }).join('');
+
+        document.getElementById('expenseRecordCount').textContent = data.count || results.length;
+        renderExpensePagination(data);
+
+    } catch(err) {
+        console.error('loadExpenses error:', err);
+    }
+}
+
+function clearExpenseFilters() {
+    document.getElementById('filterExpenseCompany').value = '';
+    document.getElementById('filterExpenseType').value = '';
+    document.getElementById('filterExpenseDateStart').value = '';
+    document.getElementById('filterExpenseDateEnd').value = '';
+    loadExpenses();
+}
+
+function renderExpensePagination(data) {
+    var total = data.count || 0;
+    var pages = Math.ceil(total / 20);
+    var current = currentExpensePage || 1;
+    var ul = document.getElementById('expensePagination');
+    if (!ul) return;
+    if (!pages || pages <= 1) { ul.innerHTML = ''; return; }
+    var html = '';
+    html += '<li class="page-item ' + (current<=1?'disabled':'') + '"><a class="page-link" href="#" onclick="expenseGoPage(' + (current-1) + ');return false;">&laquo;</a></li>';
+    for (var i = 1; i <= pages; i++) {
+        if (i === 1 || i === pages || (i >= current-2 && i <= current+2)) {
+            html += '<li class="page-item ' + (i===current?'active':'') + '"><a class="page-link" href="#" onclick="expenseGoPage(' + i + ');return false;">' + i + '</a></li>';
+        } else if (i === current-3 || i === current+3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+        }
+    }
+    html += '<li class="page-item ' + (current>=pages?'disabled':'') + '"><a class="page-link" href="#" onclick="expenseGoPage(' + (current+1) + ');return false;">&raquo;</a></li>';
+    ul.innerHTML = html;
+    document.getElementById('expensePaginationInfo').textContent = '显示 ' + Math.min((current-1)*20+1,total) + '-' + Math.min(current*20,total) + ' 条，共 ' + total + ' 条';
+}
+
+function expenseGoPage(p) {
+    currentExpensePage = p;
+    loadExpenses();
+}
+
+async function loadExpenseCompanies() {
+    try {
+        var resp = await fetch('/api/core/companies/', {credentials:'include'});
+        var data = await resp.json();
+        var results = data.results || data || [];
+        var opts = '<option value="">全部公司</option>' + results.map(function(c) {
+            return '<option value="' + c.id + '">' + c.name + '</option>';
+        }).join('');
+        document.getElementById('filterExpenseCompany').innerHTML = opts;
+    } catch(e) {}
+}
+
+function showAddExpenseModal() {
+    // 调用支出模态框，如果有的话
+    if (typeof showExpenseModal === 'function') {
+        showExpenseModal();
+    } else {
+        showToast('新建支出功能请前往"支出管理"页面', 'info');
+    }
+}
+
+function exportExpenses() {
+    var params = new URLSearchParams();
+    var company = document.getElementById('filterExpenseCompany').value;
+    if (company) params.append('company_id', company);
+    window.open('/api/finance/expenses/export/?' + params.toString(), '_blank');
+}
+
+async function viewExpense(id) {
+    try {
+        var resp = await fetch('/api/finance/expenses/' + id + '/', {credentials:'include'});
+        var data = await resp.json();
+        alert('支出详情：\n金额：' + data.amount + '\n类型：' + data.expense_type + '\n日期：' + data.date + '\n状态：' + data.status);
+    } catch(e) {
+        showToast('获取详情失败', 'error');
+    }
+}
+
+// 初始化支出面板（切换到支出Tab时加载）
+document.getElementById('expense-tab').addEventListener('shown.bs.tab', function() {
+    loadExpenseCompanies();
+    loadExpenses();
+});
+
+// 页面加载时初始化收入和公司数据
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    loadIncomes();
+    loadExpenseCompanies();
+});
+
 </script>
 {% endblock %}
