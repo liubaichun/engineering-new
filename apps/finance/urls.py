@@ -29,8 +29,6 @@ urlpatterns = [
     path('import/bank-statement/preview/', bank_import_views.preview_bank_statement, name='bank-statement-preview'),
     path('import/bank-statement/confirm/', bank_import_views.confirm_bank_import, name='bank-statement-confirm'),
     path('import/bank-statement/banks/', bank_import_views.list_banks, name='bank-statement-banks'),
-    path('bank-import/', login_required(lambda request: render_bank_import_page(request)), name='bank-import'),
-    # 补充报表API
     path('reports/cash-flow/', reports_v2.cash_flow_report, name='report-cash-flow'),
     path('reports/ar-ap-aging/', reports_v2.ar_ap_aging_report, name='report-ar-ap-aging'),
     path('reports/customer-revenue/', reports_v2.customer_revenue_report, name='report-customer-revenue'),

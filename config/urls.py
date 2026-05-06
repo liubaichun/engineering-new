@@ -6,6 +6,7 @@ from django.shortcuts import redirect, render
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.core.views import ChangePasswordView
+from apps.finance.views import render_bank_import_page
 
 # 页面视图
 def home_page(request):
@@ -253,7 +254,7 @@ def ar_ap_page(request):
     return TemplateView.as_view(template_name='finance/ar_ap_list.html')(request)
 
 def bank_import_page(request):
-    return render(request, 'finance/bank_statement_import.html')
+    return render_bank_import_page(request)
 
 def file_list_page(request):
     return TemplateView.as_view(template_name='files/file_list.html')(request)
