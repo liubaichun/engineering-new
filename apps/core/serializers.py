@@ -297,12 +297,15 @@ class NotificationSerializer(serializers.ModelSerializer):
     """通知消息序列化器"""
     type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     level_display = serializers.CharField(source='get_level_display', read_only=True)
+    # 兼容前端 notifications.html 的字段名
+    type = serializers.CharField(source='notification_type', read_only=True)
+    message = serializers.CharField(source='content', read_only=True)
 
     class Meta:
         model = Notification
         fields = ['id', 'user', 'title', 'content', 'notification_type', 'type_display',
                   'level', 'level_display', 'is_read', 'related_id', 'related_type',
-                  'created_at']
+                  'created_at', 'type', 'message']
         read_only_fields = ['id', 'user', 'created_at']
 
 
