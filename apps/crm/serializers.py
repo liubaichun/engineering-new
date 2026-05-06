@@ -147,22 +147,13 @@ class ContractSerializer(serializers.ModelSerializer):
 
 class ContactSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.name', read_only=True)
-    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
 
     class Meta:
         model = Contact
-        fields = ['id', 'client', 'client_name', 'name', 'position',
+        fields = ['id', 'company', 'client', 'client_name', 'name', 'position',
                   'phone', 'email', 'is_primary', 'remark',
-                  'created_at', 'updated_at', 'created_by', 'created_by_name']
-        read_only_fields = ['created_by']
-
-    def create(self, validated_data):
-        request = self.context.get('request')
-        instance = Contact(**validated_data)
-        if request and hasattr(request, 'user') and request.user.is_authenticated:
-            instance.created_by = request.user
-        instance.save()
-        return instance
+                  'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
 
 class FollowUpRecordSerializer(serializers.ModelSerializer):
