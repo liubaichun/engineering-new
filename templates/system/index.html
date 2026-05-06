@@ -4,7 +4,7 @@
 
 {% block styles %}
 <style>
-iframe.tab-iframe { width: 100%; border: none; background: transparent; }
+iframe.tab-iframe { width: 100% !important; border: none; background: transparent; display: block; }
 </style>
 {% endblock %}
 
@@ -42,7 +42,7 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
     </li>
 </ul>
 
-<div class="tab-content" style="width:100%;">
+<div class="tab-content" style="width:100%; margin:0 -32px;">
     <div id="companies" style="display:{% if active_tab == 'companies' or not active_tab %}block{% else %}none{% endif %};">
         <iframe src="/finance/companies/" class="tab-iframe" id="frame-companies" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
