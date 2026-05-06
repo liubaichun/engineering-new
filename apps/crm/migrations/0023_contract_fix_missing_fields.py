@@ -33,8 +33,7 @@ class Migration(migrations.Migration):
 def _fix_contract_columns(apps, schema_editor):
     with schema_editor.connection.cursor() as c:
         print("检查 crm_contract 表缺失列...")
-        add_column_if_not_exists(c, 'crm_contract', 'signed_date',
-            'DATE USING signed_date::date')
+        add_column_if_not_exists(c, 'crm_contract', 'signed_date', 'DATE')
         add_column_if_not_exists(c, 'crm_contract', 'payment_status',
             "VARCHAR(20) DEFAULT 'unpaid'")
         add_column_if_not_exists(c, 'crm_contract', 'total_paid',
