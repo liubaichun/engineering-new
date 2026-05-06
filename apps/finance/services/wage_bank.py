@@ -20,8 +20,20 @@ def generate_icbc_batch_file(records: List, company_name: str = '', account_no: 
     lines = []
     seq = 1
     for wr in records:
-        bank_card = (wr.bank_card or '').strip().ljust(30)
-        bank_name = (wr.bank_name or '').strip().ljust(60)[:60]
+        # bank_card 优先取 WageRecord.bank_card，没有则从 Employee 模型取
+        bank_card = wr.bank_card or ''
+        if not bank_card and wr.employee_company and wr.employee_company.employee:
+            bank_card = wr.employee_company.employee.bank_card or ''
+        elif not bank_card and wr.employee:
+            bank_card = getattr(wr.employee, 'bank_card', '') or ''
+        bank_card = bank_card.strip().ljust(30)
+        # bank_name 在 Employee 模型
+        emp_bank_name = ''
+        if wr.employee_company and wr.employee_company.employee:
+            emp_bank_name = wr.employee_company.employee.bank_name or ''
+        elif wr.employee:
+            emp_bank_name = getattr(wr.employee, 'bank_name', '') or ''
+        bank_name = emp_bank_name.strip().ljust(60)[:60]
         emp_name = (wr.employee_name or '').strip().ljust(60)[:60]
         amount = f"{float(wr.net_salary or 0):.2f}".rjust(15)
         serial = f"{seq:08d}".ljust(20)
@@ -49,9 +61,19 @@ def generate_ccb_batch_file(records: List) -> bytes:
     output.write('序号,收款账号,收款户名,收款方开户行,金额,用途\n')
 
     for i, wr in enumerate(records, 1):
+        # bank_card 优先取 WageRecord.bank_card，没有则从 Employee 模型取
         bank_card = wr.bank_card or ''
+        if not bank_card and wr.employee_company and wr.employee_company.employee:
+            bank_card = wr.employee_company.employee.bank_card or ''
+        elif not bank_card and wr.employee:
+            bank_card = getattr(wr.employee, 'bank_card', '') or ''
         emp_name = wr.employee_name or ''
-        bank_name = wr.bank_name or ''
+        # bank_name 在 Employee 模型
+        bank_name = ''
+        if wr.employee_company and wr.employee_company.employee:
+            bank_name = wr.employee_company.employee.bank_name or ''
+        elif wr.employee:
+            bank_name = getattr(wr.employee, 'bank_name', '') or ''
         amount = float(wr.net_salary or 0)
         usage = f'工资{wr.year}年{wr.month}月'
 
