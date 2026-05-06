@@ -146,6 +146,9 @@ def social_config_list_page(request):
 def ar_ap_page(request):
     return TemplateView.as_view(template_name='finance/ar_ap_list.html')(request)
 
+def bank_import_page(request):
+    return render(request, 'finance/bank_statement_import.html')
+
 def file_list_page(request):
     return TemplateView.as_view(template_name='files/file_list.html')(request)
 
@@ -195,6 +198,7 @@ urlpatterns = [
     path('projects/devices/', project_devices_page, name='project_devices'),
     path('finance/ar-ap/', ar_ap_page, name='ar_ap_list'),
     path('finance/invoices/', invoice_list_page, name='invoice_list'),
+    path('finance/bank-import/', bank_import_page, name='bank_import'),
     path('stats/', stats_page, name='stats'),
     path('notifications/', notifications_page, name='notifications'),
     path('system/companies/', system_companies_page, name='system_companies'),
