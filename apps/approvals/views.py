@@ -95,9 +95,9 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # 多租户隔离：普通用户只看本公司创建的审批流
+        # 多租户隔离：直接按 company_id 过滤，不再依赖 requester FK
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(requester__company_id=user.company_id)
+            queryset = queryset.filter(company_id=user.company_id)
         flow_type = self.request.query_params.get('flow_type')
         if flow_type:
             queryset = queryset.filter(flow_type=flow_type)
@@ -121,7 +121,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         )
 
     def perform_create(self, serializer):
-        flow = serializer.save(requester=self.request.user)
+        flow = serializer.save(requester=self.request.user, company_id=self.request.user.company_id)
         # 自动创建第一个审批节点
         first_approver = self.request.data.get('first_approver')
         if first_approver:
@@ -129,7 +129,8 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
                 flow=flow,
                 node_order=1,
                 approver_id=first_approver,
-                status='pending'
+                status='pending',
+                company_id=flow.company_id,
             )
             flow.current_node_order = 1
             flow.status = 'pending'
@@ -305,7 +306,8 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
             approver=target_user,
             status='pending',
             node_type='transfer',
-            comment=comment
+            comment=comment,
+            company_id=flow.company_id,
         )
         
         flow.current_node_order = next_order
@@ -355,7 +357,8 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
             status='pending',
             node_type='delegate',
             delegated_to=request.user,  # 记录委托给谁
-            comment=comment
+            comment=comment,
+            company_id=flow.company_id,
         )
         
         flow.current_node_order = next_order
@@ -440,9 +443,9 @@ class ApprovalNodeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # 多租户隔离：通过 flow.requester 关联公司
+        # 多租户隔离：直接按 company_id 过滤，不再依赖 flow FK 链
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(flow__requester__company_id=user.company_id)
+            queryset = queryset.filter(company_id=user.company_id)
         flow_id = self.request.query_params.get('flow')
         if flow_id:
             queryset = queryset.filter(flow_id=flow_id)
@@ -464,6 +467,10 @@ class ApprovalTemplateViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        user = self.request.user
+        # 多租户隔离：直接按 company_id 过滤
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         flow_type = self.request.query_params.get('flow_type')
         if flow_type:
             queryset = queryset.filter(flow_type=flow_type)
@@ -471,3 +478,6 @@ class ApprovalTemplateViewSet(viewsets.ModelViewSet):
         if is_active is not None:
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
         return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user, company_id=self.request.user.company_id)

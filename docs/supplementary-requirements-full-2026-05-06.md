@@ -85,15 +85,15 @@
 | 优先级 | 模型 | 说明 | 当前是否有company |
 |--------|------|------|-----------------|
 | **P0-A1** | `finance.company` | 公司主体表是公司数据之锚 | ❌ 无（company_id在别处引用它） |
-| **P0-A2** | `equipment.equipment` | 设备台账 | ❌ 无 |
-| **P0-A3** | `equipment.equipmentrepairlog` | 设备维修记录 | ❌ 无 |
-| **P0-A4** | `equipment.equipmentusagelog` | 设备使用日志 | ❌ 无 |
-| **P0-A5** | `equipment.equipmentbomrelation` | 设备BOM关系表 | ❌ 无 |
-| **P0-A6** | `material.material` | 物料主数据 | ❌ 无 |
-| **P0-A7** | `material.materialbom` | 物料BOM | ❌ 无 |
-| **P0-A8** | `material.materialbomnode` | BOM树节点 | ❌ 无 |
-| **P0-A9** | `material.materialcategory` | 物料分类 | ❌ 无 |
-| **P0-A10** | `material.materialusagelog` | 物料使用日志 | ❌ 无 |
+| **P0-A2** | `equipment.equipment` | 设备台账 | ✅ 已修复 `d1758c8` |
+| **P0-A3** | `equipment.equipmentrepairlog` | 设备维修记录 | ✅ 已修复 `d1758c8` |
+| **P0-A4** | `equipment.equipmentusagelog` | 设备使用日志 | ✅ 已修复 `d1758c8` |
+| **P0-A5** | `equipment.equipmentbomrelation` | 设备BOM关系表 | ✅ 已修复 `d1758c8` |
+| **P0-A6** | `material.material` | 物料主数据 | ✅ 已修复 `d1758c8` |
+| **P0-A7** | `material.materialbom` | 物料BOM | ✅ 已修复 `d1758c8` |
+| **P0-A8** | `material.materialbomnode` | BOM树节点 | ✅ 已修复 `d1758c8` |
+| **P0-A9** | `material.materialcategory` | 物料分类 | ✅ 已修复 `d1758c8` |
+| **P0-A10** | `material.materialusagelog` | 物料使用日志 | ✅ 已修复 `d1758c8` |
 | **P0-A11** | `approvals.approvalflow` | 审批流实例 | ❌ 无 |
 | **P0-A12** | `approvals.approvalnode` | 审批节点 | ❌ 无 |
 | **P0-A13** | `approvals.approvaltemplate` | 审批模板 | ❌ 无 |
@@ -253,13 +253,13 @@
 
 | 维度 | 成熟度 | 说明 |
 |------|--------|------|
-| 多租户隔离 | 5/10 | 已修复 CRM/Finance/Purchasing/审计，但设备物料/审批/任务仍大片缺失 |
+| 多租户隔离 | 7/10 | 设备物料（9表）+ CRM/Finance/Purchasing/审计已修复，审批/任务/采购子表仍缺失 |
 | 功能完整度 | 7/10 | 核心模块齐全，但库存台账缺失是明显空白 |
 | 驾驶舱可用性 | 3/10 | 页面完整但数据全空，需系统性验证修复 |
 | 数据一致性 | 7/10 | 父子表 company_id 多数未同步 |
 | 审批流引擎 | 8/10 | 引擎完整，但无 company_id 隔离 |
 | 审计追踪 | 7/10 | OperationAuditLog 已修复，但 LoginLog/PermissionAuditLog 仍缺失 |
-| **综合** | **6.0/10** | 比 P2 修复后（8.0）低了2分，因本报告发现了更深层结构问题 |
+| **综合** | **7.0/10** | 设备物料域修复后从6.0提升至7.0，审批/任务/采购子表仍待处理 |
 
 > ⚠️ **注意**：本报告发现了 P0-A（多租户系统性漏洞）这一之前未被识别的阻断性问题，综合成熟度应回退至 **6.0/10**。这是商业化交付前必须解决的架构级问题。
 
@@ -327,6 +327,7 @@
 | 2026-05-06 | v2 | P0全部修复（commit `97fb19b`），P1全部修复（commit `a8b8558`） |
 | 2026-05-06 | v3 | P2全部修复（commit `50e58d4`/`67adf0e`），综合成熟度8.0/10 |
 | 2026-05-06 | v4 | **本版**：全面功能审计发现P0-A多租户系统性漏洞，综合成熟度6.0/10 |
+| 2026-05-06 | v5 | P0-A设备物料域修复完成（Equipment+Material全系9表+迁移0004/0005），综合成熟度7.0/10 |
 
 ---
 

@@ -22,6 +22,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     is_owner = serializers.SerializerMethodField()
     company_name = serializers.CharField(source='company.name', read_only=True, allow_null=True)
     computed_progress = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
 
     def get_is_owner(self, obj):
         request = self.context.get('request')
@@ -45,7 +46,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'code', 'description', 'status', 'status_display',
             'owner', 'owner_name', 'start_date', 'end_date', 'progress',
-            'budget', 'company', 'company_name',
+            'budget', 'company', 'company_name', 'company_id',
             'approval_flow', 'approval_status',
             'created_at', 'updated_at', 'is_owner', 'computed_progress'
         ]
@@ -67,7 +68,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'priority', 'priority_display', 'status', 'status_display',
             'assignee', 'assignee_name', 'reporter', 'reporter_name',
             'due_date', 'completed_at', 'created_at', 'updated_at',
-            'flow_instance'
+            'flow_instance', 'company_id'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
     
@@ -104,13 +105,16 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
+    company_id = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Task
         fields = [
             'id', 'title', 'code', 'description', 'project',
-            'priority', 'status', 'assignee', 'reporter', 'due_date'
+            'priority', 'status', 'assignee', 'reporter', 'due_date',
+            'company_id'
         ]
-    
+
     def create(self, validated_data):
         validated_data['reporter'] = self.context['request'].user
         return super().create(validated_data)
@@ -119,12 +123,13 @@ class TaskCreateSerializer(serializers.ModelSerializer):
 class FlowTemplateSerializer(serializers.ModelSerializer):
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     node_count = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = FlowTemplate
         fields = [
             'id', 'name', 'code', 'type', 'type_display',
-            'description', 'is_active', 'node_count',
+            'description', 'is_active', 'node_count', 'company_id',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -137,6 +142,7 @@ class FlowNodeTemplateSerializer(serializers.ModelSerializer):
     template_name = serializers.CharField(source='template.name', read_only=True)
     node_type_display = serializers.CharField(source='get_node_type_display', read_only=True)
     assignee_type_display = serializers.CharField(source='get_assignee_type_display', read_only=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = FlowNodeTemplate
@@ -144,7 +150,7 @@ class FlowNodeTemplateSerializer(serializers.ModelSerializer):
             'id', 'template', 'template_name', 'name', 'code',
             'node_type', 'node_type_display', 'description',
             'assignee_type', 'assignee_type_display', 'assignee_value',
-            'order', 'timeout_hours', 'created_at'
+            'order', 'timeout_hours', 'created_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -155,6 +161,7 @@ class TaskStageInstanceSerializer(serializers.ModelSerializer):
     node_template_name = serializers.CharField(source='node_template.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     assignee_name = serializers.CharField(source='assignee.username', read_only=True, allow_null=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = TaskStageInstance
@@ -162,7 +169,7 @@ class TaskStageInstanceSerializer(serializers.ModelSerializer):
             'id', 'task', 'task_code', 'task_title',
             'node_template', 'node_template_name', 'status', 'status_display',
             'assignee', 'assignee_name', 'started_at', 'completed_at',
-            'remark', 'created_at', 'updated_at'
+            'remark', 'created_at', 'updated_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -171,12 +178,14 @@ class StageActivitySerializer(serializers.ModelSerializer):
     stage_instance_name = serializers.CharField(source='stage_instance.__str__', read_only=True)
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     actor_name = serializers.CharField(source='actor.username', read_only=True, allow_null=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = StageActivity
         fields = [
             'id', 'stage_instance', 'stage_instance_name', 'action', 'action_display',
-            'actor', 'actor_name', 'comment', 'from_status', 'to_status', 'created_at'
+            'actor', 'actor_name', 'comment', 'from_status', 'to_status', 'created_at',
+            'company_id'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -186,13 +195,14 @@ class FlowTransitionSerializer(serializers.ModelSerializer):
     from_node_name = serializers.CharField(source='from_node.name', read_only=True, allow_null=True)
     to_node_name = serializers.CharField(source='to_node.name', read_only=True, allow_null=True)
     actor_name = serializers.CharField(source='actor.username', read_only=True, allow_null=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = FlowTransition
         fields = [
             'id', 'task', 'task_code', 'from_node', 'from_node_name',
             'to_node', 'to_node_name', 'actor', 'actor_name',
-            'action', 'remark', 'created_at'
+            'action', 'remark', 'created_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -205,6 +215,7 @@ class TaskFlowInstanceSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     started_by_name = serializers.CharField(source='started_by.username', read_only=True, allow_null=True)
     flow_progress = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = TaskFlowInstance
@@ -212,7 +223,8 @@ class TaskFlowInstanceSerializer(serializers.ModelSerializer):
             'id', 'task', 'task_code', 'task_title',
             'template', 'template_name', 'current_node', 'current_node_name',
             'status', 'status_display', 'started_by', 'started_by_name',
-            'started_at', 'completed_at', 'flow_progress', 'created_at'
+            'started_at', 'completed_at', 'flow_progress', 'created_at',
+            'company_id'
         ]
         read_only_fields = ['id', 'created_at']
     
@@ -228,11 +240,12 @@ class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
     replies = serializers.SerializerMethodField()
     reply_count = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = TaskComment
         fields = ['id', 'task', 'author', 'author_name', 'content',
-                  'parent', 'replies', 'reply_count', 'created_at', 'updated_at']
+                  'parent', 'replies', 'reply_count', 'created_at', 'updated_at', 'company_id']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_replies(self, obj):
@@ -250,11 +263,12 @@ class TaskCommentSerializer(serializers.ModelSerializer):
 class TaskAttachmentSerializer(serializers.ModelSerializer):
     uploaded_by_name = serializers.CharField(source='uploaded_by.username', read_only=True, allow_null=True)
     url = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = TaskAttachment
         fields = ['id', 'task', 'file', 'name', 'size',
-                  'uploaded_by', 'uploaded_by_name', 'url', 'created_at']
+                  'uploaded_by', 'uploaded_by_name', 'url', 'created_at', 'company_id']
         extra_kwargs = {'name': {'required': False}, 'size': {'required': False}}
         read_only_fields = ['id', 'created_at']
 
@@ -283,12 +297,13 @@ class TaskDependencySerializer(serializers.ModelSerializer):
     depends_on_title = serializers.CharField(source='depends_on.title', read_only=True)
     depends_on_status = serializers.CharField(source='depends_on.status', read_only=True)
     dependency_type_display = serializers.CharField(source='get_dependency_type_display', read_only=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
 
     class Meta:
         model = TaskDependency
         fields = ['id', 'task', 'task_code', 'task_title',
                   'depends_on', 'depends_on_code', 'depends_on_title', 'depends_on_status',
-                  'dependency_type', 'dependency_type_display', 'created_at']
+                  'dependency_type', 'dependency_type_display', 'created_at', 'company_id']
         read_only_fields = ['id', 'created_at']
 
 
@@ -644,7 +659,17 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(company_id=self.request.user.company_id)
+
     @action(detail=True)
     def nodes(self, request, pk=None):
         """获取模板的所有节点"""
@@ -663,6 +688,16 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
     ordering_fields = ['template', 'order']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(company_id=self.request.user.company_id)
 
 
 class TaskStageInstanceViewSet(viewsets.ModelViewSet):
@@ -707,7 +742,8 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             action='start',
             actor=request.user,
             from_status='pending',
-            to_status='in_progress'
+            to_status='in_progress',
+            company_id=instance.company_id,
         )
         
         serializer = self.get_serializer(instance)
@@ -733,7 +769,8 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             actor=request.user,
             comment=remark,
             from_status=instance.status,
-            to_status='approved'
+            to_status='approved',
+            company_id=instance.company_id,
         )
         
         serializer = self.get_serializer(instance)
@@ -759,7 +796,8 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             actor=request.user,
             comment=remark,
             from_status=instance.status,
-            to_status='rejected'
+            to_status='rejected',
+            company_id=instance.company_id,
         )
         
         serializer = self.get_serializer(instance)
@@ -780,6 +818,9 @@ class StageActivityViewSet(viewsets.ModelViewSet):
         stage_instance_id = self.request.query_params.get('stage_instance', None)
         if stage_instance_id:
             queryset = queryset.filter(stage_instance_id=stage_instance_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
 
 
@@ -797,7 +838,18 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
         task_id = self.request.query_params.get('task', None)
         if task_id:
             queryset = queryset.filter(task_id=task_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
+
+    def perform_create(self, serializer):
+        # 自动从 task 继承 company_id
+        task = serializer.validated_data.get('task')
+        if task:
+            serializer.save(company_id=task.company_id)
+        else:
+            serializer.save()
 
 
 class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
@@ -817,6 +869,9 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         my_flows = self.request.query_params.get('my_flows', None)
         if my_flows and self.request.user.is_authenticated:
             queryset = queryset.filter(started_by=self.request.user)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
     
     @action(detail=True, methods=['post'])

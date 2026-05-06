@@ -7,7 +7,8 @@ class ApprovalTemplateSerializer(serializers.ModelSerializer):
     flow_type_display = serializers.CharField(source='get_flow_type_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
     node_count = serializers.SerializerMethodField()
-    
+    company_id = serializers.IntegerField(required=False, allow_null=True)
+
     def get_node_count(self, obj):
         return len(obj.nodes) if obj.nodes else 0
 
@@ -17,7 +18,7 @@ class ApprovalTemplateSerializer(serializers.ModelSerializer):
             'id', 'name', 'code', 'flow_type', 'flow_type_display',
             'description', 'nodes', 'conditions', 'is_active',
             'created_by', 'created_by_name', 'node_count',
-            'created_at', 'updated_at'
+            'created_at', 'updated_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
@@ -39,9 +40,16 @@ class ApprovalNodeSerializer(serializers.ModelSerializer):
             'id', 'flow', 'node_order', 'approver', 'approver_name',
             'status', 'status_display', 'node_type', 'node_type_display',
             'delegated_to', 'delegated_to_name',
-            'comment', 'assigned_at', 'decided_at'
+            'comment', 'assigned_at', 'decided_at', 'company_id'
         ]
         read_only_fields = ['assigned_at']
+
+    def create(self, validated_data):
+        # 自动从 flow 继承 company_id
+        flow = validated_data.get('flow')
+        if flow and flow.company_id:
+            validated_data['company_id'] = flow.company_id
+        return super().create(validated_data)
 
 
 class ApprovalFlowSerializer(serializers.ModelSerializer):
@@ -92,7 +100,8 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
             'id', 'name', 'flow_type', 'flow_type_display', 'status', 'status_display',
             'requester', 'requester_id', 'requester_name', 'amount', 'description',
             'current_node_order', 'result_comment', 'decided_at',
-            'nodes', 'expense_info', 'income_info', 'created_at', 'updated_at'
+            'nodes', 'expense_info', 'income_info', 'created_at', 'updated_at',
+            'company_id',
         ]
         read_only_fields = ['created_at', 'updated_at']
 

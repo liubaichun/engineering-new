@@ -49,6 +49,10 @@ class ApprovalFlow(models.Model):
         verbose_name='关联业务ID', default=0,
         help_text='关联业务对象的ID'
     )
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     decided_at = models.DateTimeField(verbose_name='审批完成时间', null=True, blank=True)
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
@@ -117,6 +121,10 @@ class ApprovalNode(models.Model):
         blank=True,
         help_text='节点超时时间（小时），超时后自动过期'
     )
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
 
     class Meta:
         db_table = 'approvals_node'
@@ -161,6 +169,10 @@ class ApprovalTemplate(models.Model):
         null=True,
         related_name='created_approval_templates',
         verbose_name='创建人'
+    )
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
     )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
