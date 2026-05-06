@@ -1,22 +1,16 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>采购入库管理</title>
-<link href="/static/bootstrap-5.3.0.min.css" rel="stylesheet">
-<link href="/static/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
-<script src="/static/bootstrap-5.3.0.bundle.min.js"></script>
-<script src="/static/axios.min.js"></script>
+{% extends "base.html" %}
+
+{% block title %}采购入库管理{% endblock %}
+
+{% block content %}
 <style>
 .stat-card{border-left:4px solid #0d6efd}.stat-num{font-size:1.6rem;font-weight:700}
 .badge-pending{background:#6c757d}.badge-partial{background:#fd7e14}.badge-completed{background:#198754}
 .modal-wide{max-width:800px}.table-responsive{font-size:14px}
+.table-actions .btn { padding: 2px 6px; font-size: 12px; }
 </style>
-</head>
-<body>
-{% include 'base.html' %}
-<div class="container-fluid py-3">
+
+<div class="container-fluid" style="margin-top:20px;">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-box-seam"></i> 采购入库管理</h4>
   </div>
@@ -76,8 +70,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
-<!-- 详情弹窗 -->
+{% block modal %}
 <div class="modal fade" id="detailModal" tabindex="-1">
   <div class="modal-dialog modal-wide">
     <div class="modal-content">
@@ -87,127 +82,123 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
-const API = '/api/purchasing/receives/';
-let page = 1, detailModal;
+var API = '/api/purchasing/receives/';
+var page = 1, detailModal;
+
 document.addEventListener('DOMContentLoaded', function() {
   detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
-  document.getElementById('sKw').addEventListener('keypress', e => e.key==='Enter' && loadData(1));
-  document.getElementById('sStatus').addEventListener('change', () => loadData(1));
+  document.getElementById('sKw').addEventListener('keypress', function(e) { if (e.key==='Enter') loadData(1); });
+  document.getElementById('sStatus').addEventListener('change', function() { loadData(1); });
   loadData(1);
 });
 
-async function loadData(p) {
+function loadData(p) {
   page = p;
-  const params = { page: p, page_size: 20 };
-  const kw = document.getElementById('sKw').value.trim();
+  var params = { page: p, page_size: 20 };
+  var kw = document.getElementById('sKw').value.trim();
   if (kw) params.search = kw;
-  const st = document.getElementById('sStatus').value;
+  var st = document.getElementById('sStatus').value;
   if (st) params.status = st;
-  try {
-    const r = await axios.get(API, { params });
-    render(r.data);
-  } catch(e) { console.error(e); }
+  axios.get(API, { params: params }).then(function(r) { render(r.data); }).catch(function(e) { console.error(e); });
 }
 
 function stBadge(s) {
-  const m = { pending:'待入库', partial:'部分入库', completed:'已完成' };
-  const cls = { pending:'badge-pending', partial:'badge-partial', completed:'badge-completed' };
-  return `<span class="badge ${cls[s]||'badge-pending'}">${m[s]||s}</span>`;
+  var m = { pending:'待入库', partial:'部分入库', completed:'已完成' };
+  var cls = { pending:'badge-pending', partial:'badge-partial', completed:'badge-completed' };
+  return '<span class="badge ' + (cls[s]||'badge-pending') + '">' + (m[s]||s) + '</span>';
 }
 
 function render(data) {
-  let done=0, pending=0;
-  (data.results||[]).forEach(r => {
-    if (r.status==='completed') done++;
-    else pending++;
+  var items = data.results||data;
+  var done=0, pending=0;
+  items.forEach(function(r) {
+    if (r.status==='completed') done++; else pending++;
   });
   document.getElementById('s-total').textContent = data.count || 0;
   document.getElementById('s-done').textContent = done;
   document.getElementById('s-pending').textContent = pending;
 
-  const tb = document.getElementById('tb');
-  if (!(data.results||data).length) {
+  var tb = document.getElementById('tb');
+  if (!items.length) {
     tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>';
     document.getElementById('pager').innerHTML = '';
     return;
   }
-  tb.innerHTML = (data.results||data).map(r => `
-    <tr>
-      <td><a href="javascript:void(0)" onclick="showDetail(${r.id})">${r.receive_no}</a></td>
-      <td>${r.order_no||'—'}</td>
-      <td>${r.supplier_name||'—'}</td>
-      <td>${r.warehouse||'—'}</td>
-      <td>${r.receive_date||'—'}</td>
-      <td>${r.received_by_name||'—'}</td>
-      <td>${stBadge(r.status)}</td>
-      <td>
-        <button class="btn btn-outline-primary btn-sm" onclick="showDetail(${r.id})">查看</button>
-        ${r.status!=='completed'?`<button class="btn btn-success btn-sm" onclick="doAction(${r.id},'complete')">确认入库</button>`:''}
-      </td>
-    </tr>`).join('');
+  tb.innerHTML = items.map(function(r) {
+    return '<tr>' +
+      '<td><a href="javascript:void(0)" onclick="showDetail(' + r.id + ')">' + (r.receive_no||'') + '</a></td>' +
+      '<td>' + (r.order_no||'—') + '</td>' +
+      '<td>' + (r.supplier_name||'—') + '</td>' +
+      '<td>' + (r.warehouse||'—') + '</td>' +
+      '<td>' + (r.receive_date||'—') + '</td>' +
+      '<td>' + (r.received_by_name||'—') + '</td>' +
+      '<td>' + stBadge(r.status) + '</td>' +
+      '<td class="table-actions">' +
+        '<button class="btn btn-outline-primary btn-sm" onclick="showDetail(' + r.id + ')">查看</button> ' +
+        (r.status!=='completed'?'<button class="btn btn-success btn-sm" onclick="doAction(' + r.id + ',\'complete\')">确认入库</button>':'') +
+      '</td></tr>';
+  }).join('');
   buildPager(data);
 }
 
 function buildPager(data) {
-  const total = Math.ceil((data.count||0) / data.page_size);
+  var total = Math.ceil((data.count||0) / data.page_size);
   if (total <= 1) { document.getElementById('pager').innerHTML = ''; return; }
-  let h = '<ul class="pagination pagination-sm mb-0">';
-  h += `<li class="page-item ${page<=1?'disabled':''}"><a class="page-link" href="javascript:loadData(${page-1})">&laquo;</a></li>`;
-  for (let i=1;i<=total;i++) {
+  var h = '<ul class="pagination pagination-sm mb-0">';
+  h += '<li class="page-item ' + (page<=1?'disabled':'') + '"><a class="page-link" href="javascript:loadData(' + (page-1) + ')">&laquo;</a></li>';
+  for (var i=1; i<=total; i++) {
     if (i===1||i===total||(i>=page-2&&i<=page+2))
-      h += `<li class="page-item ${i===page?'active':''}"><a class="page-link" href="javascript:loadData(${i})">${i}</a></li>`;
+      h += '<li class="page-item ' + (i===page?'active':'') + '"><a class="page-link" href="javascript:loadData(' + i + ')">' + i + '</a></li>';
     else if (i===page-3||i===page+3)
       h += '<li class="page-item disabled"><span class="page-link">…</span></li>';
   }
-  h += `<li class="page-item ${page>=total?'disabled':''}"><a class="page-link" href="javascript:loadData(${page+1})">&raquo;</a></li>`;
+  h += '<li class="page-item ' + (page>=total?'disabled':'') + '"><a class="page-link" href="javascript:loadData(' + (page+1) + ')">&raquo;</a></li>';
   h += '</ul>';
   document.getElementById('pager').innerHTML = h;
 }
 
-async function showDetail(id) {
-  try {
-    const r = await axios.get(API + id + '/');
-    const d = r.data;
-    document.getElementById('detailBody').innerHTML = `
-      <dl class="row">
-        <dt class="col-2 text-muted">入库单号</dt><dd class="col-4">${d.receive_no}</dd>
-        <dt class="col-2 text-muted">采购订单</dt><dd class="col-4">${d.order_no||'—'}</dd>
-        <dt class="col-2 text-muted">供应商</dt><dd class="col-4">${d.supplier_name||'—'}</dd>
-        <dt class="col-2 text-muted">公司</dt><dd class="col-4">${d.company_name||'—'}</dd>
-        <dt class="col-2 text-muted">仓库</dt><dd class="col-4">${d.warehouse||'—'}</dd>
-        <dt class="col-2 text-muted">入库日期</dt><dd class="col-4">${d.receive_date||'—'}</dd>
-        <dt class="col-2 text-muted">收货人</dt><dd class="col-4">${d.received_by_name||'—'}</dd>
-        <dt class="col-2 text-muted">状态</dt><dd class="col-4">${stBadge(d.status)}</dd>
-        <dt class="col-2 text-muted">备注</dt><dd class="col-10">${d.remark||'—'}</dd>
-      </dl>
-      <h6>入库明细 (${(d.items||[]).length} 项)</h6>
-      <table class="table table-sm table-bordered">
-        <thead><tr><th>物料</th><th>入库数量</th><th>合格数量</th><th>不合格</th><th>批号</th><th>效期</th><th>备注</th></tr></thead>
-        <tbody>
-          ${(d.items||[]).map(i => `<tr>
-            <td>${i.material_name||i.material}(${i.material_code||''})</td>
-            <td>${i.quantity} ${i.unit}</td>
-            <td class="text-success fw-semibold">${i.qualified_quantity} ${i.unit}</td>
-            <td class="text-danger">${i.defective_quantity||0} ${i.unit}</td>
-            <td>${i.batch_no||'—'}</td>
-            <td>${i.expire_date||'—'}</td>
-            <td>${i.remark||'—'}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table>`;
+function showDetail(id) {
+  axios.get(API + id + '/').then(function(r) {
+    var d = r.data;
+    document.getElementById('detailBody').innerHTML =
+      '<dl class="row">' +
+        '<dt class="col-2 text-muted">入库单号</dt><dd class="col-4">' + (d.receive_no||'') + '</dd>' +
+        '<dt class="col-2 text-muted">采购订单</dt><dd class="col-4">' + (d.order_no||'—') + '</dd>' +
+        '<dt class="col-2 text-muted">供应商</dt><dd class="col-4">' + (d.supplier_name||'—') + '</dd>' +
+        '<dt class="col-2 text-muted">公司</dt><dd class="col-4">' + (d.company_name||'—') + '</dd>' +
+        '<dt class="col-2 text-muted">仓库</dt><dd class="col-4">' + (d.warehouse||'—') + '</dd>' +
+        '<dt class="col-2 text-muted">入库日期</dt><dd class="col-4">' + (d.receive_date||'—') + '</dd>' +
+        '<dt class="col-2 text-muted">收货人</dt><dd class="col-4">' + (d.received_by_name||'—') + '</dd>' +
+        '<dt class="col-2 text-muted">状态</dt><dd class="col-4">' + stBadge(d.status) + '</dd>' +
+        '<dt class="col-2 text-muted">备注</dt><dd class="col-10">' + (d.remark||'—') + '</dd>' +
+      '</dl>' +
+      '<h6>入库明细 (' + ((d.items||[]).length) + ' 项)</h6>' +
+      '<table class="table table-sm table-bordered">' +
+        '<thead><tr><th>物料</th><th>入库数量</th><th>合格数量</th><th>不合格</th><th>批号</th><th>效期</th><th>备注</th></tr></thead>' +
+        '<tbody>' +
+        (d.items||[]).map(function(i) {
+          return '<tr><td>'+(i.material_name||i.material||'')+'('+(i.material_code||'')+')</td>' +
+            '<td>'+i.quantity+' '+(i.unit||'')+'</td>' +
+            '<td class="text-success fw-semibold">'+i.qualified_quantity+' '+(i.unit||'')+'</td>' +
+            '<td class="text-danger">'+(i.defective_quantity||0)+' '+(i.unit||'')+'</td>' +
+            '<td>'+(i.batch_no||'—')+'</td>' +
+            '<td>'+(i.expire_date||'—')+'</td>' +
+            '<td>'+(i.remark||'—')+'</td></tr>';
+        }).join('') +
+        '</tbody></table>';
     detailModal.show();
-  } catch(e) { alert('加载失败'); }
+  }).catch(function(e) { alert('加载失败'); });
 }
 
-async function doAction(id, action) {
+function doAction(id, action) {
   if (!confirm('确认执行此操作？')) return;
-  try {
-    await axios.post(API + id + '/' + action + '/');
-    loadData(page);
-  } catch(e) { alert('操作失败: ' + (e.response?.data?.error || e.message)); }
+  axios.post(API + id + '/' + action + '/').then(function() { loadData(page); })
+    .catch(function(e) { alert('操作失败: ' + (e.response?.data?.error || e.message)); });
 }
 </script>
-</body>
-</html>
+{% endblock %}

@@ -1,16 +1,10 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>项目甘特图</title>
-<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+{% extends "base.html" %}
+
+{% block title %}项目甘特图{% endblock %}
+
+{% block content %}
 <style>
 * { box-sizing: border-box; }
-body { background: #f0f2f5; }
 .gantt-page { max-width: 1400px; margin: 0 auto; padding: 20px; }
 .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
 .stat-bar { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
@@ -77,11 +71,8 @@ body { background: #f0f2f5; }
 .collapse-icon.collapsed { transform:rotate(-90deg); }
 .chart-container { height:400px; padding:16px; }
 </style>
-</head>
-<body>
-{% include 'base.html' %}
 
-<div class="gantt-page" style="margin-top:56px;">
+<div class="gantt-page">
     <div class="page-header">
         <h4><i class="bi bi-bar-chart-fill" style="color:#3b82f6"></i> 项目甘特图</h4>
         <div class="d-flex gap-2">
@@ -149,7 +140,10 @@ body { background: #f0f2f5; }
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
 <script>
 const API_PROJECTS = '/api/tasks/projects/';
 const API_GANTT = '/api/tasks/projects/gantt_all/';
@@ -218,7 +212,6 @@ function renderGantt(data) {
         return;
     }
 
-    // Calculate date range
     const allDates = data.flatMap(d => {
         const r = [];
         if (d.start) r.push(new Date(d.start));
@@ -237,15 +230,12 @@ function renderGantt(data) {
     const dayWidth = 32;
     const totalWidth = totalDays * dayWidth;
 
-    // Date header
     let headerHtml = `<table class="gantt-table"><thead><tr><th class="gantt-col" style="width:240px;">任务 / 项目</th>`;
     headerHtml += `<th style="min-width:${totalWidth}px;">`;
 
-    // Month labels
     let monthHtml = '<div style="display:flex;">';
     let cur = new Date(minDate);
     while (cur <= maxDate) {
-        const monthStart = new Date(cur.getFullYear(), cur.getMonth(), 1);
         const monthEnd = new Date(cur.getFullYear(), cur.getMonth() + 1, 0);
         const daysInMonth = monthEnd.getDate();
         monthHtml += `<div style="width:${daysInMonth * dayWidth}px;min-width:${daysInMonth * dayWidth}px;text-align:center;font-size:0.75rem;font-weight:700;color:#475569;border-right:1px solid #e2e8f0;padding:4px 0;">${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}</div>`;
@@ -253,7 +243,6 @@ function renderGantt(data) {
     }
     monthHtml += '</div>';
 
-    // Day numbers
     let dayHtml = '<div style="display:flex;">';
     cur = new Date(minDate);
     while (cur <= maxDate) {
@@ -267,7 +256,6 @@ function renderGantt(data) {
     document.getElementById('gantt-range').textContent =
         `${minDate.getFullYear()}-${minDate.getMonth()+1}-${minDate.getDate()} ~ ${maxDate.getFullYear()}-${maxDate.getMonth()+1}-${maxDate.getDate()} · ${projects.length} 个项目`;
 
-    // Body
     let bodyHtml = '<table class="gantt-table"><tbody>';
     const today = new Date();
     today.setHours(0,0,0,0);
@@ -280,7 +268,6 @@ function renderGantt(data) {
         const projStart = proj.start ? new Date(proj.start) : null;
         const projEnd = proj.end ? new Date(proj.end) : null;
 
-        // Project row
         bodyHtml += `<tr class="project-row">`;
         bodyHtml += `<td>
             <span class="project-expand" onclick="toggleProject(${pid})">
@@ -307,7 +294,6 @@ function renderGantt(data) {
         }
         bodyHtml += `</td></tr>`;
 
-        // Task rows (if not collapsed)
         if (!isCollapsed) {
             projTasks.forEach(task => {
                 const taskStart = task.start ? new Date(task.start) : null;
@@ -346,27 +332,16 @@ function toggleProject(pid) {
 }
 
 function renderECharts(data) {
-    const chart = echarts.init(document.getElementById('echarts-main'));
+    if (!document.getElementById('echarts-main')) return;
+    const chartDom = document.getElementById('echarts-main');
+    const chart = echarts.init(chartDom);
     const projects = data.filter(d => d.type === 'project');
-
-    const categories = [
-        { name: '草稿', color: '#94a3b8' },
-        { name: '进行中', color: '#3b82f6' },
-        { name: '已完成', color: '#10b981' },
-        { name: '已归档', color: '#64748b' },
-    ];
-
-    const getCategory = (status) => {
-        const map = { draft: 0, active: 1, completed: 2, archived: 3 };
-        return map[status] ?? 0;
-    };
 
     const getStatusColor = (status) => {
         const map = { draft: '#94a3b8', active: '#3b82f6', completed: '#10b981', archived: '#64748b' };
         return map[status] || '#94a3b8';
     };
 
-    // Build data: each project = one horizontal bar
     const chartData = projects.map((p, i) => {
         const start = p.start ? new Date(p.start) : null;
         const end = p.end ? new Date(p.end) : null;
@@ -415,8 +390,8 @@ function renderECharts(data) {
                 const proj = projects[categoryIndex];
                 const progress = api.value(3) || 0;
                 const barWidth = Math.abs(end[0] - start[0]);
+                const textWidth = barWidth > 40 ? barWidth : 0;
 
-                const rectText = echarts.textRect(`${progress}%`);
                 return {
                     type: 'group',
                     children: [
@@ -427,7 +402,7 @@ function renderECharts(data) {
                         },
                         {
                             type: 'rect',
-                            shape: { x: start[0], y, width: barWidth * progress / 100, height, r: [4, 0, 0, 4] },
+                            shape: { x: start[0], y, width: Math.max(0, barWidth * progress / 100), height, r: [4, 0, 0, 4] },
                             style: { fill: 'rgba(255,255,255,0.25)' },
                         },
                         {
@@ -487,5 +462,4 @@ function exportGantt() {
     URL.revokeObjectURL(url);
 }
 </script>
-</body>
-</html>
+{% endblock %}

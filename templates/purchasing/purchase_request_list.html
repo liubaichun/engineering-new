@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>采购申请管理</title>
-<link href="/static/bootstrap-5.3.0.min.css" rel="stylesheet">
-<link href="/static/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
-<script src="/static/bootstrap-5.3.0.bundle.min.js"></script>
-<script src="/static/axios.min.js"></script>
+{% extends "base.html" %}
+
+{% block title %}采购申请管理{% endblock %}
+
+{% block content %}
 <style>
 .card-stat { border-left: 4px solid #0d6efd; }
 .card-stat2 { border-left: 4px solid #198754; }
@@ -24,10 +19,8 @@
 .modal-wide { max-width: 800px; }
 .table-responsive { font-size: 14px; }
 </style>
-</head>
-<body>
-{% include 'base.html' %}
-<div class="container-fluid py-3">
+
+<div class="container-fluid" style="margin-top:20px;">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0"><i class="bi bi-cart-plus"></i> 采购申请管理</h4>
     <button class="btn btn-primary btn-sm" onclick="showCreateModal()">
@@ -141,7 +134,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block modal %}
 <!-- 新建/编辑弹窗 -->
 <div class="modal fade" id="formModal" tabindex="-1">
   <div class="modal-dialog modal-wide">
@@ -224,12 +219,13 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
 const API = '/api/purchasing/requests/';
 const API_STATS = '/api/purchasing/requests/summary/';
-const API_ITEM = '/api/purchasing/request-items/';
-const API_ORDER = '/api/purchasing/orders/';
 let modal, detailModal;
 let currentPage = 1;
 let currentObj = null;
@@ -291,7 +287,7 @@ async function updateStats() {
     document.getElementById('stat-total').textContent = d.total_count || 0;
     document.getElementById('stat-amount').textContent = d.total_amount > 0 ? '¥'+d.total_amount.toLocaleString() : '—';
     const byStatus = {};
-    (d.by_status || []).forEach(s => { byStatus[s.status] = s.count; });
+    (d.by_status || []).forEach(function(s) { byStatus[s.status] = s.count; });
     document.getElementById('stat-draft').textContent = byStatus['draft'] || 0;
     document.getElementById('stat-approved').textContent = byStatus['approved'] || 0;
     document.getElementById('stat-rejected').textContent = byStatus['rejected'] || 0;
@@ -299,73 +295,71 @@ async function updateStats() {
 }
 
 function statusBadge(s) {
-  const m = { draft: '草稿', submitted: '已提交', approved: '已审批', partially_ordered: '部分下单',
+  var m = { draft: '草稿', submitted: '已提交', approved: '已审批', partially_ordered: '部分下单',
                ordered: '已下单', closed: '已关闭', rejected: '已驳回' };
-  const cls = { draft: 'badge-draft', submitted: 'badge-submitted', approved: 'badge-approved',
+  var cls = { draft: 'badge-draft', submitted: 'badge-submitted', approved: 'badge-approved',
                 rejected: 'badge-rejected', closed: 'badge-closed', partially_ordered: 'badge-partially', ordered: 'badge-submitted' };
-  return `<span class="badge ${cls[s] || 'badge-draft'}">${m[s] || s}</span>`;
+  return '<span class="badge ' + (cls[s] || 'badge-draft') + '">' + (m[s] || s) + '</span>';
 }
 
 function typeBadge(t) {
-  const m = { project: '项目采购', inventory: '库存补货', asset: '资产采购' };
-  return `<span class="badge bg-info">${m[t] || t}</span>`;
+  var m = { project: '项目采购', inventory: '库存补货', asset: '资产采购' };
+  return '<span class="badge bg-info">' + (m[t] || t) + '</span>';
 }
 
 function renderTable(data) {
-  const tb = document.getElementById('tableBody');
+  var tb = document.getElementById('tableBody');
   if (!data || data.length === 0) {
     tb.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
     return;
   }
   tb.innerHTML = data.map(function(r) {
-    return `<tr>
-      <td><a href="javascript:void(0)" onclick="showDetail(${r.id})">${r.request_no}</a></td>
-      <td>${r.title}</td>
-      <td>${typeBadge(r.request_type)}</td>
-      <td>${r.applicant_name || '—'}</td>
-      <td>${r.department || '—'}</td>
-      <td>${r.project_name || '—'}</td>
-      <td class="text-end fw-semibold">${r.total_amount > 0 ? '¥'+r.total_amount.toLocaleString() : '—'}</td>
-      <td>${statusBadge(r.status)}</td>
-      <td>${r.expected_date || '—'}</td>
-      <td class="table-actions">
-        ${actionButtons(r)}
-      </td>
-    </tr>`;
+    return '<tr>' +
+      '<td><a href="javascript:void(0)" onclick="showDetail(' + r.id + ')">' + r.request_no + '</a></td>' +
+      '<td>' + (r.title || '') + '</td>' +
+      '<td>' + typeBadge(r.request_type) + '</td>' +
+      '<td>' + (r.applicant_name || '—') + '</td>' +
+      '<td>' + (r.department || '—') + '</td>' +
+      '<td>' + (r.project_name || '—') + '</td>' +
+      '<td class="text-end fw-semibold">' + (r.total_amount > 0 ? '¥'+r.total_amount.toLocaleString() : '—') + '</td>' +
+      '<td>' + statusBadge(r.status) + '</td>' +
+      '<td>' + (r.expected_date || '—') + '</td>' +
+      '<td class="table-actions">' + actionButtons(r) + '</td>' +
+      '</tr>';
   }).join('');
 }
 
 function actionButtons(r) {
-  let html = `<button class="btn btn-outline-primary btn-sm" onclick="showDetail(${r.id})">查看</button> `;
+  var html = '<button class="btn btn-outline-primary btn-sm" onclick="showDetail(' + r.id + ')">查看</button> ';
   if (r.status === 'draft' || r.status === 'rejected') {
-    html += `<button class="btn btn-outline-secondary btn-sm" onclick="editItem(${r.id})">编辑</button> `;
-    html += `<button class="btn btn-success btn-sm" onclick="doAction(${r.id},'submit')">提交</button> `;
+    html += '<button class="btn btn-outline-secondary btn-sm" onclick="editItem(' + r.id + ')">编辑</button> ';
+    html += '<button class="btn btn-success btn-sm" onclick="doAction(' + r.id + ',\'submit\')">提交</button> ';
   }
   if (r.status === 'submitted') {
-    html += `<button class="btn btn-primary btn-sm" onclick="doAction(${r.id},'approve')">审批</button> `;
-    html += `<button class="btn btn-danger btn-sm" onclick="doAction(${r.id},'reject')">驳回</button> `;
+    html += '<button class="btn btn-primary btn-sm" onclick="doAction(' + r.id + ',\'approve\')">审批</button> ';
+    html += '<button class="btn btn-danger btn-sm" onclick="doAction(' + r.id + ',\'reject\')">驳回</button> ';
   }
   if (r.status !== 'closed' && r.status !== 'ordered') {
-    html += `<button class="btn btn-outline-dark btn-sm" onclick="doAction(${r.id},'close')">关闭</button> `;
+    html += '<button class="btn btn-outline-dark btn-sm" onclick="doAction(' + r.id + ',\'close\')">关闭</button> ';
   }
   return html;
 }
 
 function renderPagination(data) {
   if (!data.count) return;
-  const total = Math.ceil(data.count / data.page_size);
-  const cur = data.current_page || 1;
+  var total = Math.ceil(data.count / data.page_size);
+  var cur = data.current_page || 1;
   if (total <= 1) return;
-  let html = '<ul class="pagination pagination-sm mb-0">';
-  html += `<li class="page-item ${cur<=1?'disabled':''}"><a class="page-link" href="javascript:loadData(${cur-1})">&laquo;</a></li>`;
-  for (let i = 1; i <= total; i++) {
+  var html = '<ul class="pagination pagination-sm mb-0">';
+  html += '<li class="page-item ' + (cur<=1?'disabled':'') + '"><a class="page-link" href="javascript:loadData(' + (cur-1) + ')">&laquo;</a></li>';
+  for (var i = 1; i <= total; i++) {
     if (i === 1 || i === total || (i >= cur - 2 && i <= cur + 2)) {
-      html += `<li class="page-item ${i===cur?'active':''}"><a class="page-link" href="javascript:loadData(${i})">${i}</a></li>`;
+      html += '<li class="page-item ' + (i===cur?'active':'') + '"><a class="page-link" href="javascript:loadData(' + i + ')">' + i + '</a></li>';
     } else if (i === cur - 3 || i === cur + 3) {
       html += '<li class="page-item disabled"><span class="page-link">…</span></li>';
     }
   }
-  html += `<li class="page-item ${cur>=total?'disabled':''}"><a class="page-link" href="javascript:loadData(${cur+1})">&raquo;</a></li>`;
+  html += '<li class="page-item ' + (cur>=total?'disabled':'') + '"><a class="page-link" href="javascript:loadData(' + (cur+1) + ')">&raquo;</a></li>';
   html += '</ul>';
   document.getElementById('paginationArea').innerHTML = html;
 }
@@ -388,15 +382,15 @@ function showCreateModal() {
 
 async function editItem(id) {
   try {
-    const r = await axios.get(API + id + '/');
-    const d = r.data;
+    var r = await axios.get(API + id + '/');
+    var d = r.data;
     currentObj = d;
     document.getElementById('modalTitle').textContent = '编辑采购申请';
     document.getElementById('formId').value = d.id;
     document.getElementById('f-request_no').value = d.request_no;
-    document.getElementById('f-title').value = d.title;
-    document.getElementById('f-request_type').value = d.request_type;
-    document.getElementById('f-applicant').value = d.applicant;
+    document.getElementById('f-title').value = d.title || '';
+    document.getElementById('f-request_type').value = d.request_type || 'inventory';
+    document.getElementById('f-applicant').value = d.applicant || '';
     document.getElementById('f-project').value = d.project || '';
     document.getElementById('f-department').value = d.department || '';
     document.getElementById('f-expected_date').value = d.expected_date || '';
@@ -407,8 +401,8 @@ async function editItem(id) {
 }
 
 async function saveForm() {
-  const id = document.getElementById('formId').value;
-  const payload = {
+  var id = document.getElementById('formId').value;
+  var payload = {
     title: document.getElementById('f-title').value,
     request_type: document.getElementById('f-request_type').value,
     applicant: parseInt(document.getElementById('f-applicant').value),
@@ -433,47 +427,31 @@ async function saveForm() {
 
 async function showDetail(id) {
   try {
-    const r = await axios.get(API + id + '/');
-    const d = r.data;
-    document.getElementById('detailContent').innerHTML = `
-      <div class="row">
-        <div class="col-md-6">
-          <dl class="row mb-2">
-            <dt class="col-4 text-muted">申请单号</dt><dd class="col-8">${d.request_no}</dd>
-            <dt class="col-4 text-muted">标题</dt><dd class="col-8">${d.title}</dd>
-            <dt class="col-4 text-muted">类型</dt><dd class="col-8">${typeBadge(d.request_type)}</dd>
-            <dt class="col-4 text-muted">申请人</dt><dd class="col-8">${d.applicant_name}</dd>
-            <dt class="col-4 text-muted">部门</dt><dd class="col-8">${d.department || '—'}</dd>
-            <dt class="col-4 text-muted">关联项目</dt><dd class="col-8">${d.project_name || '—'}</dd>
-          </dl>
-        </div>
-        <div class="col-md-6">
-          <dl class="row mb-2">
-            <dt class="col-4 text-muted">状态</dt><dd class="col-8">${statusBadge(d.status)}</dd>
-            <dt class="col-4 text-muted">预估总额</dt><dd class="col-8 fw-bold text-danger">¥${d.total_amount > 0 ? d.total_amount.toLocaleString() : '0.00'}</dd>
-            <dt class="col-4 text-muted">期望到货</dt><dd class="col-8">${d.expected_date || '—'}</dd>
-            <dt class="col-4 text-muted">提交时间</dt><dd class="col-8">${d.submitted_at ? d.submitted_at.slice(0,10) : '—'}</dd>
-            <dt class="col-4 text-muted">审批时间</dt><dd class="col-8">${d.approved_at ? d.approved_at.slice(0,10) : '—'}</dd>
-          </dl>
-        </div>
-        <div class="col-12">
-          <dl class="row">
-            <dt class="col-2 text-muted">申购理由</dt><dd class="col-10">${d.reason || '—'}</dd>
-            <dt class="col-2 text-muted">备注</dt><dd class="col-10">${d.remark || '—'}</dd>
-          </dl>
-        </div>
-      </div>
-      <h6 class="mt-2">明细 (${(d.items||[]).length} 项)</h6>
-      <table class="table table-sm table-bordered">
-        <thead><tr><th>物料</th><th>规格说明</th><th>数量</th><th>单位</th><th>预估单价</th><th>预估金额</th></tr></thead>
-        <tbody>
-          ${(d.items||[]).map(function(i) {
-            return `<tr><td>${i.material_name||i.material}(${i.material_code||''})</td><td>${i.description||'—'}</td>
-                    <td>${i.quantity}</td><td>${i.unit}</td><td class="text-end">¥${i.estimated_unit_price}</td>
-                    <td class="text-end fw-semibold">¥${i.estimated_amount}</td></tr>`;
-          }).join('')}
-        </tbody>
-      </table>`;
+    var r = await axios.get(API + id + '/');
+    var d = r.data;
+    document.getElementById('detailContent').innerHTML = '<div class="row">' +
+      '<div class="col-md-6"><dl class="row mb-2">' +
+      '<dt class="col-4 text-muted">申请单号</dt><dd class="col-8">' + d.request_no + '</dd>' +
+      '<dt class="col-4 text-muted">标题</dt><dd class="col-8">' + (d.title||'') + '</dd>' +
+      '<dt class="col-4 text-muted">类型</dt><dd class="col-8">' + typeBadge(d.request_type) + '</dd>' +
+      '<dt class="col-4 text-muted">申请人</dt><dd class="col-8">' + (d.applicant_name||'') + '</dd>' +
+      '<dt class="col-4 text-muted">部门</dt><dd class="col-8">' + (d.department||'—') + '</dd>' +
+      '<dt class="col-4 text-muted">关联项目</dt><dd class="col-8">' + (d.project_name||'—') + '</dd>' +
+      '</dl></div><div class="col-md-6"><dl class="row mb-2">' +
+      '<dt class="col-4 text-muted">状态</dt><dd class="col-8">' + statusBadge(d.status) + '</dd>' +
+      '<dt class="col-4 text-muted">预估总额</dt><dd class="col-8 fw-bold text-danger">¥' + (d.total_amount>0?d.total_amount.toLocaleString():'0.00') + '</dd>' +
+      '<dt class="col-4 text-muted">期望到货</dt><dd class="col-8">' + (d.expected_date||'—') + '</dd>' +
+      '<dt class="col-4 text-muted">提交时间</dt><dd class="col-8">' + (d.submitted_at?d.submitted_at.slice(0,10):'—') + '</dd>' +
+      '<dt class="col-4 text-muted">审批时间</dt><dd class="col-8">' + (d.approved_at?d.approved_at.slice(0,10):'—') + '</dd>' +
+      '</dl></div><div class="col-12"><dl class="row">' +
+      '<dt class="col-2 text-muted">申购理由</dt><dd class="col-10">' + (d.reason||'—') + '</dd>' +
+      '<dt class="col-2 text-muted">备注</dt><dd class="col-10">' + (d.remark||'—') + '</dd>' +
+      '</dl></div></div>' +
+      '<h6 class="mt-2">明细 (' + ((d.items||[]).length) + ' 项)</h6>' +
+      '<table class="table table-sm table-bordered"><thead><tr><th>物料</th><th>规格说明</th><th>数量</th><th>单位</th><th>预估单价</th><th>预估金额</th></tr></thead><tbody>' +
+      (d.items||[]).map(function(i) {
+        return '<tr><td>'+(i.material_name||i.material||'')+'('+(i.material_code||'')+')</td><td>'+(i.description||'—')+'</td><td>'+i.quantity+'</td><td>'+(i.unit||'')+'</td><td class="text-end">¥'+i.estimated_unit_price+'</td><td class="text-end fw-semibold">¥'+i.estimated_amount+'</td></tr>';
+      }).join('') + '</tbody></table>';
     detailModal.show();
   } catch(e) { alert('加载失败'); }
 }
@@ -486,5 +464,4 @@ async function doAction(id, action) {
   } catch(e) { alert('操作失败: ' + (e.response?.data?.error || e.message)); }
 }
 </script>
-</body>
-</html>
+{% endblock %}

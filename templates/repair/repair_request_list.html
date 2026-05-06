@@ -1,13 +1,8 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>设备故障报修</title>
-<link href="/static/bootstrap-5.3.0.min.css" rel="stylesheet">
-<link href="/static/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
-<script src="/static/bootstrap-5.3.0.bundle.min.js"></script>
-<script src="/static/axios.min.js"></script>
+{% extends "base.html" %}
+
+{% block title %}设备故障报修{% endblock %}
+
+{% block content %}
 <style>
 .card-stat { border-left: 4px solid #0d6efd; }
 .card-stat2 { border-left: 4px solid #ffc107; }
@@ -31,11 +26,8 @@
 th { white-space:nowrap; font-size:13px; }
 td { font-size:13px; vertical-align:middle; }
 </style>
-</head>
-<body>
-{% include 'base.html' %}
 
-<div class="container-fluid" style="margin-top:60px;">
+<div class="container-fluid" style="margin-top:20px;">
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h4><i class="bi bi-wrench"></i> 设备故障报修</h4>
         <button class="btn btn-primary btn-sm" onclick="openCreateModal()">
@@ -157,7 +149,9 @@ td { font-size:13px; vertical-align:middle; }
         <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
     </div>
 </div>
+{% endblock %}
 
+{% block modal %}
 <!-- 新建/编辑弹窗 -->
 <div class="modal fade" id="formModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
@@ -289,7 +283,10 @@ td { font-size:13px; vertical-align:middle; }
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
 <script>
 const API = '/api/repair/requests/';
 let modal, detailModal, assignModal, completeModal;
@@ -305,13 +302,13 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function loadLookups() {
-    axios.get('/api/equipment/equipment/?page_size=200).then(r => {
+    axios.get('/api/equipment/equipment/?page_size=200').then(r => {
         const list = r.data.results || r.data;
         const sel = document.getElementById('form-equipment');
         sel.innerHTML = '<option value="">-- 选择设备 --</option>' +
             list.map(e => `<option value="${e.id}">${e.name}（${e.code}）</option>`).join('');
     });
-    axios.get('/api/finance/employees/?page_size=200).then(r => {
+    axios.get('/api/finance/employees/?page_size=200').then(r => {
         const list = r.data.results || r.data;
         const sel = document.getElementById('form-reporter');
         sel.innerHTML = '<option value="">-- 选择报修人 --</option>' +
@@ -320,13 +317,13 @@ function loadLookups() {
         sel2.innerHTML = '<option value="">-- 选择维修负责人 --</option>' +
             list.map(e => `<option value="${e.id}">${e.name}</option>`).join('');
     });
-    axios.get('/api/finance/companies/?page_size=100).then(r => {
+    axios.get('/api/finance/companies/?page_size=100').then(r => {
         const list = r.data.results || r.data;
         const sel = document.getElementById('form-company');
         sel.innerHTML = '<option value="">-- 选择公司 --</option>' +
             list.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
     });
-    axios.get('/api/tasks/projects/?page_size=200).then(r => {
+    axios.get('/api/tasks/projects/?page_size=200').then(r => {
         const list = r.data.results || r.data;
         const sel = document.getElementById('form-project');
         sel.innerHTML = '<option value="">-- 无 --</option>' +
@@ -387,7 +384,7 @@ function renderTable(items) {
                 <button class="btn btn-outline-primary btn-sm" onclick="viewDetail(${item.id})"><i class="bi bi-eye"></i></button>
                 ${item.status === 'submitted' ? `<button class="btn btn-outline-info btn-sm" onclick="openAssign(${item.id})"><i class="bi bi-person-plus"></i></button>` : ''}
                 ${item.status === 'assigned' ? `<button class="btn btn-outline-warning btn-sm" onclick="startRepair(${item.id})"><i class="bi bi-play"></i></button>` : ''}
-                ${item.status === 'in_progress' || item.status === 'assigned' ? `<button class="btn btn-outline-success btn-sm" onclick="openComplete(${item.id})"><i class="bi bi-check2-all"></i></button>` : ''}
+                ${(item.status === 'in_progress' || item.status === 'assigned') ? `<button class="btn btn-outline-success btn-sm" onclick="openComplete(${item.id})"><i class="bi bi-check2-all"></i></button>` : ''}
                 ${item.status === 'completed' ? `<button class="btn btn-success btn-sm" onclick="acceptRepair(${item.id})"><i class="bi bi-check-circle"></i></button>` : ''}
                 ${item.status === 'completed' ? `<button class="btn btn-outline-danger btn-sm" onclick="rejectAcceptance(${item.id})"><i class="bi bi-x-circle"></i></button>` : ''}
                 ${!['completed','accepted','cancelled'].includes(item.status) ? `<button class="btn btn-outline-secondary btn-sm" onclick="cancelRepair(${item.id})"><i class="bi bi-x-lg"></i></button>` : ''}
@@ -503,17 +500,17 @@ function openAssign(id) {
 
 function submitAssign() {
     const id = document.getElementById('assign-request-id').value;
-    const emp = document.getElementById('assign-employee').value;
-    if (!emp) { alert('请选择维修负责人'); return; }
-    axios.post(API + id + '/assign/', { assigned_to: emp })
-        .then(() => { assignModal.hide(); loadData(currentPage); })
-        .catch(e => { alert('派工失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+    const employee = document.getElementById('assign-employee').value;
+    if (!employee) { alert('请选择维修负责人'); return; }
+    axios.post(API + id + '/assign/', { assigned_to: employee }).then(() => {
+        assignModal.hide();
+        loadData(currentPage);
+    }).catch(e => alert('操作失败: ' + (e.response?.data?.error || e.message)));
 }
 
 function startRepair(id) {
-    axios.post(API + id + '/start_repair/')
-        .then(() => loadData(currentPage))
-        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+    axios.post(API + id + '/start/').then(() => loadData(currentPage))
+        .catch(e => alert('操作失败: ' + (e.response?.data?.error || e.message)));
 }
 
 function openComplete(id) {
@@ -526,32 +523,32 @@ function openComplete(id) {
 
 function submitComplete() {
     const id = document.getElementById('complete-request-id').value;
-    axios.post(API + id + '/complete/', {
+    const payload = {
         solution: document.getElementById('complete-solution').value,
-        repair_cost: document.getElementById('complete-cost').value,
+        repair_cost: parseFloat(document.getElementById('complete-cost').value) || 0,
         repair_company: document.getElementById('complete-company').value,
-    }).then(() => { completeModal.hide(); loadData(currentPage); })
-      .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+    };
+    axios.post(API + id + '/complete/', payload).then(() => {
+        completeModal.hide();
+        loadData(currentPage);
+    }).catch(e => alert('操作失败: ' + (e.response?.data?.error || e.message)));
 }
 
 function acceptRepair(id) {
-    axios.post(API + id + '/accept/')
-        .then(() => loadData(currentPage))
-        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+    axios.post(API + id + '/accept/').then(() => loadData(currentPage))
+        .catch(e => alert('操作失败: ' + (e.response?.data?.error || e.message)));
 }
 
 function rejectAcceptance(id) {
-    axios.post(API + id + '/reject_acceptance/')
-        .then(() => loadData(currentPage))
-        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+    if (!confirm('确认退回重修？')) return;
+    axios.post(API + id + '/reject_acceptance/').then(() => loadData(currentPage))
+        .catch(e => alert('操作失败: ' + (e.response?.data?.error || e.message)));
 }
 
 function cancelRepair(id) {
     if (!confirm('确认取消此报修单？')) return;
-    axios.post(API + id + '/cancel/')
-        .then(() => loadData(currentPage))
-        .catch(e => { alert('操作失败: ' + (e.response?.data?.error || e.message)); loadData(currentPage); });
+    axios.post(API + id + '/cancel/').then(() => loadData(currentPage))
+        .catch(e => alert('操作失败: ' + (e.response?.data?.error || e.message)));
 }
 </script>
-</body>
-</html>
+{% endblock %}
