@@ -1,3 +1,4 @@
+import functools
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -39,6 +40,7 @@ def _check_perm(request, *perm_codes):
 def _require_perms(*perm_codes):
     """装饰器：校验权限，无权限返回 403"""
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(self, request, *args, **kwargs):
             if not _check_perm(request, *perm_codes):
                 msg = '需要权限: ' + ' / '.join(perm_codes)
@@ -491,8 +493,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         ec_id = self._resolve_employee_company(emp_id, company_id)
         serializer.save(employee_company_id=ec_id)
 
-    @_require_perms('finance:wage:approve')
     @action(detail=True, methods=['post'])
+    @_require_perms('finance:wage:approve')
     def approve(self, request, pk=None):
         """批准工资单"""
         wage_record = self.get_object()
@@ -505,8 +507,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.save()
         return Response({'status': 'success', 'message': '工资单已批准'})
 
-    @_require_perms('finance:wage:pay')
     @action(detail=True, methods=['post'])
+    @_require_perms('finance:wage:pay')
     def pay(self, request, pk=None):
         """发放工资"""
         wage_record = self.get_object()
@@ -518,8 +520,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.save()
         return Response({'status': 'success', 'message': '工资已发放'})
 
-    @_require_perms('finance:wage:submit')
     @action(detail=True, methods=['post'])
+    @_require_perms('finance:wage:submit')
     def submit(self, request, pk=None):
         """提交工资单进行审核"""
         wage_record = self.get_object()
@@ -670,8 +672,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         buf = export_wage_records(records)
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
-    @_require_perms('finance:wage:view')
     @action(detail=True, methods=['get'])
+    @_require_perms('finance:wage:view')
     def pdf(self, request, pk=None):
         """生成单张工资条 PDF"""
         wage_record = self.get_object()
