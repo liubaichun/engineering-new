@@ -463,7 +463,7 @@
     if (window.self !== window.top) {
         var style = document.createElement('style');
         style.id = 'iframe-hide-sidebar';
-        style.textContent = 'nav.sidebar,.sidebar{display:none!important;}main.main-content,div.main-content{margin-left:0!important;}';
+        style.textContent = 'nav.sidebar,.sidebar,nav.bottom-tabs,.bottom-tabs{display:none!important;}main.main-content,div.main-content{margin-left:0!important;}';
         document.head.appendChild(style);
     }
 })();
