@@ -11,11 +11,12 @@ class BankAccount(models.Model):
     """银行账户"""
     BANK_CHOICES = [
         ('ICBC', '工商银行'),
-        ('CMBC', '招商银行'),
+        ('CMB', '招商银行'),
         ('CCB', '建设银行'),
         ('BOC', '中国银行'),
         ('ABC', '农业银行'),
         ('COMM', '交通银行'),
+        ('PSBC', '邮储银行'),
         ('PA', '平安银行'),
         ('OTHER', '其他'),
     ]

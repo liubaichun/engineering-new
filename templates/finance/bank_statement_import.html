@@ -59,7 +59,7 @@
         <div class="col-12 d-flex justify-content-between align-items-center">
             <div>
                 <h4 class="mb-1"><i class="bi bi-bank me-2"></i>银行流水导入</h4>
-                <p class="text-muted mb-0" style="font-size:0.85rem">支持工商银行、招商银行对账单自动识别与导入</p>
+                <p class="text-muted mb-0" style="font-size:0.85rem">支持招商/工商/建设/中国/农业/交通/邮储银行对账单自动识别与导入</p>
             </div>
             <a href="/finance/incomes/" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>返回财务</a>
         </div>
@@ -102,11 +102,13 @@
                 <div class="col-md-4" id="newBankFields" style="display:none">
                     <label class="form-label">银行</label>
                     <select class="form-select" id="selBank">
+                        <option value="CMB">招商银行</option>
                         <option value="ICBC">工商银行</option>
-                        <option value="CMBC">招商银行</option>
                         <option value="CCB">建设银行</option>
                         <option value="BOC">中国银行</option>
                         <option value="ABC">农业银行</option>
+                        <option value="COMM">交通银行</option>
+                        <option value="PSBC">邮储银行</option>
                         <option value="OTHER">其他</option>
                     </select>
                 </div>
@@ -127,7 +129,7 @@
             <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
                 <div><i class="bi bi-cloud-arrow-up"></i></div>
                 <div class="mt-2 fw-semibold">点击或拖拽上传银行对账单</div>
-                <div class="text-muted" style="font-size:0.8rem">支持 .xlsx 文件（工商银行、招商银行）</div>
+                <div class="text-muted" style="font-size:0.8rem">支持 .xlsx 文件（招商/工商/建设/中国/农业/交通/邮储银行）</div>
                 <div class="mt-2">
                     <button class="btn btn-outline-primary btn-sm" type="button" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">
                         选择文件
@@ -397,7 +399,7 @@ function renderPreview(data) {
             <td class="text-muted" style="font-size:0.75rem">${escapeHtml(row.counterparty_account) || '-'}</td>
             <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(row.summary)}">${escapeHtml(row.summary) || '-'}</td>
             <td><span class="badge bg-primary">${escapeHtml(row.auto_description)}</span></td>
-            <td>${row.match_type === 'customer' ? `<span class="badge bg-success">客户:${escapeHtml(row.match_name)}</span>` :
+            <td>${row.match_type === 'client' ? `<span class="badge bg-success">客户:${escapeHtml(row.match_name)}</span>` :
                 row.match_type === 'supplier' ? `<span class="badge bg-warning">供应商:${escapeHtml(row.match_name)}</span>` :
                 '<span class="text-muted">未匹配</span>'}</td>
         </tr>

@@ -156,6 +156,75 @@ def client_list_page(request):
 def contract_list_page(request):
     return TemplateView.as_view(template_name='crm/contract_list.html')(request)
 
+
+def contract_detail_page(request, contract_id):
+    from apps.crm.models import Contract, PaymentPlan, ContractChangeLog
+    from apps.core.tenant_resolver import resolve_company
+    try:
+        contract = Contract.objects.select_related('company').get(id=contract_id)
+    except Contract.DoesNotExist:
+        from django.http import Http404
+        raise Http404("合同不存在")
+
+    payments = PaymentPlan.objects.filter(contract_id=contract_id).order_by('installment')
+    changes = ContractChangeLog.objects.filter(contract_id=contract_id).order_by('-change_date')
+
+    status_map = {'draft': ('secondary', '草稿'), 'active': ('success', '执行中'), 'completed': ('info', '已完成'), 'terminated': ('danger', '已终止')}
+    status_color, status_text = status_map.get(contract.status, ('secondary', contract.status))
+    type_text = '客户合同' if contract.counterparty_type == 'client' else '供应商合同'
+
+    # 附件URL
+    attachment_url = ''
+    attachment_name = ''
+    if contract.attachment:
+        attachment_url = contract.attachment.url if hasattr(contract.attachment, 'url') else str(contract.attachment)
+        attachment_name = attachment_url.split('/')[-1]
+
+    total_planned = sum(p.planned_amount or 0 for p in payments)
+
+    return render(request, 'crm/contract_detail.html', {
+        'contract': {
+            'id': contract.id,
+            'name': contract.name,
+            'contract_no': contract.contract_no,
+            'amount': contract.amount,
+            'status': contract.status,
+            'status_color': status_color,
+            'status_text': status_text,
+            'type_text': type_text,
+            'counterparty_name': contract.counterparty_name,
+            'sign_date': contract.sign_date,
+            'expire_date': contract.expire_date,
+            'project_name': str(contract.project_id) if contract.project_id else '',
+            'manager_name': str(contract.manager_id) if contract.manager_id else '',
+            'remark': contract.remark or '',
+            'attachment': contract.attachment,
+            'attachment_url': attachment_url,
+            'attachment_name': attachment_name,
+            'created_at': contract.created_at,
+        },
+        'payments': [{
+            'id': p.id,
+            'installment': p.installment,
+            'planned_date': p.planned_date,
+            'planned_amount': p.planned_amount,
+            'actual_date': p.actual_date,
+            'actual_amount': p.actual_amount,
+            'status': p.status,
+            'remark': p.remark or '',
+        } for p in payments],
+        'changes': [{
+            'id': c.id,
+            'change_date': c.change_date,
+            'change_type': c.change_type,
+            'change_type_text': dict(ContractChangeLog.CHANGE_TYPE_CHOICES).get(c.change_type, c.change_type) if hasattr(c, 'change_type') and c.change_type else '-',
+            'change_content': c.change_content if hasattr(c, 'change_content') else '-',
+            'changed_by_name': str(c.changed_by_id) if hasattr(c, 'changed_by_id') and c.changed_by_id else '-',
+            'reason': c.reason or '',
+        } for c in changes],
+        'total_planned': total_planned,
+    })
+
 def supplier_list_page(request):
     return TemplateView.as_view(template_name='crm/supplier_list.html')(request)
 
@@ -287,6 +356,7 @@ urlpatterns = [
     path('crm/clients/', client_list_page, name='client_list'),
     path('crm/contracts/expiring/', lambda request: render(request, 'contracts/contract_expiring_list.html'), name='contract_expiring'),
     path('crm/contracts/', contract_list_page, name='contract_list'),
+    path('crm/contracts/<int:contract_id>/', contract_detail_page, name='contract_detail'),
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
     path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
     path('crm/opportunities/', opportunity_list_page, name='opportunity_list'),

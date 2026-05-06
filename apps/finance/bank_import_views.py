@@ -62,7 +62,7 @@ def classify_transaction(t: ParsedTransaction) -> tuple[str, str]:
 def match_counterparty(t: ParsedTransaction):
     """
     智能匹配对方
-    返回: matched_type ('customer'/'supplier'/''), matched_name
+    返回: matched_type ('client'/'supplier'/''), matched_name
     """
     from apps.crm.models import Client, Supplier
 
@@ -76,11 +76,17 @@ def match_counterparty(t: ParsedTransaction):
     if name:
         client = Client.objects.filter(name__contains=name).first()
         if client:
-            return 'customer', client.name
+            return 'client', client.name
 
         supplier = Supplier.objects.filter(name__contains=name).first()
         if supplier:
             return 'supplier', supplier.name
+
+    # 账号匹配
+    if account:
+        client = Client.objects.filter(contact_phone__contains=account).first()
+        if client:
+            return 'client', client.name
 
     return '', ''
 

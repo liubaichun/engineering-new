@@ -306,6 +306,7 @@ function renderContracts() {
         html += '<td>' + (c.expire_date || '-') + '</td>';
         html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
         html += '<td>';
+        html += '<button class="btn btn-sm btn-outline-secondary me-1" onclick="viewContract(' + c.id + ')"><i class="bi bi-eye"></i></button>';
         html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editContract(' + c.id + ')"><i class="bi bi-pencil"></i></button>';
         html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteContract(' + c.id + ')" data-perm="contract.delete"><i class="bi bi-trash"></i></button>';
         html += '</td></tr>';
@@ -338,6 +339,10 @@ function showContractModal() {
     document.getElementById('attachmentPreview').innerHTML = '';
     onPartyTypeChange();
     contractModal.show();
+}
+
+function viewContract(contractId) {
+    window.location.href = '/crm/contracts/' + contractId + '/';
 }
 
 function editContract(contractId) {

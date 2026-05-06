@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+
+{% block title %}合同详情 - {{ contract.name }} - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.contract-detail-header {
+    background: linear-gradient(135deg, #0d6efd 0%, #0d6efd33 100%);
+    color: #fff;
+    border-radius: 12px;
+    padding: 28px 32px;
+    margin-bottom: 24px;
+}
+.status-badge { font-size: 0.85rem; padding: 4px 12px; border-radius: 20px; }
+.info-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.info-item { background: #f8fafc; border-radius: 8px; padding: 12px 16px; }
+.info-item .label { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; }
+.info-item .value { font-size: 1rem; font-weight: 600; color: #1e293b; margin-top: 2px; }
+.sub-card { border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+.sub-card-header { background: #f8fafc; padding: 12px 20px; border-bottom: 1px solid #e2e8f0; font-weight: 600; font-size: 0.9rem; }
+.sub-card-body { padding: 0; }
+.payment-badge { font-size: 0.75rem; padding: 2px 8px; border-radius: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid" style="max-width: 1200px; margin: 0 auto; padding: 24px;">
+    <!-- 返回按钮 -->
+    <div class="mb-3">
+        <button class="btn btn-outline-secondary btn-sm" onclick="history.back()">
+            <i class="bi bi-arrow-left me-1"></i>返回合同列表
+        </button>
+    </div>
+
+    <!-- 合同基本信息 -->
+    <div class="contract-detail-header">
+        <div class="d-flex justify-content-between align-items-start mb-3">
+            <div>
+                <h3 class="mb-1"><i class="bi bi-file-earning-text me-2"></i>{{ contract.name }}</h3>
+                <div class="d-flex gap-2 align-items-center mt-2">
+                    <span class="badge bg-light text-dark">{{ contract.contract_no }}</span>
+                    <span class="badge bg-{{ contract.status_color }} status-badge">{{ contract.status_text }}</span>
+                    <span class="badge bg-warning text-dark">{{ contract.type_text }}</span>
+                </div>
+            </div>
+            <div class="text-end">
+                <div style="font-size: 2rem; font-weight: 700;">¥{{ contract.amount|floatformat:2|default:"0.00" }}</div>
+                <div style="font-size: 0.8rem; opacity: 0.8;">合同金额</div>
+            </div>
+        </div>
+        <div class="info-grid mt-4">
+            <div class="info-item">
+                <div class="label">对方名称</div>
+                <div class="value">{{ contract.counterparty_name|default:"-" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="label">签署日期</div>
+                <div class="value">{{ contract.sign_date|default:"-" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="label">到期日期</div>
+                <div class="value">{{ contract.expire_date|default:"-" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="label">关联项目</div>
+                <div class="value">{{ contract.project_name|default:"-" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="label">创建时间</div>
+                <div class="value">{{ contract.created_at|date:"Y-m-d H:i" }}</div>
+            </div>
+            <div class="info-item">
+                <div class="label">负责人</div>
+                <div class="value">{{ contract.manager_name|default:"-" }}</div>
+            </div>
+        </div>
+        {% if contract.remark %}
+        <div class="mt-3 px-1">
+            <div class="label">备注</div>
+            <div>{{ contract.remark }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Nav tabs -->
+    <ul class="nav nav-tabs mb-3" id="detailTab" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="payment-tab" data-bs-toggle="tab" data-bs-target="#payment" type="button" role="tab">
+                <i class="bi bi-credit-card me-1"></i>付款计划 <span class="badge bg-primary ms-1" id="paymentCount">{{ payments|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="changes-tab" data-bs-toggle="tab" data-bs-target="#changes" type="button" role="tab">
+                <i class="bi bi-arrow-repeat me-1"></i>变更记录 <span class="badge bg-secondary ms-1" id="changeCount">{{ changes|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="attachment-tab" data-bs-toggle="tab" data-bs-target="#attachment" type="button" role="tab">
+                <i class="bi bi-paperclip me-1"></i>附件
+            </button>
+        </li>
+    </ul>
+
+    <div class="tab-content" id="detailTabContent">
+        <!-- 付款计划 -->
+        <div class="tab-pane fade show active" id="payment" role="tabpanel">
+            <div class="sub-card">
+                <div class="sub-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-credit-card me-2"></i>付款计划（共 {{ payments|length }} 期）</span>
+                    <span class="text-muted" style="font-size:0.8rem">计划收款 ¥{{ total_planned|floatformat:2 }}</span>
+                </div>
+                <div class="sub-card-body">
+                    {% if payments %}
+                    <table class="table table-hover mb-0">
+                        <thead style="background:#f8fafc">
+                            <tr>
+                                <th>期次</th>
+                                <th>计划日期</th>
+                                <th>计划金额</th>
+                                <th>实际日期</th>
+                                <th>实际金额</th>
+                                <th>状态</th>
+                                <th>备注</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for p in payments %}
+                            <tr>
+                                <td>第 {{ p.installment }} 期</td>
+                                <td>{{ p.planned_date|default:"-" }}</td>
+                                <td><b>¥{{ p.planned_amount|floatformat:2 }}</b></td>
+                                <td>{{ p.actual_date|default:"-" }}</td>
+                                <td>{% if p.actual_amount %}<b class="text-success">¥{{ p.actual_amount|floatformat:2 }}</b>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                                <td>
+                                    {% if p.status == 'paid' %}
+                                    <span class="badge bg-success payment-badge">已付款</span>
+                                    {% elif p.status == 'overdue' %}
+                                    <span class="badge bg-danger payment-badge">已逾期</span>
+                                    {% elif p.status == 'partial' %}
+                                    <span class="badge bg-warning payment-badge">部分付款</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary payment-badge">待付款</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ p.remark|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size:3rem; opacity:0.3"></i>
+                        <p class="mt-2 mb-0">暂无付款计划</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 变更记录 -->
+        <div class="tab-pane fade" id="changes" role="tabpanel">
+            <div class="sub-card">
+                <div class="sub-card-header">
+                    <i class="bi bi-arrow-repeat me-2"></i>合同变更记录
+                </div>
+                <div class="sub-card-body">
+                    {% if changes %}
+                    <table class="table table-hover mb-0">
+                        <thead style="background:#f8fafc">
+                            <tr>
+                                <th>变更日期</th>
+                                <th>变更类型</th>
+                                <th>变更内容</th>
+                                <th>变更人</th>
+                                <th>原因</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for c in changes %}
+                            <tr>
+                                <td>{{ c.change_date|default:"-" }}</td>
+                                <td><span class="badge bg-warning text-dark">{{ c.change_type_text }}</span></td>
+                                <td>{{ c.change_content|default:"-" }}</td>
+                                <td>{{ c.changed_by_name|default:"-" }}</td>
+                                <td>{{ c.reason|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size:3rem; opacity:0.3"></i>
+                        <p class="mt-2 mb-0">暂无变更记录</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 附件 -->
+        <div class="tab-pane fade" id="attachment" role="tabpanel">
+            <div class="sub-card">
+                <div class="sub-card-header">
+                    <i class="bi bi-paperclip me-2"></i>合同附件
+                </div>
+                <div class="sub-card-body p-4">
+                    {% if contract.attachment_url %}
+                    <div class="d-flex align-items-center gap-3 p-3 border rounded">
+                        <i class="bi bi-file-earming-text" style="font-size:2rem; color:var(--primary)"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-semibold">{{ contract.attachment_name }}</div>
+                            <a href="{{ contract.attachment_url }}" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                                <i class="bi bi-download me-1"></i>下载附件
+                            </a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox" style="font-size:3rem; opacity:0.3"></i>
+                        <p class="mt-2 mb-0">暂无附件</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
