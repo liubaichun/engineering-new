@@ -13,6 +13,12 @@ def render_bank_import_page(request):
     from apps.core.models import UserCompanyRole
     from .models_bank import BankAccount
     import json
+    # 未登录用户返回空列表（让前端跳转到登录页）
+    if not request.user.is_authenticated:
+        return render(request, 'finance/bank_statement_import.html', {
+            'preloaded_companies': [],
+            'preloaded_bank_accounts_by_company': '{}',
+        })
     # 超级用户看所有公司，普通用户只看自己关联的公司
     if request.user.is_superuser:
         companies = Company.objects.filter(status='active').order_by('id')
