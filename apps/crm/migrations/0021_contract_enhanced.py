@@ -8,7 +8,7 @@ import django.db.models.deletion
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('crm', '0020_alter_client_options'),
+        ('crm', '0007_add_contact_followup'),
     ]
 
     operations = [
