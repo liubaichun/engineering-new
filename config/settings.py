@@ -21,6 +21,7 @@ if not os.environ.get('SECRET_KEY'):
     warnings.warn('SECRET_KEY not set — using insecure default. Set SECRET_KEY env var.', RuntimeWarning)
 
 DEBUG = True  # 生产环境
+X_FRAME_OPTIONS = 'SAMEORIGIN'  # 允许同源iframe嵌入（CRM/采购/运营/系统聚合页需要）
 
 ALLOWED_HOSTS = [
     h.strip()
