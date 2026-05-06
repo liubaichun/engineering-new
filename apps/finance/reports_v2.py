@@ -28,6 +28,15 @@ def parse_date_range(request):
     year = request.query_params.get('year', str(timezone.now().year))
     month = request.query_params.get('month')
     company_id = request.query_params.get('company')
+    # 多租户隔离：非超级用户强制使用自己的公司ID，不允许查其他公司数据
+    user = request.user
+    if user.is_authenticated and not user.is_superuser:
+        if hasattr(user, 'company') and user.company_id:
+            # 前端显式传了company_id时，只允许查看自己的公司（防止横向越权）
+            if company_id and int(company_id) != user.company_id:
+                company_id = user.company_id  # 忽略非法请求，强制用自己公司
+            else:
+                company_id = user.company_id
     return {
         'company_id': int(company_id) if company_id else None,
         'year': int(year) if year else None,

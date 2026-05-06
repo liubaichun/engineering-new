@@ -102,7 +102,7 @@ class PurchaseOrder(models.Model):
     order_no = models.CharField('订单号', max_length=64, unique=True)
     title = models.CharField('订单标题', max_length=255)
     order_type = models.CharField('订单类型', max_length=20, choices=ORDER_TYPE_CHOICES, default='direct')
-    purchase_request = models.ForeignKey(PurchaseRequest, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders', verbose_name='关联申购单')
+    purchase_request = models.ForeignKey(PurchaseRequest, on_delete=models.PROTECT, null=True, blank=True, related_name='purchase_orders', verbose_name='关联申购单')
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_orders', verbose_name='供应商')
     company = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='purchase_orders', verbose_name='公司')
     project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True, related_name='purchase_orders', verbose_name='关联项目')
@@ -137,7 +137,7 @@ class PurchaseOrder(models.Model):
 class PurchaseOrderItem(models.Model):
     """采购订单明细"""
     order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name='items', verbose_name='所属订单')
-    request_item = models.ForeignKey(PurchaseRequestItem, on_delete=models.SET_NULL, null=True, blank=True, related_name='order_items', verbose_name='关联申购明细')
+    request_item = models.ForeignKey(PurchaseRequestItem, on_delete=models.PROTECT, null=True, blank=True, related_name='order_items', verbose_name='关联申购明细')
     material = models.ForeignKey(Material, on_delete=models.PROTECT, related_name='purchase_order_items', verbose_name='物料')
     specification = models.CharField('规格型号', max_length=255, blank=True, default='')
     quantity = models.DecimalField('订购数量', max_digits=12, decimal_places=3)

@@ -79,9 +79,13 @@ class CompanyViewSet(viewsets.ModelViewSet):
     filterset_class = CompanyFilter
 
     def get_queryset(self):
-        # 多租户隔离已移除 - 所有用户可访问所有公司数据
+        # 多租户隔离：普通用户只看自己所属公司，超级用户可看所有
         if not self.request.user.is_authenticated:
             return Company.objects.none()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                return Company.objects.filter(id=user.company_id)
         return Company.objects.all()
 
     def perform_create(self, serializer):
@@ -1536,10 +1540,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # 多租户隔离已移除 - 所有用户可访问所有员工数据
+        # 多租户隔离：普通用户只看本公司员工
         if not self.request.user.is_authenticated:
             return Employee.objects.none()
-        return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
+        queryset = Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                queryset = queryset.filter(company_id=user.company_id)
+        return queryset
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -1616,9 +1625,13 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # 多租户隔离已移除 - 所有用户可访问所有社保配置
+        # 多租户隔离：普通用户只看本公司社保配置
         if not self.request.user.is_authenticated:
             return CompanySocialConfig.objects.none()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                return CompanySocialConfig.objects.filter(company_id=user.company_id)
         return CompanySocialConfig.objects.all()
 
 
@@ -1633,7 +1646,14 @@ class ARAPViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """GET /api/finance/ar-ap/ - 一次性返回应收应付汇总"""
+        # 多租户隔离：非超级用户强制使用自己的公司ID
+        user = request.user
         company_id = request.query_params.get('company')
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                # 忽略前端传入的其他公司ID，强制过滤为自己公司
+                if not company_id or int(company_id) != user.company_id:
+                    company_id = user.company_id
         from django.db.models import Sum, Min, Max, Count
         ar_qs = Invoice.objects.filter(type='income', status__in=['pending', 'issued'])
         ap_qs = Invoice.objects.filter(type='expense', status__in=['pending', 'issued'])
@@ -1720,7 +1740,11 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 多租户隔离：普通用户只看本公司员工的任职记录
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                qs = qs.filter(company_id=user.company_id)
         return qs
 
     def perform_create(self, serializer):

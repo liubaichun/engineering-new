@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def _sync_business_status(flow: ApprovalFlow, approval_status: str):
     """
     审批流结束后，同步更新关联的业务对象状态
-    支持类型：expense, income, wage_record
+    支持类型：expense, income, wage_record, project
     """
     if not flow.related_type or not flow.related_id:
         return
@@ -31,6 +31,19 @@ def _sync_business_status(flow: ApprovalFlow, approval_status: str):
     }
     new_status = status_map.get(approval_status)
     if not new_status:
+        return
+
+    # project 类型：直接更新 approval_status 字段（不是 status）
+    if flow.related_type == 'project':
+        from apps.tasks.models import Project
+        try:
+            project = Project.objects.get(pk=flow.related_id)
+            old = project.approval_status
+            project.approval_status = new_status
+            project.save(update_fields=['approval_status'])
+            logger.info(f'Project pk={project.pk}: approval_status {old} → {new_status}')
+        except Project.DoesNotExist:
+            logger.warning(f'_sync_business_status: Project pk={flow.related_id} does not exist')
         return
 
     # 按业务类型查找对应模型
