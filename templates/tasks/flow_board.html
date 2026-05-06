@@ -596,6 +596,14 @@
 <script>
 var taskModal, taskDetailModal;
 var taskList = [];
+
+// 统一数据提取：兼容数组和分页对象 {results:[], count:N}
+// DRF 默认分页对象；某些 ViewSet 无分页则直接返回数组
+function extractData(data) {
+    if (Array.isArray(data)) return data;
+    if (typeof data === 'object' && data !== null && 'results' in data) return data.results;
+    return [];
+}
 var currentTaskId = null;
 var currentTaskStatus = null;
 var flowTemplates = [];
@@ -629,7 +637,7 @@ async function loadFlowTemplates() {
     try {
         var response = await fetch('/api/tasks/flow-templates/?is_active=1', { credentials: 'include' });
         var data = await response.json();
-        flowTemplates = data.results || data;
+        flowTemplates = extractData(data);
         
         var select = document.getElementById('templateFilter');
         flowTemplates.forEach(function(t) {
@@ -737,7 +745,7 @@ async function loadProjects() {
     try {
         var response = await fetch('/api/tasks/projects/', { credentials: 'include' });
         var data = await response.json();
-        var projects = data.results || data;
+        var projects = extractData(data);
         
         var select = document.getElementById('projectFilter');
         var taskProjectSelect = document.getElementById('taskProject');
@@ -763,9 +771,10 @@ async function loadUsers() {
     try {
         var response = await fetch('/api/core/users/', { credentials: 'include' });
         var data = await response.json();
+        var users = extractData(data);
         var select = document.getElementById('taskAssignee');
         select.innerHTML = '<option value="">选择处理人</option>';
-        (data.results || data).forEach(function(user) {
+        users.forEach(function(user) {
             select.innerHTML += '<option value="' + user.id + '">' + escapeHtml(user.username) + '</option>';
         });
     } catch (error) {
@@ -783,7 +792,7 @@ async function loadTasks() {
     try {
         var response = await fetch(url, { credentials: 'include' });
         var data = await response.json();
-        taskList = data.results || data;
+        taskList = extractData(data);
         
         updateStats();
         renderKanban();
@@ -1097,12 +1106,13 @@ async function loadTaskComments(taskId) {
         badge.textContent = data.count || 0;
         badge.style.display = data.count > 0 ? 'inline-block' : 'none';
         var area = document.getElementById('commentListArea');
-        if (!data.results || data.results.length === 0) {
+        var comments = extractData(data);
+        if (!comments || comments.length === 0) {
             area.innerHTML = '<p class="text-muted text-center py-3" style="font-size:0.85rem;">暂无评论</p>';
             return;
         }
         var html = '';
-        data.results.forEach(function(c) {
+        comments.forEach(function(c) {
             html += '<div class="comment-item">' +
                 '<div class="comment-meta"><strong>' + escapeHtml(c.author_name || '用户') + '</strong> · ' + formatDate(c.created_at) + '</div>' +
                 '<div class="comment-body">' + escapeHtml(c.content) + '</div>' +
@@ -1142,12 +1152,13 @@ async function loadTaskAttachments(taskId) {
         badge.textContent = data.count || 0;
         badge.style.display = data.count > 0 ? 'inline-block' : 'none';
         var area = document.getElementById('attachmentListArea');
-        if (!data.results || data.results.length === 0) {
+        var attachments = extractData(data);
+        if (!attachments || attachments.length === 0) {
             area.innerHTML = '<p class="text-muted text-center py-3" style="font-size:0.85rem;">暂无附件</p>';
             return;
         }
         var html = '';
-        data.results.forEach(function(a) {
+        attachments.forEach(function(a) {
             var sizeStr = a.file_size ? (a.file_size > 1024*1024 ? (a.file_size/1024/1024).toFixed(1)+'MB' : (a.file_size/1024).toFixed(0)+'KB') : '';
             html += '<div class="attachment-item">' +
                 '<i class="bi bi-paperclip text-secondary"></i>' +
@@ -1188,10 +1199,12 @@ async function loadTaskDependencies(taskId) {
         var res = await fetch('/api/tasks/task-dependencies/?task=' + taskId, { credentials: 'include' });
         var data = await res.json();
         var area = document.getElementById('dependencyListArea');
+        var deps = extractData(data);
         // Also load reverse deps (tasks that depend on this one - blocks)
         var res2 = await fetch('/api/tasks/task-dependencies/?depends_on=' + taskId, { credentials: 'include' });
-        var data2 = await res2.ok ? await res2.json() : { results: [] };
-        var allDeps = (data.results || []).concat(data2.results || []);
+        var data2 = await res2.ok ? (await res2.json()) : null;
+        var deps2 = data2 ? extractData(data2) : [];
+        var allDeps = deps.concat(deps2);
         if (allDeps.length === 0) {
             area.innerHTML = '<p class="text-muted text-center py-3" style="font-size:0.85rem;">暂无依赖关系</p>';
             document.getElementById('addDependencyArea').style.display = '';
