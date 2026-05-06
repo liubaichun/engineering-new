@@ -27,15 +27,15 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
     </li>
 </ul>
 
-<div class="tab-content">
+<div class="tab-content" style="width:100%;">
     <div id="requests" style="display:{% if active_tab == 'requests' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/purchasing/requests/" class="tab-iframe" id="frame-requests" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/purchasing/requests/" class="tab-iframe" id="frame-requests" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="orders" style="display:{% if active_tab == 'orders' %}block{% else %}none{% endif %};">
-        <iframe src="/purchasing/orders/" class="tab-iframe" id="frame-orders" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/purchasing/orders/" class="tab-iframe" id="frame-orders" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="receives" style="display:{% if active_tab == 'receives' %}block{% else %}none{% endif %};">
-        <iframe src="/purchasing/receives/" class="tab-iframe" id="frame-receives" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/purchasing/receives/" class="tab-iframe" id="frame-receives" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
 </div>
 

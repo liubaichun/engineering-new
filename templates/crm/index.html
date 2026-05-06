@@ -32,18 +32,18 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
     </li>
 </ul>
 
-<div class="tab-content">
+<div class="tab-content" style="width:100%;">
     <div id="clients" style="display:{% if active_tab == 'clients' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/crm/clients/" class="tab-iframe" id="frame-clients" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/crm/clients/" class="tab-iframe" id="frame-clients" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="contracts" style="display:{% if active_tab == 'contracts' %}block{% else %}none{% endif %};">
-        <iframe src="/crm/contracts/" class="tab-iframe" id="frame-contracts" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/crm/contracts/" class="tab-iframe" id="frame-contracts" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="suppliers" style="display:{% if active_tab == 'suppliers' %}block{% else %}none{% endif %};">
-        <iframe src="/crm/suppliers/" class="tab-iframe" id="frame-suppliers" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/crm/suppliers/" class="tab-iframe" id="frame-suppliers" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="opportunities" style="display:{% if active_tab == 'opportunities' %}block{% else %}none{% endif %};">
-        <iframe src="/crm/opportunities/" class="tab-iframe" id="frame-opportunities" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/crm/opportunities/" class="tab-iframe" id="frame-opportunities" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
 </div>
 

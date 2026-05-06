@@ -27,15 +27,15 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
     </li>
 </ul>
 
-<div class="tab-content">
+<div class="tab-content" style="width:100%;">
     <div id="materials" style="display:{% if active_tab == 'materials' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/materials/" class="tab-iframe" id="frame-materials" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/materials/" class="tab-iframe" id="frame-materials" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="equipment" style="display:{% if active_tab == 'equipment' %}block{% else %}none{% endif %};">
-        <iframe src="/equipment/" class="tab-iframe" id="frame-equipment" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/equipment/" class="tab-iframe" id="frame-equipment" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="files" style="display:{% if active_tab == 'files' %}block{% else %}none{% endif %};">
-        <iframe src="/files/" class="tab-iframe" id="frame-files" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/files/" class="tab-iframe" id="frame-files" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
 </div>
 

@@ -42,24 +42,24 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
     </li>
 </ul>
 
-<div class="tab-content">
+<div class="tab-content" style="width:100%;">
     <div id="companies" style="display:{% if active_tab == 'companies' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/finance/companies/" class="tab-iframe" id="frame-companies" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/finance/companies/" class="tab-iframe" id="frame-companies" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="users" style="display:{% if active_tab == 'users' %}block{% else %}none{% endif %};">
-        <iframe src="/system/users/" class="tab-iframe" id="frame-users" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/system/users/" class="tab-iframe" id="frame-users" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="audit" style="display:{% if active_tab == 'audit' %}block{% else %}none{% endif %};">
-        <iframe src="/system/audit-logs/" class="tab-iframe" id="frame-audit" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/system/audit-logs/" class="tab-iframe" id="frame-audit" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="settings" style="display:{% if active_tab == 'settings' %}block{% else %}none{% endif %};">
-        <iframe src="/system/settings/" class="tab-iframe" id="frame-settings" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/system/settings/" class="tab-iframe" id="frame-settings" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="channels" style="display:{% if active_tab == 'channels' %}block{% else %}none{% endif %};">
-        <iframe src="/system/notification-channels/" class="tab-iframe" id="frame-channels" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/system/notification-channels/" class="tab-iframe" id="frame-channels" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
     <div id="api" style="display:{% if active_tab == 'api' %}block{% else %}none{% endif %};">
-        <iframe src="/api/docs/" class="tab-iframe" id="frame-api" onload="resizeIframe(this)" style="height:600px;"></iframe>
+        <iframe src="/api/docs/" class="tab-iframe" id="frame-api" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
 </div>
 
