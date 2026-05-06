@@ -455,20 +455,71 @@ async function loadApprovalStats() {
 }
 
 async function loadWarningStats() {
-    const types = ['', 'task', 'approval', 'project'];
-    const ids = ['statWarningTotal', 'statTaskOverdue', 'statApprovalStale', 'statProjectOverdue'];
-    const fetches = types.map(t =>
-        fetchWithTimeout('/api/core/notifications/?is_read=0' + (t ? '&notification_type=' + t : ''), {}, 8000)
-    );
-    const results = await Promise.all(fetches);
-    results.forEach((res, i) => {
-        const el = document.getElementById(ids[i]);
-        if (el && res && res.ok) {
-            res.json().then(d => { el.textContent = d.count || 0; }).catch(() => {});
-        } else if (el) {
-            el.textContent = '0';
-        }
-    });
+    // 并行请求4种预警数据：未读通知 / 任务超时 / 审批超时 / 项目超期
+    const [notifRes, taskRes, approvalRes, projectRes] = await Promise.all([
+        fetchWithTimeout('/api/core/notifications/?is_read=0&page_size=1', {}, 8000),
+        // 任务超时：due_date < today 且 status 非 completed（通过notification API间接，或用tasks API）
+        fetchWithTimeout('/api/tasks/tasks/?status=pending&page_size=100', {}, 8000),
+        // 审批超时：pending节点中 due_date < today
+        fetchWithTimeout('/api/approvals/nodes/?status=pending&page_size=100', {}, 8000),
+        // 项目超期：end_date < today 且 status 非 completed
+        fetchWithTimeout('/api/tasks/projects/?page_size=100', {}, 8000),
+    ]);
+
+    const today = new Date().toISOString().slice(0, 10);
+
+    // 未读预警总数
+    if (notifRes && notifRes.ok) {
+        try {
+            const d = await notifRes.json();
+            const el = document.getElementById('statWarningTotal');
+            if (el) el.textContent = d.count || 0;
+        } catch(e) {}
+    }
+
+    // 任务超时：due_date < today 且 status 非 completed（任务返回数组，需前端过滤）
+    if (taskRes && taskRes.ok) {
+        try {
+            const tasks = await taskRes.json();
+            const taskArr = Array.isArray(tasks) ? tasks : (tasks.results || []);
+            const overdue = taskArr.filter(t => {
+                if (!t.due_date || t.status === 'completed') return false;
+                const due = t.due_date.slice(0, 10);
+                return due < today;
+            });
+            const el = document.getElementById('statTaskOverdue');
+            if (el) el.textContent = overdue.length;
+        } catch(e) {}
+    }
+
+    // 审批超时：pending节点中 due_date < today
+    if (approvalRes && approvalRes.ok) {
+        try {
+            const data = await approvalRes.json();
+            const nodes = Array.isArray(data) ? data : (data.results || []);
+            const overdue = nodes.filter(n => {
+                if (n.status !== 'pending') return false;
+                if (!n.due_date) return false;
+                return n.due_date.slice(0, 10) < today;
+            });
+            const el = document.getElementById('statApprovalStale');
+            if (el) el.textContent = overdue.length;
+        } catch(e) {}
+    }
+
+    // 项目超期：end_date < today 且 status 非 completed
+    if (projectRes && projectRes.ok) {
+        try {
+            const data = await projectRes.json();
+            const projects = data.results || [];
+            const overdue = projects.filter(p => {
+                if (!p.end_date || p.status === 'completed') return false;
+                return p.end_date.slice(0, 10) < today;
+            });
+            const el = document.getElementById('statProjectOverdue');
+            if (el) el.textContent = overdue.length;
+        } catch(e) {}
+    }
 }
 
 async function loadProjectProgress() {
