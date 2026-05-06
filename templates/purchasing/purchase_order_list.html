@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>采购订单管理</title>
+<link href="/static/bootstrap-5.3.0.min.css" rel="stylesheet">
+<link href="/static/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
+<script src="/static/bootstrap-5.3.0.bundle.min.js"></script>
+<script src="/static/axios.min.js"></script>
+<style>
+.stat-card { border-left: 4px solid #0d6efd; }
+.stat-card2 { border-left: 4px solid #198754; }
+.stat-num { font-size:1.6rem; font-weight:700; }
+.badge-draft{background:#6c757d}.badge-sent{background:#0d6efd}.badge-confirmed{background:#6610f2}
+.badge-shipped{background:#17a2b8}.badge-received{background:#198754}.badge-completed{background:#28a745}
+.badge-cancelled{background:#dc3545}.badge-partial{background:#fd7e14}
+.modal-wide{max-width:900px}.table-responsive{font-size:14px}
+</style>
+</head>
+<body>
+{% include 'base.html' %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-file-earmark-minus"></i> 采购订单管理</h4>
+    <button class="btn btn-primary btn-sm" onclick="showCreateModal()">
+      <i class="bi bi-plus-lg"></i> 新建订单
+    </button>
+  </div>
+
+  <div class="row g-3 mb-3" id="statsRow">
+    <div class="col-md-2">
+      <div class="card stat-card h-100"><div class="card-body py-2">
+        <div class="text-muted small">全部订单</div>
+        <div class="stat-num text-primary" id="s-total">—</div>
+      </div></div>
+    </div>
+    <div class="col-md-3">
+      <div class="card stat-card2 h-100"><div class="card-body py-2">
+        <div class="text-muted small">订单总额</div>
+        <div class="stat-num text-success" id="s-amount">—</div>
+      </div></div>
+    </div>
+    <div class="col-md-2">
+      <div class="card h-100"><div class="card-body py-2">
+        <div class="text-muted small">已完成</div>
+        <div class="stat-num" id="s-completed">—</div>
+      </div></div>
+    </div>
+    <div class="col-md-2">
+      <div class="card h-100"><div class="card-body py-2">
+        <div class="text-muted small">执行中</div>
+        <div class="stat-num text-warning" id="s-active">—</div>
+      </div></div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100"><div class="card-body py-2">
+        <div class="text-muted small">本月新增</div>
+        <div class="stat-num" id="s-monthly">—</div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="row g-2">
+        <div class="col-md-3"><input class="form-control form-control-sm" id="sKw" placeholder="订单号/标题/供应商..."></div>
+        <div class="col-md-2">
+          <select class="form-select form-select-sm" id="sStatus">
+            <option value="">全部状态</option>
+            <option value="draft">草稿</option><option value="sent">已发供应商</option>
+            <option value="confirmed">已确认</option><option value="shipped">已发货</option>
+            <option value="received">已入库</option><option value="completed">已完成</option>
+            <option value="cancelled">已取消</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-primary btn-sm w-100" onclick="loadData(1)"><i class="bi bi-search"></i> 搜索</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>订单号</th><th>标题</th><th>供应商</th><th>公司</th>
+                <th>订单总额</th><th>付款方式</th><th>下单日期</th><th>状态</th><th>操作</th></tr>
+          </thead>
+          <tbody id="tb"></tbody>
+        </table>
+      </div>
+      <div id="pager" class="d-flex justify-content-center mt-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-wide">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">订单详情</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="detailBody"></div>
+      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/purchasing/orders/';
+let page = 1, detailModal;
+document.addEventListener('DOMContentLoaded', function() {
+  detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+  document.getElementById('sKw').addEventListener('keypress', e => e.key==='Enter' && loadData(1));
+  document.getElementById('sStatus').addEventListener('change', () => loadData(1));
+  loadData(1);
+});
+
+async function loadData(p) {
+  page = p;
+  const params = { page: p, page_size: 20 };
+  const kw = document.getElementById('sKw').value.trim();
+  if (kw) params.search = kw;
+  const st = document.getElementById('sStatus').value;
+  if (st) params.status = st;
+  try {
+    const r = await axios.get(API, { params });
+    render(r.data);
+    refreshStats(r.data);
+  } catch(e) { console.error(e); }
+}
+
+function refreshStats(data) {
+  const all = data.count || 0;
+  document.getElementById('s-total').textContent = all;
+  let totalAmt = 0, completed = 0, active = 0;
+  (data.results||[]).forEach(r => {
+    totalAmt += parseFloat(r.actual_amount || 0);
+    if (r.status === 'completed') completed++;
+    else if (!['cancelled','draft'].includes(r.status)) active++;
+  });
+  document.getElementById('s-amount').textContent = totalAmt > 0 ? '¥'+totalAmt.toLocaleString() : '—';
+  document.getElementById('s-completed').textContent = completed;
+  document.getElementById('s-active').textContent = active;
+}
+
+function stBadge(s) {
+  const m = { draft:'草稿', sent:'已发供应商', confirmed:'已确认', partial_shipped:'部分发货',
+               shipped:'已发货', partial_received:'部分入库', received:'已入库', invoiced:'已开票',
+               completed:'已完成', cancelled:'已取消' };
+  const cls = { draft:'badge-draft', sent:'badge-sent', confirmed:'badge-confirmed',
+                partial_shipped:'badge-partial', shipped:'badge-shipped', partial_received:'badge-partial',
+                received:'badge-received', invoiced:'badge-sent', completed:'badge-completed', cancelled:'badge-cancelled' };
+  return `<span class="badge ${cls[s]||'badge-draft'}">${m[s]||s}</span>`;
+}
+
+function payBadge(p) {
+  const m = { prepaid:'预付款', cod:'货到付款', onthirty:'月结30天', onthirtyend:'月结30天末',
+               onthirtypay:'月结30/60/90天', quarterly:'季度结算' };
+  return `<span class="badge bg-secondary">${m[p]||p}</span>`;
+}
+
+function render(data) {
+  const tb = document.getElementById('tb');
+  if (!(data.results||data).length) {
+    tb.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>';
+    document.getElementById('pager').innerHTML = '';
+    return;
+  }
+  tb.innerHTML = (data.results||data).map(r => `
+    <tr>
+      <td><a href="javascript:void(0)" onclick="showDetail(${r.id})">${r.order_no}</a></td>
+      <td>${r.title}</td>
+      <td>${r.supplier_name||'—'}</td>
+      <td>${r.company_name||'—'}</td>
+      <td class="text-end fw-semibold text-danger">¥${parseFloat(r.actual_amount||0).toLocaleString()}</td>
+      <td>${payBadge(r.payment_type)}</td>
+      <td>${r.order_date||'—'}</td>
+      <td>${stBadge(r.status)}</td>
+      <td>
+        <button class="btn btn-outline-primary btn-sm" onclick="showDetail(${r.id})">查看</button>
+        ${r.status==='draft'?`<button class="btn btn-success btn-sm" onclick="doAction(${r.id},'confirm')">确认</button>`:''}
+        ${['sent','confirmed'].includes(r.status)?`<button class="btn btn-info btn-sm" onclick="doAction(${r.id},'ship')">发货</button>`:''}
+        ${['draft','sent','confirmed','shipped'].includes(r.status)?`<button class="btn btn-danger btn-sm" onclick="doAction(${r.id},'cancel')">取消</button>`:''}
+      </td>
+    </tr>`).join('');
+  buildPager(data);
+}
+
+function buildPager(data) {
+  const total = Math.ceil((data.count||0) / data.page_size);
+  if (total <= 1) { document.getElementById('pager').innerHTML = ''; return; }
+  let h = '<ul class="pagination pagination-sm mb-0">';
+  h += `<li class="page-item ${page<=1?'disabled':''}"><a class="page-link" href="javascript:loadData(${page-1})">&laquo;</a></li>`;
+  for (let i=1;i<=total;i++) {
+    if (i===1||i===total||(i>=page-2&&i<=page+2))
+      h += `<li class="page-item ${i===page?'active':''}"><a class="page-link" href="javascript:loadData(${i})">${i}</a></li>`;
+    else if (i===page-3||i===page+3)
+      h += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+  }
+  h += `<li class="page-item ${page>=total?'disabled':''}"><a class="page-link" href="javascript:loadData(${page+1})">&raquo;</a></li>`;
+  h += '</ul>';
+  document.getElementById('pager').innerHTML = h;
+}
+
+async function showDetail(id) {
+  try {
+    const r = await axios.get(API + id + '/');
+    const d = r.data;
+    document.getElementById('detailBody').innerHTML = `
+      <div class="row">
+        <div class="col-md-6"><dl class="row mb-2">
+          <dt class="col-4 text-muted">订单号</dt><dd class="col-8">${d.order_no}</dd>
+          <dt class="col-4 text-muted">标题</dt><dd class="col-8">${d.title}</dd>
+          <dt class="col-4 text-muted">供应商</dt><dd class="col-8">${d.supplier_name||'—'}</dd>
+          <dt class="col-4 text-muted">公司</dt><dd class="col-8">${d.company_name||'—'}</dd>
+          <dt class="col-4 text-muted">付款方式</dt><dd class="col-8">${payBadge(d.payment_type)}</dd>
+        </dl></div>
+        <div class="col-md-6"><dl class="row mb-2">
+          <dt class="col-4 text-muted">订单总额</dt><dd class="col-8 fw-bold text-danger">¥${parseFloat(d.actual_amount||0).toLocaleString()}</dd>
+          <dt class="col-4 text-muted">税额</dt><dd class="col-8">¥${parseFloat(d.tax_amount||0).toLocaleString()}</dd>
+          <dt class="col-4 text-muted">折扣</dt><dd class="col-8">¥${parseFloat(d.discount_amount||0).toLocaleString()}</dd>
+          <dt class="col-4 text-muted">下单日期</dt><dd class="col-8">${d.order_date||'—'}</dd>
+          <dt class="col-4 text-muted">期望交货</dt><dd class="col-8">${d.expected_delivery_date||'—'}</dd>
+          <dt class="col-4 text-muted">状态</dt><dd class="col-8">${stBadge(d.status)}</dd>
+        </dl></div>
+      </div>
+      ${d.delivery_address?`<p><strong>交货地址：</strong>${d.delivery_address}</p>`:''}
+      ${d.remark?`<p><strong>备注：</strong>${d.remark}</p>`:''}
+      <h6>订单明细 (${(d.items||[]).length} 项)</h6>
+      <table class="table table-sm table-bordered">
+        <thead><tr><th>物料</th><th>规格</th><th>数量</th><th>含税单价</th><th>金额</th><th>税率</th><th>税额</th></tr></thead>
+        <tbody>
+          ${(d.items||[]).map(i => `<tr>
+            <td>${i.material_name||i.material}(${i.material_code||''})</td>
+            <td>${i.specification||'—'}</td><td>${i.quantity} ${i.unit}</td>
+            <td class="text-end">¥${parseFloat(i.unit_price||0).toLocaleString()}</td>
+            <td class="text-end fw-semibold">¥${parseFloat(i.amount||0).toLocaleString()}</td>
+            <td>${i.tax_rate}%</td>
+            <td class="text-end">¥${parseFloat(i.tax_amount||0).toLocaleString()}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    detailModal.show();
+  } catch(e) { alert('加载失败'); }
+}
+
+async function doAction(id, action) {
+  if (!confirm('确认执行此操作？')) return;
+  try {
+    await axios.post(API + id + '/' + action + '/');
+    loadData(page);
+  } catch(e) { alert('操作失败: ' + (e.response?.data?.error || e.message)); }
+}
+</script>
+</body>
+</html>

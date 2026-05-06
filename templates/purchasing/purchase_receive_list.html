@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>采购入库管理</title>
+<link href="/static/bootstrap-5.3.0.min.css" rel="stylesheet">
+<link href="/static/bootstrap-icons/font/bootstrap-icons.min.css" rel="stylesheet">
+<script src="/static/bootstrap-5.3.0.bundle.min.js"></script>
+<script src="/static/axios.min.js"></script>
+<style>
+.stat-card{border-left:4px solid #0d6efd}.stat-num{font-size:1.6rem;font-weight:700}
+.badge-pending{background:#6c757d}.badge-partial{background:#fd7e14}.badge-completed{background:#198754}
+.modal-wide{max-width:800px}.table-responsive{font-size:14px}
+</style>
+</head>
+<body>
+{% include 'base.html' %}
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0"><i class="bi bi-box-seam"></i> 采购入库管理</h4>
+  </div>
+
+  <div class="row g-3 mb-3">
+    <div class="col-md-3">
+      <div class="card stat-card h-100"><div class="card-body py-2">
+        <div class="text-muted small">全部入库单</div>
+        <div class="stat-num text-primary" id="s-total">—</div>
+      </div></div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100"><div class="card-body py-2">
+        <div class="text-muted small">已完成</div>
+        <div class="stat-num text-success" id="s-done">—</div>
+      </div></div>
+    </div>
+    <div class="col-md-3">
+      <div class="card h-100"><div class="card-body py-2">
+        <div class="text-muted small">待入库</div>
+        <div class="stat-num text-warning" id="s-pending">—</div>
+      </div></div>
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="row g-2">
+        <div class="col-md-3"><input class="form-control form-control-sm" id="sKw" placeholder="入库单号/订单号/供应商..."></div>
+        <div class="col-md-2">
+          <select class="form-select form-select-sm" id="sStatus">
+            <option value="">全部状态</option>
+            <option value="pending">待入库</option>
+            <option value="partial">部分入库</option>
+            <option value="completed">已完成</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <button class="btn btn-outline-primary btn-sm w-100" onclick="loadData(1)"><i class="bi bi-search"></i> 搜索</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr><th>入库单号</th><th>采购订单</th><th>供应商</th><th>仓库</th>
+                <th>入库日期</th><th>收货人</th><th>状态</th><th>操作</th></tr>
+          </thead>
+          <tbody id="tb"></tbody>
+        </table>
+      </div>
+      <div id="pager" class="d-flex justify-content-center mt-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal fade" id="detailModal" tabindex="-1">
+  <div class="modal-dialog modal-wide">
+    <div class="modal-content">
+      <div class="modal-header"><h5 class="modal-title">入库单详情</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="detailBody"></div>
+      <div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">关闭</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '/api/purchasing/receives/';
+let page = 1, detailModal;
+document.addEventListener('DOMContentLoaded', function() {
+  detailModal = new bootstrap.Modal(document.getElementById('detailModal'));
+  document.getElementById('sKw').addEventListener('keypress', e => e.key==='Enter' && loadData(1));
+  document.getElementById('sStatus').addEventListener('change', () => loadData(1));
+  loadData(1);
+});
+
+async function loadData(p) {
+  page = p;
+  const params = { page: p, page_size: 20 };
+  const kw = document.getElementById('sKw').value.trim();
+  if (kw) params.search = kw;
+  const st = document.getElementById('sStatus').value;
+  if (st) params.status = st;
+  try {
+    const r = await axios.get(API, { params });
+    render(r.data);
+  } catch(e) { console.error(e); }
+}
+
+function stBadge(s) {
+  const m = { pending:'待入库', partial:'部分入库', completed:'已完成' };
+  const cls = { pending:'badge-pending', partial:'badge-partial', completed:'badge-completed' };
+  return `<span class="badge ${cls[s]||'badge-pending'}">${m[s]||s}</span>`;
+}
+
+function render(data) {
+  let done=0, pending=0;
+  (data.results||[]).forEach(r => {
+    if (r.status==='completed') done++;
+    else pending++;
+  });
+  document.getElementById('s-total').textContent = data.count || 0;
+  document.getElementById('s-done').textContent = done;
+  document.getElementById('s-pending').textContent = pending;
+
+  const tb = document.getElementById('tb');
+  if (!(data.results||data).length) {
+    tb.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>';
+    document.getElementById('pager').innerHTML = '';
+    return;
+  }
+  tb.innerHTML = (data.results||data).map(r => `
+    <tr>
+      <td><a href="javascript:void(0)" onclick="showDetail(${r.id})">${r.receive_no}</a></td>
+      <td>${r.order_no||'—'}</td>
+      <td>${r.supplier_name||'—'}</td>
+      <td>${r.warehouse||'—'}</td>
+      <td>${r.receive_date||'—'}</td>
+      <td>${r.received_by_name||'—'}</td>
+      <td>${stBadge(r.status)}</td>
+      <td>
+        <button class="btn btn-outline-primary btn-sm" onclick="showDetail(${r.id})">查看</button>
+        ${r.status!=='completed'?`<button class="btn btn-success btn-sm" onclick="doAction(${r.id},'complete')">确认入库</button>`:''}
+      </td>
+    </tr>`).join('');
+  buildPager(data);
+}
+
+function buildPager(data) {
+  const total = Math.ceil((data.count||0) / data.page_size);
+  if (total <= 1) { document.getElementById('pager').innerHTML = ''; return; }
+  let h = '<ul class="pagination pagination-sm mb-0">';
+  h += `<li class="page-item ${page<=1?'disabled':''}"><a class="page-link" href="javascript:loadData(${page-1})">&laquo;</a></li>`;
+  for (let i=1;i<=total;i++) {
+    if (i===1||i===total||(i>=page-2&&i<=page+2))
+      h += `<li class="page-item ${i===page?'active':''}"><a class="page-link" href="javascript:loadData(${i})">${i}</a></li>`;
+    else if (i===page-3||i===page+3)
+      h += '<li class="page-item disabled"><span class="page-link">…</span></li>';
+  }
+  h += `<li class="page-item ${page>=total?'disabled':''}"><a class="page-link" href="javascript:loadData(${page+1})">&raquo;</a></li>`;
+  h += '</ul>';
+  document.getElementById('pager').innerHTML = h;
+}
+
+async function showDetail(id) {
+  try {
+    const r = await axios.get(API + id + '/');
+    const d = r.data;
+    document.getElementById('detailBody').innerHTML = `
+      <dl class="row">
+        <dt class="col-2 text-muted">入库单号</dt><dd class="col-4">${d.receive_no}</dd>
+        <dt class="col-2 text-muted">采购订单</dt><dd class="col-4">${d.order_no||'—'}</dd>
+        <dt class="col-2 text-muted">供应商</dt><dd class="col-4">${d.supplier_name||'—'}</dd>
+        <dt class="col-2 text-muted">公司</dt><dd class="col-4">${d.company_name||'—'}</dd>
+        <dt class="col-2 text-muted">仓库</dt><dd class="col-4">${d.warehouse||'—'}</dd>
+        <dt class="col-2 text-muted">入库日期</dt><dd class="col-4">${d.receive_date||'—'}</dd>
+        <dt class="col-2 text-muted">收货人</dt><dd class="col-4">${d.received_by_name||'—'}</dd>
+        <dt class="col-2 text-muted">状态</dt><dd class="col-4">${stBadge(d.status)}</dd>
+        <dt class="col-2 text-muted">备注</dt><dd class="col-10">${d.remark||'—'}</dd>
+      </dl>
+      <h6>入库明细 (${(d.items||[]).length} 项)</h6>
+      <table class="table table-sm table-bordered">
+        <thead><tr><th>物料</th><th>入库数量</th><th>合格数量</th><th>不合格</th><th>批号</th><th>效期</th><th>备注</th></tr></thead>
+        <tbody>
+          ${(d.items||[]).map(i => `<tr>
+            <td>${i.material_name||i.material}(${i.material_code||''})</td>
+            <td>${i.quantity} ${i.unit}</td>
+            <td class="text-success fw-semibold">${i.qualified_quantity} ${i.unit}</td>
+            <td class="text-danger">${i.defective_quantity||0} ${i.unit}</td>
+            <td>${i.batch_no||'—'}</td>
+            <td>${i.expire_date||'—'}</td>
+            <td>${i.remark||'—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    detailModal.show();
+  } catch(e) { alert('加载失败'); }
+}
+
+async function doAction(id, action) {
+  if (!confirm('确认执行此操作？')) return;
+  try {
+    await axios.post(API + id + '/' + action + '/');
+    loadData(page);
+  } catch(e) { alert('操作失败: ' + (e.response?.data?.error || e.message)); }
+}
+</script>
+</body>
+</html>
