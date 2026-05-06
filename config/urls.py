@@ -146,6 +146,15 @@ def contact_followup_page(request):
 def opportunity_list_page(request):
     return TemplateView.as_view(template_name='crm/opportunity_list.html')(request)
 
+def purchase_request_list_page(request):
+    return TemplateView.as_view(template_name='purchasing/purchase_request_list.html')(request)
+
+def purchase_order_list_page(request):
+    return TemplateView.as_view(template_name='purchasing/purchase_order_list.html')(request)
+
+def purchase_receive_list_page(request):
+    return TemplateView.as_view(template_name='purchasing/purchase_receive_list.html')(request)
+
 def employee_list_page(request):
     return TemplateView.as_view(template_name='finance/employee_list.html')(request)
 
@@ -241,6 +250,7 @@ urlpatterns = [
     path('api/approvals/', include('apps.approvals.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/crm/', include('apps.crm.urls')),
+    path('api/purchasing/', include('apps.purchasing.urls')),
     path('api/files/', include('apps.files.urls')),
     path('api/material/', include('apps.material.urls')),
     path('api/equipment/', include('apps.equipment.urls')),
@@ -254,6 +264,9 @@ urlpatterns = [
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
     path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
     path('crm/opportunities/', opportunity_list_page, name='opportunity_list'),
+    path('purchasing/requests/', purchase_request_list_page, name='purchase_request_list'),
+    path('purchasing/orders/', purchase_order_list_page, name='purchase_order_list'),
+    path('purchasing/receives/', purchase_receive_list_page, name='purchase_receive_list'),
     path('finance/employees/', employee_list_page, name='employee_list'),
     path('finance/social-configs/', social_config_list_page, name='social_config_list'),
     path('files/', file_list_page, name='file_list'),

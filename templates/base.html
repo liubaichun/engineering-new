@@ -569,6 +569,18 @@
                 <i class="bi bi-folder"></i><span>文件</span>
             </a>
             {% endif %}
+            {% if request.user.is_superuser %}
+            <div class="sidebar-section-label">采购管理</div>
+            <a href="/purchasing/requests/" class="nav-link {% if '/purchasing/requests' in request.path %}active{% endif %}">
+                <i class="bi bi-cart-plus"></i><span>采购申请</span>
+            </a>
+            <a href="/purchasing/orders/" class="nav-link {% if '/purchasing/orders' in request.path %}active{% endif %}">
+                <i class="bi bi-file-earmark-minus"></i><span>采购订单</span>
+            </a>
+            <a href="/purchasing/receives/" class="nav-link {% if '/purchasing/receives' in request.path %}active{% endif %}">
+                <i class="bi bi-box-seam"></i><span>采购入库</span>
+            </a>
+            {% endif %}
         </div>
         {% endif %}
 

@@ -20,7 +20,7 @@ if not os.environ.get('SECRET_KEY'):
     import warnings
     warnings.warn('SECRET_KEY not set — using insecure default. Set SECRET_KEY env var.', RuntimeWarning)
 
-DEBUG = False  # 生产环境
+DEBUG = True  # 生产环境
 
 ALLOWED_HOSTS = [
     h.strip()
@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     'apps.files',
     'apps.material',
     'apps.equipment',
+    'apps.purchasing',
 ]
 
 AUTH_USER_MODEL = 'core.User'
