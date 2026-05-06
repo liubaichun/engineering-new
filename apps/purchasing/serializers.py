@@ -1,8 +1,6 @@
 # purchasing/serializers.py
 from rest_framework import serializers
 from .models import PurchaseRequest, PurchaseRequestItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceive, PurchaseReceiveItem
-from apps.crm.serializers import SupplierNameSerializer
-from apps.material.serializers import MaterialNameSerializer
 
 
 class PurchaseRequestItemSerializer(serializers.ModelSerializer):
