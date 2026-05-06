@@ -534,6 +534,9 @@
                 <i class="bi bi-bar-chart"></i><span>财务报表</span>
             </a>
             {% endif %}
+            <a href="/finance/bank-import/" class="nav-link {% if '/finance/bank-import' in request.path %}active{% endif %}">
+                <i class="bi bi-bank"></i><span>银行流水导入</span>
+            </a>
         </div>
         {% endif %}
 

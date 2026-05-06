@@ -34,6 +34,7 @@ from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
+from .models_bank import BankAccount, BankStatement
 from .serializers import (
     CompanySerializer,
     IncomeSerializer,
@@ -68,6 +69,20 @@ class CompanyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'code', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['get'])
+    def bank_accounts(self, request, pk=None):
+        """获取公司的银行账户列表"""
+        company = self.get_object()
+        accounts = BankAccount.objects.filter(company=company, is_active=True)
+        data = [{
+            'id': a.id,
+            'bank_code': a.bank_code,
+            'bank_name': a.bank_name,
+            'account_no': a.account_no,
+            'account_name': a.account_name,
+        } for a in accounts]
+        return Response({'bank_accounts': data})
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):

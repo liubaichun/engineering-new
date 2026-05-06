@@ -2,6 +2,8 @@ from django.urls import path, include
 from config.routers import IntegerPkRouter
 from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet
 from . import import_views
+from . import bank_import_views
+from django.shortcuts import render
 
 router = IntegerPkRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -21,4 +23,8 @@ urlpatterns = [
     path('import/incomes/', import_views.import_incomes, name='import-incomes'),
     path('import/expenses/', import_views.import_expenses, name='import-expenses'),
     path('import/employees/', import_views.import_employees, name='import-employees'),
+    path('import/bank-statement/preview/', bank_import_views.preview_bank_statement, name='bank-statement-preview'),
+    path('import/bank-statement/confirm/', bank_import_views.confirm_bank_import, name='bank-statement-confirm'),
+    path('import/bank-statement/banks/', bank_import_views.list_banks, name='bank-statement-banks'),
+    path('bank-import/', lambda request: render(request, 'finance/bank_statement_import.html'), name='bank-import'),
 ]
