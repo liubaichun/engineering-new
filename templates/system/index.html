@@ -4,8 +4,6 @@
 
 {% block styles %}
 <style>
-.tab-content-frame { display: none; }
-.tab-content-frame.active { display: block; }
 iframe.tab-iframe { width: 100%; border: none; background: transparent; }
 </style>
 {% endblock %}
@@ -13,64 +11,72 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
 {% block content %}
 <ul class="nav nav-tabs mb-4" id="systemTab" role="tablist">
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'companies' or not active_tab %}active{% endif %}" href="#" onclick="showTab('companies');return false;">
+        <a class="nav-link{% if active_tab == 'companies' or not active_tab %} active{% endif %}" href="#" onclick="showTab('companies');return false;">
             <i class="bi bi-building me-1"></i>公司管理
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'users' %}active{% endif %}" href="#" onclick="showTab('users');return false;">
+        <a class="nav-link{% if active_tab == 'users' %} active{% endif %}" href="#" onclick="showTab('users');return false;">
             <i class="bi bi-people me-1"></i>用户管理
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'audit' %}active{% endif %}" href="#" onclick="showTab('audit');return false;">
+        <a class="nav-link{% if active_tab == 'audit' %} active{% endif %}" href="#" onclick="showTab('audit');return false;">
             <i class="bi bi-shield-check me-1"></i>审计日志
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'settings' %}active{% endif %}" href="#" onclick="showTab('settings');return false;">
+        <a class="nav-link{% if active_tab == 'settings' %} active{% endif %}" href="#" onclick="showTab('settings');return false;">
             <i class="bi bi-sliders me-1"></i>参数设置
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'channels' %}active{% endif %}" href="#" onclick="showTab('channels');return false;">
+        <a class="nav-link{% if active_tab == 'channels' %} active{% endif %}" href="#" onclick="showTab('channels');return false;">
             <i class="bi bi-bell me-1"></i>通知渠道
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'api' %}active{% endif %}" href="#" onclick="showTab('api');return false;">
+        <a class="nav-link{% if active_tab == 'api' %} active{% endif %}" href="#" onclick="showTab('api');return false;">
             <i class="bi bi-code-slash me-1"></i>API文档
         </a>
     </li>
 </ul>
 
 <div class="tab-content">
-    <div id="companies" class="tab-content-frame {% if active_tab == 'companies' or not active_tab %}active{% endif %}">
+    <div id="companies" style="display:{% if active_tab == 'companies' or not active_tab %}block{% else %}none{% endif %};">
         <iframe src="/finance/companies/" class="tab-iframe" id="frame-companies" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="users" class="tab-content-frame {% if active_tab == 'users' %}active{% endif %}">
+    <div id="users" style="display:{% if active_tab == 'users' %}block{% else %}none{% endif %};">
         <iframe src="/system/users/" class="tab-iframe" id="frame-users" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="audit" class="tab-content-frame {% if active_tab == 'audit' %}active{% endif %}">
+    <div id="audit" style="display:{% if active_tab == 'audit' %}block{% else %}none{% endif %};">
         <iframe src="/system/audit-logs/" class="tab-iframe" id="frame-audit" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="settings" class="tab-content-frame {% if active_tab == 'settings' %}active{% endif %}">
+    <div id="settings" style="display:{% if active_tab == 'settings' %}block{% else %}none{% endif %};">
         <iframe src="/system/settings/" class="tab-iframe" id="frame-settings" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="channels" class="tab-content-frame {% if active_tab == 'channels' %}active{% endif %}">
+    <div id="channels" style="display:{% if active_tab == 'channels' %}block{% else %}none{% endif %};">
         <iframe src="/system/notification-channels/" class="tab-iframe" id="frame-channels" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="api" class="tab-content-frame {% if active_tab == 'api' %}active{% endif %}">
+    <div id="api" style="display:{% if active_tab == 'api' %}block{% else %}none{% endif %};">
         <iframe src="/api/docs/" class="tab-iframe" id="frame-api" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
 </div>
 
 <script>
 function showTab(tab) {
-    document.querySelectorAll('.tab-content-frame').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('#systemTab .nav-link').forEach(el => el.classList.remove('active'));
-    document.getElementById(tab).classList.add('active');
-    event.target.classList.add('active');
+    var tabs = ['companies','users','audit','settings','channels','api'];
+    tabs.forEach(function(t) {
+        var div = document.getElementById(t);
+        var link = document.querySelector('#systemTab .nav-link[onclick*="'+t+'"]');
+        if (t === tab) {
+            div.style.display = 'block';
+            if (link) link.classList.add('active');
+        } else {
+            div.style.display = 'none';
+            if (link) link.classList.remove('active');
+        }
+    });
 }
 function resizeIframe(iframe) {
     try {

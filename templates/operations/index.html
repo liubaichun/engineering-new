@@ -4,8 +4,6 @@
 
 {% block styles %}
 <style>
-.tab-content-frame { display: none; }
-.tab-content-frame.active { display: block; }
 iframe.tab-iframe { width: 100%; border: none; background: transparent; }
 </style>
 {% endblock %}
@@ -13,40 +11,48 @@ iframe.tab-iframe { width: 100%; border: none; background: transparent; }
 {% block content %}
 <ul class="nav nav-tabs mb-4" id="operationsTab" role="tablist">
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'materials' or not active_tab %}active{% endif %}" href="#" onclick="showTab('materials');return false;">
+        <a class="nav-link{% if active_tab == 'materials' or not active_tab %} active{% endif %}" href="#" onclick="showTab('materials');return false;">
             <i class="bi bi-box me-1"></i>物料管理
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'equipment' %}active{% endif %}" href="#" onclick="showTab('equipment');return false;">
+        <a class="nav-link{% if active_tab == 'equipment' %} active{% endif %}" href="#" onclick="showTab('equipment');return false;">
             <i class="bi bi-gear me-1"></i>设备管理
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'files' %}active{% endif %}" href="#" onclick="showTab('files');return false;">
+        <a class="nav-link{% if active_tab == 'files' %} active{% endif %}" href="#" onclick="showTab('files');return false;">
             <i class="bi bi-folder me-1"></i>文件管理
         </a>
     </li>
 </ul>
 
 <div class="tab-content">
-    <div id="materials" class="tab-content-frame {% if active_tab == 'materials' or not active_tab %}active{% endif %}">
+    <div id="materials" style="display:{% if active_tab == 'materials' or not active_tab %}block{% else %}none{% endif %};">
         <iframe src="/materials/" class="tab-iframe" id="frame-materials" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="equipment" class="tab-content-frame {% if active_tab == 'equipment' %}active{% endif %}">
+    <div id="equipment" style="display:{% if active_tab == 'equipment' %}block{% else %}none{% endif %};">
         <iframe src="/equipment/" class="tab-iframe" id="frame-equipment" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
-    <div id="files" class="tab-content-frame {% if active_tab == 'files' %}active{% endif %}">
+    <div id="files" style="display:{% if active_tab == 'files' %}block{% else %}none{% endif %};">
         <iframe src="/files/" class="tab-iframe" id="frame-files" onload="resizeIframe(this)" style="height:600px;"></iframe>
     </div>
 </div>
 
 <script>
 function showTab(tab) {
-    document.querySelectorAll('.tab-content-frame').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll('#operationsTab .nav-link').forEach(el => el.classList.remove('active'));
-    document.getElementById(tab).classList.add('active');
-    event.target.classList.add('active');
+    var tabs = ['materials','equipment','files'];
+    tabs.forEach(function(t) {
+        var div = document.getElementById(t);
+        var link = document.querySelector('#operationsTab .nav-link[onclick*="'+t+'"]');
+        if (t === tab) {
+            div.style.display = 'block';
+            if (link) link.classList.add('active');
+        } else {
+            div.style.display = 'none';
+            if (link) link.classList.remove('active');
+        }
+    });
 }
 function resizeIframe(iframe) {
     try {
