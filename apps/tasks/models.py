@@ -325,3 +325,87 @@ class FlowTransition(models.Model):
     
     def __str__(self):
         return f"{self.task.code}: {self.from_node} -> {self.to_node}"
+
+
+class TaskComment(models.Model):
+    """任务评论"""
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='comments', verbose_name='所属任务'
+    )
+    author = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, null=True,
+        related_name='task_comments', verbose_name='评论人'
+    )
+    content = models.TextField(verbose_name='评论内容')
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='replies', verbose_name='父评论'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'tasks_task_comment'
+        verbose_name = '任务评论'
+        verbose_name_plural = '任务评论'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.author} 评论 {self.task}: {self.content[:30]}"
+
+
+class TaskAttachment(models.Model):
+    """任务附件"""
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='attachments', verbose_name='所属任务'
+    )
+    file = models.FileField(upload_to='task_attachments/%Y%m%d/', verbose_name='附件文件')
+    name = models.CharField(verbose_name='文件名', max_length=255)
+    size = models.IntegerField(verbose_name='文件大小(字节)', default=0)
+    uploaded_by = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, null=True,
+        related_name='task_attachments', verbose_name='上传人'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='上传时间')
+
+    class Meta:
+        db_table = 'tasks_task_attachment'
+        verbose_name = '任务附件'
+        verbose_name_plural = '任务附件'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.task})"
+
+
+class TaskDependency(models.Model):
+    """任务依赖关系（blocking）"""
+    DEPENDENCY_TYPES = [
+        ('blocks', '阻塞（被依赖任务完成后才能开始）'),
+        ('depends_on', '依赖（本任务需等依赖任务完成后才能开始）'),
+    ]
+
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='dependencies_from', verbose_name='任务'
+    )
+    depends_on = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='dependencies_to', verbose_name='前置依赖任务'
+    )
+    dependency_type = models.CharField(
+        verbose_name='依赖类型', max_length=20,
+        choices=DEPENDENCY_TYPES, default='depends_on'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'tasks_task_dependency'
+        verbose_name = '任务依赖'
+        verbose_name_plural = '任务依赖'
+        unique_together = ['task', 'depends_on']
+
+    def __str__(self):
+        return f"{self.task} {self.get_dependency_type_display()} {self.depends_on}"
