@@ -730,6 +730,51 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
+    @action(detail=False, methods=['get'])
+    @_require_perms('finance:wage:view')
+    def bank_export(self, request):
+        """导出银行代发文件（支持工行/建行格式）
+        GET ?year=&month=&company_id=&bank_type=ICBC|CCB|GENERIC
+        """
+        from apps.finance.services.wage_bank import (
+            generate_icbc_batch_file, generate_ccb_batch_file,
+            generate_generic_batch_file, make_bank_export_response
+        )
+
+        queryset = self.get_queryset().filter(status__in=['approved', 'paid'])
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        company_id = request.GET.get('company_id')
+        bank_type = request.GET.get('bank_type', 'ICBC').upper()
+
+        if year:
+            queryset = queryset.filter(year=int(year))
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if company_id:
+            queryset = queryset.filter(company_id=int(company_id))
+
+        records = list(queryset.select_related(
+            'company', 'employee', 'employee_company'
+        ))
+
+        if not records:
+            return Response({'status': 'error', 'message': '没有符合条件的已审批工资单'}, status=400)
+
+        company_name = records[0].company.name if records else ''
+        period_str = f"{year or '全部'}{month or '全部'}"
+
+        if bank_type == 'ICBC':
+            content = generate_icbc_batch_file(records, company_name)
+            filename = f"工行代发_{period_str}_{timezone.now().strftime('%Y%m%d')}.txt"
+            response = make_bank_export_response(content, filename, 'text/plain; charset=gbk')
+        else:
+            content = generate_ccb_batch_file(records)
+            filename = f"建行代发_{period_str}_{timezone.now().strftime('%Y%m%d')}.csv"
+            response = make_bank_export_response(content, filename, 'text/csv; charset=utf-8')
+
+        return response
+
     @_require_perms('finance:wage:view')
     @action(detail=False, methods=['get'])
     def wage_slips(self, request):
