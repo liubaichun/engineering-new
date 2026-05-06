@@ -253,6 +253,7 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
         model = TaskAttachment
         fields = ['id', 'task', 'file', 'name', 'size',
                   'uploaded_by', 'uploaded_by_name', 'url', 'created_at']
+        extra_kwargs = {'name': {'required': False}, 'size': {'required': False}}
         read_only_fields = ['id', 'created_at']
 
     def create(self, validated_data):
