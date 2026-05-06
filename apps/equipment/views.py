@@ -104,7 +104,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
-    @action(detail=True, methods=['get', 'post'])
+    @action(detail=True, methods=['get', 'post'], url_path='boms')
     def linked_boms(self, request, pk=None):
         """获取设备关联的物料BOM列表"""
         equipment = self.get_object()
