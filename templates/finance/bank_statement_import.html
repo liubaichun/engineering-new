@@ -259,6 +259,8 @@ let currentFile = null;
 // 初始化
 document.addEventListener('DOMContentLoaded', async function() {
     await loadCompanies();
+    // 显式触发一次公司变更，加载该公司下的银行账户列表
+    await onCompanyChange();
     document.getElementById('selCompany').addEventListener('change', onCompanyChange);
     document.getElementById('selBankAccount').addEventListener('change', onBankAccountChange);
     document.getElementById('chkAll').addEventListener('change', toggleAll);
