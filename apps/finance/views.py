@@ -670,6 +670,85 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         buf = export_wage_records(records)
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
+    @_require_perms('finance:wage:view')
+    @action(detail=True, methods=['get'])
+    def pdf(self, request, pk=None):
+        """生成单张工资条 PDF"""
+        wage_record = self.get_object()
+        from apps.finance.services.wage_pdf import generate_wage_slip_pdf
+        pdf_bytes = generate_wage_slip_pdf(wage_record)
+        filename = f"工资条_{wage_record.employee_name}_{wage_record.year}年{wage_record.month}月.pdf"
+        from django.http import HttpResponse
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @_require_perms('finance:wage:view')
+    @action(detail=False, methods=['get'])
+    def pdf_batch(self, request):
+        """批量生成工资条 PDF（支持指定 year/month/company）"""
+        from apps.finance.services.wage_pdf import generate_wage_slip_pdf
+        from PyPDF2 import PdfReader, PdfWriter
+        import io
+
+        queryset = self.get_queryset()
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        company_id = request.GET.get('company_id')
+        if year:
+            queryset = queryset.filter(year=int(year))
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if company_id:
+            queryset = queryset.filter(company_id=int(company_id))
+
+        records = list(queryset.select_related(
+            'company', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
+        ))
+
+        if not records:
+            return Response({'status': 'error', 'message': '没有找到符合条件的工资单'}, status=400)
+
+        # 逐条生成 PDF，再合并
+        writer = PdfWriter()
+        for wr in records:
+            pdf_bytes = generate_wage_slip_pdf(wr)
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            for page in reader.pages:
+                writer.add_page(page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        period_str = f"{year or '全部'}-{month or '全部'}"
+        filename = f"工资条批量_{period_str}_{timezone.now().strftime('%Y%m%d')}.pdf"
+        from django.http import HttpResponse
+        response = HttpResponse(output.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @_require_perms('finance:wage:view')
+    @action(detail=False, methods=['get'])
+    def wage_slips(self, request):
+        """获取工资条页面所需数据（发送给前端渲染）"""
+        queryset = self.get_queryset()
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        company_id = request.GET.get('company_id')
+        if year:
+            queryset = queryset.filter(year=int(year))
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if company_id:
+            queryset = queryset.filter(company_id=int(company_id))
+        records = queryset.select_related(
+            'company', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
+        )[:50]  # 限制50条
+
+        data = WageRecordSerializer(records, many=True).data
+        return Response({'records': data, 'count': queryset.count()})
+
     @action(detail=False, methods=['post'])
     def calc(self, request):
         """工资自动计算接口"""
