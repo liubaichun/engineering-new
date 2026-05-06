@@ -1032,7 +1032,7 @@ async function showTaskDetail(taskId) {
 
         if (task.flow_instance && task.flow_instance.current_node_name) {
             document.getElementById('detailFlowStatus').innerHTML =
-                '<div class="mt-3 p-3" style="background:#f8afc;border-radius:8px;">' +
+                '<div class="mt-3 p-3" style="background:#f8fafc;border-radius:8px;">' +
                 '<strong>流程状态：</strong>' +
                 '<div class="mt-2"><span class="flow-node-badge ' + (task.flow_instance.current_node_status || 'pending') + '">' +
                 '<span class="node-dot"></span>' + escapeHtml(task.flow_instance.current_node_name) +

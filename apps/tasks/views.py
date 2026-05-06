@@ -255,6 +255,16 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
                   'uploaded_by', 'uploaded_by_name', 'url', 'created_at']
         read_only_fields = ['id', 'created_at']
 
+    def create(self, validated_data):
+        uploaded_file = validated_data.get('file')
+        if uploaded_file:
+            if not validated_data.get('name'):
+                validated_data['name'] = uploaded_file.name
+            if not validated_data.get('size'):
+                validated_data['size'] = uploaded_file.size
+        validated_data['uploaded_by'] = self.context['request'].user
+        return super().create(validated_data)
+
     def get_url(self, obj):
         if obj.file:
             request = self.context.get('request')
