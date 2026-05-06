@@ -45,6 +45,9 @@ def approval_list_page(request):
 def approval_template_list_page(request):
     return TemplateView.as_view(template_name='approvals/approval_template_list.html')(request)
 
+def flow_designer_page(request):
+    return TemplateView.as_view(template_name='approvals/flow_designer.html')(request)
+
 def warning_center_page(request):
     return TemplateView.as_view(template_name='warnings/warning_center.html')(request)
 
@@ -209,6 +212,7 @@ urlpatterns = [
     path('system/notification-channels/', notification_channels_page, name='notification_channels'),
     path('approvals/', approval_list_page, name='approval_list'),
     path('approvals/templates/', approval_template_list_page, name='approval_template_list'),
+    path('approvals/flow-designer/', flow_designer_page, name='flow_designer'),
     path('warnings/', warning_center_page, name='warning_center'),
     path('api/auth/status/', api_auth_status, name='api_auth_status'),
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
