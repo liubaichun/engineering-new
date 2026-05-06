@@ -65,6 +65,23 @@ def income_list_page(request):
 def expense_list_page(request):
     return TemplateView.as_view(template_name='finance/expense_list.html')(request)
 
+# CRM/采购/运营/系统 聚合页（iframe Tab）
+def crm_page(request):
+    active_tab = request.GET.get('tab', 'clients')
+    return render(request, 'crm/index.html', {'active_tab': active_tab})
+
+def purchasing_page(request):
+    active_tab = request.GET.get('tab', 'requests')
+    return render(request, 'purchasing/index.html', {'active_tab': active_tab})
+
+def operations_page(request):
+    active_tab = request.GET.get('tab', 'materials')
+    return render(request, 'operations/index.html', {'active_tab': active_tab})
+
+def system_page(request):
+    active_tab = request.GET.get('tab', 'companies')
+    return render(request, 'system/index.html', {'active_tab': active_tab})
+
 def report_dashboard_page(request):
     return TemplateView.as_view(template_name='finance/report_dashboard.html')(request)
 
@@ -214,6 +231,11 @@ urlpatterns = [
     path('finance/companies/', company_list_page, name='company_list'),
     path('finance/incomes/', income_list_page, name='income_list'),
     path('finance/expenses/', expense_list_page, name='expense_list'),
+    # CRM/采购/运营/系统 聚合页
+    path('crm/', crm_page, name='crm_index'),
+    path('purchasing/', purchasing_page, name='purchasing_index'),
+    path('operations/', operations_page, name='operations_index'),
+    path('system/', system_page, name='system_index'),
     path('finance/reports/', report_dashboard_page, name='report_dashboard'),
     path('finance/reports/export/', report_export_page, name='report_export'),
     path('projects/devices/', project_devices_page, name='project_devices'),

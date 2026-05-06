@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+
+{% block title %}系统管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.tab-content-frame { display: none; }
+.tab-content-frame.active { display: block; }
+iframe.tab-iframe { width: 100%; border: none; background: transparent; }
+</style>
+{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs mb-4" id="systemTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'companies' or not active_tab %}active{% endif %}" href="#" onclick="showTab('companies');return false;">
+            <i class="bi bi-building me-1"></i>公司管理
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'users' %}active{% endif %}" href="#" onclick="showTab('users');return false;">
+            <i class="bi bi-people me-1"></i>用户管理
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'audit' %}active{% endif %}" href="#" onclick="showTab('audit');return false;">
+            <i class="bi bi-shield-check me-1"></i>审计日志
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'settings' %}active{% endif %}" href="#" onclick="showTab('settings');return false;">
+            <i class="bi bi-sliders me-1"></i>参数设置
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'channels' %}active{% endif %}" href="#" onclick="showTab('channels');return false;">
+            <i class="bi bi-bell me-1"></i>通知渠道
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'api' %}active{% endif %}" href="#" onclick="showTab('api');return false;">
+            <i class="bi bi-code-slash me-1"></i>API文档
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div id="companies" class="tab-content-frame {% if active_tab == 'companies' or not active_tab %}active{% endif %}">
+        <iframe src="/finance/companies/" class="tab-iframe" id="frame-companies" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="users" class="tab-content-frame {% if active_tab == 'users' %}active{% endif %}">
+        <iframe src="/system/users/" class="tab-iframe" id="frame-users" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="audit" class="tab-content-frame {% if active_tab == 'audit' %}active{% endif %}">
+        <iframe src="/system/audit-logs/" class="tab-iframe" id="frame-audit" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="settings" class="tab-content-frame {% if active_tab == 'settings' %}active{% endif %}">
+        <iframe src="/system/settings/" class="tab-iframe" id="frame-settings" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="channels" class="tab-content-frame {% if active_tab == 'channels' %}active{% endif %}">
+        <iframe src="/system/notification-channels/" class="tab-iframe" id="frame-channels" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="api" class="tab-content-frame {% if active_tab == 'api' %}active{% endif %}">
+        <iframe src="/api/docs/" class="tab-iframe" id="frame-api" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+</div>
+
+<script>
+function showTab(tab) {
+    document.querySelectorAll('.tab-content-frame').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#systemTab .nav-link').forEach(el => el.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    event.target.classList.add('active');
+}
+function resizeIframe(iframe) {
+    try {
+        var h = iframe.contentWindow.document.body.scrollHeight;
+        if (h > 0) iframe.style.height = Math.max(h + 50, 600) + 'px';
+    } catch(e) {}
+}
+</script>
+{% endblock %}

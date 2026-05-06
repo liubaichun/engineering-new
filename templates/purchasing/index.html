@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}采购管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.tab-content-frame { display: none; }
+.tab-content-frame.active { display: block; }
+iframe.tab-iframe { width: 100%; border: none; background: transparent; }
+</style>
+{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs mb-4" id="purchasingTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'requests' or not active_tab %}active{% endif %}" href="#" onclick="showTab('requests');return false;">
+            <i class="bi bi-cart-plus me-1"></i>采购申请
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'orders' %}active{% endif %}" href="#" onclick="showTab('orders');return false;">
+            <i class="bi bi-file-earming-text me-1"></i>采购订单
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'receives' %}active{% endif %}" href="#" onclick="showTab('receives');return false;">
+            <i class="bi bi-box-seam me-1"></i>采购入库
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div id="requests" class="tab-content-frame {% if active_tab == 'requests' or not active_tab %}active{% endif %}">
+        <iframe src="/purchasing/requests/" class="tab-iframe" id="frame-requests" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="orders" class="tab-content-frame {% if active_tab == 'orders' %}active{% endif %}">
+        <iframe src="/purchasing/orders/" class="tab-iframe" id="frame-orders" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="receives" class="tab-content-frame {% if active_tab == 'receives' %}active{% endif %}">
+        <iframe src="/purchasing/receives/" class="tab-iframe" id="frame-receives" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+</div>
+
+<script>
+function showTab(tab) {
+    document.querySelectorAll('.tab-content-frame').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#purchasingTab .nav-link').forEach(el => el.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    event.target.classList.add('active');
+}
+function resizeIframe(iframe) {
+    try {
+        var h = iframe.contentWindow.document.body.scrollHeight;
+        if (h > 0) iframe.style.height = Math.max(h + 50, 600) + 'px';
+    } catch(e) {}
+}
+</script>
+{% endblock %}

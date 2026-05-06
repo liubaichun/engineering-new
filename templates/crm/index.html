@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}CRM管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.tab-content-frame { display: none; }
+.tab-content-frame.active { display: block; }
+iframe.tab-iframe { width: 100%; border: none; background: transparent; }
+</style>
+{% endblock %}
+
+{% block content %}
+<ul class="nav nav-tabs mb-4" id="crmTab" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'clients' %}active{% endif %}" href="#" onclick="showTab('clients');return false;">
+            <i class="bi bi-building me-1"></i>客户管理
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'contracts' %}active{% endif %}" href="#" onclick="showTab('contracts');return false;">
+            <i class="bi bi-file-earming-text me-1"></i>合同管理
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'suppliers' %}active{% endif %}" href="#" onclick="showTab('suppliers');return false;">
+            <i class="bi bi-truck me-1"></i>供应商管理
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'opportunities' %}active{% endif %}" href="#" onclick="showTab('opportunities');return false;">
+            <i class="bi bi-lightning me-1"></i>商机管理
+        </a>
+    </li>
+</ul>
+
+<div class="tab-content">
+    <div id="clients" class="tab-content-frame {% if active_tab == 'clients' or not active_tab %}active{% endif %}">
+        <iframe src="/crm/clients/" class="tab-iframe" id="frame-clients" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="contracts" class="tab-content-frame {% if active_tab == 'contracts' %}active{% endif %}">
+        <iframe src="/crm/contracts/" class="tab-iframe" id="frame-contracts" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="suppliers" class="tab-content-frame {% if active_tab == 'suppliers' %}active{% endif %}">
+        <iframe src="/crm/suppliers/" class="tab-iframe" id="frame-suppliers" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+    <div id="opportunities" class="tab-content-frame {% if active_tab == 'opportunities' %}active{% endif %}">
+        <iframe src="/crm/opportunities/" class="tab-iframe" id="frame-opportunities" onload="resizeIframe(this)" style="height:600px;"></iframe>
+    </div>
+</div>
+
+<script>
+function showTab(tab) {
+    document.querySelectorAll('.tab-content-frame').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('#crmTab .nav-link').forEach(el => el.classList.remove('active'));
+    document.getElementById(tab).classList.add('active');
+    event.target.classList.add('active');
+}
+function resizeIframe(iframe) {
+    try {
+        var h = iframe.contentWindow.document.body.scrollHeight;
+        if (h > 0) iframe.style.height = Math.max(h + 50, 600) + 'px';
+    } catch(e) {}
+}
+</script>
+{% endblock %}
