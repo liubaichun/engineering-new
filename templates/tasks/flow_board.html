@@ -1235,7 +1235,7 @@ async function loadTaskDependencies(taskId) {
         var tasksRes = await fetch('/api/tasks/tasks/?page_size=100', { credentials: 'include' });
         if (tasksRes.ok) {
             var tasksData = await tasksRes.json();
-            tasksData.results.forEach(function(t) {
+            extractData(tasksData).forEach(function(t) {
                 if (t.id != taskId) {
                     sel.innerHTML += '<option value="' + t.id + '">' + escapeHtml(t.code) + ' - ' + escapeHtml(t.title) + '</option>';
                 }
