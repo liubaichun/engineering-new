@@ -384,8 +384,68 @@ class WageRecord(models.Model):
     def __str__(self):
         return f"{self.employee_name} - {self.year}-{self.month:02d}"
 
+    def auto_calculate_social_insurance(self):
+        """根据员工社保基数和公司配置比例，自动计算五险一金个人部分"""
+        try:
+            # 优先从 employee_company 获取社保基数（多公司任职场景）
+            ec = None
+            employee_obj = None
+            if self.employee_company_id:
+                ec = self.employee_company
+                if ec and ec.employee_id:
+                    employee_obj = ec.employee
+            elif self.employee_id:
+                employee_obj = self.employee
+
+            if not employee_obj:
+                return
+
+            # 员工的社保基数和公积金基数（优先用员工表中的配置基数，0表示使用公司默认基数）
+            social_base = float(employee_obj.social_insurance_base or 0)
+            housing_base = float(employee_obj.housing_fund_base or 0)
+
+            # 获取公司社保配置
+            company = self.company
+            if not company:
+                return
+            config = getattr(company, 'social_config', None)
+            if not config:
+                return
+
+            # 如果员工基数未设置，使用公司配置的默认基数
+            if social_base <= 0:
+                social_base = float(config.social_base or 0)
+            if housing_base <= 0:
+                housing_base = float(config.housing_fund_base or 0)
+
+            if social_base <= 0 or housing_base <= 0:
+                return
+
+            # 员工承担部分（从工资扣）
+            # 养老保险：个人8%
+            pension_employee = social_base * float(config.pension_rate_employee or 8) / 100
+            # 医疗保险：个人2%（+ 大额医疗通常由各地规定，此处简化）
+            medical_employee = social_base * float(config.medical_rate_employee or 2) / 100
+            # 失业保险：个人0.3%
+            unemployment_employee = social_base * float(config.unemployment_rate_employee or 0.3) / 100
+
+            # 公积金：个人缴存比例（5%-12%，公司配置）
+            housing_employee = housing_base * float(config.housing_fund_rate_employee or 5) / 100
+
+            # 社保合计 = 养老 + 医疗 + 失业
+            social_total = pension_employee + medical_employee + unemployment_employee
+            # 公积金
+            housing_total = housing_employee
+
+            self.social_insurance = round(social_total, 2)
+            self.housing_fund = round(housing_total, 2)
+        except Exception:
+            pass  # 出错时保持原值不变
+
     def calculate_gross_and_tax(self):
-        """计算应发合计、扣款合计、个税前工资、个税和实发工资（按月单独计税）"""
+        """计算应发合计、社保公积金自动扣款、个税、实发工资"""
+        # Step 1: 自动计算五险一金（根据员工基数+公司配置比例）
+        self.auto_calculate_social_insurance()
         # 自动从 employee_company 填充 employee_name（支持多公司任职）
         if self.employee_company_id and not self.employee_name:
             try:
