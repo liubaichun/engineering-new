@@ -105,12 +105,12 @@
 
 <ul class="nav nav-tabs mb-4" id="incomeExpenseTab" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="income-tab" data-bs-toggle="tab" data-bs-target="#income-panel" type="button" role="tab">
+        <button class="nav-link{% if active_tab != "expense" %} active{% endif %}" id="income-tab" onclick="window.location.href='/finance/incomes/?tab=income';return false;" type="button">
             <i class="bi bi-arrow-down-circle me-1"></i>收入管理
         </button>
     </li>
     <li class="nav-item" role="presentation">
-        <button class="nav-link" id="expense-tab" data-bs-toggle="tab" data-bs-target="#expense-panel" type="button" role="tab">
+        <button class="nav-link{% if active_tab == "expense" %} active{% endif %}" id="expense-tab" onclick="window.location.href='/finance/incomes/?tab=expense';return false;" type="button">
             <i class="bi bi-arrow-up-circle me-1"></i>支出管理
         </button>
     </li>
@@ -118,7 +118,7 @@
 
 <div class="tab-content" id="incomeExpenseTabContent">
     <!-- 收入面板 -->
-    <div class="tab-pane fade show active" id="income-panel" role="tabpanel">
+    <div class="tab-pane fade{% if active_tab != "expense" %} show active{% endif %}" id="income-panel" role="tabpanel">
         <div class="page-header-sub d-flex justify-content-between align-items-center flex-wrap gap-3" style="margin-bottom:16px;">
             <div>
                 <p class="text-muted mb-0" style="font-size:0.9rem;">
@@ -213,7 +213,7 @@
     </div>
 
     <!-- 支出面板 -->
-    <div class="tab-pane fade" id="expense-panel" role="tabpanel">
+    <div class="tab-pane fade{% if active_tab == "expense" %} show active{% endif %}" id="expense-panel" role="tabpanel">
         <div class="page-header-sub d-flex justify-content-between align-items-center flex-wrap gap-3" style="margin-bottom:16px;">
             <div>
                 <p class="text-muted mb-0" style="font-size:0.9rem;">
@@ -1158,17 +1158,17 @@ async function viewExpense(id) {
     }
 }
 
-// 初始化支出面板（切换到支出Tab时加载）
-document.getElementById('expense-tab').addEventListener('shown.bs.tab', function() {
-    loadExpenseCompanies();
-    loadExpenses();
-});
+// Tab切换通过页面reload实现，数据加载由Django模板active_tab控制
 
-// 页面加载时初始化收入和公司数据
+// 页面加载时只加载当前激活Tab的数据
 document.addEventListener('DOMContentLoaded', function() {
     loadCompanies();
-    loadIncomes();
+    {% if active_tab == "expense" %}
     loadExpenseCompanies();
+    loadExpenses();
+    {% else %}
+    loadIncomes();
+    {% endif %}
 });
 
 </script>

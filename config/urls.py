@@ -58,7 +58,9 @@ def system_companies_page(request):
     return TemplateView.as_view(template_name='finance/company_list.html')(request)
 
 def income_list_page(request):
-    return TemplateView.as_view(template_name='finance/income_list.html')(request)
+    from django.shortcuts import render
+    active_tab = request.GET.get('tab', 'income')
+    return render(request, 'finance/income_list.html', {'active_tab': active_tab})
 
 def expense_list_page(request):
     return TemplateView.as_view(template_name='finance/expense_list.html')(request)
