@@ -503,6 +503,9 @@
             <a href="/projects/" class="nav-link {% if '/projects' in request.path and '/gantt' not in request.path %}active{% endif %}">
                 <i class="bi bi-briefcase"></i><span>项目管理</span>
             </a>
+            <a href="/projects/gantt/" class="nav-link {% if '/projects/gantt' in request.path %}active{% endif %}">
+                <i class="bi bi-bar-chart-fill"></i><span>甘特图</span>
+            </a>
             <a href="/tasks/board/" class="nav-link {% if '/tasks' in request.path %}active{% endif %}">
                 <i class="bi bi-kanban"></i><span>任务看板</span>
             </a>
@@ -561,27 +564,38 @@
         </div>
         {% endif %}
 
-        <!-- 分组7：运营（物料|设备|文件|报修 Tab） -->
-        {% if 'file.view' in user_menu_codes or 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+        <!-- 分组7：运营（物料|设备|报修 Tab） -->
+        {% if 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">运营</div>
-            <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or '/equipment' in request.path and '/repair' not in request.path or '/files' in request.path %}active{% endif %}">
+            <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or '/equipment' in request.path and '/repair' not in request.path %}active{% endif %}">
                 <i class="bi bi-box-seam"></i><span>运营管理</span>
             </a>
-            {% if request.user.is_superuser %}
-            <a href="/repair/requests/" class="nav-link {% if '/repair/requests' in request.path %}active{% endif %}">
-                <i class="bi bi-wrench"></i><span>设备报修</span>
-            </a>
-            {% endif %}
         </div>
         {% endif %}
 
-        <!-- 分组8：系统（Tab：公司|用户|审计|API|参数|渠道|预警） -->
+        <!-- 分组7b：文件管理（独立） -->
+        {% if 'file.view' in user_menu_codes or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">文件</div>
+            <a href="/files/" class="nav-link {% if '/files' in request.path %}active{% endif %}">
+                <i class="bi bi-folder"></i><span>文件管理</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- 分组8：系统（公司|用户|角色|权限|审计|API|参数|渠道|预警） -->
         {% if 'user.view' in user_menu_codes or 'role.view' in user_menu_codes or 'permission.view' in user_menu_codes or 'company.view' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">系统</div>
-            <a href="/system/" class="nav-link {% if '/system' in request.path or '/api/docs' in request.path or '/warnings' in request.path %}active{% endif %}">
+            <a href="/system/" class="nav-link {% if '/system' in request.path and '/roles' not in request.path and '/permissions' not in request.path %}active{% endif %}">
                 <i class="bi bi-gear"></i><span>系统管理</span>
+            </a>
+            <a href="/system/roles/" class="nav-link {% if '/system/roles' in request.path %}active{% endif %}">
+                <i class="bi bi-person-badge"></i><span>角色管理</span>
+            </a>
+            <a href="/system/permissions/" class="nav-link {% if '/system/permissions' in request.path %}active{% endif %}">
+                <i class="bi bi-shield-lock"></i><span>权限管理</span>
             </a>
         </div>
         {% endif %}

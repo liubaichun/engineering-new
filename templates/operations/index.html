@@ -21,8 +21,8 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
         </a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link{% if active_tab == 'files' %} active{% endif %}" href="#" onclick="showTab('files');return false;">
-            <i class="bi bi-folder me-1"></i>文件管理
+        <a class="nav-link{% if active_tab == 'repair' %} active{% endif %}" href="#" onclick="showTab('repair');return false;">
+            <i class="bi bi-wrench me-1"></i>设备报修
         </a>
     </li>
 </ul>
@@ -34,14 +34,14 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
     <div id="equipment" style="display:{% if active_tab == 'equipment' %}block{% else %}none{% endif %};">
         <iframe src="/equipment/" class="tab-iframe" id="frame-equipment" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
-    <div id="files" style="display:{% if active_tab == 'files' %}block{% else %}none{% endif %};">
-        <iframe src="/files/" class="tab-iframe" id="frame-files" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+    <div id="repair" style="display:{% if active_tab == 'repair' %}block{% else %}none{% endif %};">
+        <iframe src="/repair/requests/" class="tab-iframe" id="frame-repair" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
 </div>
 
 <script>
 function showTab(tab) {
-    var tabs = ['materials','equipment','files'];
+    var tabs = ['materials','equipment','repair'];
     tabs.forEach(function(t) {
         var div = document.getElementById(t);
         var link = document.querySelector('#operationsTab .nav-link[onclick*="'+t+'"]');
