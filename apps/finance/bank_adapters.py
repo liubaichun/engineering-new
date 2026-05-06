@@ -175,21 +175,28 @@ class CMBAdapter(BankStatementAdapter):
 
     def detect(self, ws) -> bool:
         try:
+            # CMB v2.0特征：Row5='对账单'(col2), Row6='接口版本' 2.0
             for row in range(1, 15):
-                for col in range(1, 6):
+                for col in range(1, 10):
                     val = str(ws.cell(row, col).value or '')
-                    if '对账单' in val and ('账号' in val or '名称' in val):
-                        return True
+                    if val == '对账单':
+                        # 确认是v2.0（旁边有'接口版本'）
+                        for c in range(1, 6):
+                            v2 = str(ws.cell(row + 1, c).value or '')
+                            if v2 == '2.0':
+                                return True
             return False
         except Exception:
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
-        # 找到表头行
+        # 找表头行（包含'交易日'的行，同时有'流水号'）
         header_row = None
         for r in range(1, ws.max_row + 1):
             row_vals = [str(ws.cell(r, c).value or '') for c in range(1, ws.max_column + 1)]
-            if any('交易日' in v and '流水号' in v for v in row_vals):
+            has_txrq = any('交易日' in v for v in row_vals)
+            has_lsh = any('流水号' in v for v in row_vals)
+            if has_txrq and has_lsh:
                 header_row = r
                 break
 
