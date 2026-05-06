@@ -23,9 +23,17 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         return RepairRequestDetailSerializer
 
     def get_queryset(self):
+        user = self.request.user
         qs = RepairRequest.objects.select_related(
             'equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by'
         ).prefetch_related('images', 'spare_parts')
+        # 自动多租户隔离：超级管理员不过滤，普通用户只看本公司
+        if not user.is_superuser:
+            auth_company = getattr(self.request, 'auth_company', None)
+            cid = auth_company.id if auth_company else None
+            if cid:
+                qs = qs.filter(company_id=cid)
+        # 前端可选参数过滤（超级管理员可跨公司查询）
         company_id = self.request.query_params.get('company_id')
         if company_id:
             qs = qs.filter(company_id=company_id)
@@ -124,10 +132,17 @@ class RepairImageViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = RepairImage.objects.all()
+        user = self.request.user
         req_id = self.request.query_params.get('request_id')
+        # 自动多租户：按关联报修单的 company_id 过滤
+        if not user.is_superuser:
+            auth_company = getattr(self.request, 'auth_company', None)
+            cid = auth_company.id if auth_company else None
+            if cid:
+                qs = qs.filter(request__company_id=cid)
         if req_id:
             qs = qs.filter(request_id=req_id)
-        return qs
+        return qs.select_related('request', 'request__company')
 
 
 class RepairSparePartViewSet(viewsets.ModelViewSet):
@@ -136,8 +151,15 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
     serializer_class = RepairSparePartSerializer
 
     def get_queryset(self):
-        qs = RepairSparePart.objects.select_related('material')
+        qs = RepairSparePart.objects.select_related('material', 'request', 'request__company')
+        user = self.request.user
         req_id = self.request.query_params.get('request_id')
+        # 自动多租户：按关联报修单的 company_id 过滤
+        if not user.is_superuser:
+            auth_company = getattr(self.request, 'auth_company', None)
+            cid = auth_company.id if auth_company else None
+            if cid:
+                qs = qs.filter(request__company_id=cid)
         if req_id:
             qs = qs.filter(request_id=req_id)
         return qs
