@@ -254,6 +254,7 @@ urlpatterns = [
     path('api/files/', include('apps.files.urls')),
     path('api/material/', include('apps.material.urls')),
     path('api/equipment/', include('apps.equipment.urls')),
+    path('api/repair/', include('apps.repair.urls')),
     # 页面路由
     path('system/users/', user_list_page, name='user_list'),
     path('system/roles/', role_list_page, name='role_list'),

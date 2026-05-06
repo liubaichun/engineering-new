@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'apps.material',
     'apps.equipment',
     'apps.purchasing',
+    'apps.repair',
 ]
 
 AUTH_USER_MODEL = 'core.User'
