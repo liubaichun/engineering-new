@@ -5,6 +5,25 @@ from rest_framework.pagination import PageNumberPagination
 from apps.core.auth import CSRFExemptSessionAuthentication
 
 
+def _get_user_company_id(user):
+    """从登录用户自动提取当前公司ID（用于多租户自动上下文）
+    超级用户返回 None（不限制公司），普通用户返回其主公司ID。
+    """
+    if not user or not user.is_authenticated:
+        return None
+    if user.is_superuser:
+        return None
+    # 优先从 UserCompanyRole 取主公司
+    from apps.core.models import UserCompanyRole
+    ucr = UserCompanyRole.objects.filter(user=user, is_primary=True).first()
+    if ucr:
+        return ucr.company_id
+    # 兼容旧字段
+    if hasattr(user, 'company_id') and user.company_id:
+        return user.company_id
+    return None
+
+
 def _check_perm(request, *perm_codes):
     """快捷权限校验，perm_codes 任一满足即可。超管 bypass。"""
     if not request.user or not request.user.is_authenticated:
@@ -122,7 +141,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -285,7 +307,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -434,7 +459,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related(
             'company', 'approver', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
         ).prefetch_related('approval_flow')
@@ -571,6 +599,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         year = request.query_params.get('year')
         month = request.query_params.get('month')
+        # 自动多租户：get_queryset 已过滤，无需重复处理
+        # company_id 仍支持前端指定（超管可指定，普通用户被 get_queryset 限制）
         company_id = request.query_params.get('company')
 
         queryset = self.get_queryset()
@@ -798,7 +828,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related('company', 'project')
 
     def perform_create(self, serializer):
@@ -927,7 +960,11 @@ class ReportViewSet(viewsets.ViewSet):
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
 
-        # 多租户隔离已移除 - 所有用户可访问所有公司数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            # 强制限制为用户所属公司（忽略前端传的 company_id 参数，防止越权）
+            company_id = user_company_id
 
         # 构建筛选条件
         income_qs = Income.objects.all()
@@ -988,7 +1025,10 @@ class ReportViewSet(viewsets.ViewSet):
         """年度报表 - 按公司+年份统计"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
-        # 多租户隔离已移除
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            company_id = user_company_id
 
         income_qs = Income.objects.all()
         expense_qs = Expense.objects.all()
@@ -1044,7 +1084,10 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        # 多租户隔离已移除
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            company_id = user_company_id
 
         queryset = WageRecord.objects.all()
         if year:
@@ -1100,7 +1143,10 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
         invoice_type = request.query_params.get('type')  # income or expense
-        # 多租户隔离已移除
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            company_id = user_company_id
 
         queryset = Invoice.objects.all()
         if year:
