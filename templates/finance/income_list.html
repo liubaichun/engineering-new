@@ -1162,11 +1162,55 @@ async function viewExpense(id) {
 
 // 页面加载时只加载当前激活Tab的数据
 document.addEventListener('DOMContentLoaded', function() {
-    loadCompanies();
     {% if active_tab == "expense" %}
-    loadExpenseCompanies();
-    loadExpenses();
+    // 支出Tab：先加载公司下拉，再加载支出列表
+    if (document.getElementById('filterExpenseCompany')) {
+        fetch('/api/core/companies/', {credentials:'include'})
+            .then(r => r.json())
+            .then(function(data) {
+                var results = data.results || data || [];
+                var opts = '<option value="">全部公司</option>' + results.map(function(c) {
+                    return '<option value="' + c.id + '">' + c.name + '</option>';
+                }).join('');
+                document.getElementById('filterExpenseCompany').innerHTML = opts;
+            })
+            .then(function() { return fetch('/api/finance/expenses/?page=1', {credentials:'include'}); })
+            .then(r => r.json())
+            .then(function(data) {
+                var results = data.results || [];
+                var total = results.reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+                var pending = results.filter(function(r) { return r.status === 'pending' || r.approval_status === 'pending'; }).reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+                var approved = results.filter(function(r) { return r.status === 'approved' || r.approval_status === 'approved'; }).reduce(function(s, r) { return s + parseFloat(r.amount || 0); }, 0);
+                document.getElementById('totalExpenseSummary').textContent = '¥' + total.toLocaleString('zh-CN', {minimumFractionDigits:0});
+                document.getElementById('totalExpenseCount').textContent = results.length;
+                document.getElementById('pendingExpenseSummary').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits:0});
+                document.getElementById('approvedExpenseSummary').textContent = '¥' + approved.toLocaleString('zh-CN', {minimumFractionDigits:0});
+                document.getElementById('expenseRecordCount').textContent = data.count || results.length;
+                var tbody = document.getElementById('expenseTableBody');
+                if (results.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = results.map(function(r) {
+                    var statusMap = {'pending':'badge-pending','approved':'badge-approved','rejected':'badge-rejected'};
+                    var statusTextMap = {'pending':'待审批','approved':'已批准','rejected':'已拒绝'};
+                    var expTypeMap = {'expense':'费用报销','advance':'预付款','deposit':'押金','wage':'工资支出','other':'其他'};
+                    return '<tr>' +
+                        '<td><input class="form-check-input" type="checkbox" value="' + r.id + '"></td>' +
+                        '<td>' + (r.company_name || '-') + '</td>' +
+                        '<td>' + (expTypeMap[r.expense_type] || r.expense_type || '-') + '</td>' +
+                        '<td>¥' + parseFloat(r.amount||0).toLocaleString('zh-CN') + '</td>' +
+                        '<td>' + (r.date || '-') + '</td>' +
+                        '<td>' + (r.payment_method || '-') + '</td>' +
+                        '<td><span class="badge ' + (statusMap[r.status] || 'badge-pending') + '">' + (statusTextMap[r.status] || r.status || '-') + '</span></td>' +
+                        '<td><button class="btn btn-sm btn-outline-primary" onclick="alert('详情ID:' + r.id + '')"><i class="bi bi-eye"></i></button></td>' +
+                        '</tr>';
+                }).join('');
+            })
+            .catch(function(e) { console.error('expense load error:', e); });
+    }
     {% else %}
+    loadCompanies();
     loadIncomes();
     {% endif %}
 });
