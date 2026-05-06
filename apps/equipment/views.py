@@ -38,7 +38,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = Equipment.objects.all()
+        qs = Equipment.objects.select_related('project', 'project__company', 'category')
         user = self.request.user
         if user.is_superuser:
             return qs
@@ -165,7 +165,7 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = EquipmentBOMRelation.objects.all()
+        qs = EquipmentBOMRelation.objects.select_related('equipment', 'equipment__project', 'bom', 'bom__material')
         user = self.request.user
         if user.is_superuser:
             return qs

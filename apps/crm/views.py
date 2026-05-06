@@ -15,10 +15,11 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = ClientSource.objects.select_related('company')
         if user.is_superuser:
-            return ClientSource.objects.all()
+            return base_qs
         if hasattr(user, 'company') and user.company_id:
-            return ClientSource.objects.filter(company_id=user.company_id)
+            return base_qs.filter(company_id=user.company_id)
         return ClientSource.objects.none()
 
 class SupplierViewSet(viewsets.ModelViewSet):
@@ -31,10 +32,11 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Supplier.objects.select_related('created_by', 'company')
         if user.is_superuser:
-            return Supplier.objects.all()
+            return base_qs
         if hasattr(user, 'company') and user.company_id:
-            return Supplier.objects.filter(company_id=user.company_id)
+            return base_qs.filter(company_id=user.company_id)
         return Supplier.objects.none()
 
     def perform_create(self, serializer):
@@ -63,10 +65,11 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Client.objects.select_related('source', 'created_by', 'company')
         if user.is_superuser:
-            return Client.objects.all()
+            return base_qs
         if hasattr(user, 'company') and user.company_id:
-            return Client.objects.filter(company_id=user.company_id)
+            return base_qs.filter(company_id=user.company_id)
         return Client.objects.none()
 
     def perform_create(self, serializer):
@@ -95,10 +98,11 @@ class ContractViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Contract.objects.select_related('client', 'supplier', 'project', 'created_by', 'company')
         if user.is_superuser:
-            return Contract.objects.all()
+            return base_qs
         if hasattr(user, 'company') and user.company_id:
-            return Contract.objects.filter(company_id=user.company_id)
+            return base_qs.filter(company_id=user.company_id)
         return Contract.objects.none()
 
     def perform_create(self, serializer):
@@ -146,10 +150,11 @@ class ContactViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Contact.objects.select_related('client', 'created_by', 'company')
         if user.is_superuser:
-            return Contact.objects.all()
+            return base_qs
         if hasattr(user, 'company') and user.company_id:
-            return Contact.objects.filter(company_id=user.company_id)
+            return base_qs.filter(company_id=user.company_id)
         return Contact.objects.none()
 
     def perform_create(self, serializer):
@@ -172,10 +177,11 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = FollowUpRecord.objects.select_related('contact', 'client', 'created_by', 'company')
         if user.is_superuser:
-            return FollowUpRecord.objects.all()
+            return base_qs
         if hasattr(user, 'company') and user.company_id:
-            return FollowUpRecord.objects.filter(company_id=user.company_id)
+            return base_qs.filter(company_id=user.company_id)
         return FollowUpRecord.objects.none()
 
     def perform_create(self, serializer):
