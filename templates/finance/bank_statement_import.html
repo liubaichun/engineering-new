@@ -268,32 +268,31 @@ document.addEventListener('DOMContentLoaded', async function() {
 });
 
 async function loadCompanies() {
-    try {
-        const resp = await fetch('/api/finance/companies/', { credentials: 'include' });
-        const data = await resp.json();
+    // 使用服务器端预渲染的公司列表，避免浏览器API认证失败
+    const preloaded = window.__PRELOADED_COMPANIES__;
+    if (preloaded && preloaded.length > 0) {
         const sel = document.getElementById('selCompany');
         sel.innerHTML = '<option value="">选择公司</option>' +
-            data.results.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
-        if (data.results && data.results.length > 0) {
-            sel.value = data.results[0].id;
+            preloaded.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        if (preloaded.length > 0) {
+            sel.value = preloaded[0].id;
             await onCompanyChange();
         }
-    } catch(e) { console.error(e); }
+    }
 }
 
 async function onCompanyChange() {
     const companyId = document.getElementById('selCompany').value;
     if (!companyId) return;
     currentCompany = companyId;
-    const resp = await fetch(`/api/finance/companies/${companyId}/bank_accounts/`, { credentials: 'include' });
     const sel = document.getElementById('selBankAccount');
-    if (resp.ok) {
-        const data = await resp.json();
-        sel.innerHTML = '<option value="">— 新建账户 —</option>' +
-            (data.bank_accounts || []).map(b =>
-                `<option value="${b.id}">${b.bank_name || b.bank_code} ${b.account_no} (${b.account_name})</option>`
-            ).join('');
-    }
+    // 优先使用服务器端预渲染的银行账户数据
+    const accountsByCompany = window.__PRELOADED_BANK_ACCOUNTS_BY_COMPANY__ || {};
+    const accounts = accountsByCompany[companyId] || [];
+    sel.innerHTML = '<option value="">— 新建账户 —</option>' +
+        accounts.map(b =>
+            `<option value="${b.id}">${b.bank_name || b.bank_code} ${b.account_no} (${b.account_name})</option>`
+        ).join('');
 }
 
 function onBankAccountChange() {
@@ -512,5 +511,9 @@ function escapeHtml(s) {
     if (!s) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+
+// 服务器端预渲染的公司数据，避免浏览器fetch认证失败
+window.__PRELOADED_COMPANIES__ = {{ preloaded_companies|default:"[]"|safe }};
+window.__PRELOADED_BANK_ACCOUNTS_BY_COMPANY__ = {{ preloaded_bank_accounts_by_company|safe }};
 </script>
 {% endblock %}

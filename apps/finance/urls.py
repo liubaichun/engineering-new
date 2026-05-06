@@ -5,6 +5,8 @@ from . import import_views
 from . import bank_import_views
 from . import reports_v2
 from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from .models import Company
 
 router = IntegerPkRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -27,7 +29,7 @@ urlpatterns = [
     path('import/bank-statement/preview/', bank_import_views.preview_bank_statement, name='bank-statement-preview'),
     path('import/bank-statement/confirm/', bank_import_views.confirm_bank_import, name='bank-statement-confirm'),
     path('import/bank-statement/banks/', bank_import_views.list_banks, name='bank-statement-banks'),
-    path('bank-import/', lambda request: render(request, 'finance/bank_statement_import.html'), name='bank-import'),
+    path('bank-import/', login_required(lambda request: render_bank_import_page(request)), name='bank-import'),
     # 补充报表API
     path('reports/cash-flow/', reports_v2.cash_flow_report, name='report-cash-flow'),
     path('reports/ar-ap-aging/', reports_v2.ar_ap_aging_report, name='report-ar-ap-aging'),

@@ -4,6 +4,34 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from apps.core.auth import CSRFExemptSessionAuthentication
+from django.shortcuts import render
+
+
+def render_bank_import_page(request):
+    """银行流水导入页 — 服务器端直接渲染公司选项和银行账户列表，不走浏览器API"""
+    from .models import Company
+    from apps.core.models import UserCompanyRole
+    from .models_bank import BankAccount
+    import json
+    # 超级用户看所有公司，普通用户只看自己关联的公司
+    if request.user.is_superuser:
+        companies = Company.objects.filter(status='active').order_by('id')
+    else:
+        company_ids = UserCompanyRole.objects.filter(user=request.user).values_list('company_id', flat=True)
+        companies = Company.objects.filter(id__in=company_ids, status='active').order_by('id')
+    companies_list = list(companies.values('id', 'name'))
+    # 预加载所有公司的银行账户（字典格式，key=company_id）
+    all_accounts = BankAccount.objects.filter(company__in=companies, is_active=True)
+    accounts_by_company = {}
+    for a in all_accounts:
+        cid = a.company_id
+        if cid not in accounts_by_company:
+            accounts_by_company[cid] = []
+        accounts_by_company[cid].append({'id': a.id, 'bank_code': a.bank_code, 'bank_name': a.bank_name or a.bank_code, 'account_no': a.account_no, 'account_name': a.account_name})
+    return render(request, 'finance/bank_statement_import.html', {
+        'preloaded_companies': companies_list,
+        'preloaded_bank_accounts_by_company': json.dumps(accounts_by_company),
+    })
 
 
 def _get_user_company_id(user):
