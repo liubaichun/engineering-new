@@ -273,14 +273,6 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
                 return request.build_absolute_uri(obj.file.url)
         return None
 
-    def create(self, serializer):
-        uploaded_file = serializer.validated_data.get('file')
-        instance = serializer.save()
-        if uploaded_file and not instance.size:
-            instance.size = uploaded_file.size
-            instance.save(update_fields=['size'])
-        return instance
-
 
 class TaskDependencySerializer(serializers.ModelSerializer):
     task_code = serializers.CharField(source='task.code', read_only=True)
