@@ -299,7 +299,7 @@ async function loadOpportunities(queryString) {
                 <td>${o.client_name || '—'}</td>
                 <td><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></td>
                 <td class="${priorityClass(o.priority)}">${priorityMap[o.priority] || o.priority}</td>
-                <td class="text-end fw-semibold">${o.expected_amount>0?'¥'++o.expected_amount.toLocaleString():'—'}</td>
+                <td class="text-end fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</td>
                 <td>${o.probability}%</td>
                 <td>${o.estimated_close_date || '—'}</td>
                 <td>${o.created_by_name || '—'}</td>
@@ -431,7 +431,7 @@ async function showOppDetail(id) {
                 <dt class="col-4 text-muted">联系人</dt><dd class="col-8">${o.contact_name||'—'}</dd>
                 <dt class="col-4 text-muted">阶段</dt><dd class="col-8"><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></dd>
                 <dt class="col-4 text-muted">优先级</dt><dd class="col-8 ${priorityClass(o.priority)}">${priorityMap[o.priority]||o.priority}</dd>
-                <dt class="col-4 text-muted">预计金额</dt><dd class="col-8 fw-semibold">${o.expected_amount>0?'¥'++o.expected_amount.toLocaleString():'—'}</dd>
+                <dt class="col-4 text-muted">预计金额</dt><dd class="col-8 fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</dd>
                 <dt class="col-4 text-muted">赢单概率</dt><dd class="col-8">${o.probability}%</dd>
                 <dt class="col-4 text-muted">预计成交日期</dt><dd class="col-8">${o.estimated_close_date||'—'}</dd>
                 <dt class="col-4 text-muted">实际成交日期</dt><dd class="col-8">${o.actual_close_date||'—'}</dd>
