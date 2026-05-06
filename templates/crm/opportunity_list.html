@@ -88,7 +88,7 @@
                         <th>阶段</th>
                         <th>优先级</th>
                         <th>预计金额</th>
-                        <th>赢单概率</th>
+                        <th>赢单概率</th><th>加权金额</th>
                         <th>预计成交</th>
                         <th>负责人</th>
                         <th>操作</th>
@@ -300,7 +300,8 @@ async function loadOpportunities(queryString) {
                 <td><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></td>
                 <td class="${priorityClass(o.priority)}">${priorityMap[o.priority] || o.priority}</td>
                 <td class="text-end fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</td>
-                <td>${o.probability}%</td>
+                <td>${o.probability}%<br><small class="text-muted">加权</small></td>
+                <td class="text-end"><span class="text-primary fw-semibold">${o.weighted_amount>0?'¥'+o.weighted_amount.toLocaleString():'—'}</span></td>
                 <td>${o.estimated_close_date || '—'}</td>
                 <td>${o.created_by_name || '—'}</td>
                 <td>
@@ -432,6 +433,7 @@ async function showOppDetail(id) {
                 <dt class="col-4 text-muted">阶段</dt><dd class="col-8"><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></dd>
                 <dt class="col-4 text-muted">优先级</dt><dd class="col-8 ${priorityClass(o.priority)}">${priorityMap[o.priority]||o.priority}</dd>
                 <dt class="col-4 text-muted">预计金额</dt><dd class="col-8 fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</dd>
+                <dt class="col-4 text-muted">加权金额</dt><dd class="col-8"><span class="text-primary">${o.weighted_amount>0?'¥'+o.weighted_amount.toLocaleString():'—'}</span></dd>
                 <dt class="col-4 text-muted">赢单概率</dt><dd class="col-8">${o.probability}%</dd>
                 <dt class="col-4 text-muted">预计成交日期</dt><dd class="col-8">${o.estimated_close_date||'—'}</dd>
                 <dt class="col-4 text-muted">实际成交日期</dt><dd class="col-8">${o.actual_close_date||'—'}</dd>

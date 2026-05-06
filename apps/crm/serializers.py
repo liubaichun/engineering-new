@@ -250,6 +250,16 @@ class OpportunitySerializer(serializers.ModelSerializer):
         # 成交时记录实际成交日期，失败时记录失败原因
         return value
 
+    def validate(self, attrs):
+        """跨字段校验：商机标记为失败（lost）时必须填写失败原因"""
+        stage = attrs.get('stage')
+        if stage == 'lost':
+            lost_reason = attrs.get('lost_reason', '').strip()
+            # update 时 instance 当前可能有值
+            if not lost_reason and (not self.instance or not getattr(self.instance, 'lost_reason', '').strip()):
+                raise serializers.ValidationError({'lost_reason': '商机标记为失败时，必须填写失败原因'})
+        return attrs
+
 
 class OpportunityStageStatsSerializer(serializers.Serializer):
     """商机阶段统计（Pipeline视图用）"""

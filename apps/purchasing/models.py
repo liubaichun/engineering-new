@@ -171,7 +171,7 @@ class PurchaseReceive(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.PROTECT, related_name='purchase_receives', verbose_name='供应商')
     company = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='purchase_receives', verbose_name='公司')
     warehouse = models.CharField('仓库', max_length=64, blank=True, default='')
-    receive_date = models.DateField('入库日期')
+    receive_date = models.DateField('入库日期', auto_now_add=True)
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
     received_by = models.ForeignKey('finance.Employee', on_delete=models.PROTECT, related_name='purchase_receives', verbose_name='收货人')
     remark = models.TextField('备注', blank=True, default='')

@@ -121,6 +121,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             })
         return Response(result)
 
+    @action(detail=True, methods=['post'])
     def record_repair(self, request, pk=None):
         """记录设备维修"""
         equipment = self.get_object()
