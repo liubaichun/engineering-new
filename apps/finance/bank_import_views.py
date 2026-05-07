@@ -55,8 +55,8 @@ SKIP_PATTERNS = [
     r'养老保险', r'失业保险', r'生育保险',
     r'对公中间业务收入', r'网上企业银行服务费',
     r'暂收款$', r'应付利息', r'应收利息',
-    r'备付金', r'示范应用', r'测试户',
-    r'自动驾驶', r'测试',
+    r'备付金',
+    r'测试户$',
 ]
 
 
@@ -110,6 +110,8 @@ def _classify_counterparty_type(name: str, summary: str) -> str:
 def _classify_expense_category(summary: str, counterparty: str) -> str:
     """根据摘要自动分类支出"""
     text = f"{summary} {counterparty}".lower()
+    if '货款' in text or '采购' in text:
+        return '采购'
     if '工资' in text or '代发' in text:
         return '工资'
     if '税' in text or '增值税' in text or '个税' in text or '所得税' in text or '税费' in text:
@@ -150,6 +152,8 @@ def _classify_income_category(summary: str, counterparty: str) -> str:
     text = f"{summary} {counterparty}".lower()
     if '退款' in text:
         return '退款'
+    if '货款' in text or '销售' in text:
+        return '销售收款'
     if '利息' in text:
         return '利息收入'
     if '软件' in text or '维护' in text or '技术' in text:
