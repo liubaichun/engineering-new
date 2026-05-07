@@ -203,12 +203,12 @@
         <!-- Nav tabs：切换收入/支出列表 -->
         <ul class="nav nav-tabs card-header-tabs" id="invoiceListTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="list-tab-expense" data-bs-toggle="tab" data-bs-target="#list-pane-expense" type="button" role="tab" onclick="switchInvoiceTab('expense')">
+                <button class="nav-link active" id="list-tab-expense" data-bs-toggle="tab" data-bs-target="#list-pane-expense" type="button" role="tab">
                     <i class="bi bi-arrow-down-circle me-1"></i>收到发票
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="list-tab-income" data-bs-toggle="tab" data-bs-target="#list-pane-income" type="button" role="tab" onclick="switchInvoiceTab('income')">
+                <button class="nav-link" id="list-tab-income" data-bs-toggle="tab" data-bs-target="#list-pane-income" type="button" role="tab">
                     <i class="bi bi-arrow-up-circle me-1"></i>开出发票
                 </button>
             </li>
@@ -430,12 +430,27 @@ function onCompanyChange() {
     loadSummary(currentTab);
 }
 
-function switchInvoiceTab(type) {
-    currentTab = type;
-    const p = type === 'income' ? incomePage : expensePage;
-    loadInvoices(type, p);
-    loadSummary(type);
-}
+document.addEventListener('DOMContentLoaded', function() {
+    loadCompanies();
+    loadProjects();
+    // 默认展示收到发票（expense），开出发票按需加载
+    loadInvoices('expense', 1);
+    loadSummary('expense');
+
+    // 监听 Tab 切换事件，只刷新当前 Tab
+    document.getElementById('invoiceListTabs').addEventListener('shown.bs.tab', function(e) {
+        const target = e.target.getAttribute('data-bs-target');
+        if (target === '#list-pane-expense') {
+            currentTab = 'expense';
+            loadInvoices('expense', expensePage);
+            loadSummary('expense');
+        } else if (target === '#list-pane-income') {
+            currentTab = 'income';
+            loadInvoices('income', incomePage);
+            loadSummary('income');
+        }
+    });
+});
 
 async function loadSummary(type) {
     const company = document.getElementById('filterCompany').value;
