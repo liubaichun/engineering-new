@@ -587,9 +587,8 @@ async function showEditInvoiceModal(id) {
         const resp = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
         if (!resp.ok) return;
         const inv = await resp.json();
-        document.getElementById('invoiceModalTitle').textContent = '编辑发票';
+        document.getElementById('invoiceModalTitle').textContent = '编辑发票 - ' + (inv.invoice_no || id);
         document.getElementById('invoiceId').value = inv.id;
-        document.getElementById('invoiceType').value = inv.type || 'expense';
         document.getElementById('invoiceNo').value = inv.invoice_no || '';
         document.getElementById('invoiceAmount').value = inv.amount || '';
         document.getElementById('invoiceTaxRate').value = inv.tax_rate != null ? parseFloat(inv.tax_rate) : '';
@@ -599,8 +598,18 @@ async function showEditInvoiceModal(id) {
         document.getElementById('invoiceTaxNo').value = inv.counterparty_tax_id || '';
         document.getElementById('invoiceIssueDate').value = inv.issue_date ? inv.issue_date.split('T')[0] : '';
         document.getElementById('invoiceTaxAmount').value = inv.tax_amount || '';
-        new bootstrap.Modal(document.getElementById('invoiceModal')).show();
-    } catch (e) { console.error(e); }
+        // 移除禁用状态，确保所有字段可编辑
+        ['invoiceNo','invoiceAmount','invoiceTaxRate','invoiceRemarks','invoiceCounterparty','invoiceTaxNo','invoiceIssueDate','invoiceTaxAmount'].forEach(fid => {
+            const el = document.getElementById(fid);
+            if (el) el.readOnly = false;
+        });
+        const modalEl = document.getElementById('invoiceModal');
+        const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modalInstance.show();
+    } catch (e) {
+        console.error('showEditInvoiceModal error:', e);
+        alert('打开编辑弹窗失败：' + e.message);
+    }
 }
 
 async function markInvoicePaid(id) {
