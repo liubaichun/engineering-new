@@ -7,26 +7,24 @@
 .invoice-summary {
     display: flex;
     gap: 12px;
-    margin-bottom: 24px;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 4px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
 }
 .summary-card {
     background: #fff;
-    border-radius: 12px;
-    padding: 20px 24px;
+    border-radius: 8px;
+    padding: 12px 14px;
     box-shadow: var(--card-shadow);
-    min-width: 140px;
-    flex: 1;
+    min-width: 0;
+    flex: 1 1 calc(25% - 9px);
 }
 .summary-card .label {
-    font-size: 0.85rem;
+    font-size: 0.75rem;
     color: var(--text-secondary);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 .summary-card .value {
-    font-size: 1.5rem;
+    font-size: 1.1rem;
     font-weight: 700;
     color: var(--text-primary);
 }
