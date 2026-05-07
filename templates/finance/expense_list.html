@@ -470,8 +470,8 @@ function renderExpenses(expenses) {
             <td><input class="form-check-input" type="checkbox" value="${expense.id}"></td>
             <td>
                 <div class="expense-company">
-                    <div class="company-avatar">${expense.company_name ? (expense.company_name.length > 3 ? expense.company_name.charAt(3) : expense.company_name.charAt(0)) : '未'}</div>
-                    <div class="company-name">${expense.company_name ? (expense.company_name.length > 3 ? expense.company_name.substring(3) : expense.company_name) : '-'}</div>
+                    <div class="company-avatar">${expense.company_name ? expense.company_name.charAt(0) : '未'}</div>
+                    <div class="company-name">${expense.company_name || '-'}</div>
                 </div>
             </td>
             <td><span class="expense-type-badge ${expense.expense_type}">${typeMap[expense.expense_type] || expense.expense_type}</span></td>
