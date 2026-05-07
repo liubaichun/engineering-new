@@ -343,15 +343,26 @@
                     </div>
                 </div>
                 <div class="row g-3 mb-3">
-                    <div class="col-6">
+                    <div class="col-4">
                         <label class="form-label">开票日期</label>
                         <input type="date" class="form-control" id="invoiceIssueDate">
                     </div>
-                    <div class="col-6">
-                        <label class="form-label">到期日期</label>
-                        <input type="date" class="form-control" id="invoiceDueDate">
+                    <div class="col-4">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="invoiceStatus">
+                            <option value="pending">待开票</option>
+                            <option value="issued">已开票</option>
+                            <option value="paid">已支付</option>
+                            <option value="cancelled">已作废</option>
+                        </select>
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">对方税号</label>
+                        <input type="text" class="form-control" id="invoiceTaxNo" placeholder="税号">
                     </div>
                 </div>
+                <input type="hidden" id="invoiceDate">
+                <input type="hidden" id="invoiceTaxAmount">
                 <div class="mb-3">
                     <label class="form-label">备注</label>
                     <textarea class="form-control" id="invoiceRemarks" rows="2" placeholder="备注信息"></textarea>
@@ -521,7 +532,7 @@ function renderInvoiceTable(invoices, type) {
             <td>${inv.invoice_type === 'special' ? '增值税专用' : '普通发票'}</td>
             <td>${inv.counterparty || '-'}</td>
             <td class="text-end">¥${fmtAmt(inv.amount)}</td>
-            <td>${inv.tax_rate != null ? (parseFloat(inv.tax_rate) * 100).toFixed(1) + '%' : '-'}</td>
+            <td>${inv.tax_rate != null ? parseFloat(inv.tax_rate).toFixed(1) + '%' : '-'}</td>
             <td class="text-end">¥${fmtAmt(inv.tax_amount)}</td>
             <td class="text-end">¥${taxIncluded(inv)}</td>
             <td>${inv.issue_date || '-'}</td>
@@ -560,7 +571,7 @@ async function showInvoiceDetail(id) {
                 <tr><th>类型</th><td>${inv.type === 'income' ? '收到发票' : '开出发票'}</td></tr>
                 <tr><th>发票类型</th><td>${inv.invoice_type === 'special' ? '增值税专用发票' : '普通发票'}</td></tr>
                 <tr><th>金额</th><td>¥${parseFloat(inv.amount||0).toLocaleString('zh-CN',{minimumFractionDigits:2})}</td></tr>
-                <tr><th>税率</th><td>${inv.tax_rate!=null?(parseFloat(inv.tax_rate)*100).toFixed(1)+'%':'-'}</td></tr>
+                <tr><th>税率</th><td>${inv.tax_rate!=null?parseFloat(inv.tax_rate).toFixed(1)+'%':'-'}</td></tr>
                 <tr><th>税额</th><td>¥${parseFloat(inv.tax_amount||0).toLocaleString('zh-CN',{minimumFractionDigits:2})}</td></tr>
                 <tr><th>对方公司</th><td>${inv.counterparty||'-'}</td></tr>
                 <tr><th>对方税号</th><td>${inv.counterparty_tax_id||'-'}</td></tr>
@@ -580,14 +591,15 @@ async function showEditInvoiceModal(id) {
         const inv = await resp.json();
         document.getElementById('invoiceModalTitle').textContent = '编辑发票';
         document.getElementById('invoiceId').value = inv.id;
+        document.getElementById('invoiceType').value = inv.type || 'expense';
         document.getElementById('invoiceNo').value = inv.invoice_no || '';
         document.getElementById('invoiceAmount').value = inv.amount || '';
-        document.getElementById('invoiceTaxRate').value = inv.tax_rate != null ? (parseFloat(inv.tax_rate) * 100) : '';
+        document.getElementById('invoiceTaxRate').value = inv.tax_rate != null ? parseFloat(inv.tax_rate) : '';
         document.getElementById('invoiceStatus').value = inv.status;
         document.getElementById('invoiceRemarks').value = inv.remarks || '';
         document.getElementById('invoiceCounterparty').value = inv.counterparty || '';
         document.getElementById('invoiceTaxNo').value = inv.counterparty_tax_id || '';
-        document.getElementById('invoiceDate').value = inv.issue_date || '';
+        document.getElementById('invoiceIssueDate').value = inv.issue_date ? inv.issue_date.split('T')[0] : '';
         document.getElementById('invoiceTaxAmount').value = inv.tax_amount || '';
         new bootstrap.Modal(document.getElementById('invoiceModal')).show();
     } catch (e) { console.error(e); }
@@ -628,13 +640,14 @@ async function saveInvoice() {
     const csrftoken = document.cookie.split(';').find(r => r.trim().startsWith('csrftoken='))?.split('=')[1];
     const data = {
         invoice_no: document.getElementById('invoiceNo').value,
+        type: document.getElementById('invoiceType').value || 'expense',
         amount: parseFloat(document.getElementById('invoiceAmount').value) || 0,
-        tax_rate: parseFloat(document.getElementById('invoiceTaxRate').value) / 100 || 0,
+        tax_rate: parseFloat(document.getElementById('invoiceTaxRate').value) || 0,
         status: document.getElementById('invoiceStatus').value,
         remarks: document.getElementById('invoiceRemarks').value,
         counterparty: document.getElementById('invoiceCounterparty').value,
         counterparty_tax_id: document.getElementById('invoiceTaxNo').value,
-        issue_date: document.getElementById('invoiceDate').value,
+        issue_date: document.getElementById('invoiceIssueDate').value,
         tax_amount: parseFloat(document.getElementById('invoiceTaxAmount').value) || 0,
     };
     try {

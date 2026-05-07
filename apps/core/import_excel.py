@@ -609,12 +609,13 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
 
     # expense（收到发票，我方是购方）→ 交易对手是销方（seller/供应商）
     # income（开出发票，我方是销方）→ 交易对手是购方（buyer/客户）
+    # counterparty = 对方公司名，counterparty_tax_id = 对方税号
     if invoice_type == 'income':
-        counterparty_field    = 'buyer_name'
-        counterparty_tax_field = 'buyer_tax'
+        counterparty_field     = 'buyer_name'    # 购方名称 = 对方公司
+        counterparty_tax_field = 'buyer_tax'     # 购方识别号 = 对方税号
     else:
-        counterparty_field    = 'seller_name'
-        counterparty_tax_field = 'seller_tax'
+        counterparty_field     = 'seller_name'  # 销方名称 = 对方公司
+        counterparty_tax_field = 'seller_tax'    # 销方识别号 = 对方税号
 
     from apps.finance.models import Invoice
 
