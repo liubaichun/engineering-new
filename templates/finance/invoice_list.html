@@ -66,16 +66,11 @@
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
         <h4><i class="bi bi-receipt me-2"></i>发票管理</h4>
-        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理收入发票和支出发票的开具、收 取状态</p>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理收入发票和支出发票的开具、收取状态</p>
     </div>
     <div class="d-flex gap-2 flex-wrap">
         <select class="form-select form-select-sm" id="filterCompany" style="width: auto;" onchange="loadInvoices()">
             <option value="">全部公司</option>
-        </select>
-        <select class="form-select form-select-sm" id="filterType" style="width: auto;" onchange="loadInvoices()">
-            <option value="">全部类型</option>
-            <option value="income">收入发票</option>
-            <option value="expense">支出发票</option>
         </select>
         <select class="form-select form-select-sm" id="filterStatus" style="width: auto;" onchange="loadInvoices()">
             <option value="">全部状态</option>
@@ -162,73 +157,116 @@
     </div>
 </div>
 
-<!-- 汇总信息 -->
-<div class="invoice-summary">
+<!-- 收入发票汇总 -->
+<div class="invoice-summary" id="incomeSummary">
     <div class="summary-card">
-        <div class="label">发票总数</div>
-        <div class="value primary" id="totalCount">0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalInvoices">0</span> 张</div>
+        <div class="label">收到发票总数</div>
+        <div class="value primary" id="incomeCount">0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="incomeTotal">0</span> 张</div>
     </div>
     <div class="summary-card">
-        <div class="label">待开票金额</div>
-        <div class="value warning" id="pendingAmount">¥0</div>
+        <div class="label">待收票金额</div>
+        <div class="value warning" id="incomePending">¥0</div>
     </div>
     <div class="summary-card">
-        <div class="label">已开票金额</div>
-        <div class="value primary" id="issuedAmount">¥0</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">已收/支金额</div>
-        <div class="value success" id="paidAmount">¥0</div>
+        <div class="label">已收票金额</div>
+        <div class="value success" id="incomePaid">¥0</div>
     </div>
 </div>
 
-<!-- 发票列表 -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>发票明细列表</span>
-        <div class="d-flex gap-2 align-items-center">
-            <span style="font-size:0.85rem; color:var(--text-secondary);">
-                共 <strong id="recordCount">0</strong> 条记录
-            </span>
-        </div>
+<!-- 支出（开出发票）汇总 -->
+<div class="invoice-summary" id="expenseSummary">
+    <div class="summary-card">
+        <div class="label">开出发票总数</div>
+        <div class="value primary" id="expenseCount">0</div>
+        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="expenseTotal">0</span> 张</div>
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table invoice-table mb-0">
-                <thead>
-                    <tr>
-                        <th style="width: 50px;">
-                            <input class="form-check-input" type="checkbox">
-                        </th>
-                        <th>发票号</th>
-                        <th>类型</th>
-                        <th>发票类型</th>
-                        <th>公司</th>
-                        <th>金额</th>
-                        <th>税率</th>
-                        <th>税额</th>
-                        <th>状态</th>
-                        <th>认证</th>
-                        <th style="width: 120px;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="invoiceTableBody">
-                    <tr>
-                        <td colspan="10" class="text-center text-muted py-4">加载中...</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+    <div class="summary-card">
+        <div class="label">待开票金额</div>
+        <div class="value warning" id="expensePending">¥0</div>
     </div>
-    
-    <!-- 分页 -->
-    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
-        <nav>
-            <ul class="pagination pagination-sm mb-0" id="pagination">
-            </ul>
-        </nav>
+    <div class="summary-card">
+        <div class="label">已开票金额</div>
+        <div class="value success" id="expensePaid">¥0</div>
+    </div>
+</div>
+
+<!-- 发票类型 Tab + 列表 -->
+<div class="card mt-3">
+    <div class="card-header">
+        <!-- Nav tabs：切换收入/支出列表 -->
+        <ul class="nav nav-tabs card-header-tabs" id="invoiceListTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="list-tab-income" data-bs-toggle="tab" data-bs-target="#list-pane-income" type="button" role="tab" onclick="switchInvoiceTab('income')">
+                    <i class="bi bi-arrow-down-circle me-1"></i>收到发票
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="list-tab-expense" data-bs-toggle="tab" data-bs-target="#list-pane-expense" type="button" role="tab" onclick="switchInvoiceTab('expense')">
+                    <i class="bi bi-arrow-up-circle me-1"></i>开出发票
+                </button>
+            </li>
+        </ul>
+    </div>
+    <div class="tab-content" id="invoiceListTabContent">
+        <!-- 收到发票列表 -->
+        <div class="tab-pane fade show active" id="list-pane-income" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table invoice-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;"><input class="form-check-input" type="checkbox"></th>
+                            <th>发票号</th>
+                            <th>发票类型</th>
+                            <th>对方公司</th>
+                            <th>金额</th>
+                            <th>税率</th>
+                            <th>税额</th>
+                            <th>开票日期</th>
+                            <th>状态</th>
+                            <th>认证</th>
+                            <th style="width: 120px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="incomeTableBody">
+                        <tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <span style="font-size:0.85rem; color:var(--text-secondary);">共 <strong id="incomeRecordCount">0</strong> 条</span>
+                <ul class="pagination mb-0" id="incomePagination"></ul>
+            </div>
+        </div>
+        <!-- 开出发票列表 -->
+        <div class="tab-pane fade" id="list-pane-expense" role="tabpanel">
+            <div class="table-responsive">
+                <table class="table invoice-table mb-0">
+                    <thead>
+                        <tr>
+                            <th style="width: 50px;"><input class="form-check-input" type="checkbox"></th>
+                            <th>发票号</th>
+                            <th>发票类型</th>
+                            <th>对方公司</th>
+                            <th>金额</th>
+                            <th>税率</th>
+                            <th>税额</th>
+                            <th>开票日期</th>
+                            <th>状态</th>
+                            <th>认证</th>
+                            <th style="width: 120px;">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="expenseTableBody">
+                        <tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <span style="font-size:0.85rem; color:var(--text-secondary);">共 <strong id="expenseRecordCount">0</strong> 条</span>
+                <ul class="pagination mb-0" id="expensePagination"></ul>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -343,14 +381,18 @@
 
 {% block scripts %}
 <script>
-let currentPage = 1;
-let pageSize = 20;
-let totalInvoices = 0;
+let currentTab = 'income';
+let incomePage = 1;
+let expensePage = 1;
+const pageSize = 20;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadCompanies();
     loadProjects();
-    loadInvoices();
+    loadInvoices('income', 1);
+    loadInvoices('expense', 1);
+    loadSummary('income');
+    loadSummary('expense');
 });
 
 async function loadCompanies() {
@@ -358,15 +400,11 @@ async function loadCompanies() {
         const response = await fetch('/api/finance/companies/', { credentials: 'include' });
         if (response.ok) {
             const data = await response.json();
-            const options = '<option value="">全部公司</option>' + 
+            const options = '<option value="">全部公司</option>' +
                 data.results.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
             document.getElementById('filterCompany').innerHTML = options;
-            document.getElementById('invoiceCompany').innerHTML = '<option value="">选择公司</option>' + 
-                data.results.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
         }
-    } catch (error) {
-        console.error('加载公司失败:', error);
-    }
+    } catch (error) { console.error('加载公司失败:', error); }
 }
 
 async function loadProjects() {
@@ -374,564 +412,274 @@ async function loadProjects() {
         const response = await fetch('/api/tasks/projects/', { credentials: 'include' });
         if (response.ok) {
             const data = await response.json();
-            const options = '<option value="">选择项目</option>' + 
+            const el = document.getElementById('invoiceProject');
+            if (el) el.innerHTML = '<option value="">选择项目</option>' +
                 (data.results || data).map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-            document.getElementById('invoiceProject').innerHTML = options;
         }
-    } catch (error) {
-        console.error('加载项目失败:', error);
-    }
+    } catch (error) { console.error('加载项目失败:', error); }
 }
 
-async function loadInvoices() {
+function switchInvoiceTab(type) {
+    currentTab = type;
+    loadSummary(type);
+}
+
+async function loadSummary(type) {
     const company = document.getElementById('filterCompany').value;
-    const type = document.getElementById('filterType').value;
+    const params = new URLSearchParams();
+    if (company) params.append('company_id', company);
+    params.append('type', type);
+    const url = '/api/finance/invoices/summary/?' + params.toString();
+    try {
+        const resp = await fetch(url, { credentials: 'include' });
+        if (!resp.ok) return;
+        const s = await resp.json();
+        const p = type === 'income' ? 'income' : 'expense';
+        document.getElementById(p + 'Count').textContent = s.total_count || 0;
+        document.getElementById(p + 'Total').textContent = s.total_count || 0;
+        document.getElementById(p + 'Pending').textContent = '¥' + (s.pending_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        document.getElementById(p + 'Paid').textContent = '¥' + ((s.issued_amount || 0) + (s.paid_amount || 0)).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+    } catch (e) { console.error('loadSummary failed:', e); }
+}
+
+async function loadInvoices(type, page) {
+    const company = document.getElementById('filterCompany').value;
     const status = document.getElementById('filterStatus').value;
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
-    
-    let url = `/api/finance/invoices/?page=${currentPage}&page_size=${pageSize}`;
+    let url = `/api/finance/invoices/?page=${page}&page_size=${pageSize}&type=${type}`;
     if (company) url += `&company_id=${company}`;
-    if (type) url += `&type=${type}`;
     if (status) url += `&status=${status}`;
     if (dateFrom) url += `&issue_date_min=${dateFrom}`;
     if (dateTo) url += `&issue_date_max=${dateTo}`;
-    
     try {
         const response = await fetch(url, { credentials: 'include' });
-        if (response.ok) {
-            const data = await response.json();
-            totalInvoices = data.count;
-            renderInvoiceTable(data.results || data);
-            renderPagination(data);
-            updateSummary(data);
+        if (!response.ok) return;
+        const data = await response.json();
+        if (type === 'income') {
+            incomePage = page;
+            renderInvoiceTable(data.results || data, 'income');
+            renderPagination(data, type, 'incomePagination', incomePage);
+            document.getElementById('incomeRecordCount').textContent = data.count || 0;
         } else {
-            showError('加载发票列表失败');
+            expensePage = page;
+            renderInvoiceTable(data.results || data, 'expense');
+            renderPagination(data, type, 'expensePagination', expensePage);
+            document.getElementById('expenseRecordCount').textContent = data.count || 0;
         }
     } catch (error) {
-        console.error('加载发票失败:', error);
-        document.getElementById('invoiceTableBody').innerHTML = 
-            '<tr><td colspan="10" class="text-center text-danger py-4">加载失败，请刷新页面</td></tr>';
+        const tbody = type === 'income' ? 'incomeTableBody' : 'expenseTableBody';
+        document.getElementById(tbody).innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
     }
 }
 
-function renderInvoiceTable(invoices) {
-    const tbody = document.getElementById('invoiceTableBody');
+function renderInvoiceTable(invoices, type) {
+    const tbody = type === 'income' ? 'incomeTableBody' : 'expenseTableBody';
+    const el = document.getElementById(tbody);
     if (!invoices || invoices.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无发票记录</td></tr>';
+        el.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无发票记录</td></tr>';
         return;
     }
-    
-    tbody.innerHTML = invoices.map(inv => `
+    el.innerHTML = invoices.map(inv => `
         <tr>
             <td><input class="form-check-input" type="checkbox" value="${inv.id}"></td>
-            <td><strong>${inv.invoice_no}</strong></td>
-            <td><span class="type-badge ${inv.type}">${inv.type === 'income' ? '收入' : '支出'}</span></td>
+            <td><strong>${inv.invoice_no || '-'}</strong></td>
             <td>${inv.invoice_type === 'special' ? '增值税专用' : '普通发票'}</td>
-            <td>${inv.company_name || '-'}</td>
-            <td><strong class="text-success">¥${parseFloat(inv.amount).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</strong></td>
-            <td>${inv.tax_rate ? inv.tax_rate + '%' : '-'}</td>
-            <td>${inv.tax_amount > 0 ? '¥' + parseFloat(inv.tax_amount).toLocaleString('zh-CN', {minimumFractionDigits: 2}) : '-'}</td>
-            <td><span class="status-badge ${inv.status}">${getStatusText(inv.status)}</span></td>
-            <td>${inv.is_credited ? '<span class="badge bg-success">已认证</span>' : '<span class="badge bg-secondary">未认证</span>'}</td>
+            <td>${inv.counterparty || '-'}</td>
+            <td class="text-end">¥${parseFloat(inv.amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td>
+            <td>${inv.tax_rate != null ? (parseFloat(inv.tax_rate) * 100).toFixed(1) + '%' : '-'}</td>
+            <td class="text-end">¥${parseFloat(inv.tax_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td>
+            <td>${inv.issue_date || '-'}</td>
+            <td><span class="status-badge ${inv.status}">${statusMap[inv.status] || inv.status}</span></td>
+            <td>${inv.is_credited ? '已认证' : '未认证'}</td>
             <td>
-                <div class="btn-group btn-group-sm">
-                    <button class="btn btn-outline-primary" onclick="viewInvoice(${inv.id})" title="查看">
-                        <i class="bi bi-eye"></i>
-                    </button>
-                    <button class="btn btn-outline-secondary" onclick="editInvoice(${inv.id})" title="编辑">
-                        <i class="bi bi-pencil"></i>
-                    </button>
-                    <button class="btn btn-outline-danger" onclick="deleteInvoice(${inv.id})" title="删除" data-perm="invoice.delete">
-                        <i class="bi bi-trash"></i>
-                    </button>
-                </div>
+                <button class="btn btn-link btn-sm p-1" onclick="showInvoiceDetail(${inv.id})"><i class="bi bi-eye"></i></button>
+                <button class="btn btn-link btn-sm p-1" onclick="showEditInvoiceModal(${inv.id})"><i class="bi bi-pencil"></i></button>
+                ${inv.status !== 'paid' ? `<button class="btn btn-link btn-sm p-1 text-success" onclick="markInvoicePaid(${inv.id})"><i class="bi bi-check-circle"></i></button>` : ''}
             </td>
         </tr>
     `).join('');
 }
 
-function getStatusText(status) {
-    const map = {
-        'pending': '待开票',
-        'issued': '已开票',
-        'paid': '已支付',
-        'cancelled': '已作废'
-    };
-    return map[status] || status;
+function renderPagination(data, type, paginationId, currentPage) {
+    const totalPages = Math.ceil((data.count || 0) / pageSize);
+    const ul = document.getElementById(paginationId);
+    if (!ul || totalPages <= 1) return;
+    ul.innerHTML = '';
+    if (currentPage > 1) ul.innerHTML += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="loadInvoices('${type}', ${currentPage - 1})">‹</a></li>`;
+    for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPages, currentPage + 2); i++) {
+        ul.innerHTML += `<li class="page-item ${i === currentPage ? 'active' : ''}"><a class="page-link" href="javascript:void(0)" onclick="loadInvoices('${type}', ${i})">${i}</a></li>`;
+    }
+    if (currentPage < totalPages) ul.innerHTML += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="loadInvoices('${type}', ${currentPage + 1})">›</a></li>`;
 }
 
-function renderPagination(data) {
-    const pagination = document.getElementById('pagination');
-    const totalPages = Math.ceil(data.count / pageSize);
-    
-    document.getElementById('recordCount').textContent = data.count;
-    document.getElementById('paginationInfo').textContent = 
-        `显示 ${((currentPage - 1) * pageSize) + 1}-${Math.min(currentPage * pageSize, data.count)} 条，共 ${data.count} 条`;
-    
-    let html = '';
-    if (currentPage > 1) {
-        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage - 1})">上一页</a></li>`;
-    }
-    
-    const start = Math.max(1, currentPage - 2);
-    const end = Math.min(totalPages, currentPage + 2);
-    
-    if (start > 1) {
-        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(1)">1</a></li>`;
-        if (start > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-    }
-    
-    for (let i = start; i <= end; i++) {
-        html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
-            <a class="page-link" href="javascript:void(0)" onclick="goToPage(${i})">${i}</a>
-        </li>`;
-    }
-    
-    if (end < totalPages) {
-        if (end < totalPages - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
-        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${totalPages})">${totalPages}</a></li>`;
-    }
-    
-    if (currentPage < totalPages) {
-        html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage + 1})">下一页</a></li>`;
-    }
-    
-    pagination.innerHTML = html;
-}
+const statusMap = {'pending': '待开票', 'issued': '已开票', 'paid': '已支付', 'cancelled': '已作废'};
 
-function goToPage(page) {
-    currentPage = page;
-    loadInvoices();
-}
-
-async function updateSummary(data) {
-    // 调用 summary API 获取正确的聚合数据（按 type+company 过滤）
-    const company = document.getElementById('filterCompany').value;
-    const type = document.getElementById('filterType').value;
-    const status = document.getElementById('filterStatus').value;
-    const dateFrom = document.getElementById('filterDateFrom').value;
-    const dateTo = document.getElementById('filterDateTo').value;
-
-    let url = '/api/finance/invoices/summary/';
-    const params = new URLSearchParams();
-    if (company) params.append('company_id', company);
-    if (type) params.append('type', type);
-    if (status) params.append('status', status);
-    if (dateFrom) params.append('issue_date_min', dateFrom);
-    if (dateTo) params.append('issue_date_max', dateTo);
-    if (params.toString()) url += '?' + params.toString();
-
+async function showInvoiceDetail(id) {
     try {
-        const resp = await fetch(url, { credentials: 'include' });
-        if (resp.ok) {
-            const s = await resp.json();
-            document.getElementById('totalCount').textContent = s.total_count || 0;
-            document.getElementById('totalInvoices').textContent = s.total_count || 0;
-            document.getElementById('pendingAmount').textContent = '¥' + (s.pending_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
-            document.getElementById('issuedAmount').textContent = '¥' + (s.issued_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
-            document.getElementById('paidAmount').textContent = '¥' + (s.paid_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
-        } else {
-            throw new Error('summary API failed');
-        }
-    } catch (e) {
-        // Fallback: use current page data
-        const invoices = data.results || data;
-        let pending = 0, issued = 0, paid = 0;
-        invoices.forEach(inv => {
-            if (inv.status === 'pending') pending += parseFloat(inv.amount);
-            else if (inv.status === 'issued') issued += parseFloat(inv.amount);
-            else if (inv.status === 'paid') paid += parseFloat(inv.amount);
+        const resp = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
+        if (!resp.ok) return;
+        const inv = await resp.json();
+        document.getElementById('invoiceDetailContent').innerHTML = `
+            <table class="table table-bordered mb-0">
+                <tr><th>发票号</th><td>${inv.invoice_no || '-'}</td></tr>
+                <tr><th>类型</th><td>${inv.type === 'income' ? '收到发票' : '开出发票'}</td></tr>
+                <tr><th>发票类型</th><td>${inv.invoice_type === 'special' ? '增值税专用发票' : '普通发票'}</td></tr>
+                <tr><th>金额</th><td>¥${parseFloat(inv.amount||0).toLocaleString('zh-CN',{minimumFractionDigits:2})}</td></tr>
+                <tr><th>税率</th><td>${inv.tax_rate!=null?(parseFloat(inv.tax_rate)*100).toFixed(1)+'%':'-'}</td></tr>
+                <tr><th>税额</th><td>¥${parseFloat(inv.tax_amount||0).toLocaleString('zh-CN',{minimumFractionDigits:2})}</td></tr>
+                <tr><th>对方公司</th><td>${inv.counterparty||'-'}</td></tr>
+                <tr><th>对方税号</th><td>${inv.counterparty_tax_id||'-'}</td></tr>
+                <tr><th>开票日期</th><td>${inv.issue_date||'-'}</td></tr>
+                <tr><th>状态</th><td><span class="status-badge ${inv.status}">${statusMap[inv.status]||inv.status}</span></td></tr>
+                <tr><th>认证</th><td>${inv.is_credited?'已认证':'未认证'}</td></tr>
+                <tr><th>备注</th><td>${inv.remarks||'-'}</td></tr>
+            </table>`;
+        new bootstrap.Modal(document.getElementById('invoiceDetailModal')).show();
+    } catch (e) { console.error(e); }
+}
+
+async function showEditInvoiceModal(id) {
+    try {
+        const resp = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
+        if (!resp.ok) return;
+        const inv = await resp.json();
+        document.getElementById('invoiceModalTitle').textContent = '编辑发票';
+        document.getElementById('invoiceId').value = inv.id;
+        document.getElementById('invoiceNo').value = inv.invoice_no || '';
+        document.getElementById('invoiceAmount').value = inv.amount || '';
+        document.getElementById('invoiceTaxRate').value = inv.tax_rate != null ? (parseFloat(inv.tax_rate) * 100) : '';
+        document.getElementById('invoiceStatus').value = inv.status;
+        document.getElementById('invoiceRemarks').value = inv.remarks || '';
+        document.getElementById('invoiceCounterparty').value = inv.counterparty || '';
+        document.getElementById('invoiceTaxNo').value = inv.counterparty_tax_id || '';
+        document.getElementById('invoiceDate').value = inv.issue_date || '';
+        document.getElementById('invoiceTaxAmount').value = inv.tax_amount || '';
+        new bootstrap.Modal(document.getElementById('invoiceModal')).show();
+    } catch (e) { console.error(e); }
+}
+
+async function markInvoicePaid(id) {
+    if (!confirm('确认标记为已支付？')) return;
+    try {
+        const csrftoken = document.cookie.split(';').find(r => r.trim().startsWith('csrftoken='))?.split('=')[1];
+        const resp = await fetch(`/api/finance/invoices/${id}/`, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
+            body: JSON.stringify({ status: 'paid' })
         });
-        document.getElementById('totalCount').textContent = data.count || 0;
-        document.getElementById('totalInvoices').textContent = data.count || 0;
-        document.getElementById('pendingAmount').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits: 2});
-        document.getElementById('issuedAmount').textContent = '¥' + issued.toLocaleString('zh-CN', {minimumFractionDigits: 2});
-        document.getElementById('paidAmount').textContent = '¥' + paid.toLocaleString('zh-CN', {minimumFractionDigits: 2});
-    }
+        if (resp.ok) {
+            loadInvoices(currentTab, currentTab === 'income' ? incomePage : expensePage);
+            loadSummary('income');
+            loadSummary('expense');
+        }
+    } catch (e) { console.error(e); }
 }
 
 function showAddInvoiceModal() {
     document.getElementById('invoiceModalTitle').textContent = '新建发票';
-    document.getElementById('invoiceId').value = '';
-    document.getElementById('invoiceNo').value = '';
-    document.getElementById('invoiceType').value = '';
-    document.getElementById('invoiceCompany').value = '';
-    document.getElementById('invoiceAmount').value = '';
-    document.getElementById('invoiceProject').value = '';
-    var elStatus = document.getElementById('invoiceStatus');
-    if (elStatus) elStatus.value = 'pending';
-    var elType2 = document.getElementById('invoiceType2');
-    if (elType2) elType2.value = '';
-    var elTax = document.getElementById('invoiceTaxRate');
-    if (elTax) elTax.value = '';
-    var elCred = document.getElementById('invoiceIsCredited');
-    if (elCred) elCred.value = 'false';
-    var elCp = document.getElementById('invoiceCounterparty');
-    if (elCp) elCp.value = '';
-    var elId = document.getElementById('invoiceIssueDate');
-    if (elId) elId.value = '';
-    var elDd = document.getElementById('invoiceDueDate');
-    if (elDd) elDd.value = '';
-    document.getElementById('invoiceRemarks').value = '';
-
-    const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
-    modal.show();
-}
-
-async function editInvoice(id) {
-    try {
-        const response = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
-        if (response.ok) {
-            const inv = await response.json();
-            document.getElementById('invoiceModalTitle').textContent = '编辑发票';
-            document.getElementById('invoiceId').value = inv.id;
-            document.getElementById('invoiceNo').value = inv.invoice_no;
-            document.getElementById('invoiceType').value = inv.type;
-            document.getElementById('invoiceCompany').value = inv.company || '';
-            document.getElementById('invoiceAmount').value = inv.amount;
-            document.getElementById('invoiceProject').value = inv.project || '';
-            document.getElementById('invoiceStatus').value = inv.status;
-            document.getElementById('invoiceType2').value = inv.invoice_type || '';
-            document.getElementById('invoiceTaxRate').value = inv.tax_rate || '';
-            document.getElementById('invoiceIsCredited').value = inv.is_credited ? 'true' : 'false';
-            document.getElementById('invoiceCounterparty').value = inv.counterparty || '';
-            document.getElementById('invoiceIssueDate').value = inv.issue_date || '';
-            document.getElementById('invoiceDueDate').value = inv.due_date || '';
-            document.getElementById('invoiceRemarks').value = inv.remarks || '';
-
-            const modal = new bootstrap.Modal(document.getElementById('invoiceModal'));
-            modal.show();
-        }
-    } catch (error) {
-        showError('加载发票信息失败');
-    }
-}
-
-async function viewInvoice(id) {
-    try {
-        const response = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
-        if (response.ok) {
-            const inv = await response.json();
-            const content = `
-                <table class="table table-bordered">
-                    <tr><th style="width: 35%;">发票号</th><td>${inv.invoice_no}</td></tr>
-                    <tr><th>类型</th><td>${inv.type === 'income' ? '收入发票' : '支出发票'}</td></tr>
-                    <tr><th>发票类型</th><td>${inv.invoice_type === 'special' ? '增值税专用发票' : '普通发票'}</td></tr>
-                    <tr><th>公司</th><td>${inv.company_name || '-'}</td></tr>
-                    <tr><th>金额</th><td class="text-success fw-bold">¥${parseFloat(inv.amount).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td></tr>
-                    <tr><th>税率</th><td>${inv.tax_rate ? inv.tax_rate + '%' : '-'}</td></tr>
-                    <tr><th>税额</th><td>${inv.tax_amount > 0 ? '¥' + parseFloat(inv.tax_amount).toLocaleString('zh-CN', {minimumFractionDigits: 2}) : '-'}</td></tr>
-                    <tr><th>对方公司</th><td>${inv.counterparty || '-'}</td></tr>
-                    <tr><th>认证抵扣</th><td>${inv.is_credited ? '已认证' : '未认证'}</td></tr>
-                    <tr><th>状态</th><td><span class="status-badge ${inv.status}">${getStatusText(inv.status)}</span></td></tr>
-                    <tr><th>开票日期</th><td>${inv.issue_date || '-'}</td></tr>
-                    <tr><th>到期日期</th><td>${inv.due_date || '-'}</td></tr>
-                    <tr><th>备注</th><td>${inv.remarks || '-'}</td></tr>
-                    <tr><th>创建时间</th><td>${inv.created_at || '-'}</td></tr>
-                </table>
-                <div class="mt-3">
-                    <button class="btn btn-primary btn-sm me-2" onclick="issueInvoice(${inv.id})" ${inv.status !== 'pending' ? 'disabled' : ''}>
-                        <i class="bi bi-check-circle me-1"></i>开具发票
-                    </button>
-                    <button class="btn btn-success btn-sm me-2" onclick="markInvoicePaid(${inv.id})" ${inv.status !== 'issued' ? 'disabled' : ''}>
-                        <i class="bi bi-check-all me-1"></i>标记已支付
-                    </button>
-                    <button class="btn btn-danger btn-sm" onclick="cancelInvoice(${inv.id})" ${inv.status === 'paid' ? 'disabled' : ''} data-perm="invoice.change">
-                        <i class="bi bi-x-circle me-1"></i>作废发票
-                    </button>
-                </div>
-            `;
-            document.getElementById('invoiceDetailContent').innerHTML = content;
-            const modal = new bootstrap.Modal(document.getElementById('invoiceDetailModal'));
-            modal.show();
-        }
-    } catch (error) {
-        showError('加载发票信息失败');
-    }
+    ['invoiceId','invoiceNo','invoiceAmount','invoiceTaxRate','invoiceStatus','invoiceRemarks',
+     'invoiceCounterparty','invoiceTaxNo','invoiceDate','invoiceTaxAmount'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const el = document.getElementById('invoiceStatus');
+    if (el) el.value = 'pending';
+    new bootstrap.Modal(document.getElementById('invoiceModal')).show();
 }
 
 async function saveInvoice() {
     const id = document.getElementById('invoiceId').value;
+    const csrftoken = document.cookie.split(';').find(r => r.trim().startsWith('csrftoken='))?.split('=')[1];
     const data = {
         invoice_no: document.getElementById('invoiceNo').value,
-        type: document.getElementById('invoiceType').value,
-        company: document.getElementById('invoiceCompany').value,
-        amount: document.getElementById('invoiceAmount').value,
-        project: document.getElementById('invoiceProject').value || null,
+        amount: parseFloat(document.getElementById('invoiceAmount').value) || 0,
+        tax_rate: parseFloat(document.getElementById('invoiceTaxRate').value) / 100 || 0,
         status: document.getElementById('invoiceStatus').value,
-        invoice_type: document.getElementById('invoiceType2').value || 'normal',
-        tax_rate: document.getElementById('invoiceTaxRate').value || '0',
-        is_credited: document.getElementById('invoiceIsCredited').value === 'true',
+        remarks: document.getElementById('invoiceRemarks').value,
         counterparty: document.getElementById('invoiceCounterparty').value,
-        issue_date: document.getElementById('invoiceIssueDate').value || null,
-        due_date: document.getElementById('invoiceDueDate').value || null,
-        remarks: document.getElementById('invoiceRemarks').value
+        counterparty_tax_id: document.getElementById('invoiceTaxNo').value,
+        issue_date: document.getElementById('invoiceDate').value,
+        tax_amount: parseFloat(document.getElementById('invoiceTaxAmount').value) || 0,
     };
-
-    if (!data.type || !data.company || !data.amount) {
-        showError('请填写必填项（类型、公司、金额）');
-        return;
-    }
-    
     try {
         const url = id ? `/api/finance/invoices/${id}/` : '/api/finance/invoices/';
-        const method = id ? 'PUT' : 'POST';
-        const response = await fetch(url, {
-            method,
+        const resp = await fetch(url, {
+            method: id ? 'PATCH' : 'POST',
             credentials: 'include',
-            headers: { 'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken'),
-            },
+            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
             body: JSON.stringify(data)
         });
-        
-        if (response.ok) {
+        if (resp.ok) {
             bootstrap.Modal.getInstance(document.getElementById('invoiceModal')).hide();
-            document.getElementById('invoiceModal').addEventListener('hidden.bs.modal', function handler() {
-                document.getElementById('invoiceModal').removeEventListener('hidden.bs.modal', handler);
-                loadInvoices();
-                showSuccess(id ? '发票已更新' : '发票已创建');
-            });
+            loadInvoices(currentTab, currentTab === 'income' ? incomePage : expensePage);
+            loadSummary('income');
+            loadSummary('expense');
         } else {
-            const err = await response.json();
-            showError(err.message || '保存失败');
+            alert('保存失败');
         }
-    } catch (error) {
-        showError('保存失败');
-    }
+    } catch (e) { console.error(e); alert('保存失败: ' + e.message); }
 }
-
-async function deleteInvoice(id) {
-    if (!confirm('确定要删除这张发票吗？')) return;
-    
-    try {
-        const response = await fetch(`/api/finance/invoices/${id}/`, {
-            method: 'DELETE',
-            credentials: 'include'
-        });
-        if (response.ok) {
-            loadInvoices();
-            showSuccess('发票已删除');
-        } else {
-            showError('删除失败');
-        }
-    } catch (error) {
-        showError('删除失败');
-    }
-}
-
-async function issueInvoice(id) {
-    try {
-        const response = await fetch(`/api/finance/invoices/${id}/issue/`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
-        });
-        const data = await response.json();
-        if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailModal')).hide();
-            document.getElementById('invoiceDetailModal').addEventListener('hidden.bs.modal', function handler() {
-                document.getElementById('invoiceDetailModal').removeEventListener('hidden.bs.modal', handler);
-                loadInvoices();
-                showSuccess('发票已开具');
-            });
-        } else {
-            showError(data.message || '操作失败');
-        }
-    } catch (error) {
-        showError('操作失败');
-    }
-}
-
-async function markInvoicePaid(id) {
-    try {
-        const response = await fetch(`/api/finance/invoices/${id}/mark_paid/`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
-        });
-        const data = await response.json();
-        if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailModal')).hide();
-            document.getElementById('invoiceDetailModal').addEventListener('hidden.bs.modal', function handler() {
-                document.getElementById('invoiceDetailModal').removeEventListener('hidden.bs.modal', handler);
-                loadInvoices();
-                showSuccess('已标记为已支付');
-            });
-        } else {
-            showError(data.message || '操作失败');
-        }
-    } catch (error) {
-        showError('操作失败');
-    }
-}
-
-async function cancelInvoice(id) {
-    if (!confirm('确定要作废这张发票吗？')) return;
-    
-    try {
-        const response = await fetch(`/api/finance/invoices/${id}/cancel/`, {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
-        });
-        const data = await response.json();
-        if (response.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('invoiceDetailModal')).hide();
-            document.getElementById('invoiceDetailModal').addEventListener('hidden.bs.modal', function handler() {
-                document.getElementById('invoiceDetailModal').removeEventListener('hidden.bs.modal', handler);
-                loadInvoices();
-                showSuccess('发票已作废');
-            });
-        } else {
-            showError(data.message || '操作失败');
-        }
-    } catch (error) {
-        showError('操作失败');
-    }
-}
-
-function showError(msg) {
-    alert(msg);
-}
-
-function showSuccess(msg) {
-    alert(msg);
-}
-
-// ===== 导出功能 =====
-const INVOICE_COLUMNS = [
-    { key: 'id', label: 'ID' },
-    { key: 'invoice_no', label: '发票号' },
-    { key: 'type_display', label: '发票类型' },
-    { key: 'company_name', label: '公司' },
-    { key: 'project_name', label: '项目' },
-    { key: 'amount', label: '金额（元）' },
-    { key: 'tax_rate', label: '税率（%）' },
-    { key: 'tax_amount', label: '税额（元）' },
-    { key: 'counterparty', label: '对方单位' },
-    { key: 'invoice_type_display', label: '发票票种' },
-    { key: 'is_credited_display', label: '认证抵扣' },
-    { key: 'status_display', label: '状态' },
-    { key: 'issue_date', label: '开票日期' },
-    { key: 'due_date', label: '到期日期' },
-    { key: 'remarks', label: '备注' },
-    { key: 'created_at', label: '创建时间' }
-];
 
 async function exportInvoices() {
-    const params = new URLSearchParams();
-    const companyId = document.getElementById('filterCompany')?.value;
-    const type = document.getElementById('filterType')?.value;
-    const status = document.getElementById('filterStatus')?.value;
-    const dateFrom = document.getElementById('filterDateFrom')?.value;
-    const dateTo = document.getElementById('filterDateTo')?.value;
-    if (companyId) params.set('company_id', companyId);
-    if (type) params.set('type', type);
-    if (status) params.set('status', status);
-    if (dateFrom) params.set('date_start', dateFrom);
-    if (dateTo) params.set('date_end', dateTo);
-
-    try {
-        showSuccess('正在导出…');
-        const response = await fetch(`/api/finance/invoices/export/?${params}`, { credentials: 'include' });
-        if (!response.ok) throw new Error('导出失败');
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `发票记录_${new Date().toISOString().slice(0,10)}.csv`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showSuccess('导出成功');
-    } catch (e) {
-        console.error(e);
-        showError('导出失败');
-    }
+    const company = document.getElementById('filterCompany').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
+    let url = `/api/finance/invoices/export/?format=csv&type=${currentTab}`;
+    if (company) url += `&company_id=${company}`;
+    if (status) url += `&status=${status}`;
+    if (dateFrom) url += `&date_start=${dateFrom}`;
+    if (dateTo) url += `&date_end=${dateTo}`;
+    window.open(url, '_blank');
 }
-
-function downloadBlob(content, filename, mimeType) {
-    const blob = new Blob([content], { type: mimeType });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-}
-
-let importInvoiceModal = null;
-document.addEventListener('DOMContentLoaded', function() {
-    importInvoiceModal = new bootstrap.Modal(document.getElementById('importInvoiceModal'));
-});
 
 function showImportInvoiceModal() {
-    document.getElementById('importResultBox').style.display = 'none';
-    document.getElementById('importFileIncome').value = '';
-    document.getElementById('importFileExpense').value = '';
-    importInvoiceModal.show();
+    new bootstrap.Modal(document.getElementById('importInvoiceModal')).show();
 }
 
 async function importInvoices(type) {
-    const fileInput = type === 'income'
-        ? document.getElementById('importFileIncome')
-        : document.getElementById('importFileExpense');
-    const progressId = type === 'income' ? 'importProgressIncome' : 'importProgressExpense';
+    const fileInput = type === 'income' ? document.getElementById('importFileIncome') : document.getElementById('importFileExpense');
     const file = fileInput.files[0];
-    if (!file) {
-        showError('请先选择 Excel 文件');
-        return;
-    }
-
-    const progressEl = document.getElementById(progressId);
+    if (!file) { alert('请先选择 Excel 文件'); return; }
+    const progressEl = document.getElementById(type === 'income' ? 'importProgressIncome' : 'importProgressExpense');
     progressEl.style.display = 'block';
     progressEl.querySelector('.progress-bar').style.width = '30%';
-
     const formData = new FormData();
     formData.append('file', file);
     formData.append('type', type);
-
     try {
         const response = await fetch('/api/finance/invoices/import_records/', {
-            method: 'POST',
-            credentials: 'include',
-            body: formData
+            method: 'POST', credentials: 'include', body: formData
         });
         progressEl.querySelector('.progress-bar').style.width = '80%';
-
         const data = await response.json();
         progressEl.querySelector('.progress-bar').style.width = '100%';
-
         const resultBox = document.getElementById('importResultBox');
         const resultAlert = document.getElementById('importResultAlert');
         resultBox.style.display = 'block';
-
         if (data.success) {
             resultAlert.className = 'alert alert-success py-2';
             resultAlert.innerHTML = '<i class="bi bi-check-circle me-1"></i> ' + data.message;
             setTimeout(function() {
-                importInvoiceModal.hide();
-                loadInvoices();
+                bootstrap.Modal.getInstance(document.getElementById('importInvoiceModal')).hide();
+                loadInvoices('income', 1);
+                loadInvoices('expense', 1);
+                loadSummary('income');
+                loadSummary('expense');
             }, 1500);
         } else {
             resultAlert.className = 'alert alert-danger py-2';
-            resultAlert.innerHTML = '<i class="bi bi-x-circle me-1"></i> ' + data.message;
-            if (data.errors && data.errors.length > 0) {
-                resultAlert.innerHTML += '<ul class="mb-0 mt-1 small">';
-                data.errors.slice(0, 5).forEach(function(e) {
-                    resultAlert.innerHTML += '<li>行' + e.row + '：' + e.message + '</li>';
-                });
-                resultAlert.innerHTML += '</ul>';
-            }
+            resultAlert.innerHTML = '<i class="bi bi-x-circle me-1"></i> ' + (data.message || '导入失败');
+            progressEl.style.display = 'none';
         }
-    } catch (e) {
-        console.error(e);
-        showError('导入请求失败');
+    } catch (error) {
+        console.error('导入失败:', error);
+        const resultAlert = document.getElementById('importResultAlert');
+        resultAlert.className = 'alert alert-danger py-2';
+        resultAlert.innerHTML = '<i class="bi bi-x-circle me-1"></i> 导入失败：' + error.message;
+        progressEl.style.display = 'none';
     }
 }
 </script>
