@@ -454,3 +454,219 @@ def import_wage(file_obj, company_id=None):
             result.add_error(i, f'行{i} 解析异常：{str(e)}')
 
     return result
+
+# ─── 发票导入 ─────────────────────────────────────────────────────────
+
+def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
+    """
+    导入数电发票记录（收到或开出的发票）。
+
+    invoice_type: 'income' = 收到的发票（我方是购方，从供应商取得）
+                  'expense' = 开出的发票（我方是销方，开给客户）
+
+    Excel 格式：标准数电发票「发票基础信息」Sheet
+    """
+    result = ImportResult()
+    data = file_obj.read() if hasattr(file_obj, 'read') else file_obj
+    wb = load_workbook(io.BytesIO(data), data_only=True)
+
+    # 优先找「发票基础信息」sheet
+    ws = None
+    for sheet_name in wb.sheetnames:
+        if '发票基础信息' in sheet_name:
+            ws = wb[sheet_name]
+            break
+    if ws is None:
+        ws = wb.active
+
+    # 找到表头行（含「数电发票号码」关键字）
+    header_row_idx = None
+    for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        if any(cell is not None for cell in row) and '数电发票号码' in str(row):
+            header_row_idx = i
+            break
+    if header_row_idx is None:
+        result.add_error(0, '未找到「数电发票号码」表头，请确认文件格式')
+        return result
+
+    header_row = list(ws.iter_rows(
+        min_row=header_row_idx, max_row=header_row_idx, values_only=True))[0]
+    headers = [str(h).strip() if h is not None else '' for h in header_row]
+
+    def col(*kw):
+        return match_header(headers, *kw)
+
+    c_invoice_no       = col('数电发票号码')
+    c_seller_name      = col('销方名称')
+    c_seller_tax       = col('销方识别号')
+    c_buyer_name       = col('购买方名称')
+    c_buyer_tax        = col('购方识别号')
+    c_date             = col('开票日期')
+    c_amount           = col('金额')
+    c_tax              = col('税额')
+    c_total            = col('价税合计')
+    c_status           = col('发票状态')
+    c_invoice_type_col = col('发票票种')
+    c_issuer           = col('开票人')
+    c_remark           = col('备注')
+
+    def get_val(row, ci):
+        if ci < 0 or ci >= len(row):
+            return None
+        v = row[ci]
+        if v is None:
+            return None
+        if isinstance(v, float) and v != int(v):
+            return round(v, 2)
+        return v
+
+    def parse_date(v):
+        if v is None:
+            return None
+        if hasattr(v, 'strftime'):
+            try:
+                return v.date()
+            except Exception:
+                return v
+        s = str(v).strip()
+        for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%Y/%m/%d', '%Y%m%d'):
+            try:
+                return datetime.datetime.strptime(s[:10], fmt[:len(s)]).date()
+            except ValueError:
+                pass
+        return None
+
+    def map_invoice_type(v):
+        if not v:
+            return 'normal'
+        s = str(v)
+        if '专用' in s:
+            return 'special'
+        return 'normal'
+
+    def map_status(status_val, inv_type):
+        if not status_val:
+            return 'paid' if inv_type == 'income' else 'pending'
+        s = str(status_val)
+        if '正常' in s:
+            return 'paid' if inv_type == 'income' else 'pending'
+        if '红冲' in s or '作废' in s:
+            return 'cancelled'
+        return 'paid' if inv_type == 'income' else 'pending'
+
+    def resolve_company_by_tax(tax_id, default=None):
+        from apps.core.models import Company
+        if not tax_id:
+            return default
+        company = Company.objects.filter(tax_id=str(tax_id).strip()).first()
+        return company.id if company else default
+
+    # 聚合：同发票号多行明细合并为一条
+    invoice_map = {}
+    for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+        if all(v is None for v in row):
+            continue
+        inv_no = get_val(row, c_invoice_no)
+        if not inv_no:
+            continue
+        inv_no = str(inv_no).strip()
+        if inv_no not in invoice_map:
+            invoice_map[inv_no] = {
+                'rows': [row],
+                'seller_name': get_val(row, c_seller_name),
+                'seller_tax':  get_val(row, c_seller_tax),
+                'buyer_name':  get_val(row, c_buyer_name),
+                'buyer_tax':   get_val(row, c_buyer_tax),
+                'date':        parse_date(get_val(row, c_date)),
+                '票种':        get_val(row, c_invoice_type_col),
+                'issuer':      get_val(row, c_issuer),
+                'remark':      get_val(row, c_remark),
+                'status_raw':  get_val(row, c_status),
+            }
+        else:
+            invoice_map[inv_no]['rows'].append(row)
+
+    if invoice_type == 'income':
+        counterparty_field    = 'seller_name'
+        counterparty_tax_field = 'seller_tax'
+    else:
+        counterparty_field    = 'buyer_name'
+        counterparty_tax_field = 'buyer_tax'
+
+    from apps.finance.models import Invoice
+
+    for inv_no, info in invoice_map.items():
+        first_row = info['rows'][0]
+        seq = first_row[0]
+
+        try:
+            # 判断正负（红冲票金额为负）
+            is_negative = any(
+                get_val(r, c_amount) is not None and float(get_val(r, c_amount)) < 0
+                for r in info['rows']
+            )
+
+            # 汇总金额（取绝对值）
+            total_amount = 0.0
+            total_tax = 0.0
+            for r in info['rows']:
+                amt = get_val(r, c_amount)
+                tax = get_val(r, c_tax)
+                if amt is not None:
+                    total_amount += abs(float(amt))
+                if tax is not None:
+                    total_tax += abs(float(tax))
+
+            # 若金额列为0但价税合计有值，用价税合计反推
+            if total_amount == 0:
+                raw_total = get_val(first_row, c_total)
+                if raw_total:
+                    total_amount = abs(float(raw_total))
+                    total_tax = 0.0
+
+            counterparty       = str(info[counterparty_field] or '').strip()
+            counterparty_tax_id = str(info[counterparty_tax_field] or '').strip()
+            issue_date = info['date']
+
+            # 公司匹配
+            if invoice_type == 'income':
+                resolved_company_id = resolve_company_by_tax(
+                    info.get('buyer_tax'), default=company_id)
+            else:
+                resolved_company_id = resolve_company_by_tax(
+                    info.get('seller_tax'), default=company_id)
+
+            inv_status     = map_status(info.get('status_raw'), invoice_type)
+            inv_invoice_type = map_invoice_type(info.get('票种'))
+
+            # 备注拼接开票人
+            issuer = str(info.get('issuer') or '').strip()
+            remark_base = str(info.get('remark') or '').strip()
+            remarks = (remark_base + (' | 开票人:' + issuer) if issuer else remark_base)
+
+            # 跳过已存在的发票号
+            if Invoice.objects.filter(invoice_no=inv_no).exists():
+                result.add_error(seq, f'发票号 {inv_no} 已存在，跳过')
+                continue
+
+            result.rows.append({
+                'invoice_no':          inv_no,
+                'type':                invoice_type,
+                'invoice_type':        inv_invoice_type,
+                'amount':              round(total_amount, 2),
+                'tax_amount':          round(total_tax, 2),
+                'counterparty':        counterparty,
+                'counterparty_tax_id': counterparty_tax_id,
+                'issue_date':          issue_date,
+                'status':              inv_status,
+                'is_credited':         (inv_status != 'cancelled'),
+                'company':             resolved_company_id or company_id,
+                'remarks':             remarks,
+            })
+            result.success += 1
+
+        except Exception as e:
+            result.add_error(seq, f'发票 {inv_no} 解析异常：{str(e)}')
+
+    return result
+    

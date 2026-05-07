@@ -1238,6 +1238,50 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         buf = export_invoices(list(records))
         return make_export_response(buf, f'发票_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
+    @action(detail=False, methods=['post'])
+    def import_records(self, request):
+        """批量导入发票 Excel（收到/开出的数电发票）"""
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+
+        invoice_type = request.data.get('type')  # 'income' 收到 或 'expense' 开出
+        if invoice_type not in ('income', 'expense'):
+            return Response({'success': False, 'message': '缺少或无效的 type 参数（income/expense）'}, status=400)
+
+        user = request.user
+        company_id = None
+        if hasattr(user, 'company_id') and user.company_id:
+            company_id = user.company_id
+
+        try:
+            from apps.core.import_excel import import_invoice
+            result = import_invoice(file, invoice_type=invoice_type, company_id=company_id)
+        except Exception as e:
+            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+
+        if not result.rows:
+            return Response({
+                'success': False,
+                'message': f'未识别到有效发票记录（{result.error} 行错误）',
+                'errors': result.errors
+            }, status=400)
+
+        created = 0
+        errors = []
+        for row_data in result.rows:
+            try:
+                Invoice.objects.create(**row_data)
+                created += 1
+            except Exception as e:
+                errors.append({'row': 0, 'message': f"创建失败：{str(e)}"})
+
+        return Response({
+            'success': True,
+            'message': f'导入完成：成功 {created} 条，失败 {len(errors)} 条',
+            'errors': (result.errors + errors)[:20]
+        })
+
 
 class ReportViewSet(viewsets.ViewSet):
     """财务报表视图集"""

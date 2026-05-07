@@ -92,6 +92,73 @@
         <button class="btn btn-success btn-sm" onclick="exportInvoices()">
             <i class="bi bi-download me-1"></i>导出
         </button>
+        <button class="btn btn-outline-primary btn-sm" onclick="showImportInvoiceModal()">
+            <i class="bi bi-upload me-1"></i>导入
+        </button>
+    </div>
+</div>
+
+<!-- 发票导入 Modal -->
+<div class="modal fade" id="importInvoiceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>批量导入发票</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info py-2 small mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    支持从电子发票平台导出的「发票基础信息」Sheet，系统会自动按数电发票号码合并多行明细。
+                </div>
+
+                <!-- Nav tabs -->
+                <ul class="nav nav-tabs mb-3" id="importInvoiceTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tab-income" data-bs-toggle="tab" data-bs-target="#pane-income" type="button" role="tab">
+                            <i class="bi bi-arrow-down-circle me-1"></i>收到发票
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-expense" data-bs-toggle="tab" data-bs-target="#pane-expense" type="button" role="tab">
+                            <i class="bi bi-arrow-up-circle me-1"></i>开出发票
+                        </button>
+                    </li>
+                </ul>
+
+                <!-- Tab panes -->
+                <div class="tab-content" id="importInvoiceTabContent">
+                    <div class="tab-pane fade show active" id="pane-income" role="tabpanel">
+                        <p class="text-muted small mb-2">导入从供应商取得的进项发票（我方为购买方）。</p>
+                        <div class="mb-2">
+                            <input type="file" class="form-control" id="importFileIncome" accept=".xlsx,.xls">
+                        </div>
+                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('income')">
+                            <i class="bi bi-upload me-1"></i>导入收到发票
+                        </button>
+                        <div class="import-progress mt-2" id="importProgressIncome" style="display:none">
+                            <div class="progress"><div class="progress-bar" style="width:0%"></div></div>
+                        </div>
+                    </div>
+                    <div class="tab-pane fade" id="pane-expense" role="tabpanel">
+                        <p class="text-muted small mb-2">导入开给客户的销项发票（我方为销售方）。</p>
+                        <div class="mb-2">
+                            <input type="file" class="form-control" id="importFileExpense" accept=".xlsx,.xls">
+                        </div>
+                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('expense')">
+                            <i class="bi bi-upload me-1"></i>导入开出发票
+                        </button>
+                        <div class="import-progress mt-2" id="importProgressExpense" style="display:none">
+                            <div class="progress"><div class="progress-bar" style="width:0%"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-3" id="importResultBox" style="display:none">
+                    <div class="alert mb-0 py-2" id="importResultAlert"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -766,6 +833,76 @@ function downloadBlob(content, filename, mimeType) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+}
+
+let importInvoiceModal = null;
+document.addEventListener('DOMContentLoaded', function() {
+    importInvoiceModal = new bootstrap.Modal(document.getElementById('importInvoiceModal'));
+});
+
+function showImportInvoiceModal() {
+    document.getElementById('importResultBox').style.display = 'none';
+    document.getElementById('importFileIncome').value = '';
+    document.getElementById('importFileExpense').value = '';
+    importInvoiceModal.show();
+}
+
+async function importInvoices(type) {
+    const fileInput = type === 'income'
+        ? document.getElementById('importFileIncome')
+        : document.getElementById('importFileExpense');
+    const progressId = type === 'income' ? 'importProgressIncome' : 'importProgressExpense';
+    const file = fileInput.files[0];
+    if (!file) {
+        showError('请先选择 Excel 文件');
+        return;
+    }
+
+    const progressEl = document.getElementById(progressId);
+    progressEl.style.display = 'block';
+    progressEl.querySelector('.progress-bar').style.width = '30%';
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('type', type);
+
+    try {
+        const response = await fetch('/api/finance/invoices/import_records/', {
+            method: 'POST',
+            credentials: 'include',
+            body: formData
+        });
+        progressEl.querySelector('.progress-bar').style.width = '80%';
+
+        const data = await response.json();
+        progressEl.querySelector('.progress-bar').style.width = '100%';
+
+        const resultBox = document.getElementById('importResultBox');
+        const resultAlert = document.getElementById('importResultAlert');
+        resultBox.style.display = 'block';
+
+        if (data.success) {
+            resultAlert.className = 'alert alert-success py-2';
+            resultAlert.innerHTML = '<i class="bi bi-check-circle me-1"></i> ' + data.message;
+            setTimeout(function() {
+                importInvoiceModal.hide();
+                loadInvoices();
+            }, 1500);
+        } else {
+            resultAlert.className = 'alert alert-danger py-2';
+            resultAlert.innerHTML = '<i class="bi bi-x-circle me-1"></i> ' + data.message;
+            if (data.errors && data.errors.length > 0) {
+                resultAlert.innerHTML += '<ul class="mb-0 mt-1 small">';
+                data.errors.slice(0, 5).forEach(function(e) {
+                    resultAlert.innerHTML += '<li>行' + e.row + '：' + e.message + '</li>';
+                });
+                resultAlert.innerHTML += '</ul>';
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        showError('导入请求失败');
+    }
 }
 </script>
 {% endblock %}
