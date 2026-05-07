@@ -607,12 +607,14 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
         else:
             invoice_map[inv_no]['rows'].append(row)
 
+    # expense（收到发票，我方是购方）→ 交易对手是销方（seller/供应商）
+    # income（开出发票，我方是销方）→ 交易对手是购方（buyer/客户）
     if invoice_type == 'income':
-        counterparty_field    = 'seller_name'
-        counterparty_tax_field = 'seller_tax'
-    else:
         counterparty_field    = 'buyer_name'
         counterparty_tax_field = 'buyer_tax'
+    else:
+        counterparty_field    = 'seller_name'
+        counterparty_tax_field = 'seller_tax'
 
     from apps.finance.models import Invoice
 
