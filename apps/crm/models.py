@@ -33,8 +33,18 @@ class Supplier(models.Model):
         ('inactive', '已停止'),
     ]
 
+    COUNTERPARTY_TYPE_CHOICES = [
+        ('enterprise', '企业'),
+        ('individual', '个人'),
+        ('government', '政府/事业单位'),
+    ]
     code = models.CharField('供应商编码', max_length=50, unique=True, blank=True)
     name = models.CharField('供应商名称', max_length=200)
+    counterparty_type = models.CharField(max_length=20, choices=COUNTERPARTY_TYPE_CHOICES,
+                                         default='enterprise', blank=True, verbose_name='对方类型')
+    tax_id = models.CharField(max_length=30, blank=True, default='', verbose_name='纳税人识别号')
+    bank_account = models.CharField(max_length=50, blank=True, default='', verbose_name='银行账号')
+    bank_name = models.CharField(max_length=200, blank=True, default='', verbose_name='开户行')
     contact_person = models.CharField('联系人', max_length=100, blank=True, null=True)
     contact_phone = models.CharField('联系电话', max_length=50, blank=True, null=True)
     contact_email = models.EmailField('邮箱', blank=True, null=True)
@@ -65,11 +75,22 @@ class Client(models.Model):
     CATEGORY_CHOICES = [
         ('enterprise', '企业客户'),
         ('government', '政府事业单位'),
+        ('individual', '个人客户'),
         ('special', '特殊客户'),
+    ]
+    COUNTERPARTY_TYPE_CHOICES = [
+        ('enterprise', '企业'),
+        ('individual', '个人'),
+        ('government', '政府/事业单位'),
     ]
 
     code = models.CharField('客户编码', max_length=50, unique=True, blank=True)
     name = models.CharField('客户名称', max_length=200)
+    counterparty_type = models.CharField(max_length=20, choices=COUNTERPARTY_TYPE_CHOICES,
+                                         default='enterprise', blank=True, verbose_name='对方类型')
+    tax_id = models.CharField(max_length=30, blank=True, default='', verbose_name='纳税人识别号')
+    bank_account = models.CharField(max_length=50, blank=True, default='', verbose_name='银行账号')
+    bank_name = models.CharField(max_length=200, blank=True, default='', verbose_name='开户行')
     source = models.ForeignKey(
         ClientSource,
         verbose_name='客户来源',

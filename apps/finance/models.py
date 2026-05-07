@@ -567,6 +567,8 @@ class Invoice(models.Model):
     tax_rate = models.DecimalField('税率', max_digits=5, decimal_places=2, default=0, help_text='如 6% 填 6')
     tax_amount = models.DecimalField('税额', max_digits=14, decimal_places=2, default=0, editable=False)
     counterparty = models.CharField('对方公司', max_length=200, blank=True, default='')
+    counterparty_tax_id = models.CharField('对方税号', max_length=30, blank=True, default='')
+    counterparty_bank = models.CharField('对方开户行', max_length=200, blank=True, default='')
     project = models.ForeignKey(
         'tasks.Project',
         verbose_name='关联项目',

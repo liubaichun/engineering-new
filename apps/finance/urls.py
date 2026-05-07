@@ -3,6 +3,7 @@ from config.routers import IntegerPkRouter
 from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet
 from . import import_views
 from . import bank_import_views
+from . import tax_invoice_import
 from . import reports_v2
 from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
@@ -29,6 +30,8 @@ urlpatterns = [
     path('import/bank-statement/preview/', bank_import_views.preview_bank_statement, name='bank-statement-preview'),
     path('import/bank-statement/confirm/', bank_import_views.confirm_bank_import, name='bank-statement-confirm'),
     path('import/bank-statement/banks/', bank_import_views.list_banks, name='bank-statement-banks'),
+    path('import/tax-invoices/', tax_invoice_import.import_tax_invoices, name='import-tax-invoices'),
+    path('import/tax-invoices/auto/', tax_invoice_import.import_tax_invoices_auto, name='import-tax-invoices-auto'),
     path('reports/cash-flow/', reports_v2.cash_flow_report, name='report-cash-flow'),
     path('reports/ar-ap-aging/', reports_v2.ar_ap_aging_report, name='report-ar-ap-aging'),
     path('reports/customer-revenue/', reports_v2.customer_revenue_report, name='report-customer-revenue'),

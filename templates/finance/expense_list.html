@@ -74,6 +74,10 @@
 
 {% block content %}
 <!-- 收支管理Tab -->
+<div class="page-header">
+    <h4><i class="bi bi-cash-stack me-2"></i>收支管理</h4>
+</div>
+
 <ul class="nav nav-tabs mb-4" id="incomeExpenseTab" role="tablist">
     <li class="nav-item" role="presentation">
         <a class="nav-link" href="/finance/incomes/">
@@ -87,103 +91,114 @@
     </li>
 </ul>
 
-<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
-    <div>
-        <h4><i class="bi bi-cash-stack me-2"></i>支出管理</h4>
-        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理各类支出包括费用报销、预付款、押金和工资支出</p>
-    </div>
-    <div class="d-flex gap-2 flex-wrap">
-        <select class="form-select form-select-sm" id="filterCompany" style="width: auto;" onchange="loadExpenses()">
-            <option value="">全部公司</option>
-        </select>
-        <select class="form-select form-select-sm" id="filterExpenseType" style="width: auto;" onchange="loadExpenses()">
-            <option value="">全部类型</option>
-            <option value="expense">费用报销</option>
-            <option value="advance">预付款</option>
-            <option value="deposit">押金</option>
-            <option value="wage">工资支出</option>
-        </select>
-        <input type="date" class="form-control form-control-sm" id="filterDateFrom" style="width: auto;" placeholder="开始日期" onchange="loadExpenses()">
-        <input type="date" class="form-control form-control-sm" id="filterDateTo" style="width: auto;" placeholder="结束日期" onchange="loadExpenses()">
-        <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()" data-perm="expense.add">
-            <i class="bi bi-plus-lg me-1"></i>新建支出
-        </button>
-        <button class="btn btn-success btn-sm" onclick="exportExpenses()">
-            <i class="bi bi-download me-1"></i>导出
-        </button>
-        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('expense')" data-perm="expense.add">
-            <i class="bi bi-upload me-1"></i>导入
-        </button>
-    </div>
-</div>
-
-<!-- 汇总信息 -->
-<div class="expense-summary">
-    <div class="summary-card">
-        <div class="label">本月支出总额</div>
-        <div class="value danger" id="totalExpense">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="totalCount">0</span> 笔支出</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">费用报销</div>
-        <div class="value primary" id="expenseTotal">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="expenseCount">0</span> 笔</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">预付款</div>
-        <div class="value warning" id="advanceTotal">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="advanceCount">0</span> 笔</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">押金/工资支出</div>
-        <div class="value success" id="otherTotal">¥0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="otherCount">0</span> 笔</div>
-    </div>
-</div>
-
-<!-- 支出列表 -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>支出明细列表</span>
-        <div class="d-flex gap-2 align-items-center">
-            <span style="font-size:0.85rem; color:var(--text-secondary);">
-                共 <strong id="recordCount">0</strong> 条记录
-            </span>
+<div class="tab-content" id="incomeExpenseTabContent">
+    <!-- 支出面板 -->
+    <div class="tab-pane fade show active" id="expense-panel" role="tabpanel">
+        <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3" style="margin-bottom:16px;">
+            <div>
+                <h4><i class="bi bi-arrow-up-circle me-2"></i>支出管理</h4>
+                <p class="text-muted mb-0" style="font-size:0.9rem;">管理各类支出包括费用报销、预付款、押金和工资支出</p>
+            </div>
+            <div class="d-flex gap-2 flex-wrap align-items-center">
+                <div class="d-flex align-items-center gap-1">
+                    <i class="bi bi-calendar3 text-muted"></i>
+                    <select class="form-select form-select-sm" id="filterYear" onchange="onYearChange()" style="width:auto;min-width:100px;">
+                        <option value="2026">2026年度</option>
+                        <option value="2025">2025年度</option>
+                        <option value="2024">2024年度</option>
+                    </select>
+                </div>
+                <select class="form-select form-select-sm" id="filterCompany" onchange="loadExpenses(1)" style="width:auto;">
+                    <option value="">全部公司</option>
+                </select>
+                <select class="form-select form-select-sm" id="filterExpenseType" onchange="loadExpenses(1)" style="width:auto;">
+                    <option value="">全部类型</option>
+                    <option value="expense">费用报销</option>
+                    <option value="advance">预付款</option>
+                    <option value="deposit">押金</option>
+                    <option value="wage">工资支出</option>
+                </select>
+                <input type="date" class="form-control form-control-sm" id="filterDateStart" placeholder="开始日期" style="width:auto;">
+                <span class="text-muted">-</span>
+                <input type="date" class="form-control form-control-sm" id="filterDateEnd" placeholder="结束日期" style="width:auto;">
+                <button class="btn btn-outline-secondary btn-sm" onclick="loadExpenses(1)">
+                    <i class="bi bi-search me-1"></i>筛选
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()" data-perm="expense.add">
+                    <i class="bi bi-plus-lg me-1"></i>新建支出
+                </button>
+                <button class="btn btn-success btn-sm" onclick="exportExpenses()">
+                    <i class="bi bi-download me-1"></i>导出
+                </button>
+                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('expense')" data-perm="expense.add">
+                    <i class="bi bi-upload me-1"></i>导入
+                </button>
+            </div>
         </div>
-    </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table expense-table mb-0">
-                <thead>
-                    <tr>
-                        <th>公司</th>
-                        <th>支出类型</th>
-                        <th>金额</th>
-                        <th>状态</th>
-                        <th>日期</th>
-                        <th>供应商</th>
-                        <th>关联项目</th>
-                        <th>备注</th>
-                        <th>审批状态</th>
-                        <th style="width: 120px;">操作</th>
-                    </tr>
-                </thead>
-                <tbody id="expenseTableBody">
-                    <tr>
-                        <td colspan="9" class="text-center text-muted py-4">加载中...</td>
-                    </tr>
-                </tbody>
-            </table>
+
+        <!-- 汇总信息 -->
+        <div class="expense-summary">
+            <div class="summary-card">
+                <div class="label">本年支出总额</div>
+                <div class="value danger" id="totalExpense">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="totalCount">0</span> 笔</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">本月支出</div>
+                <div class="value danger" id="monthExpense">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;"><span id="monthCount">0</span> 笔</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">待确认支出</div>
+                <div class="value warning" id="pendingExpense">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">待确认</div>
+            </div>
+            <div class="summary-card">
+                <div class="label">已确认支出</div>
+                <div class="value primary" id="confirmedExpense">¥0</div>
+                <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">已确认</div>
+            </div>
+        </div></parameter>
+
+
+        <!-- 支出列表 -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>支出明细列表</span>
+                <span style="font-size:0.85rem; color:var(--text-secondary);">
+                    共 <strong id="recordCount">0</strong> 条记录
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table expense-table mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width:50px;"><input class="form-check-input" type="checkbox"></th>
+                                <th>公司</th>
+                                <th>支出类型</th>
+                                <th>金额</th>
+                                <th>日期</th>
+                                <th>供应商</th>
+                                <th>关联项目</th>
+                                <th>状态</th>
+                                <th>审批状态</th>
+                                <th style="width:120px;">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="expenseTableBody">
+                            <tr>
+                                <td colspan="10" class="text-center text-muted py-4">加载中...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+                <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
+                <nav><ul class="pagination pagination-sm mb-0" id="pagination"></ul></nav>
+            </div>
         </div>
-    </div>
-    
-    <!-- 分页 -->
-    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
-        <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
-        <nav>
-            <ul class="pagination pagination-sm mb-0" id="pagination">
-            </ul>
-        </nav>
     </div>
 </div>
 
@@ -314,6 +329,8 @@
             </div>
         </div>
     </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
@@ -322,18 +339,40 @@
 var expenseModal, deleteModal;
 var currentPage = 1;
 var pageSize = 10;
+var currentYear = new Date().getFullYear();
 
 document.addEventListener('DOMContentLoaded', function() {
     expenseModal = new bootstrap.Modal(document.getElementById('expenseModal'));
     deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
-    
+    importModal = new bootstrap.Modal(document.getElementById('importModal'));
+
+    initYearFilter();
     loadCompanies();
     loadProjects();
-    loadExpenses();
+    loadExpenses(1);
 });
 
+function initYearFilter() {
+    const yearSelect = document.getElementById('filterYear');
+    if (yearSelect) {
+        yearSelect.value = String(currentYear);
+    }
+    // 设置默认日期范围（今年1月1日 ~ 今天）
+    const startInput = document.getElementById('filterDateStart');
+    const endInput = document.getElementById('filterDateEnd');
+    if (startInput) startInput.value = `${currentYear}-01-01`;
+    if (endInput) endInput.value = new Date().toISOString().split('T')[0];
+}
+
+function onYearChange() {
+    const year = document.getElementById('filterYear').value;
+    currentYear = parseInt(year);
+    document.getElementById('filterDateStart').value = `${year}-01-01`;
+    document.getElementById('filterDateEnd').value = '';
+    loadExpenses(1);
+}
+
 async function loadCompanies() {
-    try {
         const response = await fetch('/api/finance/companies/', {
             credentials: 'include',
         });
@@ -370,18 +409,19 @@ async function loadProjects() {
     }
 }
 
-async function loadExpenses() {
+async function loadExpenses(page) {
+    if (page) currentPage = page;
     const company = document.getElementById('filterCompany').value;
     const expenseType = document.getElementById('filterExpenseType').value;
-    const dateFrom = document.getElementById('filterDateFrom').value;
-    const dateTo = document.getElementById('filterDateTo').value;
-    
+    const dateStart = document.getElementById('filterDateStart').value;
+    const dateEnd = document.getElementById('filterDateEnd').value;
+
     let url = `/api/finance/expenses/?page=${currentPage}&page_size=${pageSize}`;
     if (company) url += `&company_id=${company}`;
     if (expenseType) url += `&expense_type=${expenseType}`;
-    if (dateFrom) url += `&date_from=${dateFrom}`;
-    if (dateTo) url += `&date_to=${dateTo}`;
-    
+    if (dateStart) url += `&date_from=${dateStart}`;
+    if (dateEnd) url += `&date_to=${dateEnd}`;
+
     try {
         const response = await fetch(url, { credentials: 'include' });
         if (response.ok) {
@@ -402,7 +442,7 @@ function renderExpenses(expenses) {
     const tbody = document.getElementById('expenseTableBody');
     
     if (!expenses || expenses.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>`;
         return;
     }
     
@@ -415,6 +455,7 @@ function renderExpenses(expenses) {
     
     tbody.innerHTML = expenses.map(expense => `
         <tr>
+            <td><input class="form-check-input" type="checkbox" value="${expense.id}"></td>
             <td>
                 <div class="expense-company">
                     <div class="company-avatar">${expense.company_name ? (expense.company_name.length > 3 ? expense.company_name.charAt(3) : expense.company_name.charAt(0)) : '未'}</div>
@@ -423,11 +464,10 @@ function renderExpenses(expenses) {
             </td>
             <td><span class="expense-type-badge ${expense.expense_type}">${typeMap[expense.expense_type] || expense.expense_type}</span></td>
             <td class="fw-bold text-danger">¥${formatNumber(expense.amount)}</td>
-            <td><span class="badge ${expense.status === 'draft' ? 'bg-secondary' : expense.status === 'pending' ? 'bg-warning' : expense.status === 'approved' ? 'bg-success' : expense.status === 'rejected' ? 'bg-danger' : 'bg-secondary'}">${expense.status === 'draft' ? '草稿' : expense.status === 'pending' ? '待审核' : expense.status === 'approved' ? '已批准' : expense.status === 'rejected' ? '已拒绝' : expense.status}</span></td>
             <td>${expense.expense_date || '-'}</td>
             <td>${expense.supplier || '-'}</td>
             <td>${expense.project_name ? `<span class="project-tag"><i class="bi bi-folder"></i>${expense.project_name}</span>` : '-'}</td>
-            <td>${expense.note || '-'}</td>
+            <td><span class="badge ${expense.status === 'draft' ? 'bg-secondary' : expense.status === 'pending' ? 'bg-warning' : expense.status === 'approved' ? 'bg-success' : expense.status === 'rejected' ? 'bg-danger' : 'bg-secondary'}">${expense.status === 'draft' ? '草稿' : expense.status === 'pending' ? '待审核' : expense.status === 'approved' ? '已批准' : expense.status === 'rejected' ? '已拒绝' : expense.status}</span></td>
             <td>${expense.approval_status ? `<span class="badge ${expense.approval_status === 'approved' ? 'bg-success' : expense.approval_status === 'rejected' ? 'bg-danger' : expense.approval_status === 'pending' ? 'bg-warning' : 'bg-secondary'}">${expense.approval_status === 'approved' ? '已批准' : expense.approval_status === 'rejected' ? '已拒绝' : expense.approval_status === 'pending' ? '待审批' : expense.approval_status}</span>` : '<span class="text-muted">—</span>'}</td>
             <td>
                 <button class="btn btn-sm btn-outline-secondary" onclick="editExpense(${expense.id})">
@@ -477,38 +517,41 @@ function renderPagination(totalCount) {
 }
 
 function goToPage(page) {
-    currentPage = page;
-    loadExpenses();
+    loadExpenses(page);
 }
 
 function updateSummary(expenses) {
-    let total = 0, expenseTotal = 0, advanceTotal = 0, otherTotal = 0;
-    let expenseCount = 0, advanceCount = 0, otherCount = 0;
-    
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear2 = now.getFullYear();
+
+    let yearTotal = 0, monthTotal = 0, pendingTotal = 0, confirmedTotal = 0;
+    let yearCount = 0, monthCount = 0, pendingCount = 0, confirmedCount = 0;
+
     expenses.forEach(exp => {
         const amt = parseFloat(exp.amount) || 0;
-        total += amt;
-        
-        if (exp.expense_type === 'expense') {
-            expenseTotal += amt;
-            expenseCount++;
-        } else if (exp.expense_type === 'advance') {
-            advanceTotal += amt;
-            advanceCount++;
-        } else {
-            otherTotal += amt;
-            otherCount++;
+        yearTotal += amt;
+        yearCount++;
+        const expDate = new Date(exp.expense_date);
+        if (expDate.getFullYear() === currentYear2 && expDate.getMonth() === currentMonth) {
+            monthTotal += amt;
+            monthCount++;
+        }
+        if (exp.status === 'pending' || exp.status === 'draft') {
+            pendingTotal += amt;
+            pendingCount++;
+        } else if (exp.status === 'approved') {
+            confirmedTotal += amt;
+            confirmedCount++;
         }
     });
-    
-    document.getElementById('totalExpense').textContent = `¥${formatNumber(total)}`;
-    document.getElementById('totalCount').textContent = expenses.length;
-    document.getElementById('expenseTotal').textContent = `¥${formatNumber(expenseTotal)}`;
-    document.getElementById('expenseCount').textContent = expenseCount;
-    document.getElementById('advanceTotal').textContent = `¥${formatNumber(advanceTotal)}`;
-    document.getElementById('advanceCount').textContent = advanceCount;
-    document.getElementById('otherTotal').textContent = `¥${formatNumber(otherTotal)}`;
-    document.getElementById('otherCount').textContent = otherCount;
+
+    document.getElementById('totalExpense').textContent = `¥${formatNumber(yearTotal)}`;
+    document.getElementById('totalCount').textContent = yearCount;
+    document.getElementById('monthExpense').textContent = `¥${formatNumber(monthTotal)}`;
+    document.getElementById('monthCount').textContent = monthCount;
+    document.getElementById('pendingExpense').textContent = `¥${formatNumber(pendingTotal)}`;
+    document.getElementById('confirmedExpense').textContent = `¥${formatNumber(confirmedTotal)}`;
 }
 
 function formatNumber(num) {

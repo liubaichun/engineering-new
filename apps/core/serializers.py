@@ -164,6 +164,39 @@ class UserSerializer(serializers.ModelSerializer):
             'role_id', 'role__name', 'role__code', 'assigned_at'
         ))
 
+    def create(self, validated_data):
+        """创建用户 — 提取并正确处理 write_only 字段"""
+        password = validated_data.pop('password', None)
+        role_ids = validated_data.pop('role_ids', None)
+        company_role_ids = validated_data.pop('company_role_ids', None)
+
+        # 使用 create_user 而非 create（自动哈希密码）
+        if password:
+            user = User.objects.create_user(
+                username=validated_data['username'],
+                password=password,
+                email=validated_data.get('email', ''),
+                phone=validated_data.get('phone', ''),
+            )
+        else:
+            user = User.objects.create(**validated_data)
+
+        # 分配系统角色
+        if role_ids:
+            for rid in role_ids:
+                UserRole.objects.create(user=user, role_id=rid)
+
+        # 分配公司角色
+        if company_role_ids:
+            for item in company_role_ids:
+                UserCompanyRole.objects.create(
+                    user=user,
+                    company_id=item['company_id'],
+                    role=item.get('role', 'staff'),
+                )
+
+        return user
+
     def update(self, instance, validated_data):
         role_ids = validated_data.pop('role_ids', None)
         company_role_ids = validated_data.pop('company_role_ids', None)
