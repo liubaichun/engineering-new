@@ -555,7 +555,7 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
         return 'paid' if inv_type == 'income' else 'pending'
 
     def resolve_company_by_tax(tax_id, default=None):
-        from apps.core.models import Company
+        from apps.finance.models import Company
         if not tax_id:
             return default
         company = Company.objects.filter(tax_id=str(tax_id).strip()).first()
