@@ -1217,18 +1217,18 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
         total_count = queryset.count()
 
-        # 含税金额 = amount 合计
-        total_amount = queryset.aggregate(total=Sum('amount'))['total'] or 0
+        # 含税金额 = amount + tax_amount（合计）
+        gross = queryset.aggregate(total=Sum(F('amount') + F('tax_amount')))['total'] or 0
         # 税金 = tax_amount 合计
         total_tax = queryset.aggregate(total=Sum('tax_amount'))['total'] or 0
-        # 不含税金额 = 含税 - 税金
-        net_amount = float(total_amount) - float(total_tax)
+        # 不含税金额 = amount 合计
+        net_amount = queryset.aggregate(total=Sum('amount'))['total'] or 0
 
         return Response({
             'total_count': total_count,
-            'total_amount': float(total_amount),   # 含税金额
+            'total_amount': float(gross),          # 含税金额
             'total_tax': float(total_tax),          # 税金
-            'net_amount': round(net_amount, 2),     # 不含税金额
+            'net_amount': float(net_amount),        # 不含税金额
         })
 
     @action(detail=False, methods=['get'])
