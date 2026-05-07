@@ -6,6 +6,7 @@ GET  /api/finance/import/bank-statement/banks/ - 获取支持的银行列表
 """
 import datetime
 import io
+import re
 import uuid
 from decimal import Decimal
 
@@ -21,11 +22,11 @@ from apps.finance.bank_adapters import (
 )
 from apps.finance.models import Company, Income, Expense
 from apps.finance.models_bank import BankAccount, BankStatement
+from apps.crm.models import Client, Supplier
 
 
 # ─── 关键词自动分类规则 ────────────────────────────────────────────────
 KEYWORD_RULES = [
-    # (关键词, 方向, 描述)
     ('货款', 'income', '销售收款'),
     ('销售款', 'income', '销售收款'),
     ('收款', 'income', '销售收款'),
@@ -47,6 +48,173 @@ KEYWORD_RULES = [
 ]
 
 
+# ─── 代扣代缴过滤 ─────────────────────────────────────────────────────
+SKIP_PATTERNS = [
+    r'国家金库', r'中华人民共和国国家金库', r'税务局', r'国家税务总局',
+    r'住房公积金', r'深圳市住房公积金', r'社保', r'医疗保险',
+    r'养老保险', r'失业保险', r'生育保险',
+    r'对公中间业务收入', r'网上企业银行服务费',
+    r'暂收款$', r'应付利息', r'应收利息',
+    r'备付金', r'示范应用', r'测试户',
+    r'自动驾驶', r'测试',
+]
+
+
+def _is_deduction_withhold(name: str, summary: str) -> bool:
+    """判断是否为代扣代缴类交易（直接进报表，不入库）"""
+    text = f"{name} {summary}".strip()
+    for p in SKIP_PATTERNS:
+        if re.search(p, text):
+            return True
+    return False
+
+
+def _classify_counterparty_type(name: str, summary: str) -> str:
+    """
+    判断对方主体类型：
+    - enterprise: 企业
+    - government:  政府/事业单位
+    - individual:  个人
+    - withhold:    代扣代缴（直接进报表不入库）
+    """
+    text = f"{name} {summary}".strip()
+
+    if _is_deduction_withhold(name, summary):
+        return 'withhold'
+
+    gov_patterns = [
+        r'大学', r'医院', r'政府$', r'委员会', r'局$', r'厅$', r'处$',
+        r'事业单位', r'法院', r'检察院', r'管委会', r'局$',
+        r'大学$', r'学院$', r'学校',
+    ]
+    for p in gov_patterns:
+        if re.search(p, name):
+            return 'government'
+
+    ent_patterns = [
+        r'公司', r'有限公司', r'有限责任公司', r'集团$', r'科技$',
+        r'贸易$', r'实业', r'发展$', r'Co', r'Ltd', r'Inc', r'公司$',
+    ]
+    for p in ent_patterns:
+        if re.search(p, name):
+            return 'enterprise'
+
+    bank_patterns = [r'银行$', r'支行$', r'分行$', r'营业部$']
+    for p in bank_patterns:
+        if re.search(p, name):
+            return 'enterprise'
+
+    return 'individual'
+
+
+def _classify_expense_category(summary: str, counterparty: str) -> str:
+    """根据摘要自动分类支出"""
+    text = f"{summary} {counterparty}".lower()
+    if '工资' in text or '代发' in text:
+        return '工资'
+    if '税' in text or '增值税' in text or '个税' in text or '所得税' in text or '税费' in text:
+        return '税费'
+    if '社保' in text or '公积金' in text:
+        return '社保公积金'
+    if '交通' in text or '油' in text or '过路' in text or '停车' in text or '打车' in text:
+        return '交通差旅'
+    if '餐' in text or '招待' in text or '宴请' in text:
+        return '业务招待'
+    if '京东' in text or '商城' in text or '天猫' in text or '淘宝' in text:
+        return '办公用品/网上采购'
+    if '软件' in text or '服务' in text or '技术' in text or '维护' in text:
+        return '技术服务'
+    if '办公' in text or '文具' in text or '耗材' in text:
+        return '办公费用'
+    if '维修' in text or '保养' in text or '修理' in text:
+        return '维修维护'
+    if '水' in text or '电' in text or '煤气' in text or '燃气' in text or '物业' in text:
+        return '水电物业'
+    if '银行' in text or '手续费' in text:
+        return '金融服务'
+    if '租赁' in text or '租金' in text:
+        return '租赁费'
+    if '快递' in text or '运输' in text or '物流' in text:
+        return '物流快递'
+    if '借款' in text or '还款' in text:
+        return '借款还款'
+    if '备用金' in text:
+        return '备用金'
+    if '报销' in text:
+        return '报销'
+    return '其他费用'
+
+
+def _classify_income_category(summary: str, counterparty: str) -> str:
+    """根据摘要自动分类收入"""
+    text = f"{summary} {counterparty}".lower()
+    if '退款' in text:
+        return '退款'
+    if '利息' in text:
+        return '利息收入'
+    if '软件' in text or '维护' in text or '技术' in text:
+        return '技术服务费'
+    if '咨询' in text:
+        return '咨询服务费'
+    if '培训' in text:
+        return '培训费'
+    if '设备' in text or '硬件' in text:
+        return '设备销售'
+    if '租赁' in text:
+        return '租赁收入'
+    return '其他收入'
+
+
+def _auto_upsert_counterparty(company, t: ParsedTransaction, cp_type: str):
+    """
+    自动创建或更新 Client / Supplier 档案。
+    只处理 enterprise 和 government 类型。
+    """
+    name = t.counterparty_name.strip()
+    account = t.counterparty_account.strip()
+    bank = t.counterparty_bank.strip()
+
+    if not name or cp_type not in ('enterprise', 'government'):
+        return
+
+    if t.direction == 'income':
+        obj, created = Client.objects.get_or_create(
+            company=company,
+            name=name,
+            defaults={
+                'counterparty_type': cp_type,
+                'created_by': None,
+            }
+        )
+        updated = []
+        if account and not obj.bank_account:
+            obj.bank_account = account
+            updated.append('bank_account')
+        if bank and not obj.bank_name:
+            obj.bank_name = bank
+            updated.append('bank_name')
+        if updated:
+            obj.save(update_fields=updated)
+    else:
+        obj, created = Supplier.objects.get_or_create(
+            company=company,
+            name=name,
+            defaults={
+                'counterparty_type': cp_type,
+                'created_by': None,
+            }
+        )
+        updated = []
+        if account and not obj.bank_account:
+            obj.bank_account = account
+            updated.append('bank_account')
+        if bank and not obj.bank_name:
+            obj.bank_name = bank
+            updated.append('bank_name')
+        if updated:
+            obj.save(update_fields=updated)
+
+
 def classify_transaction(t: ParsedTransaction) -> tuple[str, str]:
     """
     根据摘要关键词自动分类
@@ -64,15 +232,12 @@ def match_counterparty(t: ParsedTransaction):
     智能匹配对方
     返回: matched_type ('client'/'supplier'/''), matched_name
     """
-    from apps.crm.models import Client, Supplier
-
     name = t.counterparty_name.strip()
     account = t.counterparty_account.strip()
 
     if not name and not account:
         return '', ''
 
-    # 模糊匹配：名称（优先）
     if name:
         client = Client.objects.filter(name__contains=name).first()
         if client:
@@ -82,7 +247,6 @@ def match_counterparty(t: ParsedTransaction):
         if supplier:
             return 'supplier', supplier.name
 
-    # 账号匹配
     if account:
         client = Client.objects.filter(contact_phone__contains=account).first()
         if client:
@@ -113,13 +277,11 @@ def preview_bank_statement(request):
     """
     import base64
 
-    # ── 解析请求体 ───────────────────────────────────────────────────────
     content_type = request.content_type or ''
 
     if 'application/json' in content_type or (
         hasattr(request, 'data') and isinstance(request.data, dict) and 'file_base64' in request.data
     ):
-        # JSON 方式: { company_id, bank_code?, file_base64 }
         body = request.data
         company_id = body.get('company_id')
         bank_code = body.get('bank_code', '')
@@ -129,7 +291,6 @@ def preview_bank_statement(request):
         except Exception as e:
             return Response({'error': f'文件解码失败: {e}'}, status=400)
     else:
-        # multipart 方式
         if 'file' not in request.FILES:
             return Response({'error': '请上传文件'}, status=400)
         company_id = request.data.get('company_id') or request.data.get('company')
@@ -144,7 +305,6 @@ def preview_bank_statement(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
-    # ── 解析银行流水 ──────────────────────────────────────────────────────
     try:
         if bank_code:
             transactions = parse_with_adapter(content, bank_code)
@@ -156,7 +316,6 @@ def preview_bank_statement(request):
     except Exception as e:
         return Response({'error': f'解析失败: {type(e).__name__}: {e}'}, status=500)
 
-    # 批量匹配
     preview_rows = []
     total_income = Decimal('0')
     total_expense = Decimal('0')
@@ -165,7 +324,6 @@ def preview_bank_statement(request):
         direction, desc = classify_transaction(t)
         match_type, match_name = match_counterparty(t)
 
-        # 方向纠正（如果关键词分类与银行方向冲突，以关键词为准）
         final_direction = direction if direction != t.direction else t.direction
         if desc:
             final_desc = desc
@@ -199,7 +357,7 @@ def preview_bank_statement(request):
         'total_count': len(transactions),
         'total_income': str(total_income),
         'total_expense': str(total_expense),
-        'preview_rows': preview_rows[:200],  # 最多返回200条预览
+        'preview_rows': preview_rows[:200],
         'has_more': len(transactions) > 200,
     })
 
@@ -234,7 +392,6 @@ def confirm_bank_import(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
-    # 获取或创建银行账户
     bank_account: BankAccount
     if bank_account_id:
         try:
@@ -254,23 +411,74 @@ def confirm_bank_import(request):
     else:
         return Response({'error': '缺少银行账户信息'}, status=400)
 
-    # 生成批次号
     batch_no = uuid.uuid4().hex[:12]
     now = timezone.now()
 
     imported = 0
     skipped = 0
+    withheld = 0
     errors = []
     created_income_ids = []
     created_expense_ids = []
+    upserted_clients = 0
+    upserted_suppliers = 0
 
     for item in transactions_data:
         try:
+            t = ParsedTransaction(
+                transaction_date=item.get('transaction_date'),
+                transaction_time=item.get('transaction_time'),
+                amount=Decimal(str(item.get('amount', 0))),
+                direction=item.get('direction', 'expense'),
+                balance=Decimal(str(item['balance'])) if item.get('balance') else None,
+                counterparty_name=item.get('counterparty_name', ''),
+                counterparty_account=item.get('counterparty_account', ''),
+                counterparty_bank=item.get('counterparty_bank', ''),
+                summary=item.get('summary', ''),
+                usage=item.get('usage', ''),
+                bank_serial=item.get('bank_serial', ''),
+            )
+
+            # ── 1. 代扣代缴过滤 ──────────────────────────────────
+            cp_type = _classify_counterparty_type(t.counterparty_name, t.summary)
+            if cp_type == 'withhold':
+                withheld += 1
+                if auto_create:
+                    if t.direction == 'expense':
+                        desc = _classify_expense_category(t.summary, t.counterparty_name)
+                        expense = Expense.objects.create(
+                            company=company,
+                            amount=t.amount,
+                            expense_date=t.transaction_date,
+                            date=t.transaction_date,
+                            expense_type='expense',
+                            expense_category=desc,
+                            supplier=t.counterparty_name,
+                            description=f"[代扣代缴]{t.summary}",
+                            operator=request.user,
+                            status='approved',
+                        )
+                        created_expense_ids.append(expense.id)
+                    else:
+                        desc = _classify_income_category(t.summary, t.counterparty_name)
+                        income = Income.objects.create(
+                            company=company,
+                            amount=t.amount,
+                            date=t.transaction_date,
+                            source='bank_import',
+                            customer=t.counterparty_name,
+                            description=f"[代扣代缴]{t.summary}",
+                            operator=request.user,
+                            status='approved',
+                        )
+                        created_income_ids.append(income.id)
+                continue
+
+            # ── 2. 去重检查 ────────────────────────────────────
             dedup_key = item.get('dedup_key', '')
             if not dedup_key:
                 dedup_key = f"{item['transaction_date']}_{item.get('counterparty_account','')}_{item['amount']}"
 
-            # 去重检查
             existing = BankStatement.objects.filter(
                 company=company,
                 bank_account=bank_account,
@@ -284,7 +492,7 @@ def confirm_bank_import(request):
                 skipped += 1
                 continue
 
-            # 创建银行流水记录
+            # ── 3. 创建银行流水记录 ─────────────────────────────
             stmt = BankStatement.objects.create(
                 company=company,
                 bank_account=bank_account,
@@ -293,47 +501,59 @@ def confirm_bank_import(request):
                 direction=item['direction'],
                 amount=Decimal(item['amount']),
                 balance=Decimal(item['balance']) if item.get('balance') else None,
-                counterparty_name=item.get('counterparty_name', ''),
-                counterparty_account=item.get('counterparty_account', ''),
-                counterparty_bank=item.get('counterparty_bank', ''),
-                summary=item.get('summary', ''),
-                usage=item.get('usage', ''),
-                bank_serial=item.get('bank_serial', ''),
+                counterparty_name=t.counterparty_name,
+                counterparty_account=t.counterparty_account,
+                counterparty_bank=t.counterparty_bank,
+                summary=t.summary,
+                usage=t.usage,
+                bank_serial=t.bank_serial,
                 source_bank=bank_code,
                 import_batch=batch_no,
             )
 
-            # 可选：自动生成收入/支出记录
+            # ── 4. 自动建档 Client / Supplier ──────────────────
+            if cp_type in ('enterprise', 'government'):
+                _auto_upsert_counterparty(company, t, cp_type)
+                if t.direction == 'income':
+                    upserted_clients += 1
+                else:
+                    upserted_suppliers += 1
+
+            # ── 5. 可选：生成 Income / Expense ───────────────
             if auto_create:
                 direction = item['direction']
-                description = item.get('auto_description', item.get('summary', '银行流水'))
-                counterparty = item.get('counterparty_name', '')
-                remark = f"[银行流水] {description} {item.get('summary', '')}"
+                counterparty = t.counterparty_name
+                remark = f"[银行流水] {t.summary}"
 
                 if direction == 'income':
+                    desc = _classify_income_category(t.summary, counterparty)
                     income = Income.objects.create(
                         company=company,
-                        amount=Decimal(item['amount']),
-                        date=item['transaction_date'],
+                        amount=t.amount,
+                        date=t.transaction_date,
                         source='bank_import',
                         customer=counterparty,
                         description=remark,
                         operator=request.user,
+                        status='approved',
                     )
                     stmt.matched_income = income
                     stmt.reconcile_status = 'matched'
                     stmt.save(update_fields=['matched_income', 'reconcile_status'])
                     created_income_ids.append(income.id)
                 else:
+                    desc = _classify_expense_category(t.summary, counterparty)
                     expense = Expense.objects.create(
                         company=company,
-                        amount=Decimal(item['amount']),
-                        expense_date=item['transaction_date'],
-                        date=item['transaction_date'],
+                        amount=t.amount,
+                        expense_date=t.transaction_date,
+                        date=t.transaction_date,
                         expense_type='expense',
+                        expense_category=desc,
                         supplier=counterparty,
                         description=remark,
                         operator=request.user,
+                        status='approved',
                     )
                     stmt.matched_expense = expense
                     stmt.reconcile_status = 'matched'
@@ -349,10 +569,15 @@ def confirm_bank_import(request):
         'success': True,
         'imported': imported,
         'skipped': skipped,
-        'errors': errors,
+        'withheld': withheld,
+        'errors': errors[:50],
         'batch_no': batch_no,
         'auto_created': {
             'income_count': len(created_income_ids),
             'expense_count': len(created_expense_ids),
+        },
+        'upserted': {
+            'clients': upserted_clients,
+            'suppliers': upserted_suppliers,
         }
     })
