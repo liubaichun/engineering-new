@@ -46,6 +46,7 @@ class FlowEngine:
             status='running',
             started_by=started_by,
             started_at=timezone.now(),
+            company_id=self.task.company_id,
         )
         self.instance = instance
 
@@ -55,6 +56,7 @@ class FlowEngine:
             node_template=first_node,
             status='pending',
             assignee=self._resolve_assignee(first_node),
+            company_id=self.task.company_id,
         )
 
         # 记录活动
@@ -63,7 +65,8 @@ class FlowEngine:
             action='create',
             actor=started_by or self.task.reporter,
             to_status='pending',
-            comment=f'流程启动: {template.name}'
+            comment=f'流程启动: {template.name}',
+            company_id=self.task.company_id,
         )
 
         return instance
@@ -120,7 +123,8 @@ class FlowEngine:
             actor=actor,
             from_status=old_status,
             to_status=current.status,
-            comment=comment
+            comment=comment,
+            company_id=self.task.company_id,
         )
 
         # 获取下一节点
@@ -136,7 +140,8 @@ class FlowEngine:
             to_node=next_node,
             actor=actor,
             action=action,
-            remark=comment
+            remark=comment,
+            company_id=self.task.company_id,
         )
 
         if next_node:
@@ -151,6 +156,7 @@ class FlowEngine:
                 node_template=next_node,
                 status='pending',
                 assignee=self._resolve_assignee(next_node),
+                company_id=self.task.company_id,
             )
 
             return {

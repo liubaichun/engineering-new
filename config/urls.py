@@ -45,6 +45,9 @@ def approval_list_page(request):
 def approval_template_list_page(request):
     return TemplateView.as_view(template_name='approvals/approval_template_list.html')(request)
 
+def flow_designer_page(request):
+    return TemplateView.as_view(template_name='approvals/flow_designer.html')(request)
+
 def warning_center_page(request):
     return TemplateView.as_view(template_name='warnings/warning_center.html')(request)
 
@@ -137,6 +140,21 @@ def contract_list_page(request):
 def supplier_list_page(request):
     return TemplateView.as_view(template_name='crm/supplier_list.html')(request)
 
+def contact_followup_page(request):
+    return TemplateView.as_view(template_name='crm/contact_followup_list.html')(request)
+
+def opportunity_list_page(request):
+    return TemplateView.as_view(template_name='crm/opportunity_list.html')(request)
+
+def purchase_request_list_page(request):
+    return TemplateView.as_view(template_name='purchasing/purchase_request_list.html')(request)
+
+def purchase_order_list_page(request):
+    return TemplateView.as_view(template_name='purchasing/purchase_order_list.html')(request)
+
+def purchase_receive_list_page(request):
+    return TemplateView.as_view(template_name='purchasing/purchase_receive_list.html')(request)
+
 def employee_list_page(request):
     return TemplateView.as_view(template_name='finance/employee_list.html')(request)
 
@@ -145,6 +163,9 @@ def social_config_list_page(request):
 
 def ar_ap_page(request):
     return TemplateView.as_view(template_name='finance/ar_ap_list.html')(request)
+
+def bank_import_page(request):
+    return render(request, 'finance/bank_statement_import.html')
 
 def file_list_page(request):
     return TemplateView.as_view(template_name='files/file_list.html')(request)
@@ -184,6 +205,7 @@ urlpatterns = [
     path('login/', login_page, name='login'),
     path('register/', register_page, name='register'),
     path('projects/', projects_page, name='projects'),
+    path('projects/gantt/', lambda request: render(request, 'projects/gantt.html'), name='project_gantt'),
     path('tasks/board/', tasks_board_page, name='tasks_board'),
     path('tasks/flow-templates/', flow_template_list_page, name='flow_template_list'),
     path('finance/wages/', wage_list_page, name='wage_list'),
@@ -195,6 +217,7 @@ urlpatterns = [
     path('projects/devices/', project_devices_page, name='project_devices'),
     path('finance/ar-ap/', ar_ap_page, name='ar_ap_list'),
     path('finance/invoices/', invoice_list_page, name='invoice_list'),
+    path('finance/bank-import/', bank_import_page, name='bank_import'),
     path('stats/', stats_page, name='stats'),
     path('notifications/', notifications_page, name='notifications'),
     path('system/companies/', system_companies_page, name='system_companies'),
@@ -202,6 +225,7 @@ urlpatterns = [
     path('system/notification-channels/', notification_channels_page, name='notification_channels'),
     path('approvals/', approval_list_page, name='approval_list'),
     path('approvals/templates/', approval_template_list_page, name='approval_template_list'),
+    path('approvals/flow-designer/', flow_designer_page, name='flow_designer'),
     path('warnings/', warning_center_page, name='warning_center'),
     path('api/auth/status/', api_auth_status, name='api_auth_status'),
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
@@ -227,9 +251,11 @@ urlpatterns = [
     path('api/approvals/', include('apps.approvals.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/crm/', include('apps.crm.urls')),
+    path('api/purchasing/', include('apps.purchasing.urls')),
     path('api/files/', include('apps.files.urls')),
     path('api/material/', include('apps.material.urls')),
     path('api/equipment/', include('apps.equipment.urls')),
+    path('api/repair/', include('apps.repair.urls')),
     # 页面路由
     path('system/users/', user_list_page, name='user_list'),
     path('system/roles/', role_list_page, name='role_list'),
@@ -238,6 +264,11 @@ urlpatterns = [
     path('crm/contracts/expiring/', lambda request: render(request, 'contracts/contract_expiring_list.html'), name='contract_expiring'),
     path('crm/contracts/', contract_list_page, name='contract_list'),
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
+    path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
+    path('crm/opportunities/', opportunity_list_page, name='opportunity_list'),
+    path('purchasing/requests/', purchase_request_list_page, name='purchase_request_list'),
+    path('purchasing/orders/', purchase_order_list_page, name='purchase_order_list'),
+    path('purchasing/receives/', purchase_receive_list_page, name='purchase_receive_list'),
     path('finance/employees/', employee_list_page, name='employee_list'),
     path('finance/social-configs/', social_config_list_page, name='social_config_list'),
     path('files/', file_list_page, name='file_list'),
@@ -247,5 +278,6 @@ urlpatterns = [
     path('materials/', lambda request: render(request, 'material/material_list.html'), name='material_list'),
     path('material/bom/', lambda request: render(request, 'material/bom_list.html'), name='material_bom'),
     path('equipment/', lambda request: render(request, 'equipment/equipment_list.html'), name='equipment_list'),
+    path('repair/requests/', lambda request: render(request, 'repair/repair_request_list.html'), name='repair_request_list'),
     path('equipment/bom/', lambda request: render(request, 'equipment/bom_list.html'), name='equipment_bom'),
 ]

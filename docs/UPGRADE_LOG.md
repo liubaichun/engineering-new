@@ -67,23 +67,67 @@
 | ~~错误路径~~ | ~~/equipment/boms/~~ | ✅ 已修复（301→/equipment/bom/）|
 | ~~错误路径~~ | ~~/projects/equipment-boms/~~ | ✅ 已修复（301→/equipment/bom/）|
 
-## 三、124服务器待同步项
+## 三、124服务器（standalone）同步完成
 
-| 项目 | 状态 | 说明 |
-|------|------|------|
-| standalone分支落后 | master ahead 2 commits | 需合并 6123434 / e172ec0 |
-| 迁移冲突 | makemigrations --merge 待执行 | notifications 迁移图谱冲突 |
-| gunicorn升级 | 待升级到26.0.0 | 需在124执行pip upgrade |
-| 部署包 | 待更新 | v2.0.0-standalone 打包 |
+**同步时间：** 2026-05-05
+**服务状态：** gunicorn 26.0.0 ✅ systemd service正常运行 ✅
+**部署分支：** standalone → origin/standalone
+
+### 合并内容
+
+| 类型 | 说明 |
+|------|------|
+| master→standalone合并 | 40个文件合入，standalone rebased后push |
+| 迁移链重建 | notifications/material/equipment三个app迁移链历史冲突解决 |
+| BOM表手动创建 | material_bom、material_bom_node、equipment_bom_relation表手动重建 |
+| gunicorn升级 | 25.3.0 → 26.0.0 |
+| 旧路径重定向 | 6条301规则随master合并同步到standalone |
+| core_system_setting sequence修复 | setval到max(id)解决0012种子数据PK冲突 |
+
+### 124服务器页面验证
+
+| # | 页面 | URL | 状态 |
+|---|------|-----|------|
+| 1 | 控制台 | / | ✅ 200 |
+| 2 | 用户管理 | /system/users/ | ✅ 200 |
+| 3 | 合同管理 | /crm/contracts/ | ✅ 200 |
+| 4 | 设备管理 | /equipment/ | ✅ 200 |
+| 5 | 物料BOM | /material/bom/ | ✅ 200 |
+| 6 | 设备BOM | /equipment/bom/ | ✅ 200 |
+| 7 | 项目管理 | /projects/ | ✅ 200 |
+| 8 | 通知消息 | /notifications/ | ✅ 200 |
+| 9 | 审批管理 | /approvals/ | ✅ 200 |
+| 10 | 合同管理（旧路径） | /finance/contracts/ | ✅ 301→200 |
+| 11 | 用户管理（旧路径） | /users/ | ✅ 301→200 |
+| 12 | 设备BOM（旧路径） | /equipment/boms/ | ✅ 301→200 |
+
+### 124服务器systemd服务
+
+- 服务名：`engineering-gunicorn.service`
+- 状态：`active (running)`，开机自启 `enabled`
+- 进程：4 workers，port 8001，gunicorn 26.0.0
 
 ---
 
-## 四、升级注意事项
+## 四、Git里程碑
+
+| 标签 | 分支 | Commit | 说明 |
+|------|------|--------|------|
+| v2.0.0-standalone | standalone | 46c1392 | 独立用户版 |
+| v2.1.0-commercial-ready | master | 72a41d4 | 商业化就绪版 |
+| v2.1.1-commercial-ready-hotfix | master | e56f5cd | gunicorn 26升级+6条旧路径重定向 |
+| v2.1.1-commercial-ready-hotfix | standalone | 4ffdef1 | 迁移链重建+BOM表+gunicorn升级+重定向 |
+
+---
+
+## 五、升级注意事项
 
 1. **Django 版本约束**：生产环境已运行 Django 5.2.13，requirements.txt 约束已更新为 <6.0
 2. **gunicorn 26.0.0** 需要 systemd restart 才生效（已在43服务器执行）
 3. **通知渠道页面**导航链接指向404，需要在代码中找到正确的路由并修复
 4. **历史URL残留**不影响功能，但建议在后续清理中做重定向
+5. **standalone迁移链**：material/equipment两个app的BOM相关迁移曾被删除并手动重建，确保数据库表结构与model定义一致
+6. **NotifyBinding.notify_app**：standalone分支该字段已改为nullable，master分支如有合入需求需同步该改动
 
 ---
 

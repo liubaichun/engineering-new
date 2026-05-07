@@ -1,14 +1,17 @@
 from rest_framework import viewsets, serializers, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
+from datetime import timedelta
 from django.db.models import Q
 
 from .models import (
     Project, Task, FlowTemplate, FlowNodeTemplate,
-    TaskStageInstance, TaskFlowInstance, StageActivity, FlowTransition
+    TaskStageInstance, TaskFlowInstance, StageActivity, FlowTransition,
+    TaskComment, TaskAttachment, TaskDependency
 )
 from .flow_engine import FlowEngine
 from apps.core.serializers import UserSerializer
@@ -19,6 +22,7 @@ class ProjectSerializer(serializers.ModelSerializer):
     is_owner = serializers.SerializerMethodField()
     company_name = serializers.CharField(source='company.name', read_only=True, allow_null=True)
     computed_progress = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
 
     def get_is_owner(self, obj):
         request = self.context.get('request')
@@ -42,7 +46,8 @@ class ProjectSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'code', 'description', 'status', 'status_display',
             'owner', 'owner_name', 'start_date', 'end_date', 'progress',
-            'budget', 'company', 'company_name',
+            'budget', 'company', 'company_name', 'company_id',
+            'approval_flow', 'approval_status',
             'created_at', 'updated_at', 'is_owner', 'computed_progress'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -63,7 +68,7 @@ class TaskSerializer(serializers.ModelSerializer):
             'priority', 'priority_display', 'status', 'status_display',
             'assignee', 'assignee_name', 'reporter', 'reporter_name',
             'due_date', 'completed_at', 'created_at', 'updated_at',
-            'flow_instance'
+            'flow_instance', 'company_id'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
     
@@ -100,13 +105,16 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
+    company_id = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = Task
         fields = [
             'id', 'title', 'code', 'description', 'project',
-            'priority', 'status', 'assignee', 'reporter', 'due_date'
+            'priority', 'status', 'assignee', 'reporter', 'due_date',
+            'company_id'
         ]
-    
+
     def create(self, validated_data):
         validated_data['reporter'] = self.context['request'].user
         return super().create(validated_data)
@@ -115,12 +123,13 @@ class TaskCreateSerializer(serializers.ModelSerializer):
 class FlowTemplateSerializer(serializers.ModelSerializer):
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     node_count = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = FlowTemplate
         fields = [
             'id', 'name', 'code', 'type', 'type_display',
-            'description', 'is_active', 'node_count',
+            'description', 'is_active', 'node_count', 'company_id',
             'created_at', 'updated_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
@@ -133,6 +142,7 @@ class FlowNodeTemplateSerializer(serializers.ModelSerializer):
     template_name = serializers.CharField(source='template.name', read_only=True)
     node_type_display = serializers.CharField(source='get_node_type_display', read_only=True)
     assignee_type_display = serializers.CharField(source='get_assignee_type_display', read_only=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = FlowNodeTemplate
@@ -140,7 +150,7 @@ class FlowNodeTemplateSerializer(serializers.ModelSerializer):
             'id', 'template', 'template_name', 'name', 'code',
             'node_type', 'node_type_display', 'description',
             'assignee_type', 'assignee_type_display', 'assignee_value',
-            'order', 'timeout_hours', 'created_at'
+            'order', 'timeout_hours', 'created_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -151,6 +161,7 @@ class TaskStageInstanceSerializer(serializers.ModelSerializer):
     node_template_name = serializers.CharField(source='node_template.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     assignee_name = serializers.CharField(source='assignee.username', read_only=True, allow_null=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = TaskStageInstance
@@ -158,7 +169,7 @@ class TaskStageInstanceSerializer(serializers.ModelSerializer):
             'id', 'task', 'task_code', 'task_title',
             'node_template', 'node_template_name', 'status', 'status_display',
             'assignee', 'assignee_name', 'started_at', 'completed_at',
-            'remark', 'created_at', 'updated_at'
+            'remark', 'created_at', 'updated_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -167,12 +178,14 @@ class StageActivitySerializer(serializers.ModelSerializer):
     stage_instance_name = serializers.CharField(source='stage_instance.__str__', read_only=True)
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     actor_name = serializers.CharField(source='actor.username', read_only=True, allow_null=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = StageActivity
         fields = [
             'id', 'stage_instance', 'stage_instance_name', 'action', 'action_display',
-            'actor', 'actor_name', 'comment', 'from_status', 'to_status', 'created_at'
+            'actor', 'actor_name', 'comment', 'from_status', 'to_status', 'created_at',
+            'company_id'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -182,13 +195,14 @@ class FlowTransitionSerializer(serializers.ModelSerializer):
     from_node_name = serializers.CharField(source='from_node.name', read_only=True, allow_null=True)
     to_node_name = serializers.CharField(source='to_node.name', read_only=True, allow_null=True)
     actor_name = serializers.CharField(source='actor.username', read_only=True, allow_null=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = FlowTransition
         fields = [
             'id', 'task', 'task_code', 'from_node', 'from_node_name',
             'to_node', 'to_node_name', 'actor', 'actor_name',
-            'action', 'remark', 'created_at'
+            'action', 'remark', 'created_at', 'company_id'
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -201,6 +215,7 @@ class TaskFlowInstanceSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     started_by_name = serializers.CharField(source='started_by.username', read_only=True, allow_null=True)
     flow_progress = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
     
     class Meta:
         model = TaskFlowInstance
@@ -208,7 +223,8 @@ class TaskFlowInstanceSerializer(serializers.ModelSerializer):
             'id', 'task', 'task_code', 'task_title',
             'template', 'template_name', 'current_node', 'current_node_name',
             'status', 'status_display', 'started_by', 'started_by_name',
-            'started_at', 'completed_at', 'flow_progress', 'created_at'
+            'started_at', 'completed_at', 'flow_progress', 'created_at',
+            'company_id'
         ]
         read_only_fields = ['id', 'created_at']
     
@@ -216,6 +232,79 @@ class TaskFlowInstanceSerializer(serializers.ModelSerializer):
         engine = FlowEngine(obj.task)
         engine.instance = obj
         return engine.get_flow_progress()
+
+
+# ===== 任务评论/附件/依赖 =====
+
+class TaskCommentSerializer(serializers.ModelSerializer):
+    author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
+    replies = serializers.SerializerMethodField()
+    reply_count = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
+
+    class Meta:
+        model = TaskComment
+        fields = ['id', 'task', 'author', 'author_name', 'content',
+                  'parent', 'replies', 'reply_count', 'created_at', 'updated_at', 'company_id']
+        read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def get_replies(self, obj):
+        if obj.parent_id:
+            return []
+        replies = obj.replies.all()
+        return TaskCommentSerializer(replies, many=True).data
+
+    def get_reply_count(self, obj):
+        if obj.parent_id:
+            return 0
+        return obj.replies.count()
+
+
+class TaskAttachmentSerializer(serializers.ModelSerializer):
+    uploaded_by_name = serializers.CharField(source='uploaded_by.username', read_only=True, allow_null=True)
+    url = serializers.SerializerMethodField()
+    company_id = serializers.IntegerField(required=False, allow_null=True)
+
+    class Meta:
+        model = TaskAttachment
+        fields = ['id', 'task', 'file', 'name', 'size',
+                  'uploaded_by', 'uploaded_by_name', 'url', 'created_at', 'company_id']
+        extra_kwargs = {'name': {'required': False}, 'size': {'required': False}}
+        read_only_fields = ['id', 'created_at']
+
+    def create(self, validated_data):
+        uploaded_file = validated_data.get('file')
+        if uploaded_file:
+            if not validated_data.get('name'):
+                validated_data['name'] = uploaded_file.name
+            if not validated_data.get('size'):
+                validated_data['size'] = uploaded_file.size
+        validated_data['uploaded_by'] = self.context['request'].user
+        return super().create(validated_data)
+
+    def get_url(self, obj):
+        if obj.file:
+            request = self.context.get('request')
+            if request and obj.file.url:
+                return request.build_absolute_uri(obj.file.url)
+        return None
+
+
+class TaskDependencySerializer(serializers.ModelSerializer):
+    task_code = serializers.CharField(source='task.code', read_only=True)
+    task_title = serializers.CharField(source='task.title', read_only=True)
+    depends_on_code = serializers.CharField(source='depends_on.code', read_only=True)
+    depends_on_title = serializers.CharField(source='depends_on.title', read_only=True)
+    depends_on_status = serializers.CharField(source='depends_on.status', read_only=True)
+    dependency_type_display = serializers.CharField(source='get_dependency_type_display', read_only=True)
+    company_id = serializers.IntegerField(required=False, allow_null=True)
+
+    class Meta:
+        model = TaskDependency
+        fields = ['id', 'task', 'task_code', 'task_title',
+                  'depends_on', 'depends_on_code', 'depends_on_title', 'depends_on_status',
+                  'dependency_type', 'dependency_type_display', 'created_at', 'company_id']
+        read_only_fields = ['id', 'created_at']
 
 
 class ProjectViewSet(viewsets.ModelViewSet):
@@ -231,8 +320,12 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+        # 多租户隔离：普通用户只看本公司项目（通过owner或company过滤）
         if user.is_authenticated and not user.is_superuser:
-            queryset = queryset.filter(owner=user)
+            if hasattr(user, 'company') and user.company_id:
+                queryset = queryset.filter(company_id=user.company_id)
+            else:
+                queryset = queryset.filter(owner=user)
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
@@ -274,6 +367,127 @@ class ProjectViewSet(viewsets.ModelViewSet):
         buf = export_projects(list(records))
         return make_export_response(buf, f'项目_{tz.now().strftime("%Y%m%d")}.xlsx')
 
+    @action(detail=True, methods=['post'])
+    def submit_approval(self, request, pk=None):
+        """提交项目立项审批"""
+        from apps.approvals.models import ApprovalFlow
+        from apps.approvals.flow_builder import build_approval_flow
+        from django.utils import timezone
+
+        project = self.get_object()
+        if project.approval_status not in ('', 'draft', 'rejected', 'cancelled'):
+            return Response({'error': '当前状态不允许提交审批'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 构建审批流
+        flow = build_approval_flow(
+            flow_type='project',
+            amount=project.budget,
+            name=f'项目立项：{project.name}',
+            requester=request.user,
+        )
+        flow.related_type = 'project'
+        flow.related_id = project.id
+        flow.save()
+
+        # 更新项目状态
+        project.approval_flow = flow
+        project.approval_status = 'pending'
+        project.save(update_fields=['approval_flow', 'approval_status'])
+
+        return Response({
+            'message': '立项审批已提交',
+            'flow_id': flow.id,
+            'approval_status': project.approval_status,
+        })
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """激活项目（审批通过后手动启动）"""
+        project = self.get_object()
+        if project.approval_status not in ('approved',):
+            return Response({'error': '项目必须先通过审批才能激活'}, status=status.HTTP_400_BAD_REQUEST)
+        if project.status != 'active':
+            project.status = 'active'
+            project.save(update_fields=['status'])
+        return Response({'message': '项目已激活', 'status': project.status})
+
+    @action(detail=True, methods=['get'])
+    def gantt_data(self, request, pk=None):
+        """甘特图数据（项目+任务）"""
+        project = self.get_object()
+        tasks = project.tasks.all().select_related('assignee', 'reporter')
+
+        # 项目条
+        project_bar = {
+            'id': f'project-{project.id}',
+            'name': project.name,
+            'type': 'project',
+            'start': project.start_date.isoformat() if project.start_date else None,
+            'end': project.end_date.isoformat() if project.end_date else None,
+            'progress': float(project.progress or 0),
+            'status': project.status,
+        }
+
+        # 任务条
+        task_bars = [{
+            'id': f'task-{t.id}',
+            'name': t.title,
+            'type': 'task',
+            'parent': f'project-{project.id}',
+            'start': t.start_date.isoformat() if t.start_date else (t.due_date - timedelta(days=7)).isoformat(),
+            'end': t.due_date.isoformat() if t.due_date else None,
+            'progress': 100 if t.status == 'completed' else 0,
+            'status': t.status,
+            'assignee': t.assignee.username if t.assignee else None,
+            'priority': t.priority,
+        } for t in tasks if t.due_date]
+
+        return Response({
+            'project': project_bar,
+            'tasks': task_bars,
+            'project_name': project.name,
+            'today': timezone.now().isoformat(),
+        })
+
+    @action(detail=False, methods=['get'])
+    def gantt_all(self, request):
+        """全部项目的甘特图数据"""
+        from datetime import timedelta
+        projects = Project.objects.filter(
+            status__in=['active', 'completed']
+        ).prefetch_related('tasks').select_related('owner')
+
+        bars = []
+        for p in projects:
+            if not p.start_date and not p.end_date and not p.tasks.exists():
+                continue
+            bars.append({
+                'id': f'project-{p.id}',
+                'name': p.name,
+                'type': 'project',
+                'start': p.start_date.isoformat() if p.start_date else None,
+                'end': p.end_date.isoformat() if p.end_date else None,
+                'progress': float(p.progress or 0),
+                'status': p.status,
+                'owner': p.owner.username if p.owner else None,
+            })
+            for t in p.tasks.all():
+                if not t.due_date:
+                    continue
+                bars.append({
+                    'id': f'task-{t.id}',
+                    'name': t.title,
+                    'type': 'task',
+                    'parent': f'project-{p.id}',
+                    'start': t.start_date.isoformat() if t.start_date else (t.due_date - timedelta(days=7)).isoformat(),
+                    'end': t.due_date.isoformat(),
+                    'progress': 100 if t.status == 'completed' else 0,
+                    'status': t.status,
+                    'assignee': t.assignee.username if t.assignee else None,
+                    'priority': t.priority,
+                })
+        return Response(bars)
+
 
 class TaskViewSet(viewsets.ModelViewSet):
     """任务视图集"""
@@ -293,7 +507,10 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # 普通用户只能看本公司项目下的任务 - 已移除公司隔离
+        # 多租户隔离：普通用户只看本公司项目下的任务
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                queryset = queryset.filter(project__company_id=user.company_id)
         queryset = queryset.select_related('project', 'assignee', 'reporter').prefetch_related('flow_instance__template', 'flow_instance__current_node')
         project_id = self.request.query_params.get('project', None)
         if project_id:
@@ -442,7 +659,17 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
-    
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(company_id=self.request.user.company_id)
+
     @action(detail=True)
     def nodes(self, request, pk=None):
         """获取模板的所有节点"""
@@ -462,6 +689,16 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(company_id=self.request.user.company_id)
+
 
 class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     """任务阶段实例视图集"""
@@ -474,8 +711,11 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
+        # 多租户隔离：通过 task__project__company_id 间接过滤
         user = self.request.user
-        # 公司隔离 - 已移除
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                queryset = queryset.filter(task__project__company_id=user.company_id)
         task_id = self.request.query_params.get('task', None)
         if task_id:
             queryset = queryset.filter(task_id=task_id)
@@ -502,7 +742,8 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             action='start',
             actor=request.user,
             from_status='pending',
-            to_status='in_progress'
+            to_status='in_progress',
+            company_id=instance.company_id,
         )
         
         serializer = self.get_serializer(instance)
@@ -528,7 +769,8 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             actor=request.user,
             comment=remark,
             from_status=instance.status,
-            to_status='approved'
+            to_status='approved',
+            company_id=instance.company_id,
         )
         
         serializer = self.get_serializer(instance)
@@ -554,7 +796,8 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             actor=request.user,
             comment=remark,
             from_status=instance.status,
-            to_status='rejected'
+            to_status='rejected',
+            company_id=instance.company_id,
         )
         
         serializer = self.get_serializer(instance)
@@ -575,6 +818,9 @@ class StageActivityViewSet(viewsets.ModelViewSet):
         stage_instance_id = self.request.query_params.get('stage_instance', None)
         if stage_instance_id:
             queryset = queryset.filter(stage_instance_id=stage_instance_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
 
 
@@ -592,7 +838,18 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
         task_id = self.request.query_params.get('task', None)
         if task_id:
             queryset = queryset.filter(task_id=task_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
+
+    def perform_create(self, serializer):
+        # 自动从 task 继承 company_id
+        task = serializer.validated_data.get('task')
+        if task:
+            serializer.save(company_id=task.company_id)
+        else:
+            serializer.save()
 
 
 class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
@@ -612,6 +869,9 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         my_flows = self.request.query_params.get('my_flows', None)
         if my_flows and self.request.user.is_authenticated:
             queryset = queryset.filter(started_by=self.request.user)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser and not user.is_staff:
+            queryset = queryset.filter(company_id=user.company_id)
         return queryset
     
     @action(detail=True, methods=['post'])
@@ -707,3 +967,73 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         engine = FlowEngine(instance.task)
         engine.instance = instance
         return Response(engine.get_flow_progress())
+
+
+# ===== 任务评论/附件/依赖 ViewSet =====
+
+class TaskCommentViewSet(viewsets.ModelViewSet):
+    """任务评论视图集"""
+    queryset = TaskComment.objects.all()
+    serializer_class = TaskCommentSerializer
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs.select_related('author', 'task')
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+
+class TaskAttachmentViewSet(viewsets.ModelViewSet):
+    """任务附件视图集"""
+    queryset = TaskAttachment.objects.all()
+    serializer_class = TaskAttachmentSerializer
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs.select_related('uploaded_by', 'task')
+
+    def perform_create(self, serializer):
+        serializer.save(uploaded_by=self.request.user)
+
+
+class TaskDependencyViewSet(viewsets.ModelViewSet):
+    """任务依赖视图集"""
+    queryset = TaskDependency.objects.all()
+    serializer_class = TaskDependencySerializer
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        task_id = self.request.query_params.get('task')
+        if task_id:
+            qs = qs.filter(task_id=task_id)
+        return qs.select_related('task', 'depends_on')
+
+    def perform_create(self, serializer):
+        # 防止循环依赖
+        task = serializer.validated_data['task']
+        depends_on = serializer.validated_data['depends_on']
+        if task.id == depends_on.id:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'depends_on': '任务不能依赖自己'})
+        # 检查循环依赖
+        existing = TaskDependency.objects.filter(
+            task=depends_on, depends_on=task
+        ).exists()
+        if existing:
+            from rest_framework.exceptions import ValidationError
+            raise ValidationError({'depends_on': '禁止循环依赖'})
+        serializer.save()

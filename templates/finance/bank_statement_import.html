@@ -1,0 +1,512 @@
+{% extends "base.html" %}
+
+{% block title %}银行流水导入 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.bank-import-step { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+.step-item { display: flex; align-items: center; gap: 8px; }
+.step-circle {
+    width: 32px; height: 32px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 0.85rem;
+}
+.step-circle.active { background: var(--primary); color: #fff; }
+.step-circle.done { background: var(--success); color: #fff; }
+.step-circle.pending { background: #e5e7eb; color: #6b7280; }
+.step-label { font-size: 0.85rem; color: var(--text-secondary); }
+.step-label.active { color: var(--primary); font-weight: 600; }
+.step-line { flex: 1; height: 2px; background: #e5e7eb; }
+.step-line.active { background: var(--primary); }
+.drop-zone {
+    border: 2px dashed #cbd5e1; border-radius: 12px;
+    padding: 48px 24px; text-align: center; cursor: pointer;
+    transition: all 0.2s;
+}
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--primary); background: rgba(37,99,235,0.04);
+}
+.drop-zone .bi { font-size: 3rem; color: #94a3b8; }
+.bank-card {
+    border: 1px solid #e2e8f0; border-radius: 10px; padding: 16px;
+    cursor: pointer; transition: all 0.15s;
+    display: flex; align-items: center; gap: 12px;
+}
+.bank-card:hover { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+.bank-card.selected { border-color: var(--primary); background: rgba(37,99,235,0.04); }
+.bank-logo { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.7rem; color: #fff; }
+.preview-table { font-size: 0.82rem; }
+.preview-table thead th { position: sticky; top: 0; background: #f8fafc; z-index: 1; white-space: nowrap; }
+.preview-summary {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 20px;
+}
+.summary-num {
+    background: #f8fafc; border-radius: 8px; padding: 16px; text-align: center;
+}
+.summary-num .num { font-size: 1.8rem; font-weight: 700; }
+.summary-num .num.green { color: var(--success); }
+.summary-num .num.red { color: var(--danger); }
+.summary-num .num.blue { color: var(--primary); }
+.summary-num .label { font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; }
+.dir-income { color: var(--success); font-weight: 600; }
+.dir-expense { color: var(--danger); font-weight: 600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12 d-flex justify-content-between align-items-center">
+            <div>
+                <h4 class="mb-1"><i class="bi bi-bank me-2"></i>银行流水导入</h4>
+                <p class="text-muted mb-0" style="font-size:0.85rem">支持工商银行、招商银行对账单自动识别与导入</p>
+            </div>
+            <a href="/finance/incomes/" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i>返回财务</a>
+        </div>
+    </div>
+
+    <!-- 步骤导航 -->
+    <div class="bank-import-step" id="stepNav">
+        <div class="step-item" id="step1Nav">
+            <div class="step-circle active" id="step1Circle">1</div>
+            <span class="step-label active" id="step1Label">上传文件</span>
+        </div>
+        <div class="step-line" id="line1"></div>
+        <div class="step-item" id="step2Nav">
+            <div class="step-circle pending" id="step2Circle">2</div>
+            <span class="step-label" id="step2Label">预览确认</span>
+        </div>
+        <div class="step-line" id="line2"></div>
+        <div class="step-item" id="step3Nav">
+            <div class="step-circle pending" id="step3Circle">3</div>
+            <span class="step-label" id="step3Label">完成</span>
+        </div>
+    </div>
+
+    <!-- 步骤1：上传 -->
+    <div id="step1" class="card">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <label class="form-label">所属公司 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="selCompany">
+                        <option value="">加载中...</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">银行账户（可选）</label>
+                    <select class="form-select" id="selBankAccount">
+                        <option value="">— 新建账户 —</option>
+                    </select>
+                </div>
+                <div class="col-md-4" id="newBankFields" style="display:none">
+                    <label class="form-label">银行</label>
+                    <select class="form-select" id="selBank">
+                        <option value="ICBC">工商银行</option>
+                        <option value="CMBC">招商银行</option>
+                        <option value="CCB">建设银行</option>
+                        <option value="BOC">中国银行</option>
+                        <option value="ABC">农业银行</option>
+                        <option value="OTHER">其他</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row mt-3" id="newAccountFields" style="display:none">
+                <div class="col-md-4">
+                    <label class="form-label">账号</label>
+                    <input class="form-control" id="inpAccountNo" placeholder="输入银行卡号">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">账户名</label>
+                    <input class="form-control" id="inpAccountName" placeholder="输入账户名称">
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+                <div><i class="bi bi-cloud-arrow-up"></i></div>
+                <div class="mt-2 fw-semibold">点击或拖拽上传银行对账单</div>
+                <div class="text-muted" style="font-size:0.8rem">支持 .xlsx 文件（工商银行、招商银行）</div>
+                <div class="mt-2">
+                    <button class="btn btn-outline-primary btn-sm" type="button" onclick="event.stopPropagation(); document.getElementById('fileInput').click()">
+                        选择文件
+                    </button>
+                </div>
+                <input type="file" id="fileInput" accept=".xlsx,.xls" style="display:none" onchange="handleFileSelect(this)">
+            </div>
+
+            <div id="fileInfo" class="alert alert-info mt-3" style="display:none">
+                <i class="bi bi-file-earmark-excel me-1"></i>
+                <span id="fileName"></span>
+                <span class="text-muted ms-2" id="fileSize"></span>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-end">
+            <button class="btn btn-primary" id="btnPreview" onclick="doPreview()" disabled>
+                <i class="bi bi-eye me-1"></i>预览流水
+            </button>
+        </div>
+    </div>
+
+    <!-- 步骤2：预览 -->
+    <div id="step2" class="card" style="display:none">
+        <div class="card-body">
+            <div class="preview-summary">
+                <div class="summary-num">
+                    <div class="num blue" id="statTotal">0</div>
+                    <div class="label">总笔数</div>
+                </div>
+                <div class="summary-num">
+                    <div class="num green" id="statIncome">0</div>
+                    <div class="label">收入合计</div>
+                </div>
+                <div class="summary-num">
+                    <div class="num red" id="statExpense">0</div>
+                    <div class="label">支出合计</div>
+                </div>
+            </div>
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="chkAutoCreate" checked>
+                    <label class="form-check-label" for="chkAutoCreate">
+                        自动生成收入/支出记录（匹配客户或供应商后自动关联）
+                    </label>
+                </div>
+                <div>
+                    <span class="badge bg-secondary" id="bankBadge"></span>
+                    <span class="badge bg-light text-dark" id="matchBadge"></span>
+                </div>
+            </div>
+            <div class="table-responsive" style="max-height:420px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;">
+                <table class="table preview-table mb-0">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="chkAll"></th>
+                            <th>日期</th>
+                            <th>方向</th>
+                            <th>金额</th>
+                            <th>余额</th>
+                            <th>对方名称</th>
+                            <th>对方账号</th>
+                            <th>摘要</th>
+                            <th>自动分类</th>
+                            <th>匹配结果</th>
+                        </tr>
+                    </thead>
+                    <tbody id="previewBody"></tbody>
+                </table>
+            </div>
+        </div>
+        <div class="card-footer d-flex justify-content-between">
+            <div class="text-muted" style="font-size:0.8rem">
+                已选 <span id="selectedCount">0</span> 笔 |
+                预计新增收入 <span class="text-success" id="selIncome">0</span> 元 |
+                预计新增支出 <span class="text-danger" id="selExpense">0</span> 元
+            </div>
+            <div>
+                <button class="btn btn-outline-secondary" onclick="goStep(1)"><i class="bi bi-arrow-left me-1"></i>重新上传</button>
+                <button class="btn btn-success" id="btnConfirm" onclick="doImport()"><i class="bi bi-check2-all me-1"></i>确认导入</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 步骤3：完成 -->
+    <div id="step3" class="card" style="display:none">
+        <div class="card-body text-center py-5">
+            <div style="font-size:4rem;color:var(--success)"><i class="bi bi-check-circle-fill"></i></div>
+            <h4 class="mt-3">导入完成</h4>
+            <p class="text-muted" id="importResult"></p>
+            <div class="row justify-content-center mt-4">
+                <div class="col-auto">
+                    <div class="card" style="width:200px">
+                        <div class="card-body text-center">
+                            <div style="font-size:2rem;font-weight:700;color:var(--primary)" id="resImported">0</div>
+                            <div class="text-muted" style="font-size:0.8rem">成功导入</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-auto">
+                    <div class="card" style="width:200px">
+                        <div class="card-body text-center">
+                            <div style="font-size:2rem;font-weight:700;color:var(--warning)" id="resSkipped">0</div>
+                            <div class="text-muted" style="font-size:0.8rem">跳过(重复)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <a href="/finance/incomes/" class="btn btn-outline-primary me-2">查看收入记录</a>
+                <a href="/finance/expenses/" class="btn btn-outline-danger me-2">查看支出记录</a>
+                <button class="btn btn-primary" onclick="goStep(1)"><i class="bi bi-plus-circle me-1"></i>继续导入</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 加载公司数据的script已经在finance/income_list.html中加载 -->
+
+<script>
+// 全局状态
+let previewData = null;
+let selectedRows = new Set();
+let currentCompany = null;
+let currentBankAccount = null;
+let currentFile = null;
+
+// 初始化
+document.addEventListener('DOMContentLoaded', async function() {
+    await loadCompanies();
+    document.getElementById('selCompany').addEventListener('change', onCompanyChange);
+    document.getElementById('selBankAccount').addEventListener('change', onBankAccountChange);
+    document.getElementById('chkAll').addEventListener('change', toggleAll);
+    setupDropZone();
+});
+
+async function loadCompanies() {
+    try {
+        const resp = await fetch('/api/finance/companies/', { credentials: 'include' });
+        const data = await resp.json();
+        const sel = document.getElementById('selCompany');
+        sel.innerHTML = '<option value="">选择公司</option>' +
+            data.results.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+        if (data.results && data.results.length > 0) {
+            sel.value = data.results[0].id;
+            await onCompanyChange();
+        }
+    } catch(e) { console.error(e); }
+}
+
+async function onCompanyChange() {
+    const companyId = document.getElementById('selCompany').value;
+    if (!companyId) return;
+    currentCompany = companyId;
+    const resp = await fetch(`/api/finance/companies/${companyId}/bank_accounts/`, { credentials: 'include' });
+    const sel = document.getElementById('selBankAccount');
+    if (resp.ok) {
+        const data = await resp.json();
+        sel.innerHTML = '<option value="">— 新建账户 —</option>' +
+            (data.bank_accounts || []).map(b =>
+                `<option value="${b.id}">${b.bank_name || b.bank_code} ${b.account_no} (${b.account_name})</option>`
+            ).join('');
+    }
+}
+
+function onBankAccountChange() {
+    const val = document.getElementById('selBankAccount').value;
+    const newFields = document.getElementById('newBankFields');
+    const newAccountFields = document.getElementById('newAccountFields');
+    if (val) {
+        newFields.style.display = 'none';
+        newAccountFields.style.display = 'none';
+        currentBankAccount = val;
+    } else {
+        newFields.style.display = '';
+        newAccountFields.style.display = '';
+        currentBankAccount = null;
+    }
+}
+
+function setupDropZone() {
+    const dz = document.getElementById('dropZone');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+    dz.addEventListener('drop', e => {
+        e.preventDefault();
+        dz.classList.remove('dragover');
+        if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+}
+
+function handleFileSelect(input) {
+    if (input.files[0]) handleFile(input.files[0]);
+}
+
+function handleFile(file) {
+    if (!file) return;
+    currentFile = file;
+    document.getElementById('fileName').textContent = file.name;
+    document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
+    document.getElementById('fileInfo').style.display = '';
+    document.getElementById('btnPreview').disabled = false;
+}
+
+async function doPreview() {
+    if (!currentFile) return alert('请先选择文件');
+    const companyId = document.getElementById('selCompany').value;
+    if (!companyId) return alert('请选择公司');
+
+    const btn = document.getElementById('btnPreview');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>解析中...';
+
+    // ── base64 + JSON 方式（绕过 multipart 上传问题）───────────────
+    const fileBase64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(currentFile);
+    });
+
+    const payload = {
+        company_id: companyId,
+        bank_code: document.getElementById('selBank').value || '',
+        bank_account_id: currentBankAccount || '',
+        file_base64: fileBase64
+    };
+
+    try {
+        const resp = await fetch('/api/finance/import/bank-statement/preview/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || '预览失败');
+
+        previewData = data;
+        renderPreview(data);
+        goStep(2);
+    } catch(e) {
+        alert('预览失败: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-eye me-1"></i>预览流水';
+    }
+}
+
+function renderPreview(data) {
+    document.getElementById('statTotal').textContent = data.total_count;
+    document.getElementById('statIncome').textContent = formatMoney(data.total_income);
+    document.getElementById('statExpense').textContent = formatMoney(data.total_expense);
+    document.getElementById('bankBadge').textContent = data.bank_code;
+
+    const matched = data.preview_rows.filter(r => r.match_type).length;
+    document.getElementById('matchBadge').textContent = `${matched} 笔可自动匹配`;
+
+    const tbody = document.getElementById('previewBody');
+    tbody.innerHTML = data.preview_rows.map((row, i) => `
+        <tr class="${row.direction === 'income' ? 'table-success' : 'table-danger'}">
+            <td><input type="checkbox" class="row-check" data-i="${i}" ${!isDuplicatedRow(row) ? 'checked' : 'disabled'}></td>
+            <td>${row.transaction_date}${row.transaction_time ? ' ' + row.transaction_time.slice(0,5) : ''}</td>
+            <td><span class="dir-${row.direction}">${row.direction_display}</span></td>
+            <td><b>${formatMoney(row.amount)}</b></td>
+            <td class="text-muted">${row.balance ? formatMoney(row.balance) : '-'}</td>
+            <td>${escapeHtml(row.counterparty_name) || '-'}</td>
+            <td class="text-muted" style="font-size:0.75rem">${escapeHtml(row.counterparty_account) || '-'}</td>
+            <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(row.summary)}">${escapeHtml(row.summary) || '-'}</td>
+            <td><span class="badge bg-primary">${escapeHtml(row.auto_description)}</span></td>
+            <td>${row.match_type === 'customer' ? `<span class="badge bg-success">客户:${escapeHtml(row.match_name)}</span>` :
+                row.match_type === 'supplier' ? `<span class="badge bg-warning">供应商:${escapeHtml(row.match_name)}</span>` :
+                '<span class="text-muted">未匹配</span>'}</td>
+        </tr>
+    `).join('');
+
+    selectedRows = new Set(data.preview_rows.map((_, i) => i));
+    document.querySelectorAll('.row-check').forEach(cb => {
+        cb.addEventListener('change', () => {
+            if (cb.checked) selectedRows.add(parseInt(cb.dataset.i));
+            else selectedRows.delete(parseInt(cb.dataset.i));
+            updateSelectedStats();
+        });
+    });
+    updateSelectedStats();
+}
+
+function isDuplicatedRow(row) {
+    // 简单判断：只有银行流水号时认为去重
+    return false; // 预览阶段不标记重复
+}
+
+function toggleAll() {
+    const checked = document.getElementById('chkAll').checked;
+    document.querySelectorAll('.row-check:not(:disabled)').forEach(cb => {
+        cb.checked = checked;
+        const i = parseInt(cb.dataset.i);
+        if (checked) selectedRows.add(i);
+        else selectedRows.delete(i);
+    });
+    updateSelectedStats();
+}
+
+function updateSelectedStats() {
+    if (!previewData) return;
+    let sIncome = 0, sExpense = 0;
+    selectedRows.forEach(i => {
+        const row = previewData.preview_rows[i];
+        if (row.direction === 'income') sIncome += parseFloat(row.amount);
+        else sExpense += parseFloat(row.amount);
+    });
+    document.getElementById('selectedCount').textContent = selectedRows.size;
+    document.getElementById('selIncome').textContent = formatMoney(sIncome.toString());
+    document.getElementById('selExpense').textContent = formatMoney(sExpense.toString());
+}
+
+async function doImport() {
+    if (!previewData || selectedRows.size === 0) return alert('请至少选择1条记录');
+
+    const btn = document.getElementById('btnConfirm');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>导入中...';
+
+    const selected = [...selectedRows].map(i => previewData.preview_rows[i]);
+    const autoCreate = document.getElementById('chkAutoCreate').checked;
+    const companyId = document.getElementById('selCompany').value;
+
+    const payload = {
+        company_id: companyId,
+        bank_code: previewData.bank_code,
+        bank_account_id: currentBankAccount || '',
+        account_no: document.getElementById('inpAccountNo').value,
+        account_name: document.getElementById('inpAccountName').value,
+        transactions: selected,
+        auto_create_records: autoCreate
+    };
+
+    try {
+        const resp = await fetch('/api/finance/import/bank-statement/confirm/', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const data = await resp.json();
+        if (!resp.ok) throw new Error(data.error || '导入失败');
+
+        document.getElementById('importResult').textContent =
+            `批次号: ${data.batch_no} | 自动生成收入 ${data.auto_created.income_count} 笔，支出 ${data.auto_created.expense_count} 笔`;
+        document.getElementById('resImported').textContent = data.imported;
+        document.getElementById('resSkipped').textContent = data.skipped;
+        goStep(3);
+    } catch(e) {
+        alert('导入失败: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check2-all me-1"></i>确认导入';
+    }
+}
+
+function goStep(n) {
+    [1,2,3].forEach(s => {
+        document.getElementById(`step${s}`).style.display = s === n ? '' : 'none';
+        const circle = document.getElementById(`step${s}Circle`);
+        const label = document.getElementById(`step${s}Label`);
+        if (s < n) { circle.className = 'step-circle done'; circle.innerHTML = '✓'; label.className = 'step-label'; }
+        else if (s === n) { circle.className = 'step-circle active'; circle.innerHTML = s; label.className = 'step-label active'; }
+        else { circle.className = 'step-circle pending'; circle.innerHTML = s; label.className = 'step-label'; }
+    });
+    document.getElementById('line1').className = 'step-line' + (n > 1 ? ' active' : '');
+    document.getElementById('line2').className = 'step-line' + (n > 2 ? ' active' : '');
+}
+
+function formatMoney(v) {
+    return parseFloat(v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function escapeHtml(s) {
+    if (!s) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,513 @@
+{% extends "base.html" %}
+
+{% block title %}商机管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.pipeline-funnel { display: flex; gap: 8px; padding: 16px 0; flex-wrap: wrap; }
+.funnel-stage {
+    flex: 1; min-width: 120px; text-align: center; padding: 12px 8px;
+    border-radius: 8px; color: #fff; cursor: pointer; transition: transform 0.15s;
+    position: relative;
+}
+.funnel-stage:hover { transform: translateY(-2px); filter: brightness(1.1); }
+.funnel-stage .stage-name { font-size: 0.8rem; opacity: 0.9; }
+.funnel-stage .stage-count { font-size: 1.5rem; font-weight: 700; }
+.funnel-stage .stage-amount { font-size: 0.75rem; opacity: 0.85; }
+.funnel-arrow { display: flex; align-items: center; color: #adb5bd; font-size: 1.2rem; }
+.stage-lead { background: linear-gradient(135deg, #6c757d, #495057); }
+.stage-qualify { background: linear-gradient(135deg, #0d6efd, #0a58ca); }
+.stage-proposal { background: linear-gradient(135deg, #6610f2, #520dc2); }
+.stage-negotiation { background: linear-gradient(135deg, #fd7e14, #e8590c); }
+.stage-won { background: linear-gradient(135deg, #198754, #146c43); }
+.stage-lost { background: linear-gradient(135deg, #dc3545, #b02a37); }
+.stage-new { background: linear-gradient(135deg, #20c997, #199d76); }
+.priority-urgent { color: #dc3545; font-weight: 700; }
+.priority-high { color: #fd7e14; font-weight: 600; }
+.priority-medium { color: #ffc107; }
+.priority-low { color: #6c757d; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- 漏斗概览 -->
+<div class="card mb-3">
+    <div class="card-body py-2">
+        <div class="d-flex justify-content-between align-items-center px-2">
+            <div class="pipeline-funnel" id="pipelineFunnel"></div>
+            <div class="text-end ms-3">
+                <div class="text-muted small">加权总额</div>
+                <div class="text-primary fw-bold fs-5" id="funnelWeighted">—</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 筛选工具栏 -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="searchName" placeholder="搜索商机名称/产品线" onkeyup="filterAndSearch()">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterStage" onchange="filterAndSearch()">
+                    <option value="">全部阶段</option>
+                    <option value="lead">线索</option>
+                    <option value="qualify">意向</option>
+                    <option value="proposal">方案</option>
+                    <option value="negotiation">商务</option>
+                    <option value="won">成交</option>
+                    <option value="lost">失败</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterPriority" onchange="filterAndSearch()">
+                    <option value="">全部优先级</option>
+                    <option value="urgent">紧急</option>
+                    <option value="high">高</option>
+                    <option value="medium">中</option>
+                    <option value="low">低</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button class="btn btn-primary w-100" onclick="showOppModal()" data-perm="opportunity.add">
+                    <i class="bi bi-plus-lg me-1"></i>新建商机
+                </button>
+            </div>
+            <div class="col-md-3 text-end">
+                <span class="text-muted" style="font-size:0.85rem" id="oppCount"></span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 商机列表 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>商机名称</th>
+                        <th>客户</th>
+                        <th>阶段</th>
+                        <th>优先级</th>
+                        <th>预计金额</th>
+                        <th>赢单概率</th><th>加权金额</th>
+                        <th>预计成交</th>
+                        <th>负责人</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="oppTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+    <div class="card-footer py-2" id="paginationBar"></div>
+</div>
+
+<!-- 新建/编辑弹窗 -->
+<div class="modal fade" id="oppModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="oppModalTitle">新建商机</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="oppForm">
+                    <input type="hidden" id="oppId">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="form-label">商机名称 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="oppName" required maxlength="300">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">优先级</label>
+                            <select class="form-select" id="oppPriority">
+                                <option value="low">低</option>
+                                <option value="medium" selected>中</option>
+                                <option value="high">高</option>
+                                <option value="urgent">紧急</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">客户</label>
+                            <select class="form-select" id="oppClient">
+                                <option value="">— 选择客户 —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">联系人</label>
+                            <select class="form-select" id="oppContact">
+                                <option value="">— 选择联系人 —</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">预计金额（元）</label>
+                            <input type="number" class="form-control" id="oppAmount" min="0" step="0.01" value="0">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">赢单概率（%）</label>
+                            <input type="number" class="form-control" id="oppProbability" min="0" max="100" value="10">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">销售阶段</label>
+                            <select class="form-select" id="oppStage">
+                                <option value="lead">线索</option>
+                                <option value="qualify">意向</option>
+                                <option value="proposal">方案</option>
+                                <option value="negotiation">商务</option>
+                                <option value="won">成交</option>
+                                <option value="lost">失败</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">预计成交日期</label>
+                            <input type="date" class="form-control" id="oppEstDate">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">产品线</label>
+                            <input type="text" class="form-control" id="oppProductLines" placeholder="逗号分隔，如：ERP,MES" maxlength="500">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">竞争对手</label>
+                            <input type="text" class="form-control" id="oppCompetitor" placeholder="填写竞争对手名称" maxlength="300">
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">备注</label>
+                            <textarea class="form-control" id="oppRemark" rows="2" maxlength="1000"></textarea>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveOpp()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 商机详情弹窗 -->
+<div class="modal fade" id="oppDetailModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">商机详情</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="oppDetailBody"></div>
+            <div class="modal-footer" id="oppDetailActions"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const stageMap = {lead:'线索',qualify:'意向',proposal:'方案',negotiation:'商务',won:'成交',lost:'失败'};
+const priorityMap = {low:'低',medium:'中',high:'高',urgent:'紧急'};
+const stageClass = {lead:'stage-lead',qualify:'stage-qualify',proposal:'stage-proposal',
+                     negotiation:'stage-negotiation',won:'stage-won',lost:'stage-lost'};
+let currentPage = 1;
+let modal, detailModal;
+
+document.addEventListener('DOMContentLoaded', () => {
+    modal = new bootstrap.Modal(document.getElementById('oppModal'));
+    detailModal = new bootstrap.Modal(document.getElementById('oppDetailModal'));
+    loadPipeline();
+    loadClients();
+    loadContacts();
+    filterAndSearch();
+});
+
+async function loadPipeline() {
+    try {
+        const resp = await fetch('/api/crm/opportunities/pipeline/', {credentials:'include'});
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const stages = data.stages || [];
+        // 加权总额
+        const totalWeighted = data.total_weighted || 0;
+        document.getElementById('funnelWeighted').textContent = totalWeighted > 0 ? '¥' + totalWeighted.toLocaleString() : '—';
+        const container = document.getElementById('pipelineFunnel');
+        let html = '';
+        stages.forEach((s, i) => {
+            if (i > 0) html += '<div class="funnel-arrow">›</div>';
+            const weighted = s.total_weighted || 0;
+            html += `<div class="funnel-stage ${stageClass[s.stage]||'stage-new'}" onclick="filterByStage('${s.stage}')">
+                <div class="stage-name">${s.stage_display}</div>
+                <div class="stage-count">${s.count}</div>
+                <div class="stage-amount">¥${weighted > 0 ? weighted.toLocaleString() : '—'}</div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    } catch(e) { console.error('pipeline error', e); }
+}
+
+async function loadClients() {
+    try {
+        const resp = await fetch('/api/crm/clients/?page_size=200', {credentials:'include'});
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const sel = document.getElementById('oppClient');
+        data.results.forEach(c => {
+            sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    } catch(e) {}
+}
+
+async function loadContacts() {
+    try {
+        const resp = await fetch('/api/crm/contacts/?page_size=200', {credentials:'include'});
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const sel = document.getElementById('oppContact');
+        data.results.forEach(c => {
+            const label = c.name + (c.phone ? ` (${c.phone})` : '');
+            sel.innerHTML += `<option value="${c.id}">${label}</option>`;
+        });
+    } catch(e) {}
+}
+
+function filterByStage(stage) {
+    document.getElementById('filterStage').value = stage;
+    filterAndSearch();
+}
+
+async function filterAndSearch() {
+    const params = new URLSearchParams({
+        page: currentPage,
+        page_size: 20,
+        ordering: '-created_at',
+    });
+    const stage = document.getElementById('filterStage').value;
+    const priority = document.getElementById('filterPriority').value;
+    const search = document.getElementById('searchName').value.trim();
+    if (stage) params.set('stage', stage);
+    if (priority) params.set('priority', priority);
+    if (search) params.set('search', search);
+    await loadOpportunities(params.toString());
+}
+
+async function loadOpportunities(queryString) {
+    try {
+        const resp = await fetch('/api/crm/opportunities/?' + queryString, {credentials:'include'});
+        if (!resp.ok) { console.error('load opportunities failed', resp.status); return; }
+        const data = await resp.json();
+        const tbody = document.getElementById('oppTableBody');
+        document.getElementById('oppCount').textContent = `共 ${data.count} 条`;
+        if (!data.results.length) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无商机数据</td></tr>';
+            document.getElementById('paginationBar').innerHTML = '';
+            return;
+        }
+        tbody.innerHTML = data.results.map(o => `
+            <tr>
+                <td><a href="javascript:void(0)" onclick="showOppDetail(${o.id})" class="text-decoration-none">${o.name}</a></td>
+                <td>${o.client_name || '—'}</td>
+                <td><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></td>
+                <td class="${priorityClass(o.priority)}">${priorityMap[o.priority] || o.priority}</td>
+                <td class="text-end fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</td>
+                <td>${o.probability}%<br><small class="text-muted">加权</small></td>
+                <td class="text-end"><span class="text-primary fw-semibold">${o.weighted_amount>0?'¥'+o.weighted_amount.toLocaleString():'—'}</span></td>
+                <td>${o.estimated_close_date || '—'}</td>
+                <td>${o.created_by_name || '—'}</td>
+                <td>
+                    <div class="dropdown">
+                        <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown">操作</button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="javascript:void(0)" onclick="showOppDetail(${o.id})">详情</a></li>
+                            <li><a class="dropdown-item" href="javascript:void(0)" onclick="editOpp(${o.id})">编辑</a></li>
+                            <li><a class="dropdown-item" href="javascript:void(0)" onclick="advanceOpp(${o.id})">推进阶段</a></li>
+                            <li><a class="dropdown-item text-success" href="javascript:void(0)" onclick="winOpp(${o.id})">标记成交</a></li>
+                            <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="loseOpp(${o.id})">标记失败</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="deleteOpp(${o.id})">删除</a></li>
+                        </ul>
+                    </div>
+                </td>
+            </tr>`).join('');
+        // pagination
+        const totalPages = Math.ceil(data.count / 20);
+        const pb = document.getElementById('paginationBar');
+        if (totalPages <= 1) { pb.innerHTML = ''; return; }
+        pb.innerHTML = `<div class="d-flex justify-content-between align-items-center px-2">
+            <span class="text-muted" style="font-size:0.85rem">第 ${currentPage} / ${totalPages} 页</span>
+            <div class="btn-group btn-group-sm">
+                <button class="btn btn-outline-secondary" onclick="goPage(${currentPage-1})" ${currentPage<=1?'disabled':''}>上一页</button>
+                <button class="btn btn-outline-secondary" onclick="goPage(${currentPage+1})" ${currentPage>=totalPages?'disabled':''}>下一页</button>
+            </div>
+        </div>`;
+    } catch(e) { console.error(e); }
+}
+
+function goPage(p) {
+    currentPage = p;
+    filterAndSearch();
+}
+
+function stageColor(s) {
+    const m = {lead:'secondary',qualify:'primary',proposal:'info',negotiation:'warning',won:'success',lost:'danger'};
+    return m[s] || 'secondary';
+}
+
+function priorityClass(p) {
+    if (p === 'urgent') return 'priority-urgent';
+    if (p === 'high') return 'priority-high';
+    if (p === 'medium') return 'priority-medium';
+    return 'priority-low';
+}
+
+function showOppModal(id) {
+    document.getElementById('oppForm').reset();
+    document.getElementById('oppId').value = id || '';
+    document.getElementById('oppModalTitle').textContent = id ? '编辑商机' : '新建商机';
+    if (!id) {
+        document.getElementById('oppClient').value = '';
+        document.getElementById('oppContact').value = '';
+    }
+    modal.show();
+}
+
+async function editOpp(id) {
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/`, {credentials:'include'});
+        if (!resp.ok) return;
+        const o = await resp.json();
+        document.getElementById('oppId').value = o.id;
+        document.getElementById('oppModalTitle').textContent = '编辑商机';
+        document.getElementById('oppName').value = o.name;
+        document.getElementById('oppClient').value = o.client || '';
+        document.getElementById('oppContact').value = o.contact || '';
+        document.getElementById('oppPriority').value = o.priority;
+        document.getElementById('oppStage').value = o.stage;
+        document.getElementById('oppAmount').value = o.expected_amount || 0;
+        document.getElementById('oppProbability').value = o.probability || 10;
+        document.getElementById('oppEstDate').value = o.estimated_close_date || '';
+        document.getElementById('oppProductLines').value = o.product_lines || '';
+        document.getElementById('oppCompetitor').value = o.competitor || '';
+        document.getElementById('oppRemark').value = o.remark || '';
+        modal.show();
+    } catch(e) { alert('加载商机失败'); }
+}
+
+async function saveOpp() {
+    const id = document.getElementById('oppId').value;
+    const body = {
+        name: document.getElementById('oppName').value.trim(),
+        client: document.getElementById('oppClient').value || null,
+        contact: document.getElementById('oppContact').value || null,
+        priority: document.getElementById('oppPriority').value,
+        stage: document.getElementById('oppStage').value,
+        expected_amount: parseFloat(document.getElementById('oppAmount').value) || 0,
+        probability: parseInt(document.getElementById('oppProbability').value) || 10,
+        estimated_close_date: document.getElementById('oppEstDate').value || null,
+        product_lines: document.getElementById('oppProductLines').value.trim(),
+        competitor: document.getElementById('oppCompetitor').value.trim(),
+        remark: document.getElementById('oppRemark').value.trim(),
+    };
+    if (!body.name) { alert('请填写商机名称'); return; }
+    const url = id ? `/api/crm/opportunities/${id}/` : '/api/crm/opportunities/';
+    const method = id ? 'PUT' : 'POST';
+    try {
+        const resp = await fetch(url, {
+            method,
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(body),
+            credentials: 'include',
+        });
+        if (resp.status === 201 || resp.status === 200) {
+            modal.hide();
+            loadPipeline();
+            filterAndSearch();
+        } else {
+            const err = await resp.json();
+            alert('保存失败：' + JSON.stringify(err));
+        }
+    } catch(e) { alert('保存失败：' + e.message); }
+}
+
+async function showOppDetail(id) {
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/`, {credentials:'include'});
+        if (!resp.ok) return;
+        const o = await resp.json();
+        const body = document.getElementById('oppDetailBody');
+        body.innerHTML = `
+            <dl class="row mb-0">
+                <dt class="col-4 text-muted">商机名称</dt><dd class="col-8">${o.name}</dd>
+                <dt class="col-4 text-muted">客户</dt><dd class="col-8">${o.client_name||'—'}</dd>
+                <dt class="col-4 text-muted">联系人</dt><dd class="col-8">${o.contact_name||'—'}</dd>
+                <dt class="col-4 text-muted">阶段</dt><dd class="col-8"><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></dd>
+                <dt class="col-4 text-muted">优先级</dt><dd class="col-8 ${priorityClass(o.priority)}">${priorityMap[o.priority]||o.priority}</dd>
+                <dt class="col-4 text-muted">预计金额</dt><dd class="col-8 fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</dd>
+                <dt class="col-4 text-muted">加权金额</dt><dd class="col-8"><span class="text-primary">${o.weighted_amount>0?'¥'+o.weighted_amount.toLocaleString():'—'}</span></dd>
+                <dt class="col-4 text-muted">赢单概率</dt><dd class="col-8">${o.probability}%</dd>
+                <dt class="col-4 text-muted">预计成交日期</dt><dd class="col-8">${o.estimated_close_date||'—'}</dd>
+                <dt class="col-4 text-muted">实际成交日期</dt><dd class="col-8">${o.actual_close_date||'—'}</dd>
+                <dt class="col-4 text-muted">产品线</dt><dd class="col-8">${o.product_lines||'—'}</dd>
+                <dt class="col-4 text-muted">竞争对手</dt><dd class="col-8">${o.competitor||'—'}</dd>
+                <dt class="col-4 text-muted">失败原因</dt><dd class="col-8">${o.lost_reason||'—'}</dd>
+                <dt class="col-4 text-muted">负责人</dt><dd class="col-8">${o.created_by_name||'—'}</dd>
+                <dt class="col-4 text-muted">创建时间</dt><dd class="col-8">${o.created_at||'—'}</dd>
+                <dt class="col-4 text-muted">备注</dt><dd class="col-8">${o.remark||'—'}</dd>
+            </dl>`;
+        document.getElementById('oppDetailActions').innerHTML = `
+            <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">关闭</button>
+            <button class="btn btn-primary btn-sm" onclick="detailModal.hide();editOpp(${o.id})">编辑</button>
+            <button class="btn btn-success btn-sm" onclick="winOpp(${o.id});detailModal.hide()">标记成交</button>
+            <button class="btn btn-danger btn-sm" onclick="loseOpp(${o.id});detailModal.hide()">标记失败</button>`;
+        detailModal.show();
+    } catch(e) { alert('加载详情失败'); }
+}
+
+async function advanceOpp(id) {
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/advance_stage/`, {
+            method:'POST', credentials:'include',
+        });
+        if (resp.ok) { loadPipeline(); filterAndSearch(); }
+        else { const e = await resp.json(); alert('推进失败：'+JSON.stringify(e)); }
+    } catch(e) { alert('推进失败'); }
+}
+
+async function winOpp(id) {
+    if (!confirm('确认标记为成交？')) return;
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/win/`, {
+            method:'POST', credentials:'include',
+        });
+        if (resp.ok) { loadPipeline(); filterAndSearch(); }
+        else { alert('操作失败'); }
+    } catch(e) { alert('操作失败'); }
+}
+
+async function loseOpp(id) {
+    const reason = prompt('请输入失败原因（选填）：');
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/lose/`, {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({lost_reason: reason || ''}),
+            credentials:'include',
+        });
+        if (resp.ok) { loadPipeline(); filterAndSearch(); }
+        else { alert('操作失败'); }
+    } catch(e) { alert('操作失败'); }
+}
+
+async function deleteOpp(id) {
+    if (!confirm('确认删除该商机？此操作不可恢复。')) return;
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/`, {
+            method:'DELETE', credentials:'include',
+        });
+        if (resp.ok || resp.status === 204) { loadPipeline(); filterAndSearch(); }
+        else { alert('删除失败'); }
+    } catch(e) { alert('删除失败'); }
+}
+</script>
+{% endblock %}

@@ -175,6 +175,43 @@
     </div>
 </div>
 
+<!-- 补充报表 -->
+<div class="mb-3 mt-2">
+    <span class="text-muted" style="font-size:0.8rem"><i class="bi bi-chevron-expand me-1"></i>补充报表</span>
+</div>
+<div class="report-cards">
+    <div class="report-card" onclick="showReport('cash_flow', this)">
+        <div class="icon blue"><i class="bi bi-water"></i></div>
+        <h5>现金流量表</h5>
+        <p>按月列示期初余额+收入+支出+期末余额</p>
+    </div>
+    <div class="report-card" onclick="showReport('ar_ap_aging', this)">
+        <div class="icon orange"><i class="bi bi-hourglass-split"></i></div>
+        <h5>应收应付账龄</h5>
+        <p>客户未收/供应商未付款账龄分析</p>
+    </div>
+    <div class="report-card" onclick="showReport('customer_revenue', this)">
+        <div class="icon green"><i class="bi bi-trophy"></i></div>
+        <h5>客户收入排行</h5>
+        <p>各客户收入贡献排行与趋势</p>
+    </div>
+    <div class="report-card" onclick="showReport('supplier_expense', this)">
+        <div class="icon purple"><i class="bi bi-truck"></i></div>
+        <h5>供应商支出</h5>
+        <p>按供应商汇总支出金额与笔数</p>
+    </div>
+    <div class="report-card" onclick="showReport('tax_summary', this)">
+        <div class="icon orange"><i class="bi bi-receipt-cutoff"></i></div>
+        <h5>税费汇总</h5>
+        <p>增值税/企业所得税/个税等汇总</p>
+    </div>
+    <div class="report-card" onclick="showReport('budget_execution', this)">
+        <div class="icon blue"><i class="bi bi-graph-up-arrow"></i></div>
+        <h5>预算执行表</h5>
+        <p>各费用类型实际支出与执行率</p>
+    </div>
+</div>
+
 <!-- 报表内容 -->
 <div class="report-content" id="reportContent">
     <div class="loading">
@@ -261,6 +298,24 @@ async function loadReport() {
         case 'invoice_summary':
             url = `${API_BASE}/reports/invoice_summary/?year=${year}${company ? '&company=' + company : ''}`;
             break;
+        case 'cash_flow':
+            url = `${API_BASE}/reports/cash-flow/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        case 'ar_ap_aging':
+            url = `${API_BASE}/reports/ar-ap-aging/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        case 'customer_revenue':
+            url = `${API_BASE}/reports/customer-revenue/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
+            break;
+        case 'supplier_expense':
+            url = `${API_BASE}/reports/supplier-expense/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
+            break;
+        case 'tax_summary':
+            url = `${API_BASE}/reports/tax-summary/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
+            break;
+        case 'budget_execution':
+            url = `${API_BASE}/reports/budget-execution/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
         default:
             content.innerHTML = '<div class="loading"><span>请选择一个报表类型查看</span></div>';
             return;
@@ -278,7 +333,7 @@ async function loadReport() {
 
 function renderReport(data) {
     const content = document.getElementById('reportContent');
-    
+
     switch (currentReport) {
         case 'monthly':
         case 'yearly':
@@ -289,6 +344,24 @@ function renderReport(data) {
             break;
         case 'invoice_summary':
             renderInvoiceReport(data, content);
+            break;
+        case 'cash_flow':
+            renderCashFlowReport(data, content);
+            break;
+        case 'ar_ap_aging':
+            renderARAPAgingReport(data, content);
+            break;
+        case 'customer_revenue':
+            renderCustomerRevenueReport(data, content);
+            break;
+        case 'supplier_expense':
+            renderSupplierExpenseReport(data, content);
+            break;
+        case 'tax_summary':
+            renderTaxSummaryReport(data, content);
+            break;
+        case 'budget_execution':
+            renderBudgetExecutionReport(data, content);
             break;
     }
 }
@@ -543,6 +616,204 @@ function exportExcel() {
     URL.revokeObjectURL(url);
     
     showToast('导出成功', 'success');
+}
+
+// ─── 补充报表渲染函数 ───────────────────────────────────────────────────────
+
+function fmt(v, decimals=2) {
+    const n = parseFloat(v || 0);
+    if (isNaN(n)) return '-';
+    return n.toLocaleString('zh-CN', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function renderCashFlowReport(data, container) {
+    const rows = data.results || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-water me-2"></i>${escapeHtml(data.title || '现金流量表')}</h5>`;
+
+    rows.forEach(r => {
+        html += `<div class="card mb-3">
+<div class="card-header fw-bold">${escapeHtml(r.company_name)}</div>
+<div class="card-body p-0">
+<div class="table-responsive">
+<table class="table report-table mb-0">
+<thead><tr><th>月份</th><th>收入</th><th>支出</th><th>净额</th><th>期末余额</th></tr></thead>
+<tbody>`;
+        (r.monthly || []).forEach(m => {
+            if (m.income > 0 || m.expense > 0 || m.end_balance !== 0) {
+                html += `<tr>
+<td>${m.month}月</td>
+<td class="text-success">+${fmt(m.income)}</td>
+<td class="text-danger">-${fmt(m.expense)}</td>
+<td class="${m.net >= 0 ? 'text-success' : 'text-danger'}">${fmt(m.net)}</td>
+<td>${fmt(m.end_balance)}</td>
+</tr>`;
+            }
+        });
+        html += `</tbody>
+<tfoot><tr class="summary-row">
+<td>合计</td>
+<td class="text-success fw-bold">+${fmt(r.year_income)}</td>
+<td class="text-danger fw-bold">-${fmt(r.year_expense)}</td>
+<td class="${r.year_net >= 0 ? 'text-success' : 'text-danger'} fw-bold">${fmt(r.year_net)}</td>
+<td>—</td>
+</tr></tfoot>
+</table></div></div></div>`;
+    });
+
+    if (data.summary) {
+        html += `<div class="alert alert-primary">
+全年收入合计: <b class="text-success">¥${fmt(data.summary.total_income)}</b> |
+全年支出合计: <b class="text-danger">¥${fmt(data.summary.total_expense)}</b> |
+净流入: <b class="${data.summary.total_net >= 0 ? 'text-success' : 'text-danger'}">¥${fmt(data.summary.total_net)}</b>
+</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderARAPAgingReport(data, container) {
+    const arList = data.accounts_receivable || [];
+    const apList = data.accounts_payable || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-hourglass-split me-2"></i>${escapeHtml(data.title)} <small class="text-muted">截止${data.as_of_date}</small></h5>`;
+
+    function renderBucketSection(title, list, cls) {
+        if (!list || list.length === 0) return '';
+        let t = `<div class="card mb-3"><div class="card-header bg-${cls} text-white">${title}</div><div class="card-body p-0">
+<div class="table-responsive"><table class="table report-table mb-0">
+<thead><tr><th>公司</th><th>合计</th><th>1-30天</th><th>31-60天</th><th>61-90天</th><th>90天以上</th></tr></thead><tbody>`;
+        list.forEach(r => {
+            t += `<tr>
+<td>${escapeHtml(r.company_name)}</td>
+<td class="fw-bold">¥${fmt(r.total)}</td>
+<td class="text-success">¥${fmt(r.buckets.bucket_1_30)}</td>
+<td class="text-warning">¥${fmt(r.buckets.bucket_31_60)}</td>
+<td class="text-danger">¥${fmt(r.buckets.bucket_61_90)}</td>
+<td class="text-danger fw-bold">¥${fmt(r.buckets.bucket_over_90)}</td>
+</tr>`;
+        });
+        t += `</tbody></table></div></div></div>`;
+        return t;
+    }
+
+    html += renderBucketSection('应收账款', arList, 'success');
+    html += renderBucketSection('应付账款', apList, 'warning');
+
+    if (data.summary) {
+        html += `<div class="alert alert-info">
+应收总计: <b>¥${fmt(data.summary.total_ar)}</b> |
+应付总计: <b>¥${fmt(data.summary.total_ap)}</b> |
+净应收: <b class="${data.summary.net_position >= 0 ? 'text-success' : 'text-danger'}">¥${fmt(data.summary.net_position)}</b>
+</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderCustomerRevenueReport(data, container) {
+    const ranked = data.global_ranking || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-trophy me-2"></i>${escapeHtml(data.title)}</h5>`;
+
+    if (ranked.length === 0) {
+        container.innerHTML = html + '<div class="alert alert-info">暂无数据</div>';
+        return;
+    }
+
+    html += `<div class="table-responsive"><table class="table report-table">
+<thead><tr><th>排行</th><th>客户</th><th>公司</th><th>收入合计</th><th>笔数</th><th>平均单笔</th></tr></thead><tbody>`;
+    ranked.forEach(r => {
+        html += `<tr>
+<td><span class="badge ${r.rank <= 3 ? 'bg-warning' : 'bg-secondary'}">${r.rank}</span></td>
+<td>${escapeHtml(r.customer)}</td>
+<td>${escapeHtml(r.company)}</td>
+<td class="text-success fw-bold">¥${fmt(r.total)}</td>
+<td>${r.count}</td>
+<td>¥${fmt(r.avg_amount || (r.count ? r.total/r.count : 0))}</td>
+</tr>`;
+    });
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
+
+function renderSupplierExpenseReport(data, container) {
+    const rows = data.results || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-truck me-2"></i>${escapeHtml(data.title)}</h5>`;
+
+    if (rows.length === 0) {
+        container.innerHTML = html + '<div class="alert alert-info">暂无数据</div>';
+        return;
+    }
+
+    html += `<div class="table-responsive"><table class="table report-table">
+<thead><tr><th>排行</th><th>供应商</th><th>公司</th><th>支出合计</th><th>笔数</th><th>平均单笔</th></tr></thead><tbody>`;
+    rows.forEach(r => {
+        const types = Object.entries(r.types || {}).map(([k, v]) => `${escapeHtml(k)}:¥${fmt(v)}`).join(', ');
+        html += `<tr>
+<td><span class="badge bg-secondary">${r.rank}</span></td>
+<td>${escapeHtml(r.supplier)}</td>
+<td>${escapeHtml(r.company)}</td>
+<td class="text-danger fw-bold">¥${fmt(r.total)}</td>
+<td>${r.count}</td>
+<td>¥${fmt(r.count ? r.total/r.count : 0)}</td>
+</tr>
+<tr><td colspan="6" class="text-muted" style="font-size:0.78rem;padding-left:50px">${escapeHtml(types)}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    if (data.summary) {
+        html += `<div class="alert alert-warning">
+供应商总数: <b>${data.summary.supplier_count}</b> |
+支出总计: <b class="text-danger">¥${fmt(data.summary.total_expense)}</b>
+</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderTaxSummaryReport(data, container) {
+    const rows = data.results || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-receipt-cutoff me-2"></i>${escapeHtml(data.title)}</h5>`;
+
+    html += `<div class="table-responsive"><table class="table report-table">
+<thead><tr><th>公司</th><th>发票税额</th><th>工资代扣个税</th><th>税费合计</th></tr></thead><tbody>`;
+    rows.forEach(r => {
+        const total = (r.invoice_tax || 0) + (r.personal_tax || 0);
+        html += `<tr>
+<td>${escapeHtml(r.company_name)}</td>
+<td>¥${fmt(r.invoice_tax || 0)}</td>
+<td>¥${fmt(r.personal_tax || 0)}</td>
+<td class="fw-bold text-danger">¥${fmt(total)}</td>
+</tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    if (data.summary) {
+        html += `<div class="alert alert-danger">
+发票税额合计: <b>¥${fmt(data.summary.total_invoice_tax || 0)}</b> |
+工资个税合计: <b>¥${fmt(data.summary.total_personal_tax || 0)}</b> |
+<b>税费总计: ¥${fmt((data.summary.total_invoice_tax || 0) + (data.summary.total_personal_tax || 0))}</b>
+</div>`;
+    }
+    container.innerHTML = html;
+}
+
+function renderBudgetExecutionReport(data, container) {
+    const rows = data.results || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-graph-up-arrow me-2"></i>${escapeHtml(data.title)}</h5>`;
+
+    rows.forEach(r => {
+        html += `<div class="card mb-3"><div class="card-header fw-bold">${escapeHtml(r.company_name)}</div>
+<div class="card-body p-0"><div class="table-responsive"><table class="table report-table mb-0">
+<thead><tr><th>费用类型</th><th>实际支出</th></tr></thead><tbody>`;
+        (r.by_type || []).forEach(t => {
+            html += `<tr><td>${escapeHtml(t.label)}</td><td class="text-danger fw-bold">¥${fmt(t.actual)}</td></tr>`;
+        });
+        html += `<tr class="summary-row"><td>合计</td><td class="fw-bold">¥${fmt(r.total_actual)}</td></tr>`;
+        html += `</tbody></table></div></div></div>`;
+    });
+
+    if (data.summary) {
+        html += `<div class="alert alert-primary">
+<b>实际支出总计: ¥${fmt(data.summary.total_actual)}</b>
+</div>`;
+    }
+    container.innerHTML = html;
 }
 </script>
 {% endblock %}

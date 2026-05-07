@@ -14,7 +14,7 @@ class MaterialUsageLogSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'material', 'material_code', 'material_name',
             'project', 'project_name', 'quantity', 'used_by', 'used_by_name',
-            'used_at', 'remark'
+            'used_at', 'remark', 'company_id'
         ]
         read_only_fields = ['used_at']
 
@@ -32,7 +32,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'id', 'code', 'name', 'spec', 'category', 'category_display',
             'unit', 'stock', 'alert_threshold', 'unit_price',
             'supplier', 'supplier_name', 'project', 'project_name',
-            'remark', 'created_at', 'updated_at', 'created_by', 'created_by_name',
+            'remark', 'company_id', 'created_at', 'updated_at', 'created_by', 'created_by_name',
             'usage_logs'
         ]
         read_only_fields = ['code', 'created_at', 'updated_at']
@@ -49,7 +49,7 @@ class MaterialBOMNodeSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'bom', 'parent', 'child_material', 'child_material_code',
             'child_material_name', 'child_bom', 'child_bom_name',
-            'quantity', 'unit', 'sequence', 'remark'
+            'quantity', 'unit', 'sequence', 'remark', 'company_id'
         ]
         extra_kwargs = {'bom': {'required': False}}  # bom from URL, not payload
 
@@ -89,7 +89,7 @@ class MaterialBOMSerializer(serializers.ModelSerializer):
         model = MaterialBOM
         fields = ['id', 'name', 'material', 'material_code', 'material_name',
                   'version', 'remark', 'created_at', 'updated_at',
-                  'created_by', 'created_by_name', 'is_active', 'node_count']
+                  'created_by', 'created_by_name', 'is_active', 'node_count', 'company_id']
         read_only_fields = ['created_at', 'updated_at', 'created_by']
 
 

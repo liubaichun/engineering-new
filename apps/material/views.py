@@ -39,22 +39,26 @@ class MaterialViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = Material.objects.all()
+        qs = Material.objects.select_related('supplier', 'project', 'project__company')
         user = self.request.user
         if user.is_superuser:
             return qs
-        if hasattr(user, 'company') and user.company_id:
-            return qs.filter(project__company_id=user.company_id)
+        if hasattr(user, 'company_id') and user.company_id:
+            return qs.filter(models.Q(company_id=user.company_id) | models.Q(project__company_id=user.company_id))
         return qs.none()
 
     def perform_create(self, serializer):
         user = self.request.user
         project = serializer.validated_data.get('project')
-        if project and hasattr(user, 'company') and user.company_id:
+        company_id = getattr(user, 'company_id', None)
+        if project and hasattr(user, 'company_id') and user.company_id:
             if project.company_id != user.company_id:
                 from django.core.exceptions import PermissionDenied
                 raise PermissionDenied("无权在此项目下创建物料")
-        serializer.save(created_by=user if user.is_authenticated else None)
+        if company_id and not serializer.validated_data.get('company_id'):
+            serializer.save(created_by=user if user.is_authenticated else None, company_id=company_id)
+        else:
+            serializer.save(created_by=user if user.is_authenticated else None)
 
     @action(detail=False, methods=['get'])
     def stock_alerts(self, request):
@@ -107,9 +111,13 @@ class MaterialViewSet(viewsets.ModelViewSet):
             'remark': remark,
         })
         if serializer.is_valid():
-            serializer.save(
-                used_by=request.user if request.user.is_authenticated else None
-            )
+            company_id = getattr(request.user, 'company_id', None)
+            save_kwargs = {
+                'used_by': request.user if request.user.is_authenticated else None,
+            }
+            if company_id:
+                save_kwargs['company_id'] = company_id
+            serializer.save(**save_kwargs)
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
@@ -126,12 +134,16 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        qs = MaterialBOM.objects.all()
+        qs = MaterialBOM.objects.select_related('material', 'material__project')
         user = self.request.user
         if user.is_superuser:
             return qs
-        if hasattr(user, 'company') and user.company_id:
-            return qs.filter(material__project__company_id=user.company_id)
+        if hasattr(user, 'company_id') and user.company_id:
+            return qs.filter(
+                models.Q(company_id=user.company_id) |
+                models.Q(material__company_id=user.company_id) |
+                models.Q(material__project__company_id=user.company_id)
+            )
         return qs.none()
 
     def get_serializer_class(self):
@@ -140,7 +152,12 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
         return MaterialBOMSerializer
 
     def perform_create(self, serializer):
-        serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
+        user = self.request.user
+        company_id = getattr(user, 'company_id', None)
+        if company_id and not serializer.validated_data.get('company_id'):
+            serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None, company_id=company_id)
+        else:
+            serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
 
     @action(detail=True, methods=['get'])
     def tree(self, request, pk=None):
@@ -176,7 +193,11 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
         }
         serializer = MaterialBOMNodeSerializer(data=data)
         if serializer.is_valid():
-            serializer.save()
+            company_id = getattr(request.user, 'company_id', None)
+            save_kwargs = {}
+            if company_id:
+                save_kwargs['company_id'] = company_id
+            serializer.save(**save_kwargs)
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
@@ -227,7 +248,11 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             'remark': request.data.get('remark', ''),
         })
         if serializer.is_valid():
-            serializer.save()
+            company_id = getattr(self.request.user, 'company_id', None)
+            save_kwargs = {}
+            if company_id:
+                save_kwargs['company_id'] = company_id
+            serializer.save(**save_kwargs)
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 

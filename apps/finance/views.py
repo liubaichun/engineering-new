@@ -1,8 +1,28 @@
+import functools
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from apps.core.auth import CSRFExemptSessionAuthentication
+
+
+def _get_user_company_id(user):
+    """从登录用户自动提取当前公司ID（用于多租户自动上下文）
+    超级用户返回 None（不限制公司），普通用户返回其主公司ID。
+    """
+    if not user or not user.is_authenticated:
+        return None
+    if user.is_superuser:
+        return None
+    # 优先从 UserCompanyRole 取主公司
+    from apps.core.models import UserCompanyRole
+    ucr = UserCompanyRole.objects.filter(user=user, is_primary=True).first()
+    if ucr:
+        return ucr.company_id
+    # 兼容旧字段
+    if hasattr(user, 'company_id') and user.company_id:
+        return user.company_id
+    return None
 
 
 def _check_perm(request, *perm_codes):
@@ -20,6 +40,7 @@ def _check_perm(request, *perm_codes):
 def _require_perms(*perm_codes):
     """装饰器：校验权限，无权限返回 403"""
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(self, request, *args, **kwargs):
             if not _check_perm(request, *perm_codes):
                 msg = '需要权限: ' + ' / '.join(perm_codes)
@@ -34,6 +55,7 @@ from django.db.models import Sum, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
+from .models_bank import BankAccount, BankStatement
 from .serializers import (
     CompanySerializer,
     IncomeSerializer,
@@ -57,9 +79,13 @@ class CompanyViewSet(viewsets.ModelViewSet):
     filterset_class = CompanyFilter
 
     def get_queryset(self):
-        # 多租户隔离已移除 - 所有用户可访问所有公司数据
+        # 多租户隔离：普通用户只看自己所属公司，超级用户可看所有
         if not self.request.user.is_authenticated:
             return Company.objects.none()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                return Company.objects.filter(id=user.company_id)
         return Company.objects.all()
 
     def perform_create(self, serializer):
@@ -68,6 +94,20 @@ class CompanyViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'code', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
+
+    @action(detail=True, methods=['get'])
+    def bank_accounts(self, request, pk=None):
+        """获取公司的银行账户列表"""
+        company = self.get_object()
+        accounts = BankAccount.objects.filter(company=company, is_active=True)
+        data = [{
+            'id': a.id,
+            'bank_code': a.bank_code,
+            'bank_name': a.bank_name,
+            'account_no': a.account_no,
+            'account_name': a.account_name,
+        } for a in accounts]
+        return Response({'bank_accounts': data})
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
@@ -107,7 +147,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -270,7 +313,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -419,7 +465,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related(
             'company', 'approver', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
         ).prefetch_related('approval_flow')
@@ -448,8 +497,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         ec_id = self._resolve_employee_company(emp_id, company_id)
         serializer.save(employee_company_id=ec_id)
 
-    @_require_perms('finance:wage:approve')
     @action(detail=True, methods=['post'])
+    @_require_perms('finance:wage:approve')
     def approve(self, request, pk=None):
         """批准工资单"""
         wage_record = self.get_object()
@@ -462,8 +511,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.save()
         return Response({'status': 'success', 'message': '工资单已批准'})
 
-    @_require_perms('finance:wage:pay')
     @action(detail=True, methods=['post'])
+    @_require_perms('finance:wage:pay')
     def pay(self, request, pk=None):
         """发放工资"""
         wage_record = self.get_object()
@@ -475,8 +524,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.save()
         return Response({'status': 'success', 'message': '工资已发放'})
 
-    @_require_perms('finance:wage:submit')
     @action(detail=True, methods=['post'])
+    @_require_perms('finance:wage:submit')
     def submit(self, request, pk=None):
         """提交工资单进行审核"""
         wage_record = self.get_object()
@@ -556,6 +605,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         year = request.query_params.get('year')
         month = request.query_params.get('month')
+        # 自动多租户：get_queryset 已过滤，无需重复处理
+        # company_id 仍支持前端指定（超管可指定，普通用户被 get_queryset 限制）
         company_id = request.query_params.get('company')
 
         queryset = self.get_queryset()
@@ -624,6 +675,268 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         ))
         buf = export_wage_records(records)
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
+
+    @action(detail=True, methods=['get'])
+    @_require_perms('finance:wage:view')
+    def pdf(self, request, pk=None):
+        """生成单张工资条 PDF"""
+        wage_record = self.get_object()
+        from apps.finance.services.wage_pdf import generate_wage_slip_pdf
+        pdf_bytes = generate_wage_slip_pdf(wage_record)
+        filename = f"工资条_{wage_record.employee_name}_{wage_record.year}年{wage_record.month}月.pdf"
+        from django.http import HttpResponse
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @_require_perms('finance:wage:view')
+    @action(detail=False, methods=['get'])
+    def pdf_batch(self, request):
+        """批量生成工资条 PDF（支持指定 year/month/company）"""
+        from apps.finance.services.wage_pdf import generate_wage_slip_pdf
+        from PyPDF2 import PdfReader, PdfWriter
+        import io
+
+        queryset = self.get_queryset()
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        company_id = request.GET.get('company_id')
+        if year:
+            queryset = queryset.filter(year=int(year))
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if company_id:
+            queryset = queryset.filter(company_id=int(company_id))
+
+        records = list(queryset.select_related(
+            'company', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
+        ))
+
+        if not records:
+            return Response({'status': 'error', 'message': '没有找到符合条件的工资单'}, status=400)
+
+        # 逐条生成 PDF，再合并
+        writer = PdfWriter()
+        for wr in records:
+            pdf_bytes = generate_wage_slip_pdf(wr)
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            for page in reader.pages:
+                writer.add_page(page)
+
+        output = io.BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        period_str = f"{year or '全部'}-{month or '全部'}"
+        filename = f"工资条批量_{period_str}_{timezone.now().strftime('%Y%m%d')}.pdf"
+        from django.http import HttpResponse
+        response = HttpResponse(output.getvalue(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @action(detail=False, methods=['get'])
+    @_require_perms('finance:wage:view')
+    def bank_export(self, request):
+        """导出银行代发文件（支持工行/建行格式）
+        GET ?year=&month=&company_id=&bank_type=ICBC|CCB|GENERIC
+        """
+        from apps.finance.services.wage_bank import (
+            generate_icbc_batch_file, generate_ccb_batch_file,
+            generate_generic_batch_file, make_bank_export_response
+        )
+
+        queryset = self.get_queryset().filter(status__in=['approved', 'paid'])
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        company_id = request.GET.get('company_id')
+        bank_type = request.GET.get('bank_type', 'ICBC').upper()
+
+        if year:
+            queryset = queryset.filter(year=int(year))
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if company_id:
+            queryset = queryset.filter(company_id=int(company_id))
+
+        records = list(queryset.select_related(
+            'company', 'employee', 'employee_company'
+        ))
+
+        if not records:
+            return Response({'status': 'error', 'message': '没有符合条件的已审批工资单'}, status=400)
+
+        company_name = records[0].company.name if records else ''
+        period_str = f"{year or '全部'}{month or '全部'}"
+
+        if bank_type == 'ICBC':
+            content = generate_icbc_batch_file(records, company_name)
+            filename = f"工行代发_{period_str}_{timezone.now().strftime('%Y%m%d')}.txt"
+            response = make_bank_export_response(content, filename, 'text/plain; charset=gbk')
+        else:
+            content = generate_ccb_batch_file(records)
+            filename = f"建行代发_{period_str}_{timezone.now().strftime('%Y%m%d')}.csv"
+            response = make_bank_export_response(content, filename, 'text/csv; charset=utf-8')
+
+        return response
+
+    @_require_perms('finance:wage:view')
+    @action(detail=False, methods=['get'])
+    def wage_slips(self, request):
+        """获取工资条页面所需数据（发送给前端渲染）"""
+        queryset = self.get_queryset()
+        year = request.GET.get('year')
+        month = request.GET.get('month')
+        company_id = request.GET.get('company_id')
+        if year:
+            queryset = queryset.filter(year=int(year))
+        if month:
+            queryset = queryset.filter(month=int(month))
+        if company_id:
+            queryset = queryset.filter(company_id=int(company_id))
+        records = queryset.select_related(
+            'company', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
+        )[:50]  # 限制50条
+
+        data = WageRecordSerializer(records, many=True).data
+        return Response({'records': data, 'count': queryset.count()})
+
+    @action(detail=False, methods=['post'])
+    def import_excel(self, request):
+        """批量导入工资 Excel（按姓名匹配员工）
+        POST 上传 Excel file，form-data 字段名: file
+        Query params: year=&month=&company_id=
+        Excel 格式：第1行表头，数据从第2行起，必需列：姓名
+        """
+        from apps.finance.services.wage_import import import_wage_excel, WageImportError
+        from apps.finance.models import WageRecord, Employee, EmployeeCompany
+
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+
+        year = request.POST.get('year') or request.data.get('year')
+        month = request.POST.get('month') or request.data.get('month')
+        company_id = request.data.get('company_id')
+        cid = _get_user_company_id(request.user)
+        if company_id is None and cid is not None:
+            company_id = cid
+        company_id = int(company_id) if company_id else None
+
+        defaults = {}
+        if year:
+            defaults['year'] = int(year)
+        if month:
+            defaults['month'] = int(month)
+
+        try:
+            file_bytes = file.read()
+            records, parse_errors = import_wage_excel(file_bytes, company_id or 0, defaults)
+        except WageImportError as e:
+            return Response({'success': False, 'message': str(e)}, status=400)
+        except Exception as e:
+            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+
+        if not records:
+            return Response({
+                'success': False,
+                'message': 'Excel 中无有效数据行',
+                'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors]
+            }, status=400)
+
+        created = 0
+        skipped = []
+        for rec in records:
+            # 按姓名查找员工
+            emp_name = rec.get('employee_name', '').strip()
+            ec = None
+            if company_id:
+                ec = EmployeeCompany.objects.filter(
+                    employee__name=emp_name, company_id=company_id
+                ).select_related('employee').order_by('-is_primary').first()
+            if not ec:
+                ec = EmployeeCompany.objects.filter(
+                    employee__name=emp_name
+                ).select_related('employee').order_by('-is_primary').first()
+
+            if not ec:
+                skipped.append(f"「{emp_name}」未找到对应员工")
+                continue
+
+            # 检查是否已存在
+            existing = WageRecord.objects.filter(
+                company_id=company_id or ec.company_id,
+                employee_company=ec,
+                year=rec.get('year'),
+                month=rec.get('month'),
+            ).exists()
+            if existing:
+                skipped.append(f"「{emp_name}」{rec.get('year')}年{rec.get('month')}月工资记录已存在，跳过")
+                continue
+
+            # 构建工资记录（自动计算实发）
+            from decimal import Decimal
+            net = (
+                Decimal(str(rec.get('base_salary') or 0)) +
+                Decimal(str(rec.get('position_salary') or 0)) +
+                Decimal(str(rec.get('overtime_pay') or 0)) +
+                Decimal(str(rec.get('bonus') or 0)) +
+                Decimal(str(rec.get('commission') or 0)) +
+                Decimal(str(rec.get('meal_allowance') or 0)) +
+                Decimal(str(rec.get('transport_allowance') or 0)) +
+                Decimal(str(rec.get('communication_allowance') or 0)) +
+                Decimal(str(rec.get('other_allowance') or 0))
+            ) - (
+                Decimal(str(rec.get('social_insurance') or 0)) +
+                Decimal(str(rec.get('housing_fund') or 0)) +
+                Decimal(str(rec.get('leave_deduction') or 0)) +
+                Decimal(str(rec.get('sick_leave_deduction') or 0)) +
+                Decimal(str(rec.get('other_deductions') or 0))
+            )
+
+            gross = (
+                Decimal(str(rec.get('base_salary') or 0)) + Decimal(str(rec.get('position_salary') or 0)) +
+                Decimal(str(rec.get('overtime_pay') or 0)) + Decimal(str(rec.get('bonus') or 0)) +
+                Decimal(str(rec.get('commission') or 0)) + Decimal(str(rec.get('meal_allowance') or 0)) +
+                Decimal(str(rec.get('transport_allowance') or 0)) +
+                Decimal(str(rec.get('communication_allowance') or 0)) + Decimal(str(rec.get('other_allowance') or 0))
+            )
+
+            WageRecord.objects.create(
+                company_id=ec.company_id,
+                employee_company=ec,
+                employee=ec.employee,
+                employee_name=ec.employee.name,
+                bank_card=rec.get('bank_card') or ec.employee.bank_card or '',
+                year=rec.get('year'),
+                month=rec.get('month'),
+                base_salary=rec.get('base_salary') or Decimal('0'),
+                position_salary=rec.get('position_salary') or Decimal('0'),
+                overtime_pay=rec.get('overtime_pay') or Decimal('0'),
+                bonus=rec.get('bonus') or Decimal('0'),
+                commission=rec.get('commission') or Decimal('0'),
+                meal_allowance=rec.get('meal_allowance') or Decimal('0'),
+                transport_allowance=rec.get('transport_allowance') or Decimal('0'),
+                communication_allowance=rec.get('communication_allowance') or Decimal('0'),
+                other_allowance=rec.get('other_allowance') or Decimal('0'),
+                social_insurance=rec.get('social_insurance') or Decimal('0'),
+                housing_fund=rec.get('housing_fund') or Decimal('0'),
+                leave_days=rec.get('leave_days') or 0,
+                leave_deduction=rec.get('leave_deduction') or Decimal('0'),
+                sick_leave_days=rec.get('sick_leave_days') or 0,
+                sick_leave_deduction=rec.get('sick_leave_deduction') or Decimal('0'),
+                other_deductions=rec.get('other_deductions') or Decimal('0'),
+                gross_salary=gross,
+                net_salary=net,
+                status='draft',
+            )
+            created += 1
+
+        return Response({
+            'success': created > 0,
+            'message': f'成功导入 {created} 条工资记录' + (f'，跳过 {len(skipped)} 条' if skipped else ''),
+            'skipped': skipped[:20],
+            'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors],
+        })
 
     @action(detail=False, methods=['post'])
     def calc(self, request):
@@ -783,7 +1096,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        cid = _get_user_company_id(self.request.user)
+        if cid is not None:
+            qs = qs.filter(company_id=cid)
         return qs.select_related('company', 'project')
 
     def perform_create(self, serializer):
@@ -912,7 +1228,11 @@ class ReportViewSet(viewsets.ViewSet):
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
 
-        # 多租户隔离已移除 - 所有用户可访问所有公司数据
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            # 强制限制为用户所属公司（忽略前端传的 company_id 参数，防止越权）
+            company_id = user_company_id
 
         # 构建筛选条件
         income_qs = Income.objects.all()
@@ -973,7 +1293,10 @@ class ReportViewSet(viewsets.ViewSet):
         """年度报表 - 按公司+年份统计"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
-        # 多租户隔离已移除
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            company_id = user_company_id
 
         income_qs = Income.objects.all()
         expense_qs = Expense.objects.all()
@@ -1029,7 +1352,10 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        # 多租户隔离已移除
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            company_id = user_company_id
 
         queryset = WageRecord.objects.all()
         if year:
@@ -1085,7 +1411,10 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
         invoice_type = request.query_params.get('type')  # income or expense
-        # 多租户隔离已移除
+        # 自动多租户：普通用户只看本公司数据，超管看全部
+        user_company_id = _get_user_company_id(request.user)
+        if user_company_id is not None:
+            company_id = user_company_id
 
         queryset = Invoice.objects.all()
         if year:
@@ -1211,10 +1540,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # 多租户隔离已移除 - 所有用户可访问所有员工数据
+        # 多租户隔离：普通用户只看本公司员工
         if not self.request.user.is_authenticated:
             return Employee.objects.none()
-        return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
+        queryset = Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                queryset = queryset.filter(company_id=user.company_id)
+        return queryset
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -1291,9 +1625,13 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        # 多租户隔离已移除 - 所有用户可访问所有社保配置
+        # 多租户隔离：普通用户只看本公司社保配置
         if not self.request.user.is_authenticated:
             return CompanySocialConfig.objects.none()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                return CompanySocialConfig.objects.filter(company_id=user.company_id)
         return CompanySocialConfig.objects.all()
 
 
@@ -1308,7 +1646,14 @@ class ARAPViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """GET /api/finance/ar-ap/ - 一次性返回应收应付汇总"""
+        # 多租户隔离：非超级用户强制使用自己的公司ID
+        user = request.user
         company_id = request.query_params.get('company')
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                # 忽略前端传入的其他公司ID，强制过滤为自己公司
+                if not company_id or int(company_id) != user.company_id:
+                    company_id = user.company_id
         from django.db.models import Sum, Min, Max, Count
         ar_qs = Invoice.objects.filter(type='income', status__in=['pending', 'issued'])
         ap_qs = Invoice.objects.filter(type='expense', status__in=['pending', 'issued'])
@@ -1395,7 +1740,11 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有数据
+        # 多租户隔离：普通用户只看本公司员工的任职记录
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                qs = qs.filter(company_id=user.company_id)
         return qs
 
     def perform_create(self, serializer):

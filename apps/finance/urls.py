@@ -2,6 +2,9 @@ from django.urls import path, include
 from config.routers import IntegerPkRouter
 from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet
 from . import import_views
+from . import bank_import_views
+from . import reports_v2
+from django.shortcuts import render
 
 router = IntegerPkRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -21,4 +24,15 @@ urlpatterns = [
     path('import/incomes/', import_views.import_incomes, name='import-incomes'),
     path('import/expenses/', import_views.import_expenses, name='import-expenses'),
     path('import/employees/', import_views.import_employees, name='import-employees'),
+    path('import/bank-statement/preview/', bank_import_views.preview_bank_statement, name='bank-statement-preview'),
+    path('import/bank-statement/confirm/', bank_import_views.confirm_bank_import, name='bank-statement-confirm'),
+    path('import/bank-statement/banks/', bank_import_views.list_banks, name='bank-statement-banks'),
+    path('bank-import/', lambda request: render(request, 'finance/bank_statement_import.html'), name='bank-import'),
+    # 补充报表API
+    path('reports/cash-flow/', reports_v2.cash_flow_report, name='report-cash-flow'),
+    path('reports/ar-ap-aging/', reports_v2.ar_ap_aging_report, name='report-ar-ap-aging'),
+    path('reports/customer-revenue/', reports_v2.customer_revenue_report, name='report-customer-revenue'),
+    path('reports/supplier-expense/', reports_v2.supplier_expense_report, name='report-supplier-expense'),
+    path('reports/tax-summary/', reports_v2.tax_summary_report, name='report-tax-summary'),
+    path('reports/budget-execution/', reports_v2.budget_execution_report, name='report-budget-execution'),
 ]

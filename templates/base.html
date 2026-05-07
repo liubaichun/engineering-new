@@ -478,13 +478,20 @@
     
     <div class="sidebar-nav">
         {% block sidebar_nav %}
-        <!-- ===== 核心业务（始终显示）===== -->
+        <!-- ===== 简化侧边栏：9分组，20项 ===== -->
+        <!-- 分组1：首页 -->
         <div class="sidebar-section">
+            <div class="sidebar-section-title">导航</div>
             <a href="/dashboard/" class="nav-link {% if request.path == '/dashboard/' %}active{% endif %}">
                 <i class="bi bi-speedometer2"></i><span>控制台</span>
             </a>
+        </div>
+
+        <!-- 分组2：项目 -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">项目</div>
             {% if 'project.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/projects/" class="nav-link {% if '/projects' in request.path %}active{% endif %}">
+            <a href="/projects/" class="nav-link {% if '/projects' in request.path and '/gantt' not in request.path %}active{% endif %}">
                 <i class="bi bi-briefcase"></i><span>项目管理</span>
             </a>
             {% endif %}
@@ -493,6 +500,11 @@
                 <i class="bi bi-kanban"></i><span>任务看板</span>
             </a>
             {% endif %}
+        </div>
+
+        <!-- 分组3：审批 -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">审批</div>
             {% if 'approval.view' in user_menu_codes or request.user.is_superuser %}
             <a href="/approvals/" class="nav-link {% if '/approvals' in request.path and '/approvals/templates' not in request.path %}active{% endif %}">
                 <i class="bi bi-git-branch"></i><span>审批管理</span>
@@ -500,7 +512,7 @@
             {% endif %}
         </div>
 
-        <!-- ===== 财务管理 ===== -->
+        <!-- 分组4：财务（工资+员工+收支+发票+报表+流水） -->
         {% if 'wage.view' in user_menu_codes or 'income.view' in user_menu_codes or 'expense.view' in user_menu_codes or 'invoice.view' in user_menu_codes or 'report.view' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">财务</div>
@@ -514,14 +526,9 @@
                 <i class="bi bi-person-badge"></i><span>员工管理</span>
             </a>
             {% endif %}
-            {% if 'income.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/finance/incomes/" class="nav-link {% if '/finance/incomes' in request.path %}active{% endif %}">
-                <i class="bi bi-arrow-down-circle"></i><span>收入管理</span>
-            </a>
-            {% endif %}
-            {% if 'expense.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/finance/expenses/" class="nav-link {% if '/finance/expenses' in request.path %}active{% endif %}">
-                <i class="bi bi-arrow-up-circle"></i><span>支出管理</span>
+            {% if 'income.view' in user_menu_codes or 'expense.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/incomes/" class="nav-link {% if '/finance/incomes' in request.path or '/finance/expenses' in request.path %}active{% endif %}">
+                <i class="bi bi-cash-stack"></i><span>收支管理</span>
             </a>
             {% endif %}
             {% if 'invoice.view' in user_menu_codes or request.user.is_superuser %}
@@ -534,21 +541,22 @@
                 <i class="bi bi-bar-chart"></i><span>财务报表</span>
             </a>
             {% endif %}
+            <a href="/finance/bank-import/" class="nav-link {% if '/finance/bank-import' in request.path %}active{% endif %}">
+                <i class="bi bi-bank"></i><span>银行流水</span>
+            </a>
         </div>
         {% endif %}
 
-        <!-- ===== 项目资源 ===== -->
-        {% if 'client.view' in user_menu_codes or 'contract.view' in user_menu_codes or 'supplier_view' in user_menu_codes or request.user.is_superuser %}
+        <!-- 分组5：CRM（客户+合同+供应商+商机） -->
+        {% if 'client.view' in user_menu_codes or 'contract.view' in user_menu_codes or 'supplier_view' in user_menu_codes or 'opportunity.view' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
-            <div class="sidebar-section-title">资源</div>
-            {% if 'client.view' in user_menu_codes or request.user.is_superuser %}
+            <div class="sidebar-section-title">CRM</div>
             <a href="/crm/clients/" class="nav-link {% if '/crm/clients' in request.path %}active{% endif %}">
-                <i class="bi bi-building"></i><span>客户</span>
+                <i class="bi bi-building"></i><span>客户管理</span>
             </a>
-            {% endif %}
             {% if 'contract.view' in user_menu_codes or request.user.is_superuser %}
             <a href="/crm/contracts/" class="nav-link {% if '/crm/contracts' in request.path %}active{% endif %}">
-                <i class="bi bi-file-earmark-text"></i><span>合同</span>
+                <i class="bi bi-file-earmark-text"></i><span>合同管理</span>
             </a>
             {% endif %}
             {% if 'supplier_view' in user_menu_codes or request.user.is_superuser %}
@@ -556,15 +564,58 @@
                 <i class="bi bi-truck"></i><span>供应商</span>
             </a>
             {% endif %}
-            {% if 'file.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/files/" class="nav-link {% if request.path == '/files/' %}active{% endif %}">
-                <i class="bi bi-folder"></i><span>文件</span>
+            {% if 'opportunity.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/crm/opportunities/" class="nav-link {% if '/crm/opportunities' in request.path %}active{% endif %}">
+                <i class="bi bi-graph-up"></i><span>商机</span>
             </a>
             {% endif %}
         </div>
         {% endif %}
 
-        <!-- ===== 系统管理（管理员）===== -->
+        <!-- 分组6：采购（申请+订单+入库） -->
+        {% if request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">采购</div>
+            <a href="/purchasing/requests/" class="nav-link {% if '/purchasing/requests' in request.path %}active{% endif %}">
+                <i class="bi bi-cart-plus"></i><span>采购申请</span>
+            </a>
+            <a href="/purchasing/orders/" class="nav-link {% if '/purchasing/orders' in request.path %}active{% endif %}">
+                <i class="bi bi-file-earmark-minus"></i><span>采购订单</span>
+            </a>
+            <a href="/purchasing/receives/" class="nav-link {% if '/purchasing/receives' in request.path %}active{% endif %}">
+                <i class="bi bi-box-seam"></i><span>采购入库</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- 分组7：运营（物料+设备+文件） -->
+        {% if 'file.view' in user_menu_codes or 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">运营</div>
+            {% if 'material.list' in user_menu_codes or request.user.is_superuser %}
+            <a href="/materials/" class="nav-link {% if '/materials' in request.path %}active{% endif %}">
+                <i class="bi bi-box-seam"></i><span>物料</span>
+            </a>
+            {% endif %}
+            {% if 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+            <a href="/equipment/" class="nav-link {% if '/equipment' in request.path and '/repair' not in request.path %}active{% endif %}">
+                <i class="bi bi-tools"></i><span>设备</span>
+            </a>
+            {% endif %}
+            {% if 'file.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/files/" class="nav-link {% if request.path == '/files/' %}active{% endif %}">
+                <i class="bi bi-folder"></i><span>文件</span>
+            </a>
+            {% endif %}
+            {% if request.user.is_superuser %}
+            <a href="/repair/requests/" class="nav-link {% if '/repair/requests' in request.path %}active{% endif %}">
+                <i class="bi bi-wrench"></i><span>设备报修</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- 分组8：系统（公司+用户+角色+权限+审计+API+参数+通知） -->
         {% if 'user.view' in user_menu_codes or 'role.view' in user_menu_codes or 'permission.view' in user_menu_codes or 'company.view' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">系统</div>
@@ -573,19 +624,9 @@
                 <i class="bi bi-building"></i><span>公司</span>
             </a>
             {% endif %}
-            {% if 'user.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/system/users/" class="nav-link {% if '/system/users' in request.path %}active{% endif %}">
-                <i class="bi bi-people"></i><span>用户</span>
-            </a>
-            {% endif %}
-            {% if 'role.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/system/roles/" class="nav-link {% if '/system/roles' in request.path %}active{% endif %}">
-                <i class="bi bi-shield"></i><span>角色</span>
-            </a>
-            {% endif %}
-            {% if 'permission.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/system/permissions/" class="nav-link {% if '/system/permissions' in request.path %}active{% endif %}">
-                <i class="bi bi-key"></i><span>权限</span>
+            {% if 'user.view' in user_menu_codes or 'role.view' in user_menu_codes or 'permission.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/system/users/" class="nav-link {% if '/system/users' in request.path or '/system/roles' in request.path or '/system/permissions' in request.path %}active{% endif %}">
+                <i class="bi bi-shield"></i><span>用户权限</span>
             </a>
             {% endif %}
             <a href="/system/audit-logs/" class="nav-link {% if '/system/audit-logs' in request.path %}active{% endif %}">
@@ -599,7 +640,7 @@
                 <i class="bi bi-gear-wide-connected"></i><span>系统参数</span>
             </a>
             <a href="/system/notification-channels/" class="nav-link {% if '/system/notification-channels' in request.path %}active{% endif %}">
-                <i class="bi bi-speedometer"></i><span>通知渠道</span>
+                <i class="bi bi-bell-fill"></i><span>通知渠道</span>
             </a>
             <a href="/warnings/" class="nav-link {% if '/warnings' in request.path %}active{% endif %}">
                 <i class="bi bi-shield-exclamation"></i><span>预警中心</span>
@@ -609,28 +650,18 @@
         </div>
         {% endif %}
 
-        <!-- ===== 辅助功能（始终折叠）===== -->
-        {% if 'stats.view' in user_menu_codes or 'notification.view' in user_menu_codes or 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+        <!-- 分组9：数据 -->
+        {% if 'stats.view' in user_menu_codes or 'notification.view' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
-            <div class="sidebar-section-title">工具</div>
-            {% if 'notification.view' in user_menu_codes or request.user.is_superuser %}
-            <a href="/notifications/" class="nav-link">
-                <i class="bi bi-bell"></i><span>通知</span>
-            </a>
-            {% endif %}
+            <div class="sidebar-section-title">数据</div>
             {% if 'stats.view' in user_menu_codes or request.user.is_superuser %}
             <a href="/stats/" class="nav-link">
                 <i class="bi bi-pie-chart"></i><span>数据统计</span>
             </a>
             {% endif %}
-            {% if 'material.list' in user_menu_codes or request.user.is_superuser %}
-            <a href="/materials/" class="nav-link {% if '/materials' in request.path %}active{% endif %}">
-                <i class="bi bi-box-seam"></i><span>物料</span>
-            </a>
-            {% endif %}
-            {% if 'equipment.list' in user_menu_codes or request.user.is_superuser %}
-            <a href="/equipment/" class="nav-link {% if '/equipment' in request.path %}active{% endif %}">
-                <i class="bi bi-tools"></i><span>设备</span>
+            {% if 'notification.view' in user_menu_codes or request.user.is_superuser %}
+            <a href="/notifications/" class="nav-link">
+                <i class="bi bi-inbox"></i><span>我的通知</span>
             </a>
             {% endif %}
         </div>

@@ -2,8 +2,13 @@ from rest_framework import viewsets, mixins
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Client, Contract, Supplier, ClientSource
-from .serializers import ClientSerializer, ContractSerializer, SupplierSerializer, ClientSourceSerializer
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog, Opportunity
+from .serializers import (
+    ClientSerializer, ContractSerializer, SupplierSerializer,
+    ClientSourceSerializer, ContactSerializer, FollowUpRecordSerializer,
+    PaymentPlanSerializer, ContractChangeLogSerializer,
+    OpportunitySerializer, OpportunityStageStatsSerializer,
+)
 from rest_framework.permissions import IsAuthenticated
 
 class ClientSourceViewSet(viewsets.ModelViewSet):
@@ -14,7 +19,13 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
     search_fields = ['name']
 
     def get_queryset(self):
-        return ClientSource.objects.all()
+        user = self.request.user
+        base_qs = ClientSource.objects.select_related('company')
+        if user.is_superuser:
+            return base_qs
+        if hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(company_id=user.company_id)
+        return ClientSource.objects.none()
 
 class SupplierViewSet(viewsets.ModelViewSet):
     """供应商管理"""
@@ -25,9 +36,13 @@ class SupplierViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有供应商数据
-        return queryset
+        user = self.request.user
+        base_qs = Supplier.objects.select_related('created_by', 'company')
+        if user.is_superuser:
+            return base_qs
+        if hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(company_id=user.company_id)
+        return Supplier.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -54,9 +69,13 @@ class ClientViewSet(viewsets.ModelViewSet):
     filterset_fields = ['category', 'is_active']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有客户数据
-        return queryset
+        user = self.request.user
+        base_qs = Client.objects.select_related('source', 'created_by', 'company')
+        if user.is_superuser:
+            return base_qs
+        if hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(company_id=user.company_id)
+        return Client.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -83,9 +102,13 @@ class ContractViewSet(viewsets.ModelViewSet):
     filterset_fields = ['counterparty_type', 'client', 'supplier', 'project', 'status']
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        # 多租户隔离已移除 - 所有用户可访问所有合同数据
-        return queryset
+        user = self.request.user
+        base_qs = Contract.objects.select_related('client', 'supplier', 'project', 'created_by', 'company')
+        if user.is_superuser:
+            return base_qs
+        if hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(company_id=user.company_id)
+        return Contract.objects.none()
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
@@ -107,9 +130,9 @@ class ContractViewSet(viewsets.ModelViewSet):
         contract = self.get_object()
         if contract.status not in ['draft', 'pending']:
             return Response({'detail': f'当前状态不允许审批（当前状态：{contract.status}）'}, status=400)
-        contract.status = 'approved'
+        contract.status = 'active'
         contract.save()
-        return Response({'detail': '已批准', 'status': contract.status})
+        return Response({'detail': '已批准，合同生效', 'status': contract.status})
 
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
@@ -117,6 +140,330 @@ class ContractViewSet(viewsets.ModelViewSet):
         comment = request.data.get('comment', '')
         if contract.status not in ['draft', 'pending']:
             return Response({'detail': f'当前状态不允许驳回（当前状态：{contract.status}）'}, status=400)
-        contract.status = 'rejected'
+        contract.status = 'terminated'
         contract.save()
         return Response({'detail': '已驳回', 'comment': comment, 'status': contract.status})
+
+    @action(detail=True, methods=['post'])
+    def activate(self, request, pk=None):
+        """合同生效"""
+        contract = self.get_object()
+        if contract.status != 'draft':
+            return Response({'detail': '只有草稿状态可以生效'}, status=400)
+        contract.status = 'active'
+        contract.save()
+        return Response({'detail': '合同已生效', 'status': contract.status})
+
+    @action(detail=True, methods=['post'])
+    def complete(self, request, pk=None):
+        """合同完成"""
+        contract = self.get_object()
+        if contract.status != 'active':
+            return Response({'detail': '只有执行中状态可以完成'}, status=400)
+        contract.status = 'completed'
+        contract.save()
+        return Response({'detail': '合同已完成', 'status': contract.status})
+
+    @action(detail=True, methods=['post'])
+    def terminate(self, request, pk=None):
+        """合同终止"""
+        contract = self.get_object()
+        if contract.status in ['completed', 'terminated']:
+            return Response({'detail': '当前状态不可终止'}, status=400)
+        contract.status = 'terminated'
+        contract.save()
+        return Response({'detail': '合同已终止', 'status': contract.status})
+
+    @action(detail=True, methods=['get'])
+    def payment_plans(self, request, pk=None):
+        """获取合同的付款计划"""
+        contract = self.get_object()
+        plans = contract.payment_plans.all().order_by('plan_date')
+        serializer = PaymentPlanSerializer(plans, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_payment_plan(self, request, pk=None):
+        """添加付款计划"""
+        contract = self.get_object()
+        serializer = PaymentPlanSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save(contract=contract)
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+    @action(detail=True, methods=['get'])
+    def change_logs(self, request, pk=None):
+        """获取合同的变更记录"""
+        contract = self.get_object()
+        logs = contract.change_logs.all().order_by('-change_date')
+        serializer = ContractChangeLogSerializer(logs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def add_change_log(self, request, pk=None):
+        """添加变更记录"""
+        contract = self.get_object()
+        # 记录变更前的值
+        data = request.data.copy()
+        old_values = {
+            'amount': str(contract.amount),
+            'expire_date': str(contract.expire_date) if contract.expire_date else '',
+            'name': contract.name,
+        }
+        serializer = ContractChangeLogSerializer(data=data)
+        if serializer.is_valid():
+            instance = serializer.save(contract=contract, created_by=request.user)
+            # 自动记录变更前的值
+            if not instance.old_value and data.get('change_type'):
+                instance.old_value = str(old_values.get(data['change_type'], ''))
+                instance.save(update_fields=['old_value'])
+            return Response(serializer.data, status=201)
+        return Response(serializer.errors, status=400)
+
+
+class PaymentPlanViewSet(viewsets.ModelViewSet):
+    """付款计划管理"""
+    queryset = PaymentPlan.objects.all()
+    serializer_class = PaymentPlanSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['contract', 'status']
+
+    def get_queryset(self):
+        user = self.request.user
+        base_qs = PaymentPlan.objects.select_related('contract')
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            base_qs = base_qs.filter(contract__company_id=company_id)
+        elif user.is_superuser:
+            return base_qs
+        elif hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(contract__company_id=user.company_id)
+        return PaymentPlan.objects.none()
+
+    def perform_create(self, serializer):
+        plan = serializer.save()
+        self._sync_contract_payment(plan.contract)
+
+    def perform_update(self, serializer):
+        plan = serializer.save()
+        self._sync_contract_payment(plan.contract)
+
+    def perform_destroy(self, instance):
+        contract = instance.contract
+        instance.delete()
+        self._sync_contract_payment(contract)
+
+    def _sync_contract_payment(self, contract):
+        """同步合同实付总额和付款状态"""
+        from django.db.models import Sum
+        agg = contract.payment_plans.aggregate(total=Sum('paid_amount'))
+        total_paid = agg['total'] or 0
+        total_amount = contract.amount or 0
+        if total_paid >= total_amount and total_amount > 0:
+            payment_status = 'paid'
+        elif total_paid > 0:
+            payment_status = 'partial'
+        else:
+            payment_status = 'pending'
+        contract.total_paid = total_paid
+        contract.payment_status = payment_status
+        contract.save(update_fields=['total_paid', 'payment_status'])
+
+    @action(detail=True, methods=['post'])
+    def mark_paid(self, request, pk=None):
+        """标记为已付款"""
+        plan = self.get_object()
+        plan.paid_date = request.data.get('paid_date', timezone.now().date())
+        plan.paid_amount = request.data.get('paid_amount', plan.amount)
+        plan.status = 'paid'
+        plan.save()
+        self._sync_contract_payment(plan.contract)
+        return Response({'detail': '已标记为已付款', 'status': plan.status})
+
+    @action(detail=True, methods=['post'])
+    def update_paid(self, request, pk=None):
+        """更新付款信息"""
+        plan = self.get_object()
+        if 'paid_date' in request.data:
+            plan.paid_date = request.data['paid_date']
+        if 'paid_amount' in request.data:
+            plan.paid_amount = request.data['paid_amount']
+        plan.save()
+        self._sync_contract_payment(plan.contract)
+        return Response(PaymentPlanSerializer(plan).data)
+
+
+class ContractChangeLogViewSet(viewsets.ModelViewSet):
+    """合同变更记录"""
+    queryset = ContractChangeLog.objects.all()
+    serializer_class = ContractChangeLogSerializer
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['contract', 'change_type']
+
+    def get_queryset(self):
+        user = self.request.user
+        base_qs = ContractChangeLog.objects.select_related('contract', 'created_by')
+        # 多租户过滤
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            base_qs = base_qs.filter(contract__company_id=company_id)
+        elif user.is_superuser:
+            return base_qs
+        elif hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(contract__company_id=user.company_id)
+        return ContractChangeLog.objects.none()
+
+    def perform_create(self, serializer):
+        # 自动从contract继承company_id
+        contract = serializer.validated_data.get('contract')
+        if hasattr(contract, 'company_id'):
+            company_id = contract.company_id
+        else:
+            co = Contract.objects.get(pk=contract.pk)
+            company_id = co.company_id
+        serializer.save(created_by=self.request.user, company_id=company_id)
+
+
+class ContactViewSet(viewsets.ModelViewSet):
+    """联系人管理"""
+    queryset = Contact.objects.all()
+    serializer_class = ContactSerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['name', 'phone', 'email']
+    filterset_fields = ['client', 'is_primary']
+
+    def get_queryset(self):
+        user = self.request.user
+        base_qs = Contact.objects.select_related('client', 'created_by', 'company')
+        if user.is_superuser:
+            return base_qs
+        if hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(company_id=user.company_id)
+        return Contact.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        kwargs = {}
+        if user.is_authenticated:
+            kwargs['created_by'] = user
+        if hasattr(user, 'company') and user.company_id:
+            kwargs['company_id'] = user.company_id
+        serializer.save(**kwargs)
+
+
+class FollowUpRecordViewSet(viewsets.ModelViewSet):
+    """跟进记录管理"""
+    queryset = FollowUpRecord.objects.all()
+    serializer_class = FollowUpRecordSerializer
+    permission_classes = [IsAuthenticated]
+    search_fields = ['content', 'next_plan']
+    filterset_fields = ['contact', 'client', 'follow_type']
+
+    def get_queryset(self):
+        user = self.request.user
+        base_qs = FollowUpRecord.objects.select_related('contact', 'client', 'created_by', 'company')
+        if user.is_superuser:
+            return base_qs
+        if hasattr(user, 'company') and user.company_id:
+            return base_qs.filter(company_id=user.company_id)
+        return FollowUpRecord.objects.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        kwargs = {}
+        if user.is_authenticated:
+            kwargs['created_by'] = user
+        if hasattr(user, 'company') and user.company_id:
+            kwargs['company_id'] = user.company_id
+        serializer.save(**kwargs)
+
+
+class OpportunityViewSet(viewsets.ModelViewSet):
+    """CRM商机视图集 — 销售漏斗管理"""
+    queryset = Opportunity.objects.all()
+    serializer_class = OpportunitySerializer
+    permission_classes = [IsAuthenticated]
+    filter_fields = ['stage', 'priority', 'client', 'is_active']
+    search_fields = ['name', 'client__name', 'product_lines', 'competitor']
+    ordering_fields = ['expected_amount', 'probability', 'created_at', 'estimated_close_date']
+
+    def get_queryset(self):
+        user = self.request.user
+        qs = Opportunity.objects.select_related('client', 'contact', 'created_by')
+        if user.is_superuser:
+            return qs
+        if hasattr(user, 'company') and user.company_id:
+            return qs.filter(company_id=user.company_id)
+        return qs.none()
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        kwargs = {}
+        if user.is_authenticated:
+            kwargs['created_by'] = user
+        if hasattr(user, 'company') and user.company_id:
+            kwargs['company_id'] = user.company_id
+        serializer.save(**kwargs)
+
+    @action(detail=False, methods=['get'])
+    def pipeline(self, request):
+        """获取销售漏斗各阶段统计"""
+        queryset = self.get_queryset().filter(is_active=True)
+        stage_order = ['lead', 'qualify', 'proposal', 'negotiation', 'won', 'lost']
+        stage_probs = {'lead': 10, 'qualify': 30, 'proposal': 50, 'negotiation': 80, 'won': 100, 'lost': 0}
+        from django.db.models import Sum
+        result = []
+        for stage in stage_order:
+            items = queryset.filter(stage=stage)
+            count = items.count()
+            total = items.aggregate(total_amount=Sum('expected_amount'))['total_amount'] or 0
+            weighted = sum(float(i.expected_amount or 0) * i.probability / 100 for i in items)
+            result.append({
+                'stage': stage,
+                'stage_display': dict(Opportunity.STAGE_CHOICES).get(stage, stage),
+                'count': count,
+                'total_amount': total,
+                'total_weighted': round(weighted, 2),
+                'probability': stage_probs.get(stage, 0),
+            })
+        # 漏斗整体加权总额汇总
+        grand_weighted = round(sum(s['total_weighted'] for s in result), 2)
+        return Response({'stages': result, 'total_weighted': grand_weighted})
+
+    @action(detail=True, methods=['post'])
+    def advance_stage(self, request, pk=None):
+        """推进商机阶段"""
+        opp = self.get_object()
+        stage_order = ['lead', 'qualify', 'proposal', 'negotiation', 'won', 'lost']
+        if opp.stage in stage_order:
+            idx = stage_order.index(opp.stage)
+            if idx < len(stage_order) - 1:
+                next_stage = stage_order[idx + 1]
+                opp.stage = next_stage
+                if next_stage == 'won':
+                    from datetime import date
+                    opp.actual_close_date = date.today()
+                opp.save()
+                return Response(OpportunitySerializer(opp).data)
+        return Response({'detail': '已是最后阶段'}, status=400)
+
+    @action(detail=True, methods=['post'])
+    def win(self, request, pk=None):
+        """标记为成交"""
+        opp = self.get_object()
+        opp.stage = 'won'
+        from datetime import date
+        opp.actual_close_date = date.today()
+        opp.save()
+        return Response(OpportunitySerializer(opp).data)
+
+    @action(detail=True, methods=['post'])
+    def lose(self, request, pk=None):
+        """标记为失败"""
+        opp = self.get_object()
+        opp.stage = 'lost'
+        opp.lost_reason = request.data.get('lost_reason', '')
+        opp.save()
+        return Response(OpportunitySerializer(opp).data)

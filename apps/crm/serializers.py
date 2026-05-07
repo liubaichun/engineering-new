@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Client, Contract, Supplier, ClientSource
+from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog, Opportunity
 
 
 class ClientSourceSerializer(serializers.ModelSerializer):
@@ -67,16 +67,29 @@ class ContractSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     counterparty_name = serializers.SerializerMethodField()
+    payment_progress = serializers.SerializerMethodField()
+    paid_amount_display = serializers.SerializerMethodField()
+
+    def get_payment_progress(self, obj):
+        if obj.amount and obj.amount > 0:
+            return float(obj.total_paid or 0) / float(obj.amount) * 100
+        return 0
+
+    def get_paid_amount_display(self, obj):
+        return obj.total_paid if hasattr(obj, 'total_paid') else 0
 
     class Meta:
         model = Contract
         fields = ['id', 'counterparty_type', 'counterparty_name',
                   'client', 'client_name', 'supplier', 'supplier_name',
                   'project', 'project_name',
-                  'contract_no', 'name', 'amount', 'sign_date', 'expire_date',
+                  'contract_no', 'name', 'amount',
+                  'total_paid', 'payment_status',
+                  'sign_date', 'expire_date',
                   'status', 'remark', 'attachment', 'attachment_name',
+                  'payment_progress', 'paid_amount_display',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
-        read_only_fields = ['created_by']
+        read_only_fields = ['created_by', 'total_paid', 'payment_progress', 'paid_amount_display']
         extra_kwargs = {'contract_no': {'required': False}}
 
     def get_counterparty_name(self, obj):
@@ -130,3 +143,125 @@ class ContractSerializer(serializers.ModelSerializer):
                 instance.created_by = request.user
             instance.save()
             return instance
+
+
+class ContactSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.name', read_only=True)
+
+    class Meta:
+        model = Contact
+        fields = ['id', 'company', 'client', 'client_name', 'name', 'position',
+                  'phone', 'email', 'is_primary', 'remark',
+                  'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
+
+
+class FollowUpRecordSerializer(serializers.ModelSerializer):
+    contact_name = serializers.CharField(source='contact.name', read_only=True)
+    client_name = serializers.CharField(source='client.name', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    follow_type_display = serializers.CharField(source='get_follow_type_display', read_only=True)
+
+    class Meta:
+        model = FollowUpRecord
+        fields = ['id', 'contact', 'contact_name', 'client', 'client_name',
+                  'follow_type', 'follow_type_display',
+                  'content', 'next_plan', 'next_date', 'attachment',
+                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        read_only_fields = ['created_by']
+        extra_kwargs = {'attachment': {'required': False}}
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        instance = FollowUpRecord(**validated_data)
+        if request and hasattr(request, 'user') and request.user.is_authenticated:
+            instance.created_by = request.user
+        instance.save()
+        return instance
+
+
+class PaymentPlanSerializer(serializers.ModelSerializer):
+    contract_name = serializers.CharField(source='contract.name', read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = PaymentPlan
+        fields = ['id', 'contract', 'contract_name',
+                  'plan_date', 'amount',
+                  'paid_date', 'paid_amount', 'status', 'status_display',
+                  'payment_method', 'payment_account', 'remark', 'company_id',
+                  'created_at', 'updated_at']
+        read_only_fields = ['id', 'contract', 'contract_name', 'status_display', 'created_at']
+
+
+class ContractChangeLogSerializer(serializers.ModelSerializer):
+    contract_name = serializers.CharField(source='contract.name', read_only=True)
+    change_type_display = serializers.CharField(source='get_change_type_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+
+    class Meta:
+        model = ContractChangeLog
+        fields = ['id', 'contract', 'contract_name',
+                  'change_type', 'change_type_display',
+                  'old_value', 'new_value', 'reason', 'change_date',
+                  'created_by', 'created_by_name', 'company_id']
+        read_only_fields = ['id', 'contract', 'contract_name', 'change_type_display', 'created_by', 'created_by_name', 'change_date']
+
+
+class OpportunitySerializer(serializers.ModelSerializer):
+    """CRM商机序列化器"""
+    client_name = serializers.CharField(source='client.name', read_only=True, default='')
+    contact_name = serializers.CharField(source='contact.name', read_only=True, default='')
+    stage_display = serializers.CharField(source='get_stage_display', read_only=True)
+    priority_display = serializers.CharField(source='get_priority_display', read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True, default='')
+    weighted_amount = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Opportunity
+        fields = [
+            'id', 'company', 'client', 'client_name', 'contact', 'contact_name',
+            'name', 'stage', 'stage_display', 'priority', 'priority_display',
+            'expected_amount', 'probability', 'weighted_amount',
+            'estimated_close_date', 'actual_close_date',
+            'product_lines', 'competitor', 'lost_reason',
+            'remark', 'is_active', 'created_at', 'updated_at',
+            'created_by', 'created_by_name',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+
+    def get_weighted_amount(self, obj):
+        """加权金额 = 预计金额 × 赢单概率"""
+        if obj.expected_amount and obj.probability:
+            return float(obj.expected_amount) * obj.probability / 100
+        return 0
+
+    def validate_probability(self, value):
+        if value < 0 or value > 100:
+            raise serializers.ValidationError("赢单概率必须在0-100之间")
+        return value
+
+    def validate_stage(self, value):
+        # 成交时记录实际成交日期，失败时记录失败原因
+        return value
+
+    def validate(self, attrs):
+        """跨字段校验：商机标记为失败（lost）时必须填写失败原因"""
+        stage = attrs.get('stage')
+        if stage == 'lost':
+            lost_reason = attrs.get('lost_reason', '').strip()
+            # update 时 instance 当前可能有值
+            if not lost_reason and (not self.instance or not getattr(self.instance, 'lost_reason', '').strip()):
+                raise serializers.ValidationError({'lost_reason': '商机标记为失败时，必须填写失败原因'})
+        return attrs
+
+
+class OpportunityStageStatsSerializer(serializers.Serializer):
+    """商机阶段统计（Pipeline视图用）"""
+    stage = serializers.CharField()
+    stage_display = serializers.CharField()
+    count = serializers.IntegerField()
+    total_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
+    total_weighted = serializers.DecimalField(max_digits=15, decimal_places=2)
+    probability = serializers.IntegerField()
+

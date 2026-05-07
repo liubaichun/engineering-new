@@ -153,6 +153,13 @@ var allEquipments = [];
 var allBOMs = [];
 var currentRelationId = null;
 
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    var div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadEquipments();
     loadAllBOMs();
@@ -165,6 +172,16 @@ async function loadEquipments() {
             const data = await response.json();
             allEquipments = data.results || data;
             renderEquipmentList(allEquipments);
+            // URL有eq_id参数时自动选中设备
+            const urlParams = new URLSearchParams(window.location.search);
+            const eqId = urlParams.get('eq_id');
+            if (eqId) {
+                // 等待DOM渲染完成后选中
+                setTimeout(function() {
+                    const card = document.querySelector('[data-eq-id="' + eqId + '"]');
+                    if (card) card.click();
+                }, 100);
+            }
         }
     } catch (e) { console.error(e); }
 }
@@ -190,7 +207,7 @@ function renderEquipmentList(equipments) {
     }
     container.innerHTML = equipments.map(eq => {
         const selected = currentEquipment && currentEquipment.id === eq.id;
-        return '<div class="eq-item-card ' + (selected ? 'border-primary' : '') + '" onclick="selectEquipment(' + eq.id + ')" style="cursor:pointer;">' +
+        return '<div class="eq-item-card ' + (selected ? 'border-primary' : '') + '" data-eq-id="' + eq.id + '" onclick="selectEquipment(' + eq.id + ')" style="cursor:pointer;">' +
             '<div class="eq-item-header">' +
             '<div><strong>' + escapeHtml(eq.name) + '</strong></div>' +
             '<span class="badge bg-secondary" style="font-size:0.7rem;">' + escapeHtml(eq.code || '') + '</span>' +

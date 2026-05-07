@@ -93,7 +93,7 @@ async function loadNotifications(page = 1) {
         if (currentFilter === 'unread') params.set('is_read', 'false');
         if (currentFilter === 'read') params.set('is_read', 'true');
         
-        const resp = await fetch('/api/notifications/?' + params.toString(), {credentials: 'include'});
+        const resp = await fetch('/api/core/notifications/?' + params.toString(), {credentials: 'include'});
         const data = await resp.json();
         
         if (!data.results || data.results.length === 0) {
@@ -159,7 +159,7 @@ function filterNotifications(f) {
 }
 async function markRead(id) {
     try {
-        await fetch('/api/notifications/' + id + '/read/', {
+        await fetch('/api/core/notifications/' + id + '/mark-read/', {
             method: 'POST',
             credentials: 'include',
             headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
@@ -171,7 +171,7 @@ async function markRead(id) {
 }
 async function markAllRead() {
     try {
-        await fetch('/api/notifications/read-all/', {
+        await fetch('/api/core/notifications/mark-all-read/', {
             method: 'POST',
             credentials: 'include',
             headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
@@ -182,7 +182,7 @@ async function markAllRead() {
 }
 async function updateUnreadCount() {
     try {
-        const resp = await fetch('/api/notifications/?is_read=false', {credentials: 'include'});
+        const resp = await fetch('/api/core/notifications/?is_read=false', {credentials: 'include'});
         const data = await resp.json();
         const badge = document.getElementById('unreadBadge');
         if (badge) {

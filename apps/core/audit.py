@@ -1,69 +1,45 @@
 """
 操作审计日志信号处理器
-自动拦截所有模型的 post_save / post_delete，记录变更
+通过 class_prepared 信号自动拦截所有模型的 post_save/post_delete
 """
 import json
 import threading
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
-# 需要排除的模型（不记录审计日志）
-EXCLUDED_MODELS = {
-    # Django内置
-    'session', 'logentry', 'contenttype', 'migration',
-    # 本系统不需记录的
-    'notification', 'loginlog', 'operationauditlog',
-    'permissionauditlog', 'userrole', 'rolepermission',
-    'usercompanyrole', 'permission', 'role',
-}
-
-# 每个线程独立的缓存，避免同一事务中重复记录
+# 已连接的模型，避免重复
+_connected_models = set()
 _local = threading.local()
-
-
-def is_excluded(app_label, model_name):
-    """判断是否需要排除"""
-    if app_label in EXCLUDED_MODELS or model_name in EXCLUDED_MODELS:
-        return True
-    return False
 
 
 def _get_request():
     """从当前线程获取请求对象"""
-    try:
-        from django.http import HttpRequest
-        request = getattr(_local, 'request', None)
-        return request
-    except Exception:
-        return None
+    return getattr(_local, 'request', None)
 
 
 def _build_changes(instance, action):
     """从模型实例提取变更内容"""
     try:
+        fields = {}
+        for field in instance._meta.fields:
+            if field.primary_key:
+                continue
+            if not hasattr(instance, field.name):
+                continue
+            val = getattr(instance, field.name)
+            if callable(val):
+                continue
+            # 跳过大型字段
+            if hasattr(field, 'max_length') and field.max_length and field.max_length > 500:
+                if isinstance(val, str) and len(val) > 500:
+                    val = val[:500] + '...[truncated]'
+            fields[field.name] = str(val)[:200] if val is not None else None
+
         if action == 'create':
-            fields = {}
-            for field in instance._meta.fields:
-                if not field.primary_key and hasattr(instance, field.name):
-                    val = getattr(instance, field.name)
-                    if val is not None and not callable(val):
-                        fields[field.name] = str(val)[:200]
             return json.dumps({'type': 'create', 'data': fields}, ensure_ascii=False)
         elif action == 'update':
-            fields = {}
-            for field in instance._meta.fields:
-                if not field.primary_key and hasattr(instance, field.name):
-                    current = getattr(instance, field.name)
-                    if current is not None and not callable(current):
-                        fields[field.name] = str(current)[:200]
             return json.dumps({'type': 'update', 'data': fields}, ensure_ascii=False)
         elif action == 'delete':
-            fields = {}
-            for field in instance._meta.fields:
-                if not field.primary_key and hasattr(instance, field.name):
-                    val = getattr(instance, field.name)
-                    if val is not None and not callable(val):
-                        fields[field.name] = str(val)[:200]
             return json.dumps({'type': 'delete', 'data': fields}, ensure_ascii=False)
     except Exception:
         pass
@@ -74,37 +50,41 @@ def _log_operation(instance, action, **kwargs):
     """实际写入 OperationAuditLog"""
     try:
         from apps.core.models import OperationAuditLog
-        from django.contrib.contenttypes.models import ContentType
 
         app_label = instance._meta.app_label
         model_name = instance._meta.model_name
 
-        if is_excluded(app_label, model_name):
+        # 排除自身审计日志及 Django 内置
+        excluded_apps = {'sessions', 'contenttypes', 'admin', 'auth'}
+        excluded_models = {
+            'operationauditlog', 'permissionauditlog', 'loginlog',
+            'session', 'user', 'role', 'permission', 'group',
+        }
+        if app_label in excluded_apps or model_name in excluded_models:
             return
 
         request = _get_request()
-
         user = None
         username = 'system'
         ip_address = None
         user_agent = ''
 
-        if request is not None and hasattr(request, 'user') and request.user.is_authenticated:
-            user = request.user
-            username = request.user.username
-            ip_address = getattr(request, 'META', {}).get('REMOTE_ADDR')
-            user_agent = getattr(request, 'META', {}).get('HTTP_USER_AGENT', '')[:500]
+        if request is not None and hasattr(request, 'user'):
+            if request.user and hasattr(request.user, 'is_authenticated') and request.user.is_authenticated:
+                user = request.user
+                username = request.user.username
+                ip_address = request.META.get('REMOTE_ADDR') if hasattr(request, 'META') else None
+                user_agent = (request.META.get('HTTP_USER_AGENT', '')[:500]
+                              if hasattr(request, 'META') else '')
 
-        object_id = instance.pk
-        object_repr = str(instance)[:500]
         changes = _build_changes(instance, action)
 
-        # 关联审批流（如有）
-        approval_flow_id = None
-        if hasattr(instance, 'approval_flow_id'):
-            approval_flow_id = instance.approval_flow_id
-        elif hasattr(instance, 'flow_id'):
-            approval_flow_id = instance.flow_id
+        # 尝试从 instance 提取 company_id
+        company_id = None
+        if hasattr(instance, 'company_id') and instance.company_id:
+            company_id = instance.company_id
+        elif request is not None:
+            company_id = getattr(request, 'company_id', None)
 
         OperationAuditLog.objects.create(
             user=user,
@@ -113,53 +93,70 @@ def _log_operation(instance, action, **kwargs):
             user_agent=user_agent,
             app_label=app_label,
             model_name=model_name,
-            object_id=object_id,
-            object_repr=object_repr,
+            object_id=instance.pk,
+            object_repr=str(instance)[:500],
             action=action,
             changes=changes,
-            approval_flow_id=approval_flow_id,
+            company_id=company_id,
         )
-    except Exception as e:
+    except Exception:
         # 审计日志失败不能影响主业务
         pass
 
 
-def audit_post_save(sender, instance, created, **kwargs):
-    """post_save 信号处理"""
-    action = 'create' if created else 'update'
-    _log_operation(instance, action, **kwargs)
+def _on_post_save(sender, instance, created, **kwargs):
+    _log_operation(instance, 'create' if created else 'update', **kwargs)
 
 
-def audit_post_delete(sender, instance, **kwargs):
-    """post_delete 信号处理"""
+def _on_post_delete(sender, instance, **kwargs):
     _log_operation(instance, 'delete', **kwargs)
 
 
-# Django 启动时自动连接所有已注册的 Model
-def autodiscover():
-    """在 Django ready 时调用，遍历所有已加载的 Model 并连接信号"""
-    from django.apps import apps
-    from django.db.models.signals import post_save, post_delete
+def _connect_model_signals(model):
+    """为一个 Model 连接审计信号"""
+    key = (model._meta.app_label, model._meta.model_name)
+    if key in _connected_models:
+        return
+    _connected_models.add(key)
+    uid_prefix = f"audit_{key[0]}_{key[1]}"
+    post_save.connect(_on_post_save, sender=model, dispatch_uid=f"{uid_prefix}_save")
+    post_delete.connect(_on_post_delete, sender=model, dispatch_uid=f"{uid_prefix}_del")
 
-    connected = set()
+
+def _on_class_prepared(sender, **kwargs):
+    """在任何 Model 类准备好时自动连接审计信号"""
+    # 只有当模型有 _meta（正常模型）且非抽象时才连接
+    model = sender
+    if not hasattr(model, '_meta'):
+        return
+    if model._meta.abstract:
+        return
+    _connect_model_signals(model)
+
+
+def autodiscover():
+    """
+    启动时：
+    1. 遍历已加载的所有 Model 连接信号
+    2. 注册 class_prepared，捕获后续加载的 Model
+    """
+    from django.apps import apps
+    from django.db.models.signals import class_prepared
+
+    # 先连接所有已加载模型
     for model in apps.get_models():
-        app_label = model._meta.app_label
-        model_name = model._meta.model_name
-        if is_excluded(app_label, model_name):
+        if model._meta.abstract:
             continue
-        # 避免重复连接
-        key = (app_label, model_name)
-        if key in connected:
-            continue
-        connected.add(key)
-        post_save.connect(audit_post_save, sender=model, dispatch_uid=f'audit_save_{app_label}_{model_name}')
-        post_delete.connect(audit_post_delete, sender=model, dispatch_uid=f'audit_delete_{app_label}_{model_name}')
+        _connect_model_signals(model)
+
+    # 注册 class_prepared，确保后续加载的模型也能被捕获
+    class_prepared.connect(_on_class_prepared, dispatch_uid='audit_class_prepared')
 
 
 class AuditRequestMiddleware:
     """
     中间件：将请求对象注入当前线程
-    所有视图的写操作在同一个线程中执行
+    放在 MIDDLEWARE 靠前位置
     """
 
     def __init__(self, get_response):

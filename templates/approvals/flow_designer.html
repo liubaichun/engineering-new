@@ -1,0 +1,1129 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}审批流程设计器 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<link href="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/css/jsplumbtoolkit.css" rel="stylesheet">
+<style>
+* { box-sizing: border-box; }
+body { overflow: hidden; background: #0f172a; }
+
+.designer-layout {
+  display: flex;
+  height: calc(100vh - 56px);
+  gap: 0;
+}
+
+/* ── 左侧工具栏 ── */
+.toolbox {
+  width: 200px;
+  background: #1e293b;
+  border-right: 1px solid #334155;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  overflow-y: auto;
+}
+.toolbox-title {
+  color: #94a3b8;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+.tool-node {
+  background: #334155;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  cursor: grab;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s;
+  user-select: none;
+}
+.tool-node:hover { background: #3b82f6; border-color: #3b82f6; }
+.tool-node:active { cursor: grabbing; }
+.tool-node .node-icon { font-size: 1rem; }
+.tool-node .node-label { flex: 1; }
+.tool-node .node-tag {
+  font-size: 0.6rem;
+  background: rgba(255,255,255,0.15);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.tool-section { margin-bottom: 20px; }
+
+/* ── 主画布区域 ── */
+.canvas-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.canvas-topbar {
+  height: 48px;
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  gap: 12px;
+}
+.canvas-topbar .btn { font-size: 0.8rem; padding: 4px 12px; }
+.canvas-topbar .info { color: #94a3b8; font-size: 0.8rem; margin-left: auto; }
+
+.canvas-wrapper {
+  flex: 1;
+  overflow: auto;
+  position: relative;
+  background:
+    radial-gradient(circle, #1e293b 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-color: #0f172a;
+}
+#flowCanvas {
+  width: 2000px;
+  height: 1600px;
+  position: relative;
+}
+
+/* ── 节点通用 ── */
+.flow-node {
+  position: absolute;
+  border-radius: 10px;
+  cursor: move;
+  min-width: 160px;
+  max-width: 200px;
+  background: #1e293b;
+  border: 2px solid #334155;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  transition: box-shadow 0.15s;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+.flow-node:hover { box-shadow: 0 6px 24px rgba(0,0,0,0.6); }
+.flow-node.selected { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.4); }
+
+/* 开始节点 */
+.node-start {
+  background: linear-gradient(135deg, #10b981, #059669);
+  border-color: #10b981;
+  border-radius: 24px;
+  text-align: center;
+  padding: 10px 20px;
+  min-width: 100px;
+  max-width: 120px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: default;
+}
+.node-start .delete-btn { display: none; }
+
+/* 结束节点 */
+.node-end {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border-color: #ef4444;
+  border-radius: 24px;
+  text-align: center;
+  padding: 10px 20px;
+  min-width: 100px;
+  max-width: 120px;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: default;
+}
+.node-end .delete-btn { display: none; }
+
+/* 审批节点 */
+.node-approval { border-left: 4px solid #3b82f6; padding: 12px; }
+.node-approval .node-header {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
+}
+.node-approval .node-icon-wrap {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(59,130,246,0.2); color: #3b82f6;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.9rem;
+}
+.node-approval .node-name {
+  flex: 1; font-size: 0.8rem; font-weight: 600; color: #e2e8f0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.node-approval .node-type-badge {
+  font-size: 0.65rem; padding: 1px 6px; border-radius: 8px; font-weight: 500;
+}
+.node-approval .node-props {
+  display: flex; flex-wrap: wrap; gap: 4px;
+}
+.node-approval .node-prop-tag {
+  font-size: 0.65rem; padding: 2px 6px; border-radius: 6px;
+  background: #334155; color: #94a3b8;
+}
+.node-approval .delete-btn {
+  position: absolute; top: -8px; right: -8px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #ef4444; color: #fff; border: none;
+  font-size: 0.7rem; cursor: pointer; line-height: 20px;
+  text-align: center; display: none;
+}
+.flow-node:hover .delete-btn { display: block; }
+
+/* 条件分支 */
+.node-condition { border-left: 4px solid #f59e0b; padding: 12px; min-width: 140px; }
+.node-condition .node-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.node-condition .node-icon-wrap {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: rgba(245,158,11,0.2); color: #f59e0b;
+  display: flex; align-items: center; justify-content: center;
+}
+.node-condition .node-name { flex: 1; font-size: 0.8rem; font-weight: 600; color: #e2e8f0; }
+.node-condition .condition-branches {
+  display: flex; flex-direction: column; gap: 4px; margin-top: 6px;
+}
+.node-condition .branch-tag {
+  font-size: 0.65rem; padding: 2px 8px; border-radius: 6px;
+  background: #334155; color: #94a3b8; display: flex; align-items: center; gap: 4px;
+}
+.node-condition .branch-tag .branch-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+}
+.node-condition .delete-btn {
+  position: absolute; top: -8px; right: -8px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #ef4444; color: #fff; border: none;
+  font-size: 0.7rem; cursor: pointer; line-height: 20px;
+  text-align: center; display: none;
+}
+.flow-node:hover .delete-btn { display: block; }
+
+/* 节点端口（小圆点） */
+.node-port {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #475569; border: 2px solid #64748b;
+  position: absolute; cursor: crosshair;
+  transition: all 0.15s;
+  z-index: 10;
+}
+.node-port:hover { background: #3b82f6; border-color: #3b82f6; transform: scale(1.3); }
+.node-port.bottom { bottom: -6px; left: 50%; margin-left: -6px; }
+.node-port.top { top: -6px; left: 50%; margin-left: -6px; }
+.node-port.right { right: -6px; top: 50%; margin-top: -6px; }
+.node-port.left { left: -6px; top: 50%; margin-top: -6px; }
+
+/* 连接线样式 */
+.connection { z-index: 5; }
+.connection-main { stroke: #475569; stroke-width: 2; fill: none; }
+.connection-hover { stroke: #3b82f6; stroke-width: 3; }
+.jtk-connector { z-index: 5; }
+.jtk-endpoint { z-index: 6; }
+
+/* 右键菜单 */
+.context-menu {
+  position: fixed;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 4px 0;
+  z-index: 1000;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.context-menu-item {
+  padding: 8px 14px;
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.context-menu-item:hover { background: #334155; }
+.context-menu-item.danger { color: #ef4444; }
+.context-menu-sep { height: 1px; background: #334155; margin: 4px 0; }
+
+/* 节点编辑侧边栏 */
+.node-edit-panel {
+  width: 280px;
+  background: #1e293b;
+  border-left: 1px solid #334155;
+  padding: 16px;
+  overflow-y: auto;
+  display: none;
+}
+.node-edit-panel.active { display: block; }
+.panel-title {
+  color: #e2e8f0; font-size: 0.9rem; font-weight: 600;
+  margin-bottom: 16px; padding-bottom: 10px;
+  border-bottom: 1px solid #334155;
+}
+.panel-field { margin-bottom: 14px; }
+.panel-field label { display: block; color: #94a3b8; font-size: 0.75rem; margin-bottom: 4px; }
+.panel-field input, .panel-field select {
+  width: 100%; background: #0f172a; border: 1px solid #334155;
+  color: #e2e8f0; border-radius: 6px; padding: 6px 10px; font-size: 0.8rem;
+}
+.panel-field input:focus, .panel-field select:focus {
+  outline: none; border-color: #3b82f6;
+}
+.panel-field input::placeholder { color: #475569; }
+
+/* Toast */
+.toast-msg {
+  position: fixed; bottom: 20px; right: 20px;
+  background: #1e293b; color: #e2e8f0;
+  padding: 10px 16px; border-radius: 8px;
+  font-size: 0.8rem; z-index: 9999;
+  border: 1px solid #334155;
+  opacity: 0; transition: opacity 0.2s;
+}
+.toast-msg.show { opacity: 1; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="designer-layout">
+  <!-- 左侧工具栏 -->
+  <div class="toolbox">
+    <div class="tool-section">
+      <div class="toolbox-title">流程元素</div>
+      <div class="tool-node" draggable="true" data-type="start">
+        <span class="node-icon">▶</span>
+        <span class="node-label">开始</span>
+        <span class="node-tag">系统</span>
+      </div>
+      <div class="tool-node" draggable="true" data-type="end">
+        <span class="node-icon">■</span>
+        <span class="node-label">结束</span>
+        <span class="node-tag">系统</span>
+      </div>
+    </div>
+    <div class="tool-section">
+      <div class="toolbox-title">审批节点</div>
+      <div class="tool-node" draggable="true" data-type="approval" data-subtype="admin">
+        <span class="node-icon">👤</span>
+        <span class="node-label">管理员审批</span>
+        <span class="node-tag">单人</span>
+      </div>
+      <div class="tool-node" draggable="true" data-type="approval" data-subtype="department_head">
+        <span class="node-icon">👔</span>
+        <span class="node-label">部门主管</span>
+        <span class="node-tag">单人</span>
+      </div>
+      <div class="tool-node" draggable="true" data-type="approval" data-subtype="manager">
+        <span class="node-icon">⭐</span>
+        <span class="node-label">总经理</span>
+        <span class="node-tag">单人</span>
+      </div>
+      <div class="tool-node" draggable="true" data-type="approval" data-subtype="board">
+        <span class="node-icon">🎓</span>
+        <span class="node-label">董事会</span>
+        <span class="node-tag">单人</span>
+      </div>
+    </div>
+    <div class="tool-section">
+      <div class="toolbox-title">会签 / 或签</div>
+      <div class="tool-node" draggable="true" data-type="approval" data-subtype="admin" data-nodetype="all_sign">
+        <span class="node-icon">👥</span>
+        <span class="node-label">会签节点</span>
+        <span class="node-tag">all</span>
+      </div>
+      <div class="tool-node" draggable="true" data-type="approval" data-subtype="admin" data-nodetype="single">
+        <span class="node-icon">🔀</span>
+        <span class="node-label">或签节点</span>
+        <span class="node-tag">single</span>
+      </div>
+    </div>
+    <div class="tool-section">
+      <div class="toolbox-title">逻辑</div>
+      <div class="tool-node" draggable="true" data-type="condition">
+        <span class="node-icon">◇</span>
+        <span class="node-label">条件分支</span>
+        <span class="node-tag">IF</span>
+      </div>
+      <div class="tool-node" draggable="true" data-type="auto">
+        <span class="node-icon">⚡</span>
+        <span class="node-label">自动通过</span>
+        <span class="node-tag">系统</span>
+      </div>
+    </div>
+    <div class="tool-section">
+      <div class="toolbox-title">操作</div>
+      <div class="tool-node" draggable="true" data-type="cc">
+        <span class="node-icon">✉</span>
+        <span class="node-label">知会节点</span>
+        <span class="node-tag">抄送</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主画布 -->
+  <div class="canvas-area">
+    <div class="canvas-topbar">
+      <button class="btn btn-primary btn-sm" onclick="saveFlow()">
+        <i class="bi bi-check-lg"></i> 保存流程
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="validateFlow()">
+        <i class="bi bi-shield-check"></i> 校验
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="autoLayout()">
+        <i class="bi bi-grid-3x3"></i> 自动排列
+      </button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="clearCanvas()">
+        <i class="bi bi-trash"></i> 清空
+      </button>
+      <div class="info" id="flowInfo">未保存</div>
+    </div>
+    <div class="canvas-wrapper" id="canvasWrapper">
+      <div id="flowCanvas"></div>
+    </div>
+  </div>
+
+  <!-- 节点编辑侧边栏 -->
+  <div class="node-edit-panel" id="nodeEditPanel">
+    <div class="panel-title" id="panelTitle">编辑节点</div>
+    <div class="panel-field">
+      <label>节点名称</label>
+      <input type="text" id="editNodeName" placeholder="如：部门主管审批" maxlength="50">
+    </div>
+    <div class="panel-field" id="editApproverTypeDiv">
+      <label>审批人类型</label>
+      <select id="editApproverType">
+        <option value="admin">系统管理员</option>
+        <option value="department_head">部门主管</option>
+        <option value="manager">总经理</option>
+        <option value="board">董事会</option>
+        <option value="specific_user">指定用户</option>
+        <option value="requester_head">申请人的上级</option>
+      </select>
+    </div>
+    <div class="panel-field" id="editUserIdDiv" style="display:none">
+      <label>指定用户ID</label>
+      <input type="number" id="editUserId" placeholder="输入用户ID">
+    </div>
+    <div class="panel-field" id="editNodeTypeDiv">
+      <label>审批方式</label>
+      <select id="editNodeType">
+        <option value="single">或签（任一审批人通过即继续）</option>
+        <option value="all_sign">会签（所有人必须全部通过）</option>
+      </select>
+    </div>
+    <div class="panel-field">
+      <label>超时时间（小时）</label>
+      <input type="number" id="editTimeout" value="48" min="1" max="720">
+    </div>
+    <div class="panel-field" id="editConditionDiv" style="display:none">
+      <label>条件表达式</label>
+      <input type="text" id="editCondition" placeholder="如：amount > 10000" maxlength="200">
+    </div>
+    <div class="panel-field">
+      <label>说明</label>
+      <input type="text" id="editDescription" placeholder="可选备注" maxlength="100">
+    </div>
+    <button class="btn btn-primary btn-sm w-100 mt-2" onclick="applyNodeEdit()">应用修改</button>
+    <button class="btn btn-outline-secondary btn-sm w-100 mt-2" onclick="closeEditPanel()">取消</button>
+  </div>
+</div>
+
+<!-- 右键菜单 -->
+<div class="context-menu" id="ctxMenu" style="display:none">
+  <div class="context-menu-item" onclick="ctxEditNode()"><i class="bi bi-pencil"></i> 编辑</div>
+  <div class="context-menu-item" onclick="ctxCopyNode()"><i class="bi bi-copy"></i> 复制</div>
+  <div class="context-menu-sep"></div>
+  <div class="context-menu-item danger" onclick="ctxDeleteNode()"><i class="bi bi-trash"></i> 删除</div>
+</div>
+
+<!-- Toast -->
+<div class="toast-msg" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/jsplumb@2.15.6/dist/js/jsplumb.min.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+// 全局状态
+// ══════════════════════════════════════════════════════════════
+const jsPlumb = window.jsPlumb;
+let instance = null;
+let nodeIdCounter = 1;
+let selectedNode = null;
+let ctxNodeId = null;
+let editingNodeId = null;
+let templateId = null;        // 来自 URL 参数
+let templateNodes = [];        // 保存时收集的节点数据
+
+// 节点类型 → 标签映射
+const APPROVER_LABEL = {
+  admin: '管理员', department_head: '部门主管',
+  manager: '总经理', board: '董事会', specific_user: '指定用户', requester_head: '上级'
+};
+const NODE_TYPE_TAG = { single: '或签', all_sign: '会签' };
+const SUBTYPE_ICON = {
+  admin: '👤', department_head: '👔', manager: '⭐',
+  board: '🎓', specific_user: '👤', requester_head: '👔'
+};
+
+// ══════════════════════════════════════════════════════════════
+// 初始化 jsPlumb
+// ══════════════════════════════════════════════════════════════
+function initJsPlumb() {
+  jsPlumb.importDefaults({
+    Connector: ['Bezier', { curviness: 120 }],
+    PaintStyle: { stroke: '#475569', strokeWidth: 2, dashstyle: '3,0' },
+    HoverPaintStyle: { stroke: '#3b82f6', strokeWidth: 3 },
+    EndpointStyle: { radius: 5, fill: '#3b82f6', stroke: '#3b82f6' },
+    EndpointHoverStyle: { fill: '#60a5fa', stroke: '#60a5fa' },
+    Overlays: [['Arrow', { location: 1, width: 10, length: 10, foldback: 0.8 }]]
+  });
+
+  instance = jsPlumb.getInstance({ container: 'flowCanvas' });
+
+  instance.bind('click', function (conn) {
+    // 点击连接线 → 删除
+    if (confirm('删除此连接？')) instance.deleteConnection(conn);
+  });
+
+  instance.bind('contextmenu', function (conn, e) {
+    e.preventDefault();
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
+// 加载模板数据（URL 参数传入）
+// ══════════════════════════════════════════════════════════════
+async function loadTemplate() {
+  const params = new URLSearchParams(window.location.search);
+  templateId = params.get('id');
+
+  if (templateId) {
+    document.title = '审批流程设计器 - 编辑模板 #' + templateId;
+    try {
+      const r = await fetch('/api/approvals/templates/' + templateId + '/', { credentials: 'include' });
+      if (r.ok) {
+        const tpl = await r.json();
+        document.getElementById('flowInfo').textContent = '📝 ' + tpl.name + ' (编辑中)';
+        // 渲染节点
+        const nodes = tpl.nodes || [];
+        nodes.forEach((n, i) => {
+          const pos = n._position || { x: 200 + (i % 3) * 220, y: 120 + i * 150 };
+          createNodeFromData(n, pos.x, pos.y, false);
+        });
+        // 重连边
+        setTimeout(() => reconnectEdges(nodes), 100);
+        // 更新 info
+        document.getElementById('flowInfo').textContent =
+          `📝 ${tpl.name} · ${nodes.length} 个节点 (编辑中)`;
+      }
+    } catch(e) { toast('加载模板失败: ' + e.message); }
+  } else {
+    // 新建：放置开始和结束节点
+    createNode('start', 400, 60);
+    createNode('end', 400, 520);
+  }
+}
+
+function reconnectEdges(nodes) {
+  // 根据 node_order 重连
+  for (let i = 0; i < nodes.length - 1; i++) {
+    const fromId = 'node_' + (i + 1);
+    const toId = 'node_' + (i + 2);
+    if (document.getElementById(fromId) && document.getElementById(toId)) {
+      instance.connect({ source: fromId, target: toId, anchors: ['BottomCenter', 'TopCenter'] });
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 创建节点 DOM
+// ══════════════════════════════════════════════════════════════
+function createNode(type, x, y, isNew = true) {
+  const id = 'node_' + (nodeIdCounter++);
+  const el = buildNodeDOM(id, type);
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  document.getElementById('flowCanvas').appendChild(el);
+
+  // 注册节点
+  instance.draggable(el, { grid: { w: 10, h: 10 } });
+
+  // 添加锚点
+  if (type !== 'start') {
+    instance.addEndpoint(id, {
+      uuid: id + '-top',
+      anchor: 'Top', maxConnections: -1,
+      isSource: false, isTarget: true,
+      endpoint: ['Dot', { radius: 5 }]
+    });
+  }
+  if (type !== 'end') {
+    instance.addEndpoint(id, {
+      uuid: id + '-bottom',
+      anchor: 'Bottom', maxConnections: -1,
+      isSource: true, isTarget: false,
+      endpoint: ['Dot', { radius: 5 }]
+    });
+  }
+  // 左右锚点（用于并行分支）
+  instance.addEndpoint(id, {
+    uuid: id + '-right', anchor: 'Right', maxConnections: -1,
+    isSource: true, isTarget: true, endpoint: ['Dot', { radius: 4 }]
+  });
+  instance.addEndpoint(id, {
+    uuid: id + '-left', anchor: 'Left', maxConnections: -1,
+    isSource: true, isTarget: true, endpoint: ['Dot', { radius: 4 }]
+  });
+
+  // 双击打开编辑面板
+  el.addEventListener('dblclick', () => openEditPanel(id));
+
+  // 右键菜单
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    ctxNodeId = id;
+    showCtxMenu(e.clientX, e.clientY);
+  });
+
+  if (isNew) instance.repaintEverything();
+  return id;
+}
+
+function buildNodeDOM(id, type) {
+  const el = document.createElement('div');
+  el.className = 'flow-node';
+  el.id = id;
+
+  if (type === 'start') {
+    el.classList.add('node-start');
+    el.innerHTML = '<i class="bi bi-play-fill"></i> 发起人提交';
+    return el;
+  }
+  if (type === 'end') {
+    el.classList.add('node-end');
+    el.innerHTML = '<i class="bi bi-stop-fill"></i> 流程结束';
+    return el;
+  }
+
+  const subtype = el.dataset?.subtype || 'admin';
+  const nodetype = el.dataset?.nodetype || 'single';
+
+  if (type === 'approval') {
+    el.classList.add('node-approval');
+    el.innerHTML = buildApprovalHTML(id, subtype, '审批节点', nodetype, 48);
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+    return el;
+  }
+  if (type === 'condition') {
+    el.classList.add('node-condition');
+    el.innerHTML = buildConditionHTML(id, '条件分支');
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+    return el;
+  }
+  if (type === 'auto') {
+    el.classList.add('node-approval');
+    el.innerHTML = buildApprovalHTML(id, 'auto', '自动通过', 'single', 0);
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+    return el;
+  }
+  if (type === 'cc') {
+    el.classList.add('node-approval');
+    el.innerHTML = buildApprovalHTML(id, 'cc', '知会节点', 'single', 0);
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+    return el;
+  }
+  return el;
+}
+
+function buildApprovalHTML(id, subtype, name, nodetype, timeout) {
+  const subtypeLabel = APPROVER_LABEL[subtype] || '审批';
+  const nodetypeTag = NODE_TYPE_TAG[nodetype] || '或签';
+  const icon = SUBTYPE_ICON[subtype] || '👤';
+  const tagClass = subtype === 'admin' ? '#fee2e2/#b91c1c' : subtype === 'department_head' ? '#fef3c7/#92400e' : '#dbeafe/#1e40af';
+  return `
+    <div class="node-header">
+      <div class="node-icon-wrap">${icon}</div>
+      <div class="node-name" id="name_${id}">${name}</div>
+      <span class="node-type-badge" style="background:${tagClass.split('/')[0]};color:${tagClass.split('/')[1]}">${nodetypeTag}</span>
+    </div>
+    <div class="node-props">
+      <span class="node-prop-tag">${subtypeLabel}</span>
+      ${timeout > 0 ? `<span class="node-prop-tag">⏱${timeout}h</span>` : ''}
+    </div>
+    <button class="delete-btn" title="删除">×</button>
+    <input type="hidden" class="nd-subtype" value="${subtype}">
+    <input type="hidden" class="nd-nodetype" value="${nodetype}">
+    <input type="hidden" class="nd-timeout" value="${timeout}">
+  `;
+}
+
+function buildConditionHTML(id, name) {
+  return `
+    <div class="node-header">
+      <div class="node-icon-wrap">◇</div>
+      <div class="node-name" id="name_${id}">${name}</div>
+    </div>
+    <div class="condition-branches">
+      <div class="branch-tag"><span class="branch-dot" style="background:#10b981"></span> 条件成立</div>
+      <div class="branch-tag"><span class="branch-dot" style="background:#ef4444"></span> 条件不成立</div>
+    </div>
+    <button class="delete-btn" title="删除">×</button>
+    <input type="hidden" class="nd-condition" value="">
+  `;
+}
+
+// 根据模板数据重建节点（含拖拽数据）
+function createNodeFromData(data, x, y, connect = true) {
+  const id = 'node_' + (nodeIdCounter++);
+  const el = document.createElement('div');
+  el.className = 'flow-node';
+  el.id = id;
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.dataset.subtype = data.approver_type || 'admin';
+  el.dataset.nodetype = data.node_type || 'single';
+
+  if (data.node_type === 'condition') {
+    el.classList.add('node-condition');
+    el.innerHTML = buildConditionHTML(id, data.title || '条件分支');
+  } else if (data.node_type === 'start' || data.type === 'start') {
+    el.classList.add('node-start');
+    el.innerHTML = '<i class="bi bi-play-fill"></i> 发起人提交';
+  } else if (data.node_type === 'end' || data.type === 'end') {
+    el.classList.add('node-end');
+    el.innerHTML = '<i class="bi bi-stop-fill"></i> 流程结束';
+  } else {
+    el.classList.add('node-approval');
+    const subtype = data.approver_type || data.subtype || 'admin';
+    const nodetype = data.node_type || 'single';
+    const name = data.title || APPROVER_LABEL[subtype] || '审批节点';
+    const timeout = data.timeout_hours || 48;
+    el.innerHTML = buildApprovalHTML(id, subtype, name, nodetype, timeout);
+  }
+
+  // 保存数据
+  el.dataset.config = JSON.stringify(data);
+
+  document.getElementById('flowCanvas').appendChild(el);
+
+  instance.draggable(el, { grid: { w: 10, h: 10 } });
+
+  if (!el.classList.contains('node-start')) {
+    instance.addEndpoint(id, { uuid: id + '-top', anchor: 'Top', maxConnections: -1,
+      isSource: false, isTarget: true, endpoint: ['Dot', { radius: 5 }] });
+  }
+  if (!el.classList.contains('node-end')) {
+    instance.addEndpoint(id, { uuid: id + '-bottom', anchor: 'Bottom', maxConnections: -1,
+      isSource: true, isTarget: false, endpoint: ['Dot', { radius: 5 }] });
+  }
+  instance.addEndpoint(id, { uuid: id + '-right', anchor: 'Right', maxConnections: -1,
+    isSource: true, isTarget: true, endpoint: ['Dot', { radius: 4 }] });
+  instance.addEndpoint(id, { uuid: id + '-left', anchor: 'Left', maxConnections: -1,
+    isSource: true, isTarget: true, endpoint: ['Dot', { radius: 4 }] });
+
+  el.addEventListener('dblclick', () => openEditPanel(id));
+  el.addEventListener('contextmenu', (e) => {
+    e.preventDefault(); ctxNodeId = id; showCtxMenu(e.clientX, e.clientY);
+  });
+
+  // 绑定删除按钮（针对从数据创建的节点）
+  const delBtn = el.querySelector('.delete-btn');
+  if (delBtn) delBtn.onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+
+  instance.repaintEverything();
+  return id;
+}
+
+// ══════════════════════════════════════════════════════════════
+// 拖放：从工具栏拖入画布
+// ══════════════════════════════════════════════════════════════
+document.querySelectorAll('.tool-node').forEach(tool => {
+  tool.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('nodeType', tool.dataset.type);
+    e.dataTransfer.setData('nodeSubtype', tool.dataset.subtype || '');
+    e.dataTransfer.setData('nodeNodeType', tool.dataset.nodetype || 'single');
+  });
+});
+
+const canvas = document.getElementById('flowCanvas');
+canvas.addEventListener('dragover', (e) => e.preventDefault());
+canvas.addEventListener('drop', (e) => {
+  e.preventDefault();
+  const type = e.dataTransfer.getData('nodeType');
+  const subtype = e.dataTransfer.getData('nodeSubtype');
+  const nodetype = e.dataTransfer.getData('nodeNodeType') || 'single';
+  const rect = canvas.getBoundingClientRect();
+  const x = Math.round((e.clientX - rect.left) / 10) * 10;
+  const y = Math.round((e.clientY - rect.top) / 10) * 10;
+
+  const id = createNode(type, x, y);
+
+  if (type === 'approval' && subtype) {
+    // 更新拖进来的审批节点属性
+    const el = document.getElementById(id);
+    el.dataset.subtype = subtype;
+    el.dataset.nodetype = nodetype;
+    el.querySelector('.nd-subtype').value = subtype;
+    el.querySelector('.nd-nodetype').value = nodetype;
+    // 重新渲染内容
+    const name = APPROVER_LABEL[subtype] || '审批节点';
+    el.querySelector('.node-approval').innerHTML =
+      buildApprovalHTML(id, subtype, name, nodetype, 48);
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+  }
+  if (type === 'condition') {
+    const el = document.getElementById(id);
+    el.innerHTML = buildConditionHTML(id, '条件分支');
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+  }
+  if (type === 'auto') {
+    const el = document.getElementById(id);
+    el.querySelector('.node-approval').innerHTML =
+      buildApprovalHTML(id, 'auto', '自动通过', 'single', 0);
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+  }
+  if (type === 'cc') {
+    const el = document.getElementById(id);
+    el.querySelector('.node-approval').innerHTML =
+      buildApprovalHTML(id, 'cc', '知会节点', 'single', 0);
+    el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(id); };
+  }
+
+  instance.repaintEverything();
+});
+
+// ══════════════════════════════════════════════════════════════
+// 删除节点
+// ══════════════════════════════════════════════════════════════
+function deleteNode(id) {
+  if (confirm('删除此节点？')) {
+    instance.remove(id);
+    if (editingNodeId === id) closeEditPanel();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 右键菜单
+// ══════════════════════════════════════════════════════════════
+function showCtxMenu(x, y) {
+  const menu = document.getElementById('ctxMenu');
+  menu.style.display = 'block';
+  menu.style.left = Math.min(x, window.innerWidth - 180) + 'px';
+  menu.style.top = Math.min(y, window.innerHeight - 120) + 'px';
+}
+function hideCtxMenu() { document.getElementById('ctxMenu').style.display = 'none'; }
+function ctxEditNode() { if (ctxNodeId) openEditPanel(ctxNodeId); hideCtxMenu(); }
+function ctxCopyNode() { toast('复制节点功能开发中'); hideCtxMenu(); }
+function ctxDeleteNode() { if (ctxNodeId) deleteNode(ctxNodeId); hideCtxMenu(); ctxNodeId = null; }
+
+document.addEventListener('click', hideCtxMenu);
+
+// ══════════════════════════════════════════════════════════════
+// 节点编辑侧边栏
+// ══════════════════════════════════════════════════════════════
+function openEditPanel(id) {
+  editingNodeId = id;
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  const isStart = el.classList.contains('node-start');
+  const isEnd = el.classList.contains('node-end');
+  const isCondition = el.classList.contains('node-condition');
+
+  document.getElementById('panelTitle').textContent = isStart ? '开始节点' : isEnd ? '结束节点' : '编辑节点';
+
+  // 基础字段
+  const nameEl = document.getElementById('editNodeName');
+  const subtypeEl = document.getElementById('editApproverType');
+  const userIdEl = document.getElementById('editUserId');
+  const nodetypeEl = document.getElementById('editNodeType');
+  const timeoutEl = document.getElementById('editTimeout');
+  const condEl = document.getElementById('editCondition');
+  const descEl = document.getElementById('editDescription');
+
+  if (isStart || isEnd) {
+    document.getElementById('editApproverTypeDiv').style.display = 'none';
+    document.getElementById('editNodeTypeDiv').style.display = 'none';
+    document.getElementById('editConditionDiv').style.display = 'none';
+    nameEl.value = isStart ? '发起人提交' : '流程结束';
+    nameEl.disabled = true;
+    timeoutEl.value = 0;
+  } else if (isCondition) {
+    document.getElementById('editApproverTypeDiv').style.display = 'none';
+    document.getElementById('editNodeTypeDiv').style.display = 'none';
+    document.getElementById('editConditionDiv').style.display = 'block';
+    nameEl.disabled = false;
+    nameEl.value = document.getElementById('name_' + id)?.textContent || '';
+    condEl.value = el.dataset.condition || '';
+  } else {
+    document.getElementById('editApproverTypeDiv').style.display = '';
+    document.getElementById('editNodeTypeDiv').style.display = '';
+    document.getElementById('editConditionDiv').style.display = 'none';
+    nameEl.disabled = false;
+    nameEl.value = document.getElementById('name_' + id)?.textContent || '';
+    subtypeEl.value = el.dataset.subtype || 'admin';
+    userIdEl.value = el.dataset.userId || '';
+    nodetypeEl.value = el.dataset.nodetype || 'single';
+    timeoutEl.value = parseInt(el.dataset.timeout || '48');
+    document.getElementById('editUserIdDiv').style.display =
+      subtypeEl.value === 'specific_user' ? '' : 'none';
+    condEl.value = '';
+  }
+  descEl.value = el.dataset.description || '';
+
+  document.getElementById('nodeEditPanel').classList.add('active');
+  nameEl.focus();
+}
+
+function applyNodeEdit() {
+  if (!editingNodeId) return;
+  const el = document.getElementById(editingNodeId);
+  const nameEl = document.getElementById('editNodeName');
+  const name = nameEl.value.trim() || '未命名';
+
+  if (!el.classList.contains('node-start') && !el.classList.contains('node-end')) {
+    const subtype = document.getElementById('editApproverType').value;
+    const nodetype = document.getElementById('editNodeType').value;
+    const timeout = parseInt(document.getElementById('editTimeout').value) || 48;
+    const condition = document.getElementById('editCondition').value.trim();
+    const description = document.getElementById('editDescription').value.trim();
+    const userId = document.getElementById('editUserId').value;
+
+    el.dataset.subtype = subtype;
+    el.dataset.nodetype = nodetype;
+    el.dataset.timeout = timeout;
+    el.dataset.condition = condition;
+    el.dataset.description = description;
+    el.dataset.userId = userId;
+
+    if (el.classList.contains('node-condition')) {
+      el.dataset.condition = condition;
+      const nameEl_ = document.getElementById('name_' + editingNodeId);
+      if (nameEl_) nameEl_.textContent = name;
+      const condInput = el.querySelector('.nd-condition');
+      if (condInput) condInput.value = condition;
+    } else {
+      // 重新渲染节点内容
+      el.innerHTML = buildApprovalHTML(editingNodeId, subtype, name, nodetype, timeout);
+      el.innerHTML += `<input type="hidden" class="nd-condition" value="${condition}">`;
+      el.querySelector('.delete-btn').onclick = (e) => { e.stopPropagation(); deleteNode(editingNodeId); };
+    }
+  }
+
+  instance.repaintEverything();
+  closeEditPanel();
+  toast('节点已更新');
+}
+
+function closeEditPanel() {
+  document.getElementById('nodeEditPanel').classList.remove('active');
+  editingNodeId = null;
+}
+
+// 审批人类型切换 → 显示/隐藏用户ID
+document.getElementById('editApproverType').addEventListener('change', function() {
+  document.getElementById('editUserIdDiv').style.display =
+    this.value === 'specific_user' ? '' : 'none';
+});
+
+// ══════════════════════════════════════════════════════════════
+// 保存流程 → 收集所有节点 + 连接 → POST 到后端
+// ══════════════════════════════════════════════════════════════
+async function saveFlow() {
+  const allNodes = document.querySelectorAll('#flowCanvas .flow-node');
+  if (allNodes.length < 2) { toast('至少需要「开始」和「结束」节点'); return; }
+
+  const nodes = [];
+  let hasStart = false, hasEnd = false;
+
+  allNodes.forEach((el, idx) => {
+    if (el.classList.contains('node-start')) { hasStart = true; return; }
+    if (el.classList.contains('node-end')) { hasEnd = true; return; }
+
+    const subtype = el.dataset.subtype || 'admin';
+    const nodetype = el.dataset.nodetype || 'single';
+    const timeout = parseInt(el.dataset.timeout || '48');
+    const name = document.getElementById('name_' + el.id)?.textContent || APPROVER_LABEL[subtype];
+
+    nodes.push({
+      node_order: idx + 1,
+      approver_type: subtype === 'cc' ? 'admin' : subtype,
+      approver_id: subtype === 'specific_user' ? (parseInt(el.dataset.userId) || null) : null,
+      node_type: el.classList.contains('node-condition') ? 'condition' : nodetype,
+      title: name,
+      timeout_hours: timeout,
+      conditions: el.dataset.condition ? { expression: el.dataset.condition } : {},
+      description: el.dataset.description || '',
+      _position: { x: parseInt(el.style.left), y: parseInt(el.style.top) }
+    });
+  });
+
+  if (!hasStart) { toast('缺少「开始」节点'); return; }
+  if (!hasEnd) { toast('缺少「结束」节点'); return; }
+  if (!nodes.length) { toast('至少需要1个审批节点'); return; }
+
+  // 校验：每个节点至少有一个出边（除了end）
+  const connections = instance.getAllConnections();
+  const connectedIds = new Set();
+  connections.forEach(c => {
+    connectedIds.add(c.sourceId);
+    connectedIds.add(c.targetId);
+  });
+
+  // 收集端点uuid
+  const nodeIds = Array.from(allNodes).map(n => n.id);
+  const orphanedNodes = nodes.filter(n => {
+    const nid = 'node_' + (parseInt(n.node_order));
+    return !connectedIds.has(nid) && !nid.endsWith('-end') && !nid.endsWith('-start');
+  });
+
+  const payload = {
+    name: templateId ? '更新流程' : '新建审批流程',
+    code: 'FLOW_' + Date.now(),
+    flow_type: 'custom',
+    is_active: true,
+    description: '',
+    conditions: {},
+    nodes: nodes
+  };
+
+  // 调用后端API
+  try {
+    let url = '/api/approvals/templates/';
+    let method = 'POST';
+    if (templateId) {
+      url += templateId + '/';
+      method = 'PUT';
+    }
+    const r = await fetch(url, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    });
+    if (r.ok) {
+      const result = await r.json();
+      if (!templateId && result.id) {
+        templateId = result.id;
+        history.replaceState({}, '', '?id=' + templateId);
+      }
+      toast('✅ 保存成功！');
+      document.getElementById('flowInfo').textContent = `✅ 已保存 · ${nodes.length} 个节点`;
+    } else {
+      const err = await r.json();
+      toast('❌ 保存失败: ' + JSON.stringify(err));
+    }
+  } catch(e) {
+    toast('❌ 保存异常: ' + e.message);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 校验
+// ══════════════════════════════════════════════════════════════
+function validateFlow() {
+  const nodes = document.querySelectorAll('#flowCanvas .flow-node');
+  const conns = instance.getAllConnections();
+  const ids = Array.from(nodes).map(n => n.id);
+  const orphaned = [];
+
+  if (!document.querySelector('.node-start')) orphaned.push('缺少开始节点');
+  if (!document.querySelector('.node-end')) orphaned.push('缺少结束节点');
+
+  const startNode = document.querySelector('.node-start');
+  const endNode = document.querySelector('.node-end');
+  const nonSystemNodes = document.querySelectorAll('.node-approval, .node-condition');
+  if (nonSystemNodes.length === 0) orphaned.push('至少需要1个审批/条件节点');
+
+  if (orphaned.length === 0) {
+    toast('✅ 流程校验通过');
+  } else {
+    toast('❌ ' + orphaned.join('；'));
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// 自动排列（简单纵向排列 + 连线）
+// ══════════════════════════════════════════════════════════════
+function autoLayout() {
+  const nodes = Array.from(document.querySelectorAll('#flowCanvas .flow-node'));
+  if (!nodes.length) return;
+
+  // 删除所有连线
+  instance.getAllConnections().forEach(c => instance.deleteConnection(c));
+
+  // 简单纵向排列
+  const startX = 400, startY = 60;
+  const nodeHeight = 130;
+  const colWidth = 220;
+
+  nodes.forEach((n, i) => {
+    if (n.classList.contains('node-start')) {
+      n.style.left = startX + 'px';
+      n.style.top = startY + 'px';
+    } else if (n.classList.contains('node-end')) {
+      n.style.left = startX + 'px';
+      n.style.top = startY + nodeHeight * 5 + 'px';
+    } else {
+      n.style.left = (startX + (i % 3) * colWidth) + 'px';
+      n.style.top = (startY + Math.ceil((i + 1) / 3) * nodeHeight) + 'px';
+    }
+  });
+
+  setTimeout(() => {
+    // 重新连接相邻节点
+    const sorted = [];
+    nodes.forEach((n, i) => {
+      if (n.classList.contains('node-start')) sorted.push({ el: n, order: -1 });
+      else if (n.classList.contains('node-end')) sorted.push({ el: n, order: 9999 });
+      else sorted.push({ el: n, order: i });
+    });
+    sorted.sort((a, b) => a.order - b.order);
+    for (let i = 0; i < sorted.length - 1; i++) {
+      const from = sorted[i].el.id;
+      const to = sorted[i + 1].el.id;
+      instance.connect({ source: from, target: to, anchors: ['BottomCenter', 'TopCenter'] });
+    }
+    instance.repaintEverything();
+  }, 50);
+
+  toast('已自动排列');
+}
+
+// ══════════════════════════════════════════════════════════════
+// 清空画布
+// ══════════════════════════════════════════════════════════════
+function clearCanvas() {
+  if (!confirm('清空画布？所有未保存的节点将被删除。')) return;
+  instance.empty('flowCanvas');
+  nodeIdCounter = 1;
+  selectedNode = null;
+  closeEditPanel();
+  document.getElementById('flowInfo').textContent = '未保存';
+  templateId = null;
+  history.replaceState({}, '', window.location.pathname);
+}
+
+// ══════════════════════════════════════════════════════════════
+// Toast 提示
+// ══════════════════════════════════════════════════════════════
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+// ══════════════════════════════════════════════════════════════
+// 启动
+// ══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  initJsPlumb();
+  loadTemplate();
+});
+</script>
+{% endblock %}

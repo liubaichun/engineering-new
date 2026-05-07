@@ -504,6 +504,9 @@ function renderEquipmentTable(items) {
                     <button class="btn btn-outline-warning" onclick="showRepairModal(${eq.id}, '${eq.name}')" title="维修">
                         <i class="bi bi-wrench"></i>
                     </button>
+                    <button class="btn btn-outline-info" onclick="openBOMPage(${eq.id})" title="BOM配件">
+                        <i class="bi bi-diagram-3"></i>
+                    </button>
                     <button class="btn btn-outline-secondary" onclick="showAllLogs(${eq.id})" title="记录">
                         <i class="bi bi-clock-history"></i>
                     </button>
@@ -763,6 +766,9 @@ async function showAllLogs(id) {
         
         new bootstrap.Modal(document.getElementById('usageLogModal')).show();
     } catch (e) { alert('加载记录失败'); }
+}
+function openBOMPage(equipmentId) {
+    window.location.href = '/equipment/bom/?eq_id=' + equipmentId;
 }
 </script>
 {% endblock %}

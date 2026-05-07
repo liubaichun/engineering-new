@@ -47,6 +47,7 @@ class Equipment(models.Model):
         related_name='equipments'
     )
     remarks = models.TextField('备注', blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
     # 设备关联物料BOM（多对多 through 表）
@@ -104,6 +105,7 @@ class EquipmentUsageLog(models.Model):
     )
     quantity = models.IntegerField('数量', default=1)
     purpose = models.CharField('用途', max_length=500, blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     operator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         verbose_name='经办人',
@@ -137,6 +139,7 @@ class EquipmentRepairLog(models.Model):
     description = models.TextField('故障描述')
     result = models.TextField('维修结果', blank=True, default='')
     cost = models.DecimalField('维修费用', max_digits=10, decimal_places=2, default=0)
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     repair_company = models.CharField('维修单位', max_length=200, blank=True, default='')
     operator = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -174,6 +177,7 @@ class EquipmentBOMRelation(models.Model):
     )
     quantity = models.DecimalField('数量', max_digits=12, decimal_places=4, default=1)
     remark = models.CharField('备注', max_length=500, blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:

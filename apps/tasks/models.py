@@ -36,6 +36,21 @@ class Project(models.Model):
         'finance.Company', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='projects', verbose_name='所属公司'
     )
+    approval_flow = models.ForeignKey(
+        'approvals.ApprovalFlow', on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='projects',
+        verbose_name='立项审批流'
+    )
+    approval_status = models.CharField(
+        '审批状态', max_length=20, blank=True, default='',
+        choices=[
+            ('draft', '草稿'),
+            ('pending', '待审批'),
+            ('approved', '已批准'),
+            ('rejected', '已拒绝'),
+            ('cancelled', '已取消'),
+        ]
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
     
@@ -95,6 +110,10 @@ class Task(models.Model):
     )
     due_date = models.DateTimeField(verbose_name='截止日期', null=True, blank=True)
     completed_at = models.DateTimeField(verbose_name='完成时间', null=True, blank=True)
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离（从project继承）'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
     
@@ -107,6 +126,12 @@ class Task(models.Model):
     
     def __str__(self):
         return f"{self.project.code}-{self.code} {self.title}"
+
+    def save(self, *args, **kwargs):
+        # 自动从 project 继承 company_id
+        if self.project_id and not self.company_id:
+            self.company_id = self.project.company_id
+        super().save(*args, **kwargs)
 
 
 class FlowTemplate(models.Model):
@@ -123,6 +148,10 @@ class FlowTemplate(models.Model):
     type = models.CharField(verbose_name='类型', max_length=20, choices=TYPE_CHOICES, default='development')
     description = models.TextField(verbose_name='描述', blank=True, default='')
     is_active = models.BooleanField(verbose_name='是否启用', default=True)
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
     
@@ -162,6 +191,10 @@ class FlowNodeTemplate(models.Model):
     assignee_value = models.CharField(verbose_name=' assignee value', max_length=200, blank=True, default='')
     order = models.IntegerField(verbose_name='顺序', default=0)
     timeout_hours = models.IntegerField(verbose_name='超时时间(小时)', default=0)
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     
     class Meta:
@@ -202,6 +235,10 @@ class TaskStageInstance(models.Model):
     started_at = models.DateTimeField(verbose_name='开始时间', null=True, blank=True)
     completed_at = models.DateTimeField(verbose_name='完成时间', null=True, blank=True)
     remark = models.TextField(verbose_name='备注', blank=True, default='')
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
     
@@ -245,6 +282,10 @@ class TaskFlowInstance(models.Model):
     )
     started_at = models.DateTimeField(verbose_name='启动时间', null=True, blank=True)
     completed_at = models.DateTimeField(verbose_name='完成时间', null=True, blank=True)
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
     
@@ -282,6 +323,10 @@ class StageActivity(models.Model):
     comment = models.TextField(verbose_name='评论', blank=True, default='')
     from_status = models.CharField(verbose_name='原状态', max_length=20, blank=True, default='')
     to_status = models.CharField(verbose_name='新状态', max_length=20, blank=True, default='')
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     
     class Meta:
@@ -315,6 +360,10 @@ class FlowTransition(models.Model):
     )
     action = models.CharField(verbose_name='动作', max_length=50, blank=True, default='')
     remark = models.TextField(verbose_name='备注', blank=True, default='')
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     
     class Meta:
@@ -325,3 +374,99 @@ class FlowTransition(models.Model):
     
     def __str__(self):
         return f"{self.task.code}: {self.from_node} -> {self.to_node}"
+
+
+class TaskComment(models.Model):
+    """任务评论"""
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='comments', verbose_name='所属任务'
+    )
+    author = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, null=True,
+        related_name='task_comments', verbose_name='评论人'
+    )
+    content = models.TextField(verbose_name='评论内容')
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True,
+        related_name='replies', verbose_name='父评论'
+    )
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'tasks_task_comment'
+        verbose_name = '任务评论'
+        verbose_name_plural = '任务评论'
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.author} 评论 {self.task}: {self.content[:30]}"
+
+
+class TaskAttachment(models.Model):
+    """任务附件"""
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='attachments', verbose_name='所属任务'
+    )
+    file = models.FileField(upload_to='task_attachments/%Y%m%d/', verbose_name='附件文件')
+    name = models.CharField(verbose_name='文件名', max_length=255)
+    size = models.IntegerField(verbose_name='文件大小(字节)', default=0)
+    uploaded_by = models.ForeignKey(
+        'core.User', on_delete=models.SET_NULL, null=True,
+        related_name='task_attachments', verbose_name='上传人'
+    )
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='上传时间')
+
+    class Meta:
+        db_table = 'tasks_task_attachment'
+        verbose_name = '任务附件'
+        verbose_name_plural = '任务附件'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} ({self.task})"
+
+
+class TaskDependency(models.Model):
+    """任务依赖关系（blocking）"""
+    DEPENDENCY_TYPES = [
+        ('blocks', '阻塞（被依赖任务完成后才能开始）'),
+        ('depends_on', '依赖（本任务需等依赖任务完成后才能开始）'),
+    ]
+
+    task = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='dependencies_from', verbose_name='任务'
+    )
+    depends_on = models.ForeignKey(
+        Task, on_delete=models.CASCADE,
+        related_name='dependencies_to', verbose_name='前置依赖任务'
+    )
+    dependency_type = models.CharField(
+        verbose_name='依赖类型', max_length=20,
+        choices=DEPENDENCY_TYPES, default='depends_on'
+    )
+    company_id = models.PositiveIntegerField(
+        verbose_name='所属公司', null=True, blank=True, db_index=True,
+        help_text='所属公司ID，用于多租户隔离'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+
+    class Meta:
+        db_table = 'tasks_task_dependency'
+        verbose_name = '任务依赖'
+        verbose_name_plural = '任务依赖'
+        unique_together = ['task', 'depends_on']
+
+    def __str__(self):
+        return f"{self.task} {self.get_dependency_type_display()} {self.depends_on}"
