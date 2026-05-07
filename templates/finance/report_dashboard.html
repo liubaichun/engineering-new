@@ -487,7 +487,8 @@ function renderInvoiceReport(data, container) {
                         <th>待开票</th>
                         <th>已支付</th>
                         <th>已作废</th>
-                        <th>发票总额</th>
+                        <th>有效总额</th>
+                        <th><small>作废金额</small></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -502,6 +503,7 @@ function renderInvoiceReport(data, container) {
                 <td><span class="badge bg-primary">${r.paid_count}</span></td>
                 <td><span class="badge bg-secondary">${r.cancelled_count}</span></td>
                 <td><strong>¥${formatNumber(r.total_amount)}</strong></td>
+                <td><small class="text-muted">作废¥${formatNumber(r.cancelled_amount || 0)}</small></td>
             </tr>
         `;
     });

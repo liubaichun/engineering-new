@@ -1512,11 +1512,14 @@ class ReportViewSet(viewsets.ViewSet):
         for company in companies:
             qs = queryset.filter(company=company)
 
+            # 作废发票不计入总额，只做记录展示；有效总额 = paid + issued + pending
             issued_count = qs.filter(status='issued').count()
             pending_count = qs.filter(status='pending').count()
             paid_count = qs.filter(status='paid').count()
             cancelled_count = qs.filter(status='cancelled').count()
-            total_amount = qs.aggregate(total=Sum('amount'))['total'] or 0
+            cancelled_amount = qs.filter(status='cancelled').aggregate(total=Sum('amount'))['total'] or 0
+            # 有效发票总额（不含作废）
+            valid_amount = qs.exclude(status='cancelled').aggregate(total=Sum('amount'))['total'] or 0
 
             results.append({
                 'company_id': company.id,
@@ -1526,7 +1529,8 @@ class ReportViewSet(viewsets.ViewSet):
                 'pending_count': pending_count,
                 'paid_count': paid_count,
                 'cancelled_count': cancelled_count,
-                'total_amount': float(total_amount),
+                'cancelled_amount': float(cancelled_amount),
+                'total_amount': float(valid_amount),
             })
 
         return Response({
