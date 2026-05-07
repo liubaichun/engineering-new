@@ -169,6 +169,11 @@
             <i class="bi bi-building me-1"></i>公司信息
         </button>
     </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="bankAccounts-tab" data-bs-toggle="tab" data-bs-target="#tabBankAccounts" type="button" role="tab">
+            <i class="bi bi-bank me-1"></i>银行账户
+        </button>
+    </li>
 </ul>
 
 <!-- Tab 内容 -->
@@ -265,6 +270,53 @@
         </div>
         <div class="company-grid" id="companyGrid">
             <div class="loading-spinner"><div class="spinner-border text-primary"></div></div>
+        </div>
+    </div>
+
+    <!-- ===== 银行账户 Tab ===== -->
+    <div class="tab-pane fade" id="tabBankAccounts" role="tabpanel">
+        <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
+            <div>
+                <h5 class="mb-1"><i class="bi bi-bank me-2"></i>银行账户</h5>
+                <p class="text-muted mb-0" style="font-size:0.85rem;">管理各公司的银行账号，一个公司可有多个账户</p>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="showBankAccountModal()">
+                <i class="bi bi-plus-lg me-1"></i>添加账户
+            </button>
+        </div>
+        <div class="d-flex gap-3 mb-3 flex-wrap">
+            <select class="form-select form-select-sm" id="bankFilterCompany" onchange="loadBankAccounts()" style="width:200px;">
+                <option value="">全部公司</option>
+            </select>
+            <select class="form-select form-select-sm" id="bankFilterActive" onchange="loadBankAccounts()" style="width:150px;">
+                <option value="">全部状态</option>
+                <option value="true">启用</option>
+                <option value="false">停用</option>
+            </select>
+            <input type="text" class="form-control form-control-sm" id="bankSearch" placeholder="搜索账号/户名/银行" onkeyup="loadBankAccounts()" style="width:200px;">
+        </div>
+        <div class="card">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>公司</th>
+                                <th>银行</th>
+                                <th>账号</th>
+                                <th>户名</th>
+                                <th>状态</th>
+                                <th>流水数</th>
+                                <th>创建时间</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bankAccountTableBody">
+                            <tr><td colspan="8" class="text-center py-4"><div class="spinner-border text-primary"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -367,13 +419,104 @@
             <div class="modal-body">
                 <input type="hidden" id="textEditKey">
                 <div class="modal-field">
-                    <label id="textEditLabel">设置值</label>
+                    <label id="textEditLabel">参数值</label>
                     <input type="text" id="textEditValue" class="form-control">
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
-                <button class="btn btn-primary btn-sm" onclick="saveTextSetting()"><i class="bi bi-check-lg me-1"></i>保存</button>
+                <button class="btn btn-primary btn-sm" onclick="saveTextSetting()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 银行账户编辑弹窗 -->
+<div class="modal fade" id="bankAccountModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="bankAccountModalTitle"><i class="bi bi-bank me-2"></i>添加银行账户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="bankAccountId">
+                <div class="row g-3">
+                    <div class="col-12">
+                        <div class="modal-field">
+                            <label>所属公司 *</label>
+                            <select id="bankAccountCompany" class="form-select" required>
+                                <option value="">选择公司</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>银行 *</label>
+                            <select id="bankAccountBank" class="form-select" required>
+                                <option value="">选择银行</option>
+                                <option value="ICBC">工商银行</option>
+                                <option value="CMB">招商银行</option>
+                                <option value="CCB">建设银行</option>
+                                <option value="BOC">中国银行</option>
+                                <option value="ABC">农业银行</option>
+                                <option value="COMM">交通银行</option>
+                                <option value="PSBC">邮储银行</option>
+                                <option value="PA">平安银行</option>
+                                <option value="OTHER">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>账号 *</label>
+                            <input type="text" id="bankAccountNo" class="form-control" placeholder="银行卡号" required>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="modal-field">
+                            <label>户名</label>
+                            <input type="text" id="bankAccountName" class="form-control" placeholder="账户名称">
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="modal-field">
+                            <label>状态</label>
+                            <select id="bankAccountActive" class="form-select">
+                                <option value="true">启用</option>
+                                <option value="false">停用</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-primary btn-sm" onclick="saveBankAccount()">
+                    <i class="bi bi-check-lg me-1"></i>保存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 确认删除银行账户弹窗 -->
+<div class="modal fade" id="bankAccountDeleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2 text-danger"></i>删除账户</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="bankAccountDeleteMsg">确定删除该银行账户？</p>
+                <p class="text-muted small mb-0">有关联流水的账户删除后将标记为停用，而非物理删除。</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">取消</button>
+                <button class="btn btn-danger btn-sm" onclick="confirmDeleteBankAccount()">
+                    <i class="bi bi-trash me-1"></i>确认删除
+                </button>
             </div>
         </div>
     </div>
@@ -600,12 +743,180 @@ document.getElementById('settingsTab').addEventListener('shown.bs.tab', function
         companiesLoaded = true;
         loadCompanies();
     }
+    if (e.target.id === 'bankAccounts-tab' && !window.bankAccountsLoaded) {
+        window.bankAccountsLoaded = true;
+        loadBankAccountCompanies();
+        loadBankAccounts();
+    }
 });
 // Pre-load if coming back to page with hash
 if (window.location.hash === '#companies') {
     setTimeout(() => {
         document.getElementById('companies-tab').click();
     }, 100);
+}
+
+// ===== 银行账户管理 =====
+
+async function loadBankAccountCompanies() {
+    const res = await fetch('/api/core/companies/');
+    const data = await res.json();
+    const companies = data.results || data;
+    const sel = document.getElementById('bankFilterCompany');
+    const modalSel = document.getElementById('bankAccountCompany');
+    const optTpl = '<option value="">全部公司</option>' +
+        companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+    sel.innerHTML = optTpl;
+    modalSel.innerHTML = '<option value="">选择公司</option>' +
+        companies.map(c => `<option value="${c.id}">${c.name}</option>`).join('');
+}
+
+async function loadBankAccounts() {
+    const companyId = document.getElementById('bankFilterCompany').value;
+    const isActive = document.getElementById('bankFilterActive').value;
+    const search = document.getElementById('bankSearch').value.trim();
+
+    let url = '/api/finance/bank-accounts/?page_size=200';
+    if (companyId) url += '&company=' + companyId;
+    if (isActive) url += '&is_active=' + isActive;
+    if (search) url += '&search=' + encodeURIComponent(search);
+
+    const res = await fetch(url, { credentials: 'include' });
+    const data = await res.json();
+    const accounts = data.results || data;
+    renderBankAccountTable(accounts);
+}
+
+function renderBankAccountTable(accounts) {
+    const tbody = document.getElementById('bankAccountTableBody');
+    if (accounts.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无银行账户</td></tr>';
+        return;
+    }
+    tbody.innerHTML = accounts.map(a => `
+        <tr>
+            <td>${escapeHtml(a.company_name || '')}</td>
+            <td>${escapeHtml(a.bank_name || a.bank_code || '')}</td>
+            <td><code>${escapeHtml(a.account_no)}</code></td>
+            <td>${escapeHtml(a.account_name || '-')}</td>
+            <td>
+                <span class="badge ${a.is_active ? 'bg-success' : 'bg-secondary'}">
+                    ${a.is_active ? '启用' : '停用'}
+                </span>
+            </td>
+            <td>${a.statement_count || 0}</td>
+            <td>${a.created_at ? a.created_at.slice(0, 10) : '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="editBankAccount(${a.id})">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteBankAccount(${a.id}, '${escapeHtml(a.account_no)}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function editBankAccount(id) {
+    const res = await fetch(`/api/finance/bank-accounts/${id}/`, { credentials: 'include' });
+    if (!res.ok) { showToast('加载失败', 'error'); return; }
+    const a = await res.json();
+    document.getElementById('bankAccountId').value = a.id;
+    document.getElementById('bankAccountCompany').value = a.company;
+    document.getElementById('bankAccountBank').value = a.bank_code;
+    document.getElementById('bankAccountNo').value = a.account_no;
+    document.getElementById('bankAccountName').value = a.account_name || '';
+    document.getElementById('bankAccountActive').value = a.is_active ? 'true' : 'false';
+    document.getElementById('bankAccountModalTitle').innerHTML = '<i class="bi bi-bank me-2"></i>编辑银行账户';
+    new bootstrap.Modal(document.getElementById('bankAccountModal')).show();
+}
+
+function showBankAccountModal() {
+    document.getElementById('bankAccountId').value = '';
+    document.getElementById('bankAccountCompany').value = '';
+    document.getElementById('bankAccountBank').value = '';
+    document.getElementById('bankAccountNo').value = '';
+    document.getElementById('bankAccountName').value = '';
+    document.getElementById('bankAccountActive').value = 'true';
+    document.getElementById('bankAccountModalTitle').innerHTML = '<i class="bi bi-bank me-2"></i>添加银行账户';
+    new bootstrap.Modal(document.getElementById('bankAccountModal')).show();
+}
+
+async function saveBankAccount() {
+    const id = document.getElementById('bankAccountId').value;
+    const company = document.getElementById('bankAccountCompany').value;
+    const bank_code = document.getElementById('bankAccountBank').value;
+    const account_no = document.getElementById('bankAccountNo').value.trim();
+    const account_name = document.getElementById('bankAccountName').value.trim();
+    const is_active = document.getElementById('bankAccountActive').value === 'true';
+
+    if (!company || !bank_code || !account_no) {
+        showToast('请填写必填项（公司、银行、账号）', 'error'); return;
+    }
+
+    const bank_names = {
+        'ICBC':'工商银行','CMB':'招商银行','CCB':'建设银行','BOC':'中国银行',
+        'ABC':'农业银行','COMM':'交通银行','PSBC':'邮储银行','PA':'平安银行','OTHER':'其他'
+    };
+
+    const payload = {
+        company: parseInt(company),
+        bank_code: bank_code,
+        bank_name: bank_names[bank_code] || bank_code,
+        account_no: account_no,
+        account_name: account_name,
+        is_active: is_active,
+    };
+
+    const method = id ? 'PUT' : 'POST';
+    const url = id ? `/api/finance/bank-accounts/${id}/` : '/api/finance/bank-accounts/';
+    const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
+        body: JSON.stringify(payload),
+        credentials: 'include',
+    });
+
+    if (res.ok) {
+        bootstrap.Modal.getInstance(document.getElementById('bankAccountModal')).hide();
+        showToast('保存成功', 'success');
+        loadBankAccounts();
+    } else {
+        const err = await res.json();
+        showToast(Object.values(err).join(', ') || '保存失败', 'error');
+    }
+}
+
+let pendingDeleteBankAccountId = null;
+function deleteBankAccount(id, accountNo) {
+    pendingDeleteBankAccountId = id;
+    document.getElementById('bankAccountDeleteMsg').textContent =
+        `确定删除账户 ${accountNo}？`;
+    new bootstrap.Modal(document.getElementById('bankAccountDeleteModal')).show();
+}
+
+async function confirmDeleteBankAccount() {
+    const id = pendingDeleteBankAccountId;
+    if (!id) return;
+    const res = await fetch(`/api/finance/bank-accounts/${id}/`, {
+        method: 'DELETE',
+        headers: { 'X-CSRFToken': getCsrfToken() },
+        credentials: 'include',
+    });
+    bootstrap.Modal.getInstance(document.getElementById('bankAccountDeleteModal')).hide();
+    if (res.ok || res.status === 204) {
+        showToast('删除成功', 'success');
+        loadBankAccounts();
+    } else {
+        showToast('删除失败', 'error');
+    }
+}
+
+// 通用HTML转义
+function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 </script>
 {% endblock %}

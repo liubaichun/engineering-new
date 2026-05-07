@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
-from .models_bank import BankStatement
+from .models_bank import BankAccount, BankStatement
 
 
 class CompanySerializer(serializers.ModelSerializer):
@@ -475,3 +475,23 @@ class BankStatementSerializer(serializers.ModelSerializer):
         if obj.matched_expense:
             return str(obj.matched_expense.amount)
         return ''
+
+
+class BankAccountSerializer(serializers.ModelSerializer):
+    """银行账户序列化器"""
+    bank_display = serializers.CharField(source='get_bank_code_display', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    statement_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BankAccount
+        fields = [
+            'id', 'company', 'company_name',
+            'bank_code', 'bank_display', 'bank_name',
+            'account_no', 'account_name', 'is_active',
+            'created_at', 'statement_count',
+        ]
+        read_only_fields = ['created_at']
+
+    def get_statement_count(self, obj):
+        return obj.statements.count()

@@ -1,6 +1,6 @@
 from django.urls import path, include
 from config.routers import IntegerPkRouter
-from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet
+from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet, BankAccountViewSet
 from . import import_views
 from . import bank_import_views
 from . import tax_invoice_import
@@ -20,6 +20,7 @@ router.register(r'reports', ReportViewSet, basename='report')
 router.register(r'employees', EmployeeViewSet, basename='employee')
 router.register(r'social-configs', CompanySocialConfigViewSet, basename='social-config')
 router.register(r'employee-companies', EmployeeCompanyViewSet, basename='employee-company')
+router.register(r'bank-accounts', BankAccountViewSet, basename='bank-account')
 
 urlpatterns = [
     path('', include(router.urls)),

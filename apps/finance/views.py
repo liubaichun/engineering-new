@@ -114,6 +114,7 @@ from .serializers import (
     EmployeeSerializer,
     CompanySocialConfigSerializer,
     EmployeeCompanySerializer,
+    BankAccountSerializer,
 )
 from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
 from apps.approvals.models import ApprovalFlow, ApprovalNode
@@ -1837,3 +1838,55 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
             EmployeeCompany.objects.filter(
                 employee=ec.employee, is_primary=True
             ).exclude(id=ec.id).update(is_primary=False)
+
+
+class BankAccountViewSet(viewsets.ModelViewSet):
+    """银行账户视图集"""
+    queryset = BankAccount.objects.all().select_related('company')
+    serializer_class = BankAccountSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['company', 'is_active', 'bank_code']
+    search_fields = ['account_no', 'account_name', 'bank_name']
+    ordering_fields = ['company__name', 'created_at', 'account_no']
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                qs = qs.filter(company_id=user.company_id)
+        return qs
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # 有关联流水的账户只标记为停用，不物理删除
+        if instance.statements.exists():
+            instance.is_active = False
+            instance.save()
+        else:
+            instance.delete()
+
+    @action(detail=False, methods=['get'])
+    def by_company(self, request):
+        """按公司分组返回银行账户列表"""
+        company_id = request.query_params.get('company')
+        qs = self.get_queryset()
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        data = []
+        for acc in qs:
+            data.append({
+                'id': acc.id,
+                'company_id': acc.company_id,
+                'company_name': acc.company.name,
+                'bank_code': acc.bank_code,
+                'bank_name': acc.bank_name or acc.bank_code,
+                'account_no': acc.account_no,
+                'account_name': acc.account_name,
+                'is_active': acc.is_active,
+            })
+        return Response(data)
