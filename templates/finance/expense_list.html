@@ -103,9 +103,7 @@
                 <div class="d-flex align-items-center gap-1">
                     <i class="bi bi-calendar3 text-muted"></i>
                     <select class="form-select form-select-sm" id="filterYear" onchange="onYearChange()" style="width:auto;min-width:100px;">
-                        <option value="2026">2026年度</option>
-                        <option value="2025">2025年度</option>
-                        <option value="2024">2024年度</option>
+                        <option value="">加载中…</option>
                     </select>
                 </div>
                 <select class="form-select form-select-sm" id="filterCompany" onchange="loadExpenses(1)" style="width:auto;">
@@ -349,22 +347,40 @@ document.addEventListener('DOMContentLoaded', function() {
     deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
     importModal = new bootstrap.Modal(document.getElementById('importModal'));
 
-    initYearFilter();
     loadCompanies();
     loadProjects();
+    loadYearOptions();
     loadExpenses(1);
 });
 
-function initYearFilter() {
-    const yearSelect = document.getElementById('filterYear');
-    if (yearSelect) {
-        yearSelect.value = String(currentYear);
+async function loadYearOptions() {
+    // 从数据库动态加载有收支数据的年份
+    try {
+        const response = await fetch('/api/finance/reports/years/', { credentials: 'include' });
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        const years = data.years || [];
+        const select = document.getElementById('filterYear');
+        if (!select) return;
+        select.innerHTML = '<option value="">全部年份</option>';
+        const currentYear = new Date().getFullYear();
+        years.forEach(y => {
+            const selected = String(y) === String(currentYear) ? ' selected' : '';
+            select.innerHTML += `<option value="${y}"${selected}>${y}年</option>`;
+        });
+        if (select.value === '') {
+            if (years.length > 0) select.value = years[0];
+        }
+        onYearChange();
+    } catch (e) {
+        const select = document.getElementById('filterYear');
+        if (select) select.innerHTML = '<option value="">全部年份</option>';
     }
-    // 设置默认日期范围（今年1月1日 ~ 今天）
-    const startInput = document.getElementById('filterDateStart');
-    const endInput = document.getElementById('filterDateEnd');
-    if (startInput) startInput.value = `${currentYear}-01-01`;
-    if (endInput) endInput.value = new Date().toISOString().split('T')[0];
+}
+
+function initYearFilter() {
+    // 年份选项已由 loadYearOptions() 动态加载，此处仅初始化日期范围
+    // 日期范围由 onYearChange() 根据选中年份自动设置
 }
 
 function onYearChange() {
@@ -424,12 +440,14 @@ async function loadProjects() {
 async function loadExpenses(page) {
     if (page) currentPage = page;
     const company = document.getElementById('filterCompany').value;
+    const year = document.getElementById('filterYear') ? document.getElementById('filterYear').value : '';
     const expenseType = document.getElementById('filterExpenseType').value;
     const dateStart = document.getElementById('filterDateStart').value;
     const dateEnd = document.getElementById('filterDateEnd').value;
 
     let url = `/api/finance/expenses/?page=${currentPage}&page_size=${pageSize}`;
     if (company) url += `&company_id=${company}`;
+    if (year) url += `&year=${year}`;
     if (expenseType) url += `&expense_type=${expenseType}`;
     if (dateStart) url += `&date_from=${dateStart}`;
     if (dateEnd) url += `&date_to=${dateEnd}`;

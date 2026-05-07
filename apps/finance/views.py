@@ -1303,6 +1303,27 @@ class ReportViewSet(viewsets.ViewSet):
         })
 
     @action(detail=False, methods=['get'])
+    def years(self, request):
+        """返回所有有收支数据的年份列表（供前端动态填充年份下拉框）"""
+        from django.db.models.functions import ExtractYear
+        income_years = (
+            Income.objects.annotate(y=ExtractYear('date'))
+            .values_list('y', flat=True)
+            .distinct()
+            .exclude(y=None)
+            .order_by('-y')
+        )
+        expense_years = (
+            Expense.objects.annotate(y=ExtractYear('expense_date'))
+            .values_list('y', flat=True)
+            .distinct()
+            .exclude(y=None)
+            .order_by('-y')
+        )
+        all_years = sorted(set(list(income_years) + list(expense_years)), reverse=True)
+        return Response({'years': all_years})
+
+    @action(detail=False, methods=['get'])
     def monthly(self, request):
         """月度报表 - 按公司+月份统计"""
         year = request.query_params.get('year')

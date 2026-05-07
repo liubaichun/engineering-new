@@ -128,9 +128,7 @@
                 <div class="d-flex align-items-center gap-1">
                     <i class="bi bi-calendar3 text-muted"></i>
                     <select class="form-select form-select-sm" id="filterYear" onchange="onYearChange()" style="width:auto;min-width:100px;">
-                        <option value="2026">2026年度</option>
-                        <option value="2025">2025年度</option>
-                        <option value="2024">2024年度</option>
+                        <option value="">加载中…</option>
                     </select>
                 </div>
                 <select class="form-select form-select-sm" id="filterCompany" onchange="loadIncomes()" style="width:auto;">
@@ -364,6 +362,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadCompanies();
     loadProjects();
+    loadYearOptions();
     loadIncomes();
 });
 
@@ -395,6 +394,34 @@ function updateCompanySelects() {
             select.value = currentValue;
         }
     });
+}
+
+async function loadYearOptions() {
+    // 从数据库动态加载有收支数据的年份
+    try {
+        const response = await fetch('/api/finance/reports/years/', { credentials: 'include' });
+        if (!response.ok) throw new Error();
+        const data = await response.json();
+        const years = data.years || [];
+        const select = document.getElementById('filterYear');
+        if (!select) return;
+        select.innerHTML = '<option value="">全部年份</option>';
+        const currentYear = new Date().getFullYear();
+        years.forEach(y => {
+            const selected = String(y) === String(currentYear) ? ' selected' : '';
+            select.innerHTML += `<option value="${y}"${selected}>${y}年</option>`;
+        });
+        if (select.value === '') {
+            // 没有匹配今年的数据时选最近的年份
+            if (years.length > 0) select.value = years[0];
+        }
+        // 同步更新日期范围
+        onYearChange();
+    } catch (e) {
+        // 网络失败时保留全部年份选项
+        const select = document.getElementById('filterYear');
+        if (select) select.innerHTML = '<option value="">全部年份</option>';
+    }
 }
 
 async function loadProjects() {
