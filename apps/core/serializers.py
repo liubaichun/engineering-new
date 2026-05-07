@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
+from django.contrib.auth.hashers import make_password
 from django.utils import timezone
 from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting
 from apps.finance.models import Company as FinanceCompany
@@ -137,9 +138,44 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'phone',
+        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'phone', 'password',
                   'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined',
                   'role_name', 'roles', 'role_ids', 'company_roles', 'company_role_ids']
+        extra_kwargs = {'password': {'write_only': True}}
+        read_only_fields = ['id', 'is_staff', 'is_superuser', 'last_login', 'date_joined']
+
+    def create(self, validated_data):
+        role_ids = validated_data.pop('role_ids', None)
+        company_role_ids = validated_data.pop('company_role_ids', None)
+
+        # 处理 is_superuser
+        is_superuser = validated_data.pop('is_superuser', False)
+
+        # 创建用户
+        password = validated_data.pop('password', None)
+        if password:
+            validated_data['password'] = make_password(password)
+
+        user = User.objects.create(**validated_data)
+        if is_superuser:
+            user.is_superuser = True
+            user.save(update_fields=['is_superuser'])
+
+        # 处理角色关联
+        if role_ids is not None:
+            for rid in role_ids:
+                UserRole.objects.create(user=user, role_id=rid)
+
+        # 处理公司角色关联
+        if company_role_ids is not None:
+            for cr in company_role_ids:
+                UserCompanyRole.objects.create(
+                    user=user,
+                    company_id=cr.get('company_id'),
+                    role=cr.get('role', 'staff')
+                )
+
+        return user
 
     def get_role_name(self, obj):
         """返回用户角色名称 — 优先用 UserCompanyRole 的角色，否则用 User.role 字段"""
@@ -156,7 +192,6 @@ class UserSerializer(serializers.ModelSerializer):
             'staff': '员工',
         }
         return role_map.get(obj.role, obj.role) if obj.role else ''
-        read_only_fields = ['id', 'is_staff', 'is_superuser', 'last_login', 'date_joined']
 
     def get_roles(self, obj):
         """返回用户通过UserRole关联的所有角色"""
@@ -180,32 +215,36 @@ class UserSerializer(serializers.ModelSerializer):
                 UserRole.objects.create(user=instance, role_id=rid)
             # 写审计日志
             if request and (added or removed):
-                try:
-                    from .models import PermissionAuditLog
-                    ip = request.META.get('REMOTE_ADDR', '') if request else ''
-                    ua = request.META.get('HTTP_USER_AGENT', '')[:500] if request else ''
-                    for rid in added:
-                        PermissionAuditLog.objects.create(
-                            user=request.user if request and hasattr(request, 'user') else None,
-                            action='assign_role',
-                            target_user=instance,
-                            role_id=rid,
-                            ip_address=ip,
-                            user_agent=ua,
-                            details=f'分配角色 {rid}',
-                        )
-                    for rid in removed:
-                        PermissionAuditLog.objects.create(
-                            user=request.user if request and hasattr(request, 'user') else None,
-                            action='remove_role',
-                            target_user=instance,
-                            role_id=rid,
-                            ip_address=ip,
-                            user_agent=ua,
-                            details=f'移除角色 {rid}',
-                        )
-                except Exception:
-                    pass
+                    try:
+                        from .models import PermissionAuditLog
+                        ip = request.META.get('REMOTE_ADDR', '') if request else ''
+                        ua = request.META.get('HTTP_USER_AGENT', '')[:500] if request else ''
+                        req = self.context.get('request')
+                        auth_company = getattr(req, 'auth_company', None) if req else None
+                        for rid in added:
+                            PermissionAuditLog.objects.create(
+                                user=request.user if request and hasattr(request, 'user') else None,
+                                action='assign_role',
+                                target_user=instance,
+                                role_id=rid,
+                                ip_address=ip,
+                                user_agent=ua,
+                                details=f'分配角色 {rid}',
+                                company=auth_company,
+                            )
+                        for rid in removed:
+                            PermissionAuditLog.objects.create(
+                                user=request.user if request and hasattr(request, 'user') else None,
+                                action='remove_role',
+                                target_user=instance,
+                                role_id=rid,
+                                ip_address=ip,
+                                user_agent=ua,
+                                details=f'移除角色 {rid}',
+                                company=auth_company,
+                            )
+                    except Exception:
+                        pass
         # 处理公司角色分配（批量覆盖）
         if company_role_ids is not None:
             existing = {ucr.company_id: ucr for ucr in instance.company_roles.all()}
@@ -297,12 +336,15 @@ class NotificationSerializer(serializers.ModelSerializer):
     """通知消息序列化器"""
     type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     level_display = serializers.CharField(source='get_level_display', read_only=True)
+    # 兼容前端 notifications.html 的字段名
+    type = serializers.CharField(source='notification_type', read_only=True)
+    message = serializers.CharField(source='content', read_only=True)
 
     class Meta:
         model = Notification
         fields = ['id', 'user', 'title', 'content', 'notification_type', 'type_display',
                   'level', 'level_display', 'is_read', 'related_id', 'related_type',
-                  'created_at']
+                  'created_at', 'type', 'message']
         read_only_fields = ['id', 'user', 'created_at']
 
 
