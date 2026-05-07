@@ -468,13 +468,23 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
     """
     result = ImportResult()
     data = file_obj.read() if hasattr(file_obj, 'read') else file_obj
-    wb = load_workbook(io.BytesIO(data), data_only=True)
+    wb = load_workbook(io.BytesIO(data))
 
     # 优先找「发票基础信息」sheet
+    # 优先选择包含「税率」列的 sheet（税率在「信息汇总表」而非「发票基础信息」）
     ws = None
+    best_sheet = None
     for sheet_name in wb.sheetnames:
-        if '发票基础信息' in sheet_name:
-            ws = wb[sheet_name]
+        ws_candidate = wb[sheet_name]
+        # 扫描前10行找表头
+        for row in ws_candidate.iter_rows(min_row=1, max_row=10, values_only=True):
+            if any(cell is not None for cell in row) and '数电发票号码' in str(row):
+                has_tax_rate = '税率' in [str(h).strip() if h else '' for h in row]
+                if has_tax_rate:
+                    ws = ws_candidate
+                    best_sheet = sheet_name
+                    break
+        if ws is not None:
             break
     if ws is None:
         ws = wb.active
