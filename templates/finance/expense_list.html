@@ -471,7 +471,7 @@ function renderExpenses(expenses) {
             <td>
                 <div class="expense-company">
                     <div class="company-avatar">${expense.company_name ? expense.company_name.charAt(0) : '未'}</div>
-                    <div class="company-name">${expense.company_name || '-'}</div>
+                    <div class="company-name">${expense.company_name ? expense.company_name.substring(1) : '-'}</div>
                 </div>
             </td>
             <td><span class="expense-type-badge ${expense.expense_type}">${typeMap[expense.expense_type] || expense.expense_type}</span></td>
