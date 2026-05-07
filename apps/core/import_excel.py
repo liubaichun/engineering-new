@@ -518,6 +518,9 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
             c_tax_rate = i
             break
 
+    # 预先把所有数据行读入列表（避免 read_only 模式下 iter_rows 只能遍历一次的问题）
+    all_data_rows = [list(row) for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True) if not all(v is None for v in row)]
+
     def get_val(row, ci):
         if ci < 0 or ci >= len(row):
             return None
@@ -571,7 +574,7 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
 
     # 聚合：同发票号多行明细合并为一条
     invoice_map = {}
-    for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True):
+    for row in all_data_rows:
         if all(v is None for v in row):
             continue
         inv_no = get_val(row, c_invoice_no)
