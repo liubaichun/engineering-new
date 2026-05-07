@@ -57,15 +57,15 @@ def render_bank_import_page(request):
 
 def _get_user_company_id(user):
     """从登录用户自动提取当前公司ID（用于多租户自动上下文）
-    超级用户返回 None（不限制公司），普通用户返回其主公司ID。
+    超级用户返回 None（不限制公司），普通用户返回其主公司ID（第一个关联公司）。
     """
     if not user or not user.is_authenticated:
         return None
     if user.is_superuser:
         return None
-    # 优先从 UserCompanyRole 取主公司
+    # 从 UserCompanyRole 取第一个关联公司（没有 is_primary 字段）
     from apps.core.models import UserCompanyRole
-    ucr = UserCompanyRole.objects.filter(user=user, is_primary=True).first()
+    ucr = UserCompanyRole.objects.filter(user=user).first()
     if ucr:
         return ucr.company_id
     # 兼容旧字段
