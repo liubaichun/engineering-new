@@ -76,9 +76,8 @@
         </select>
         <select class="form-select form-select-sm" id="filterStatus" style="width: auto;" onchange="loadInvoices()">
             <option value="">全部状态</option>
-            <option value="pending">待开票</option>
-            <option value="issued">已开票</option>
-            <option value="paid">已支付</option>
+            <option value="pending">待收款/待付款</option>
+            <option value="paid">已完成</option>
             <option value="cancelled">已作废</option>
         </select>
         <input type="date" class="form-control form-control-sm" id="filterDateFrom" style="width: auto;" placeholder="开始日期" onchange="loadInvoices()">
@@ -350,9 +349,8 @@
                     <div class="col-4">
                         <label class="form-label">状态</label>
                         <select class="form-select" id="invoiceStatus">
-                            <option value="pending">待开票</option>
-                            <option value="issued">已开票</option>
-                            <option value="paid">已支付</option>
+                            <option value="pending">待收款/待付款</option>
+                            <option value="paid">已完成</option>
                             <option value="cancelled">已作废</option>
                         </select>
                     </div>
@@ -558,7 +556,7 @@ function renderPagination(data, type, paginationId, currentPage) {
     if (currentPage < totalPages) ul.innerHTML += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="loadInvoices('${type}', ${currentPage + 1})">›</a></li>`;
 }
 
-const statusMap = {'pending': '待开票', 'issued': '已开票', 'paid': '已支付', 'cancelled': '已作废'};
+const statusMap = {'pending': '待收款/待付款', 'paid': '已完成', 'cancelled': '已作废'};
 
 async function showInvoiceDetail(id) {
     try {

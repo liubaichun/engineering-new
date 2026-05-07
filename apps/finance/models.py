@@ -554,9 +554,8 @@ class Invoice(models.Model):
         ('normal', '普通发票'),
     ]
     STATUS_CHOICES = [
-        ('pending', '待开票'),
-        ('issued', '已开票'),
-        ('paid', '已支付'),
+        ('pending', '待收款/待付款'),
+        ('paid', '已完成'),
         ('cancelled', '已作废'),
     ]
 

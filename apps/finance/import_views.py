@@ -152,7 +152,7 @@ def import_invoices(request):
 
     result = ImportResult()
     TYPE_MAP = {'收入发票': 'income', '支出发票': 'expense'}
-    STATUS_MAP = {'待开票': 'pending', '已开票': 'issued', '已支付': 'paid', '已作废': 'cancelled'}
+    STATUS_MAP = {'待收款/待付款': 'pending', '已完成': 'paid', '已作废': 'cancelled'}
 
     for row_num in range(2, ws.max_row + 1):
         row_errors = []

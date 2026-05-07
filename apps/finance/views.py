@@ -1775,8 +1775,8 @@ class ARAPViewSet(viewsets.ViewSet):
                 if not company_id or int(company_id) != user.company_id:
                     company_id = user.company_id
         from django.db.models import Sum, Min, Max, Count
-        ar_qs = Invoice.objects.filter(type='income', status__in=['pending', 'issued'])
-        ap_qs = Invoice.objects.filter(type='expense', status__in=['pending', 'issued'])
+        ar_qs = Invoice.objects.filter(type='income', status='pending')
+        ap_qs = Invoice.objects.filter(type='expense', status='pending')
         if company_id:
             ar_qs = ar_qs.filter(company_id=company_id)
             ap_qs = ap_qs.filter(company_id=company_id)
@@ -1820,7 +1820,7 @@ class ARAPViewSet(viewsets.ViewSet):
         counterparty = request.query_params.get('counterparty')
         company_id = request.query_params.get('company')
         status = request.query_params.get('status')
-        qs = Invoice.objects.filter(type='income', status__in=['pending', 'issued'])
+        qs = Invoice.objects.filter(type='income', status='pending')
         if company_id:
             qs = qs.filter(company_id=company_id)
         if counterparty:
@@ -1836,7 +1836,7 @@ class ARAPViewSet(viewsets.ViewSet):
         counterparty = request.query_params.get('counterparty')
         company_id = request.query_params.get('company')
         status = request.query_params.get('status')
-        qs = Invoice.objects.filter(type='expense', status__in=['pending', 'issued'])
+        qs = Invoice.objects.filter(type='expense', status='pending')
         if company_id:
             qs = qs.filter(company_id=company_id)
         if counterparty:
