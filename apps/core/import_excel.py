@@ -509,6 +509,14 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
     c_invoice_type_col = col('发票票种')
     c_issuer           = col('开票人')
     c_remark           = col('备注')
+    # 税率列：精确匹配列名含「税率」且不含「劳务」（避免匹配到「货物或应税劳务服务」）
+    # 在 headers 中找「税率」列，但要排除「劳务税率」等误匹配
+    c_tax_rate = -1
+    for i, h in enumerate(headers):
+        h_str = str(h)
+        if '税率' in h_str and '劳务' not in h_str and '服务' not in h_str and '编码' not in h_str:
+            c_tax_rate = i
+            break
 
     def get_val(row, ci):
         if ci < 0 or ci >= len(row):
@@ -546,13 +554,13 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
 
     def map_status(status_val, inv_type):
         if not status_val:
-            return 'paid' if inv_type == 'income' else 'pending'
+            return 'paid' if inv_type == 'income' else 'paid'
         s = str(status_val)
         if '正常' in s:
-            return 'paid' if inv_type == 'income' else 'pending'
+            return 'paid'
         if '红冲' in s or '作废' in s:
             return 'cancelled'
-        return 'paid' if inv_type == 'income' else 'pending'
+        return 'paid'
 
     def resolve_company_by_tax(tax_id, default=None):
         from apps.finance.models import Company
@@ -628,16 +636,29 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
             counterparty_tax_id = str(info[counterparty_tax_field] or '').strip()
             issue_date = info['date']
 
-            # 公司匹配
+            # 公司匹配：优先用税号匹配我方公司
+            # - income（我方开出发票，我方是销方）→ 用 seller_tax
+            # - expense（我方收到发票，我方是购方）→ 用 buyer_tax
             if invoice_type == 'income':
                 resolved_company_id = resolve_company_by_tax(
-                    info.get('buyer_tax'), default=company_id)
+                    info.get('seller_tax'), default=company_id)
             else:
                 resolved_company_id = resolve_company_by_tax(
-                    info.get('seller_tax'), default=company_id)
+                    info.get('buyer_tax'), default=company_id)
 
             inv_status     = map_status(info.get('status_raw'), invoice_type)
             inv_invoice_type = map_invoice_type(info.get('票种'))
+
+            # 税率解析：Excel存为 "1%" "13%" 等字符串
+            tax_rate_val = None
+            if c_tax_rate >= 0:
+                raw_rate = get_val(first_row, c_tax_rate)
+                if raw_rate is not None:
+                    s = str(raw_rate).strip().replace('%', '').replace(' ', '')
+                    try:
+                        tax_rate_val = Decimal(s)
+                    except Exception:
+                        tax_rate_val = None
 
             # 备注拼接开票人
             issuer = str(info.get('issuer') or '').strip()
@@ -649,20 +670,24 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
                 result.add_error(seq, f'发票号 {inv_no} 已存在，跳过')
                 continue
 
-            result.rows.append({
+            row_dict = {
                 'invoice_no':          inv_no,
                 'type':                invoice_type,
                 'invoice_type':        inv_invoice_type,
                 'amount':              round(total_amount, 2),
-                'tax_amount':          round(total_tax, 2),
                 'counterparty':        counterparty,
                 'counterparty_tax_id': counterparty_tax_id,
                 'issue_date':          issue_date,
                 'status':              inv_status,
-                'is_credited':         (inv_status != 'cancelled'),
-                'company':             resolved_company_id or company_id,
+                'is_credited':         False,  # Excel无认证列，默认未认证，用户可后期修改
+                'company_id':          resolved_company_id or company_id,
                 'remarks':             remarks,
-            })
+            }
+            if tax_rate_val is not None:
+                row_dict['tax_rate'] = tax_rate_val
+            if total_tax is not None:
+                row_dict['tax_amount'] = round(total_tax, 2)
+            result.rows.append(row_dict)
             result.success += 1
 
         except Exception as e:

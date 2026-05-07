@@ -505,20 +505,48 @@ function goToPage(page) {
     loadInvoices();
 }
 
-function updateSummary(data) {
-    const invoices = data.results || data;
-    let pending = 0, issued = 0, paid = 0;
-    invoices.forEach(inv => {
-        if (inv.status === 'pending') pending += parseFloat(inv.amount);
-        else if (inv.status === 'issued') issued += parseFloat(inv.amount);
-        else if (inv.status === 'paid') paid += parseFloat(inv.amount);
-    });
+async function updateSummary(data) {
+    // 从服务器端获取汇总数据，不用前端分页数据估算
+    const company = document.getElementById('filterCompany').value;
+    const type = document.getElementById('filterType').value;
+    const status = document.getElementById('filterStatus').value;
+    const dateFrom = document.getElementById('filterDateFrom').value;
+    const dateTo = document.getElementById('filterDateTo').value;
     
-    document.getElementById('totalCount').textContent = data.count;
-    document.getElementById('totalInvoices').textContent = data.count;
-    document.getElementById('pendingAmount').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits: 2});
-    document.getElementById('issuedAmount').textContent = '¥' + issued.toLocaleString('zh-CN', {minimumFractionDigits: 2});
-    document.getElementById('paidAmount').textContent = '¥' + paid.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+    let url = '/api/finance/invoices/summary/?';
+    if (company) url += `company_id=${company}&`;
+    if (type) url += `type=${type}&`;
+    if (status) url += `status=${status}&`;
+    if (dateFrom) url += `issue_date_min=${dateFrom}&`;
+    if (dateTo) url += `issue_date_max=${dateTo}&`;
+    
+    try {
+        const resp = await fetch(url.replace(/&$/, ''), { credentials: 'include' });
+        if (resp.ok) {
+            const s = await resp.json();
+            document.getElementById('totalCount').textContent = s.total_count || data.count;
+            document.getElementById('totalInvoices').textContent = s.total_count || data.count;
+            document.getElementById('pendingAmount').textContent = '¥' + (s.pending_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+            document.getElementById('issuedAmount').textContent = '¥' + (s.issued_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+            document.getElementById('paidAmount').textContent = '¥' + (s.paid_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        } else {
+            // Fallback: use current page data
+            const invoices = data.results || data;
+            let pending = 0, issued = 0, paid = 0;
+            invoices.forEach(inv => {
+                if (inv.status === 'pending') pending += parseFloat(inv.amount);
+                else if (inv.status === 'issued') issued += parseFloat(inv.amount);
+                else if (inv.status === 'paid') paid += parseFloat(inv.amount);
+            });
+            document.getElementById('totalCount').textContent = data.count;
+            document.getElementById('totalInvoices').textContent = data.count;
+            document.getElementById('pendingAmount').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+            document.getElementById('issuedAmount').textContent = '¥' + issued.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+            document.getElementById('paidAmount').textContent = '¥' + paid.toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        }
+    } catch (e) {
+        console.error('updateSummary failed:', e);
+    }
 }
 
 function showAddInvoiceModal() {

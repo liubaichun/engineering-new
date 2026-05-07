@@ -3,6 +3,21 @@ from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
+
+
+class SafePageNumberPagination(PageNumberPagination):
+    """解决 get_next_link() build_absolute_uri DisallowedHost 问题"""
+    def get_next_link(self):
+        try:
+            return super().get_next_link()
+        except Exception:
+            return None
+
+    def get_previous_link(self):
+        try:
+            return super().get_previous_link()
+        except Exception:
+            return None
 from apps.core.auth import CSRFExemptSessionAuthentication
 from django.shortcuts import render
 
@@ -1121,6 +1136,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     """发票视图集"""
     queryset = Invoice.objects.all()
     serializer_class = InvoiceSerializer
+    pagination_class = SafePageNumberPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = InvoiceFilter
     search_fields = ['invoice_no', 'remarks']
@@ -1178,43 +1194,29 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def summary(self, request):
-        """发票汇总统计"""
+        """发票汇总统计 — 用于前端顶部三个金额指标"""
         queryset = self.get_queryset()
 
-        from django.db.models import Sum, Count
+        from django.db.models import Sum, Count, Q
 
-        # 按状态统计
-        status_stats = queryset.values('status').annotate(
-            count=Count('id'),
-            total=Sum('amount')
-        )
-
-        # 按类型统计
-        type_stats = queryset.values('type').annotate(
-            count=Count('id'),
-            total=Sum('amount')
-        )
-
-        issued_count = queryset.filter(status='issued').count()
-        pending_count = queryset.filter(status='pending').count()
-        paid_count = queryset.filter(status='paid').count()
-        cancelled_count = queryset.filter(status='cancelled').count()
+        total_count = queryset.count()
         total_amount = queryset.aggregate(total=Sum('amount'))['total'] or 0
+        pending_amount = queryset.filter(status='pending').aggregate(total=Sum('amount'))['total'] or 0
+        issued_amount = queryset.filter(status='issued').aggregate(total=Sum('amount'))['total'] or 0
+        paid_amount = queryset.filter(status='paid').aggregate(total=Sum('amount'))['total'] or 0
+        cancelled_amount = queryset.filter(status='cancelled').aggregate(total=Sum('amount'))['total'] or 0
 
         return Response({
+            'total_count': total_count,
             'total_amount': float(total_amount),
-            'issued_count': issued_count,
-            'pending_count': pending_count,
-            'paid_count': paid_count,
-            'cancelled_count': cancelled_count,
-            'status_stats': [
-                {'status': item['status'], 'count': item['count'], 'total': float(item['total'] or 0)}
-                for item in status_stats
-            ],
-            'type_stats': [
-                {'type': item['type'], 'count': item['count'], 'total': float(item['total'] or 0)}
-                for item in type_stats
-            ],
+            'pending_amount': float(pending_amount),
+            'issued_amount': float(issued_amount),
+            'paid_amount': float(paid_amount),
+            'cancelled_amount': float(cancelled_amount),
+            'pending_count': queryset.filter(status='pending').count(),
+            'issued_count': queryset.filter(status='issued').count(),
+            'paid_count': queryset.filter(status='paid').count(),
+            'cancelled_count': queryset.filter(status='cancelled').count(),
         })
 
     @action(detail=False, methods=['get'])
