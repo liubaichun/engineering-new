@@ -635,20 +635,25 @@ function showAddInvoiceModal() {
     new bootstrap.Modal(document.getElementById('invoiceModal')).show();
 }
 
+function getVal(id) {
+    var el = document.getElementById(id);
+    return el ? el.value : '';
+}
+
 async function saveInvoice() {
     const id = document.getElementById('invoiceId').value;
     const csrftoken = document.cookie.split(';').find(r => r.trim().startsWith('csrftoken='))?.split('=')[1];
     const data = {
-        invoice_no: document.getElementById('invoiceNo').value,
-        type: document.getElementById('invoiceType').value || 'expense',
-        amount: parseFloat(document.getElementById('invoiceAmount').value) || 0,
-        tax_rate: parseFloat(document.getElementById('invoiceTaxRate').value) || 0,
-        status: document.getElementById('invoiceStatus').value,
-        remarks: document.getElementById('invoiceRemarks').value,
-        counterparty: document.getElementById('invoiceCounterparty').value,
-        counterparty_tax_id: document.getElementById('invoiceTaxNo').value,
-        issue_date: document.getElementById('invoiceIssueDate').value,
-        tax_amount: parseFloat(document.getElementById('invoiceTaxAmount').value) || 0,
+        invoice_no: getVal('invoiceNo'),
+        type: getVal('invoiceType') || 'expense',
+        amount: parseFloat(getVal('invoiceAmount')) || 0,
+        tax_rate: parseFloat(getVal('invoiceTaxRate')) || 0,
+        status: getVal('invoiceStatus') || 'pending',
+        remarks: getVal('invoiceRemarks'),
+        counterparty: getVal('invoiceCounterparty'),
+        counterparty_tax_id: getVal('invoiceTaxNo'),
+        issue_date: getVal('invoiceIssueDate'),
+        tax_amount: parseFloat(getVal('invoiceTaxAmount')) || 0,
     };
     try {
         const url = id ? `/api/finance/invoices/${id}/` : '/api/finance/invoices/';
@@ -659,14 +664,15 @@ async function saveInvoice() {
             body: JSON.stringify(data)
         });
         if (resp.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('invoiceModal')).hide();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('invoiceModal'));
+            if (modal) modal.hide();
             loadInvoices(currentTab, currentTab === 'income' ? incomePage : expensePage);
             loadSummary('income');
             loadSummary('expense');
         } else {
             alert('保存失败');
         }
-    } catch (e) { console.error(e); alert('保存失败: ' + e.message); }
+    } catch (e) { console.error(e); alert('保存出错'); }
 }
 
 async function exportInvoices() {
