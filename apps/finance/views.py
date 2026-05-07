@@ -574,6 +574,13 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.save()
         return Response({'status': 'success', 'message': '工资已发放'})
 
+    @action(detail=False, methods=['get'])
+    def years(self, request):
+        """返回有工资数据的年份列表"""
+        qs = self.get_queryset()
+        years = sorted(qs.values_list('year', flat=True).distinct(), reverse=True)
+        return Response({'years': list(years)})
+
     @action(detail=True, methods=['post'])
     @_require_perms('finance:wage:submit')
     def submit(self, request, pk=None):

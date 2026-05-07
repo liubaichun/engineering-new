@@ -108,8 +108,7 @@
             <option value="">全部公司</option>
         </select>
         <select class="form-select form-select-sm" style="width: auto;" id="yearFilter" onchange="loadWages()">
-            <option value="2026">2026年</option>
-            <option value="2025">2025年</option>
+            <option value="">加载中...</option>
         </select>
         <select class="form-select form-select-sm" style="width: auto;" id="monthFilter" onchange="loadWages()">
             <option value="">全部月份</option>
@@ -285,6 +284,7 @@ var wageModal;
 document.addEventListener('DOMContentLoaded', function() {
     wageModal = new bootstrap.Modal(document.getElementById('wageModal'));
     loadCompanies();
+    loadYearOptionsWage();
     loadEmployees();
     loadSocialConfigs();
     loadWages();
@@ -325,6 +325,31 @@ function loadCompanies() {
         });
     })
     .catch(err => console.error('加载公司失败:', err));
+}
+
+function loadYearOptionsWage() {
+    fetch('/api/finance/wages/years/', { credentials: 'include' })
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+        var select = document.getElementById('yearFilter');
+        if (!data || !data.years || data.years.length === 0) {
+            // 无数据时默认显示当前年
+            var opt = document.createElement('option');
+            opt.value = new Date().getFullYear();
+            opt.textContent = new Date().getFullYear() + '年';
+            select.appendChild(opt);
+            return;
+        }
+        data.years.forEach(y => {
+            var opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y + '年';
+            select.appendChild(opt);
+        });
+    })
+    .catch(err => {
+        console.error('加载年份失败:', err);
+    });
 }
 
 // 加载员工列表

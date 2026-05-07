@@ -120,9 +120,7 @@
         <div class="col-md-3">
             <label class="form-label">年份</label>
             <select class="form-select" id="filterYear">
-                <option value="2026">2026</option>
-                <option value="2025">2025</option>
-                <option value="2024">2024</option>
+                <option value="">加载中...</option>
             </select>
         </div>
         <div class="col-md-3">
@@ -244,6 +242,7 @@ function escapeHtml(text) {
 // 页面加载时获取公司列表
 document.addEventListener('DOMContentLoaded', function() {
     loadCompanies();
+    loadYearOptions();
     // 默认选中月度报表
     showReport('monthly');
     document.querySelector('.report-card[onclick*="monthly"]').classList.add('active');
@@ -265,6 +264,32 @@ async function loadCompanies() {
         }
     } catch (err) {
         console.error('加载公司列表失败', err);
+    }
+}
+
+async function loadYearOptions() {
+    try {
+        const res = await fetch(`${API_BASE}/reports/years/`, { credentials: 'include' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const select = document.getElementById('filterYear');
+        select.innerHTML = '';
+        const years = data.years || [];
+        if (years.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = new Date().getFullYear();
+            opt.textContent = new Date().getFullYear();
+            select.appendChild(opt);
+        } else {
+            years.forEach(y => {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = y + '年';
+                select.appendChild(opt);
+            });
+        }
+    } catch (err) {
+        console.error('加载年份失败', err);
     }
 }
 
