@@ -157,28 +157,8 @@
     </div>
 </div>
 
-<!-- 开出发票汇总：一行3列（type=income） -->
-<div class="invoice-summary mb-3" id="incomeSummary">
-    <div class="summary-card">
-        <div class="label">开出发票总数</div>
-        <div class="value primary" id="incomeCount">0</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">含税金额</div>
-        <div class="value" id="incomeTotalAmt">¥0</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">税金</div>
-        <div class="value warning" id="incomeTax">¥0</div>
-    </div>
-    <div class="summary-card">
-        <div class="label">不含税金额</div>
-        <div class="value success" id="incomeNet">¥0</div>
-    </div>
-</div>
-
-<!-- 收到发票汇总：一行3列（type=expense） -->
-<div class="invoice-summary" id="expenseSummary">
+<!-- 收到发票汇总（type=expense），放在前面与默认Tab顺序一致 -->
+<div class="invoice-summary mb-3" id="expenseSummary">
     <div class="summary-card">
         <div class="label">收到发票总数</div>
         <div class="value primary" id="expenseCount">0</div>
@@ -194,6 +174,26 @@
     <div class="summary-card">
         <div class="label">不含税金额</div>
         <div class="value success" id="expenseNet">¥0</div>
+    </div>
+</div>
+
+<!-- 开出发票汇总（type=income） -->
+<div class="invoice-summary" id="incomeSummary">
+    <div class="summary-card">
+        <div class="label">开出发票总数</div>
+        <div class="value primary" id="incomeCount">0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">含税金额</div>
+        <div class="value" id="incomeTotalAmt">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">税金</div>
+        <div class="value warning" id="incomeTax">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">不含税金额</div>
+        <div class="value success" id="incomeNet">¥0</div>
     </div>
 </div>
 
@@ -462,7 +462,7 @@ async function loadSummary(type) {
         const resp = await fetch(url, { credentials: 'include' });
         if (!resp.ok) return;
         const s = await resp.json();
-        const p = type === 'income' ? 'income' : 'expense';
+        const p = type;  // type === 'income' → incomeCount 等，type === 'expense' → expenseCount 等
         document.getElementById(p + 'Count').textContent = s.total_count || 0;
         document.getElementById(p + 'TotalAmt').textContent = '¥' + (s.total_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
         document.getElementById(p + 'Tax').textContent = '¥' + (s.total_tax || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
