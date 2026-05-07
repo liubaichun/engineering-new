@@ -430,6 +430,12 @@ function onCompanyChange() {
     loadSummary(currentTab);
 }
 
+// 点击 Tab 按钮时强制切换（全局函数，button onclick 直接调用）
+function switchTab(btn) {
+    const tabTrigger = bootstrap.Tab.getOrCreateInstance(btn);
+    tabTrigger.show();
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     loadCompanies();
     loadProjects();
@@ -437,11 +443,6 @@ document.addEventListener('DOMContentLoaded', function() {
     loadInvoices('expense', 1);
     loadSummary('expense');
 
-    // 点击 Tab 按钮时强制切换
-    function switchTab(btn) {
-        const tabTrigger = bootstrap.Tab.getOrCreateInstance(btn);
-        tabTrigger.show();
-    }
     // shown.bs.tab 在默认 Tab 不会自动触发，用于后续切换时的数据加载
     document.getElementById('invoiceListTabs').addEventListener('shown.bs.tab', function(e) {
         const target = e.target.getAttribute('data-bs-target');
