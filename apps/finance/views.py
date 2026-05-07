@@ -1205,6 +1205,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         """发票汇总统计 — 用于前端顶部三个金额指标"""
         queryset = self.get_queryset()
 
+        # 支持 type 和 company_id 过滤（前端切换Tab和公司时调用）
+        invoice_type = request.query_params.get('type')
+        company_id = request.query_params.get('company_id')
+        if invoice_type:
+            queryset = queryset.filter(type=invoice_type)
+        if company_id:
+            queryset = queryset.filter(company_id=company_id)
+
         from django.db.models import Sum, Count, Q
 
         total_count = queryset.count()
@@ -1337,11 +1345,12 @@ class ReportViewSet(viewsets.ViewSet):
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
 
-        # 自动多租户：普通用户只看本公司数据，超管看全部
+        # 自动多租户：普通用户只看本公司数据；超管可以传 company 参数指定公司
         user_company_id = _get_user_company_id(request.user)
         if user_company_id is not None:
-            # 强制限制为用户所属公司（忽略前端传的 company_id 参数，防止越权）
+            # 普通用户：强制只看本公司
             company_id = user_company_id
+        # else: 超管可以自由指定 company（company_id 可以是 None=查全部）
 
         # 构建筛选条件
         income_qs = Income.objects.all()
@@ -1461,10 +1470,12 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        # 自动多租户：普通用户只看本公司数据，超管看全部
+        # 自动多租户：普通用户只看本公司数据；超管可以传 company 参数指定公司
         user_company_id = _get_user_company_id(request.user)
         if user_company_id is not None:
+            # 普通用户：强制只看本公司
             company_id = user_company_id
+        # else: 超管可以自由指定 company（company_id 可以是 None=查全部）
 
         queryset = WageRecord.objects.all()
         if year:
@@ -1520,7 +1531,7 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
         invoice_type = request.query_params.get('type')  # income or expense
-        # 自动多租户：普通用户只看本公司数据，超管看全部
+        # 自动多租户：普通用户只看本公司数据；超管可以传 company 参数指定公司
         user_company_id = _get_user_company_id(request.user)
         if user_company_id is not None:
             company_id = user_company_id

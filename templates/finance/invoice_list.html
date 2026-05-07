@@ -133,7 +133,7 @@
                         <div class="mb-2">
                             <input type="file" class="form-control" id="importFileIncome" accept=".xlsx,.xls">
                         </div>
-                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('income')">
+                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('expense')">
                             <i class="bi bi-upload me-1"></i>导入收到发票
                         </button>
                         <div class="import-progress mt-2" id="importProgressIncome" style="display:none">
@@ -145,7 +145,7 @@
                         <div class="mb-2">
                             <input type="file" class="form-control" id="importFileExpense" accept=".xlsx,.xls">
                         </div>
-                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('expense')">
+                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('income')">
                             <i class="bi bi-upload me-1"></i>导入开出发票
                         </button>
                         <div class="import-progress mt-2" id="importProgressExpense" style="display:none">
@@ -506,26 +506,28 @@ function goToPage(page) {
 }
 
 async function updateSummary(data) {
-    // 调用 summary API 获取正确的聚合数据，而不是从列表 API 的响应中错误地读取
+    // 调用 summary API 获取正确的聚合数据（按 type+company 过滤）
     const company = document.getElementById('filterCompany').value;
     const type = document.getElementById('filterType').value;
     const status = document.getElementById('filterStatus').value;
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
 
-    let url = `/api/finance/invoices/summary/?page=${currentPage}&page_size=${pageSize}`;
-    if (company) url += `&company_id=${company}`;
-    if (type) url += `&type=${type}`;
-    if (status) url += `&status=${status}`;
-    if (dateFrom) url += `&issue_date_min=${dateFrom}&`;
-    if (dateTo) url += `&issue_date_max=${dateTo}&`;
+    let url = '/api/finance/invoices/summary/';
+    const params = new URLSearchParams();
+    if (company) params.append('company_id', company);
+    if (type) params.append('type', type);
+    if (status) params.append('status', status);
+    if (dateFrom) params.append('issue_date_min', dateFrom);
+    if (dateTo) params.append('issue_date_max', dateTo);
+    if (params.toString()) url += '?' + params.toString();
 
     try {
-        const resp = await fetch(url.replace(/&$/, ''), { credentials: 'include' });
+        const resp = await fetch(url, { credentials: 'include' });
         if (resp.ok) {
             const s = await resp.json();
-            document.getElementById('totalCount').textContent = s.total_count || data.count;
-            document.getElementById('totalInvoices').textContent = s.total_count || data.count;
+            document.getElementById('totalCount').textContent = s.total_count || 0;
+            document.getElementById('totalInvoices').textContent = s.total_count || 0;
             document.getElementById('pendingAmount').textContent = '¥' + (s.pending_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
             document.getElementById('issuedAmount').textContent = '¥' + (s.issued_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
             document.getElementById('paidAmount').textContent = '¥' + (s.paid_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
@@ -541,8 +543,8 @@ async function updateSummary(data) {
             else if (inv.status === 'issued') issued += parseFloat(inv.amount);
             else if (inv.status === 'paid') paid += parseFloat(inv.amount);
         });
-        document.getElementById('totalCount').textContent = data.count;
-        document.getElementById('totalInvoices').textContent = data.count;
+        document.getElementById('totalCount').textContent = data.count || 0;
+        document.getElementById('totalInvoices').textContent = data.count || 0;
         document.getElementById('pendingAmount').textContent = '¥' + pending.toLocaleString('zh-CN', {minimumFractionDigits: 2});
         document.getElementById('issuedAmount').textContent = '¥' + issued.toLocaleString('zh-CN', {minimumFractionDigits: 2});
         document.getElementById('paidAmount').textContent = '¥' + paid.toLocaleString('zh-CN', {minimumFractionDigits: 2});
