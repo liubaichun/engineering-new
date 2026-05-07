@@ -1213,26 +1213,22 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if company_id:
             queryset = queryset.filter(company_id=company_id)
 
-        from django.db.models import Sum, Count, Q
+        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
 
         total_count = queryset.count()
+
+        # 含税金额 = amount 合计
         total_amount = queryset.aggregate(total=Sum('amount'))['total'] or 0
-        pending_amount = queryset.filter(status='pending').aggregate(total=Sum('amount'))['total'] or 0
-        issued_amount = queryset.filter(status='issued').aggregate(total=Sum('amount'))['total'] or 0
-        paid_amount = queryset.filter(status='paid').aggregate(total=Sum('amount'))['total'] or 0
-        cancelled_amount = queryset.filter(status='cancelled').aggregate(total=Sum('amount'))['total'] or 0
+        # 税金 = tax_amount 合计
+        total_tax = queryset.aggregate(total=Sum('tax_amount'))['total'] or 0
+        # 不含税金额 = 含税 - 税金
+        net_amount = float(total_amount) - float(total_tax)
 
         return Response({
             'total_count': total_count,
-            'total_amount': float(total_amount),
-            'pending_amount': float(pending_amount),
-            'issued_amount': float(issued_amount),
-            'paid_amount': float(paid_amount),
-            'cancelled_amount': float(cancelled_amount),
-            'pending_count': queryset.filter(status='pending').count(),
-            'issued_count': queryset.filter(status='issued').count(),
-            'paid_count': queryset.filter(status='paid').count(),
-            'cancelled_count': queryset.filter(status='cancelled').count(),
+            'total_amount': float(total_amount),   # 含税金额
+            'total_tax': float(total_tax),          # 税金
+            'net_amount': round(net_amount, 2),     # 不含税金额
         })
 
     @action(detail=False, methods=['get'])

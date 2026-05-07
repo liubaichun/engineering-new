@@ -5,10 +5,10 @@
 {% block styles %}
 <style>
 .invoice-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    display: flex;
     gap: 16px;
     margin-bottom: 24px;
+    flex-wrap: wrap;
 }
 .summary-card {
     background: #fff;
@@ -157,37 +157,43 @@
     </div>
 </div>
 
-<!-- 收入发票汇总 -->
-<div class="invoice-summary" id="incomeSummary">
+<!-- 收到发票汇总：一行3列 -->
+<div class="invoice-summary mb-3" id="incomeSummary">
     <div class="summary-card">
         <div class="label">收到发票总数</div>
         <div class="value primary" id="incomeCount">0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="incomeTotal">0</span> 张</div>
     </div>
     <div class="summary-card">
-        <div class="label">待收票金额</div>
-        <div class="value warning" id="incomePending">¥0</div>
+        <div class="label">含税金额</div>
+        <div class="value" id="incomeTotalAmt">¥0</div>
     </div>
     <div class="summary-card">
-        <div class="label">已收票金额</div>
-        <div class="value success" id="incomePaid">¥0</div>
+        <div class="label">税金</div>
+        <div class="value warning" id="incomeTax">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">不含税金额</div>
+        <div class="value success" id="incomeNet">¥0</div>
     </div>
 </div>
 
-<!-- 支出（开出发票）汇总 -->
+<!-- 开出发票汇总：一行3列 -->
 <div class="invoice-summary" id="expenseSummary">
     <div class="summary-card">
         <div class="label">开出发票总数</div>
         <div class="value primary" id="expenseCount">0</div>
-        <div style="font-size:0.8rem; color:var(--text-secondary); margin-top:4px;">共 <span id="expenseTotal">0</span> 张</div>
     </div>
     <div class="summary-card">
-        <div class="label">待开票金额</div>
-        <div class="value warning" id="expensePending">¥0</div>
+        <div class="label">含税金额</div>
+        <div class="value" id="expenseTotalAmt">¥0</div>
     </div>
     <div class="summary-card">
-        <div class="label">已开票金额</div>
-        <div class="value success" id="expensePaid">¥0</div>
+        <div class="label">税金</div>
+        <div class="value warning" id="expenseTax">¥0</div>
+    </div>
+    <div class="summary-card">
+        <div class="label">不含税金额</div>
+        <div class="value success" id="expenseNet">¥0</div>
     </div>
 </div>
 
@@ -219,12 +225,12 @@
                             <th>发票号</th>
                             <th>发票类型</th>
                             <th>对方公司</th>
-                            <th>金额</th>
+                            <th class="text-end">不含税金额</th>
                             <th>税率</th>
-                            <th>税额</th>
+                            <th class="text-end">税金</th>
+                            <th class="text-end">含税金额</th>
                             <th>开票日期</th>
                             <th>状态</th>
-                            <th>认证</th>
                             <th style="width: 120px;">操作</th>
                         </tr>
                     </thead>
@@ -248,12 +254,12 @@
                             <th>发票号</th>
                             <th>发票类型</th>
                             <th>对方公司</th>
-                            <th>金额</th>
+                            <th class="text-end">不含税金额</th>
                             <th>税率</th>
-                            <th>税额</th>
+                            <th class="text-end">税金</th>
+                            <th class="text-end">含税金额</th>
                             <th>开票日期</th>
                             <th>状态</th>
-                            <th>认证</th>
                             <th style="width: 120px;">操作</th>
                         </tr>
                     </thead>
@@ -421,6 +427,8 @@ async function loadProjects() {
 
 function switchInvoiceTab(type) {
     currentTab = type;
+    const p = type === 'income' ? incomePage : expensePage;
+    loadInvoices(type, p);
     loadSummary(type);
 }
 
@@ -436,9 +444,9 @@ async function loadSummary(type) {
         const s = await resp.json();
         const p = type === 'income' ? 'income' : 'expense';
         document.getElementById(p + 'Count').textContent = s.total_count || 0;
-        document.getElementById(p + 'Total').textContent = s.total_count || 0;
-        document.getElementById(p + 'Pending').textContent = '¥' + (s.pending_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
-        document.getElementById(p + 'Paid').textContent = '¥' + ((s.issued_amount || 0) + (s.paid_amount || 0)).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        document.getElementById(p + 'TotalAmt').textContent = '¥' + (s.total_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        document.getElementById(p + 'Tax').textContent = '¥' + (s.total_tax || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        document.getElementById(p + 'Net').textContent = '¥' + (s.net_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
     } catch (e) { console.error('loadSummary failed:', e); }
 }
 
@@ -469,7 +477,7 @@ async function loadInvoices(type, page) {
         }
     } catch (error) {
         const tbody = type === 'income' ? 'incomeTableBody' : 'expenseTableBody';
-        document.getElementById(tbody).innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
+        document.getElementById(tbody).innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">加载失败</td></tr>';
     }
 }
 
@@ -477,21 +485,23 @@ function renderInvoiceTable(invoices, type) {
     const tbody = type === 'income' ? 'incomeTableBody' : 'expenseTableBody';
     const el = document.getElementById(tbody);
     if (!invoices || invoices.length === 0) {
-        el.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无发票记录</td></tr>';
+        el.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无发票记录</td></tr>';
         return;
     }
+    const taxIncluded = (inv) => (parseFloat(inv.amount || 0) + parseFloat(inv.tax_amount || 0)).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+    const fmtAmt = (v) => parseFloat(v || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
     el.innerHTML = invoices.map(inv => `
         <tr>
             <td><input class="form-check-input" type="checkbox" value="${inv.id}"></td>
             <td><strong>${inv.invoice_no || '-'}</strong></td>
             <td>${inv.invoice_type === 'special' ? '增值税专用' : '普通发票'}</td>
             <td>${inv.counterparty || '-'}</td>
-            <td class="text-end">¥${parseFloat(inv.amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td>
+            <td class="text-end">¥${fmtAmt(inv.amount)}</td>
             <td>${inv.tax_rate != null ? (parseFloat(inv.tax_rate) * 100).toFixed(1) + '%' : '-'}</td>
-            <td class="text-end">¥${parseFloat(inv.tax_amount || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2})}</td>
+            <td class="text-end">¥${fmtAmt(inv.tax_amount)}</td>
+            <td class="text-end">¥${taxIncluded(inv)}</td>
             <td>${inv.issue_date || '-'}</td>
             <td><span class="status-badge ${inv.status}">${statusMap[inv.status] || inv.status}</span></td>
-            <td>${inv.is_credited ? '已认证' : '未认证'}</td>
             <td>
                 <button class="btn btn-link btn-sm p-1" onclick="showInvoiceDetail(${inv.id})"><i class="bi bi-eye"></i></button>
                 <button class="btn btn-link btn-sm p-1" onclick="showEditInvoiceModal(${inv.id})"><i class="bi bi-pencil"></i></button>
