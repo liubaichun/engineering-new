@@ -203,12 +203,12 @@
         <!-- Nav tabs：切换收入/支出列表 -->
         <ul class="nav nav-tabs card-header-tabs" id="invoiceListTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="list-tab-expense" data-bs-toggle="tab" data-bs-target="#list-pane-expense" type="button" role="tab">
+                <button class="nav-link active" id="list-tab-expense" data-bs-toggle="tab" data-bs-target="#list-pane-expense" type="button" role="tab" onclick="switchTab(this, 'expense')">
                     <i class="bi bi-arrow-down-circle me-1"></i>收到发票
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="list-tab-income" data-bs-toggle="tab" data-bs-target="#list-pane-income" type="button" role="tab">
+                <button class="nav-link" id="list-tab-income" data-bs-toggle="tab" data-bs-target="#list-pane-income" type="button" role="tab" onclick="switchTab(this, 'income')">
                     <i class="bi bi-arrow-up-circle me-1"></i>开出发票
                 </button>
             </li>
@@ -437,7 +437,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadInvoices('expense', 1);
     loadSummary('expense');
 
-    // 监听 Tab 切换事件，只刷新当前 Tab
+    // 点击 Tab 按钮时强制切换
+    function switchTab(btn) {
+        const tabTrigger = bootstrap.Tab.getOrCreateInstance(btn);
+        tabTrigger.show();
+    }
+    // shown.bs.tab 在默认 Tab 不会自动触发，用于后续切换时的数据加载
     document.getElementById('invoiceListTabs').addEventListener('shown.bs.tab', function(e) {
         const target = e.target.getAttribute('data-bs-target');
         if (target === '#list-pane-expense') {
