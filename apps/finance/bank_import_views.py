@@ -740,6 +740,7 @@ def confirm_bank_import(request):
 
     income_count = expense_count = 0
     income_sum = expense_sum = Decimal('0')
+    skipped = 0
     errors = []
     batch_id = uuid.uuid4().hex[:12].upper()
 
@@ -777,6 +778,7 @@ def confirm_bank_import(request):
             # 去重
             dedup = serial or f"{tx_date}_{cp_account}_{amount}"
             if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
+                skipped += 1
                 continue
 
             # ── 写 Income / Expense ─────────────────────────────────
@@ -858,8 +860,11 @@ def confirm_bank_import(request):
     return Response({
         'batch_no':    batch_id,
         'imported':    income_count + expense_count,
-        'income_count':  income_count,
-        'expense_count': expense_count,
+        'skipped':     skipped,
+        'auto_created': {
+            'income_count':  income_count,
+            'expense_count': expense_count,
+        },
         'income_sum':   str(income_sum),
         'expense_sum':  str(expense_sum),
         'errors':       errors[:20],
