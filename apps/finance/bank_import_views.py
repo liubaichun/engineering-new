@@ -245,12 +245,29 @@ def _classify(t: ParsedTransaction) -> dict:
     """
     tx_type  = (t.transaction_type or '').strip()
     summary  = (t.summary or '').strip()
+    other_summary = (getattr(t, 'other_summary', '') or '').strip()
+    biz_summary   = (getattr(t, 'biz_summary', '') or '').strip()
+    ext_summary  = (getattr(t, 'ext_summary', '') or '').strip()
     cp_name  = (t.counterparty_name or '').strip()
     cp_type  = _classify_cp_type(cp_name)
     cp_override = ''
     skip_cp = False
     is_skip = False
     is往来  = False
+
+    # ── 数字钱包兑回：强制覆盖为收入（银行借方金额不代表真实方向）─────────
+    # "兑回"可能出现在摘要/其它摘要/业务摘要/扩展摘要/交易类型等多个字段
+    all_texts = [tx_type, summary, other_summary, biz_summary, ext_summary]
+    if any('兑回' in s for s in all_texts):
+        return dict(
+            direction='income',
+            category='数字钱包充值',
+            counterparty_override='',
+            skip_cp=True,         # 数字钱包不算真实对手，跳过
+            cp_type=cp_type,
+            is_skip_record=False,
+            is往来=False,
+        )
 
     # 1) 命中交易类型规则
     rule = TX_TYPE_RULES.get(tx_type)
