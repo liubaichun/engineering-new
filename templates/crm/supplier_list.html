@@ -60,6 +60,18 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3" id="supplierPaginationArea" style="display:none;">
+            <div class="text-muted" style="font-size:0.875rem;">共 <span id="supplierTotalCount">0</span> 条</div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" id="supplierPrevBtn" onclick="supplierPrevPage()">上一页</button>
+                <span class="mx-2" id="supplierPageInfo">1 / 1</span>
+                <button class="btn btn-sm btn-outline-secondary" id="supplierNextBtn" onclick="supplierNextPage()">下一页</button>
+                <span class="text-muted mx-1" style="font-size:0.8rem;">跳至</span>
+                <input type="number" class="form-control form-control-sm" id="supplierJumpPage" min="1" style="width:60px;" onkeypress="if(event.key==='Enter')supplierJumpPage()">
+                <button class="btn btn-sm btn-outline-primary" onclick="supplierJumpPage()">跳转</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -125,6 +137,8 @@
 <script>
 var supplierModal;
 var allSuppliers = [];
+var currentPage = 1;
+var pageSize = 20;
 
 document.addEventListener('DOMContentLoaded', function() {
     supplierModal = new bootstrap.Modal(document.getElementById('supplierModal'));
@@ -133,14 +147,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadSuppliers() {
     try {
-        var response = await fetch('/api/crm/suppliers/', { credentials: 'include' });
-        if (!response.ok) throw new Error('API不存在');
-        var data = await response.json();
-        allSuppliers = data.results || data;
+        var allData = [];
+        var page = 1;
+        while (true) {
+            var response = await fetch('/api/crm/suppliers/?page=' + page, { credentials: 'include' });
+            if (!response.ok) throw new Error('API不存在');
+            var data = await response.json();
+            allData = allData.concat(data.results || []);
+            if (!data.next) break;
+            page++;
+        }
+        allSuppliers = allData;
     } catch (error) {
         console.error('加载供应商失败:', error);
         allSuppliers = [];
     }
+    currentPage = 1;
     renderSuppliers();
 }
 
@@ -154,37 +176,83 @@ function renderSuppliers() {
         return true;
     });
 
+    var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    var start = (currentPage - 1) * pageSize;
+    var pageData = filtered.slice(start, start + pageSize);
+
     var tbody = document.getElementById('supplierTableBody');
-    if (filtered.length === 0) {
+    if (pageData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无供应商数据</td></tr>';
-        return;
+    } else {
+        var html = '';
+        pageData.forEach(function(s) {
+            var statusClass = s.status === 'active' ? 'supplier-status-active' : 'supplier-status-inactive';
+            var statusText = s.status === 'active' ? '合作中' : '已停止';
+            var createdAt = s.created_at ? formatDate(s.created_at) : '-';
+
+            html += '<tr>';
+            html += '<td><small>' + escapeHtml(s.code || '-') + '</small></td>';
+            html += '<td><strong>' + escapeHtml(s.name) + '</strong></td>';
+            html += '<td>' + escapeHtml(s.contact_person || '-') + '</td>';
+            html += '<td>' + escapeHtml(s.contact_phone || '-') + '</td>';
+            html += '<td><small>' + escapeHtml(s.brands || '-') + '</small></td>';
+            html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
+            html += '<td>' + createdAt + '</td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(' + s.id + ')"><i class="bi bi-pencil"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteSupplier(' + s.id + ')" data-perm="supplier.delete"><i class="bi bi-trash"></i></button>';
+            html += '</td></tr>';
+        });
+        tbody.innerHTML = html;
     }
 
-    var html = '';
-    filtered.forEach(function(s) {
-        var statusClass = s.status === 'active' ? 'supplier-status-active' : 'supplier-status-inactive';
-        var statusText = s.status === 'active' ? '合作中' : '已停止';
-        var createdAt = s.created_at ? formatDate(s.created_at) : '-';
+    // Update pagination UI
+    var totalCountEl = document.getElementById('supplierTotalCount');
+    var pageInfoEl = document.getElementById('supplierPageInfo');
+    var prevBtn = document.getElementById('supplierPrevBtn');
+    var nextBtn = document.getElementById('supplierNextBtn');
+    var jumpInput = document.getElementById('supplierJumpPage');
+    var area = document.getElementById('supplierPaginationArea');
 
-        html += '<tr>';
-        html += '<td><small>' + escapeHtml(s.code || '-') + '</small></td>';
-        html += '<td><strong>' + escapeHtml(s.name) + '</strong></td>';
-        html += '<td>' + escapeHtml(s.contact_person || '-') + '</td>';
-        html += '<td>' + escapeHtml(s.contact_phone || '-') + '</td>';
-        html += '<td><small>' + escapeHtml(s.brands || '-') + '</small></td>';
-        html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
-        html += '<td>' + createdAt + '</td>';
-        html += '<td>';
-        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(' + s.id + ')"><i class="bi bi-pencil"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteSupplier(' + s.id + ')" data-perm="supplier.delete"><i class="bi bi-trash"></i></button>';
-        html += '</td></tr>';
-    });
-
-    tbody.innerHTML = html;
+    totalCountEl.textContent = filtered.length;
+    pageInfoEl.textContent = currentPage + ' / ' + totalPages;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+    jumpInput.max = totalPages;
+    jumpInput.value = '';
+    area.style.display = filtered.length > 0 ? 'flex' : 'none';
 }
 
 function filterSuppliers() {
+    currentPage = 1;
     renderSuppliers();
+}
+
+function supplierPrevPage() {
+    if (currentPage > 1) { currentPage--; renderSuppliers(); }
+}
+function supplierNextPage() {
+    var totalPages = Math.ceil(allSuppliers.filter(function(s) {
+        var search = document.getElementById('searchName').value.toLowerCase();
+        var status = document.getElementById('filterStatus').value;
+        if (search && !s.name.toLowerCase().includes(search) && !(s.brands || '').toLowerCase().includes(search)) return false;
+        if (status && s.status !== status) return false;
+        return true;
+    }).length / pageSize);
+    if (currentPage < totalPages) { currentPage++; renderSuppliers(); }
+}
+function supplierJumpPage() {
+    var target = parseInt(document.getElementById('supplierJumpPage').value);
+    var totalPages = Math.ceil(allSuppliers.filter(function(s) {
+        var search = document.getElementById('searchName').value.toLowerCase();
+        var status = document.getElementById('filterStatus').value;
+        if (search && !s.name.toLowerCase().includes(search) && !(s.brands || '').toLowerCase().includes(search)) return false;
+        if (status && s.status !== status) return false;
+        return true;
+    }).length / pageSize);
+    if (target >= 1 && target <= totalPages) { currentPage = target; renderSuppliers(); }
 }
 
 function showSupplierModal() {

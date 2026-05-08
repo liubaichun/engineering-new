@@ -68,6 +68,18 @@
                 </tbody>
             </table>
         </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3" id="clientPaginationArea" style="display:none;">
+            <div class="text-muted" style="font-size:0.875rem;">共 <span id="clientTotalCount">0</span> 条</div>
+            <div class="d-flex align-items-center gap-2">
+                <button class="btn btn-sm btn-outline-secondary" id="clientPrevBtn" onclick="clientPrevPage()">上一页</button>
+                <span class="mx-2" id="clientPageInfo">1 / 1</span>
+                <button class="btn btn-sm btn-outline-secondary" id="clientNextBtn" onclick="clientNextPage()">下一页</button>
+                <span class="text-muted mx-1" style="font-size:0.8rem;">跳至</span>
+                <input type="number" class="form-control form-control-sm" id="clientJumpPage" min="1" style="width:60px;" onkeypress="if(event.key==='Enter')clientJumpPage()">
+                <button class="btn btn-sm btn-outline-primary" onclick="clientJumpPage()">跳转</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -140,6 +152,8 @@
 <script>
 var clientModal;
 var allClients = [];
+var currentPage = 1;
+var pageSize = 20;
 
 document.addEventListener('DOMContentLoaded', function() {
     clientModal = new bootstrap.Modal(document.getElementById('clientModal'));
@@ -149,14 +163,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadClients() {
     try {
-        var response = await fetch('/api/crm/clients/', { credentials: 'include' });
-        if (!response.ok) throw new Error('API不存在');
-        var data = await response.json();
-        allClients = data.results || data;
+        var allData = [];
+        var page = 1;
+        while (true) {
+            var response = await fetch('/api/crm/clients/?page=' + page, { credentials: 'include' });
+            if (!response.ok) throw new Error('API不存在');
+            var data = await response.json();
+            allData = allData.concat(data.results || []);
+            if (!data.next) break;
+            page++;
+        }
+        allClients = allData;
     } catch (error) {
         console.error('加载客户失败，使用空数据:', error);
         allClients = [];
     }
+    currentPage = 1;
     renderClients();
 }
 
@@ -172,39 +194,89 @@ function renderClients() {
         return true;
     });
 
+    var totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+    if (currentPage > totalPages) currentPage = totalPages;
+
+    var start = (currentPage - 1) * pageSize;
+    var pageData = filtered.slice(start, start + pageSize);
+
     var tbody = document.getElementById('clientTableBody');
-    if (filtered.length === 0) {
+    if (pageData.length === 0) {
         tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无客户数据</td></tr>';
-        return;
+    } else {
+        var html = '';
+        pageData.forEach(function(client) {
+            var statusClass = client.is_active ? 'client-status-active' : 'client-status-inactive';
+            var statusText = client.is_active ? '合作中' : '已停止';
+            var createdAt = client.created_at ? formatDate(client.created_at) : '-';
+            var categoryMap = { enterprise: '企业客户', government: '政府事业单位', special: '特殊客户' };
+            var categoryText = categoryMap[client.category] || '-';
+
+            html += '<tr>';
+            html += '<td><small>' + escapeHtml(client.code || '-') + '</small></td>';
+            html += '<td><strong>' + escapeHtml(client.name) + '</strong></td>';
+            html += '<td>' + escapeHtml(client.contact_person || '-') + '</td>';
+            html += '<td>' + escapeHtml(client.contact_phone || '-') + '</td>';
+            html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryText) + '</span></td>';
+            html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
+            html += '<td>' + createdAt + '</td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editClient(' + client.id + ')"><i class="bi bi-pencil"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteClient(' + client.id + ')" data-perm="client.delete"><i class="bi bi-trash"></i></button>';
+            html += '</td></tr>';
+        });
+        tbody.innerHTML = html;
     }
 
-    var html = '';
-    filtered.forEach(function(client) {
-        var statusClass = client.is_active ? 'client-status-active' : 'client-status-inactive';
-        var statusText = client.is_active ? '合作中' : '已停止';
-        var createdAt = client.created_at ? formatDate(client.created_at) : '-';
-        var categoryMap = { enterprise: '企业客户', government: '政府事业单位', special: '特殊客户' };
-        var categoryText = categoryMap[client.category] || '-';
+    // Update pagination UI
+    var totalCountEl = document.getElementById('clientTotalCount');
+    var pageInfoEl = document.getElementById('clientPageInfo');
+    var prevBtn = document.getElementById('clientPrevBtn');
+    var nextBtn = document.getElementById('clientNextBtn');
+    var jumpInput = document.getElementById('clientJumpPage');
+    var area = document.getElementById('clientPaginationArea');
 
-        html += '<tr>';
-        html += '<td><small>' + escapeHtml(client.code || '-') + '</small></td>';
-        html += '<td><strong>' + escapeHtml(client.name) + '</strong></td>';
-        html += '<td>' + escapeHtml(client.contact_person || '-') + '</td>';
-        html += '<td>' + escapeHtml(client.contact_phone || '-') + '</td>';
-        html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryText) + '</span></td>';
-        html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
-        html += '<td>' + createdAt + '</td>';
-        html += '<td>';
-        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editClient(' + client.id + ')"><i class="bi bi-pencil"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteClient(' + client.id + ')" data-perm="client.delete"><i class="bi bi-trash"></i></button>';
-        html += '</td></tr>';
-    });
-
-    tbody.innerHTML = html;
+    totalCountEl.textContent = filtered.length;
+    pageInfoEl.textContent = currentPage + ' / ' + totalPages;
+    prevBtn.disabled = currentPage <= 1;
+    nextBtn.disabled = currentPage >= totalPages;
+    jumpInput.max = totalPages;
+    jumpInput.value = '';
+    area.style.display = filtered.length > 0 ? 'flex' : 'none';
 }
 
 function filterClients() {
+    currentPage = 1;
     renderClients();
+}
+
+function clientPrevPage() {
+    if (currentPage > 1) { currentPage--; renderClients(); }
+}
+function clientNextPage() {
+    var totalPages = Math.ceil(allClients.filter(function(c) {
+        var search = document.getElementById('searchName').value.toLowerCase();
+        var category = document.getElementById('filterCategory').value;
+        var status = document.getElementById('filterStatus').value;
+        if (search && !c.name.toLowerCase().includes(search)) return false;
+        if (category && c.category !== category) return false;
+        if (status && String(c.is_active) !== status) return false;
+        return true;
+    }).length / pageSize);
+    if (currentPage < totalPages) { currentPage++; renderClients(); }
+}
+function clientJumpPage() {
+    var target = parseInt(document.getElementById('clientJumpPage').value);
+    var totalPages = Math.ceil(allClients.filter(function(c) {
+        var search = document.getElementById('searchName').value.toLowerCase();
+        var category = document.getElementById('filterCategory').value;
+        var status = document.getElementById('filterStatus').value;
+        if (search && !c.name.toLowerCase().includes(search)) return false;
+        if (category && c.category !== category) return false;
+        if (status && String(c.is_active) !== status) return false;
+        return true;
+    }).length / pageSize);
+    if (target >= 1 && target <= totalPages) { currentPage = target; renderClients(); }
 }
 
 function showClientModal() {
