@@ -901,11 +901,13 @@ def confirm_bank_import(request):
             errors.append(f"行 {row.get('transaction_date','')} {row.get('counterparty_name','')}: {e}")
 
     return Response({
-        'batch_id':       batch_id,
+        'batch_no':       batch_id,
         'imported':       imported,
         'skipped':        skipped,
-        'income_count':   income_count,
-        'expense_count':  expense_count,
+        'auto_created': {
+            'income_count':  income_count,
+            'expense_count': expense_count,
+        },
         '往来_count':    往来_count,
         'income_sum':     str(income_sum),
         'expense_sum':    str(expense_sum),
