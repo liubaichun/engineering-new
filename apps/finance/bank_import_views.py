@@ -781,11 +781,20 @@ def confirm_bank_import(request):
                 skipped += 1
                 continue
 
-            # ── 写 Income / Expense ─────────────────────────────────
+            # ── 智能匹配客户/供应商 ─────────────────────────────
+            # 只有匹配到真实档案才写入customer/supplier，
+            # "个人""银行利息"等对手方不写入，避免污染档案字段
+            _row = type('ParsedTransaction', (), {
+                'counterparty_name': cp_name,
+                'counterparty_account': cp_account,
+            })()
+            match_type, match_name = match_counterparty(_row, company)
+
+            # ── 写 Income / Expense ─────────────────────────────
             if direction == 'income':
                 inc = Income.objects.create(
                     company=company,
-                    customer=cp_name,
+                    customer=match_name if match_type == 'client' else '',
                     source=tx_type,
                     amount=amount,
                     date=tx_date,
@@ -804,7 +813,7 @@ def confirm_bank_import(request):
             else:
                 exp = Expense.objects.create(
                     company=company,
-                    supplier=cp_name,
+                    supplier=match_name if match_type == 'supplier' else '',
                     expense_type='other',
                     expense_category=tx_type,
                     amount=amount,
