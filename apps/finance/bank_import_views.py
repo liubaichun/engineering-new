@@ -602,7 +602,7 @@ def list_banks(request):
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def preview_bank_statement(request):
-    """预览银行流水（不写库），返回完整36列解析结果。"""
+    """预览银行流水（不写库），返回11个核心字段。"""
     import base64
 
     content_type = request.content_type or ''
@@ -646,78 +646,33 @@ def preview_bank_statement(request):
     preview_rows  = []
     total_income  = Decimal('0')
     total_expense = Decimal('0')
-    skip_count    = 0
 
     for t in transactions:
-        r = _classify(t)
-        direction = r['direction']
-        category  = r['category']
+        direction = t.direction
 
-        # 汇总
         if direction == 'income':
             total_income += t.amount
         else:
             total_expense += t.amount
 
-        if r['is_skip_record']:
-            skip_count += 1
-
-        # 匹配已有档案
-        match_type, match_name = match_counterparty(t, company)
-
-        # 最终对手方名称（可能被 override）
-        final_cp = r['counterparty_override'] or t.counterparty_name
-
         preview_rows.append({
-            # 原始字段
             'transaction_date':    t.transaction_date.isoformat() if t.transaction_date else '',
             'transaction_time':   t.transaction_time.isoformat() if t.transaction_time else '',
             'direction':          direction,
             'direction_display':  '收入' if direction == 'income' else '支出',
-            'amount':              str(t.amount),
-            'balance':             str(t.balance) if t.balance else '',
-            'counterparty_name':   final_cp,
-            'counterparty_account':t.counterparty_account,
-            'counterparty_bank':   t.counterparty_bank,
-            'summary':             t.summary[:120],
-            'usage':               (t.usage or '')[:120],
-            'bank_serial':         t.bank_serial,
-            # 扩展字段（CMB v2.0）
-            'transaction_type':   getattr(t, 'transaction_type', '') or '',
-            'tx_code':             getattr(t, 'tx_code', '') or '',
-            'value_date':          getattr(t, 'value_date', '') or '',
-            'biz_name':            getattr(t, 'biz_name', '') or '',
-            'biz_summary':         getattr(t, 'biz_summary', '') or '',
-            'other_summary':       getattr(t, 'other_summary', '') or '',
-            'ext_summary':         getattr(t, 'ext_summary', '') or '',
-            'biz_ref':             getattr(t, 'biz_ref', '') or '',
-            'bill_no':             getattr(t, 'bill_no', '') or '',
-            'counterparty_bank_branch': getattr(t, 'counterparty_bank_branch', '') or '',
-            'counterparty_bank_code':   getattr(t, 'counterparty_bank_code', '') or '',
-            'counterparty_bank_addr':    getattr(t, 'counterparty_bank_addr', '') or '',
-            'info_flag':           getattr(t, 'info_flag', '') or '',
-            'reverse_flag':        getattr(t, 'reverse_flag', '') or '',
-            # 自动分类结果
-            'auto_category':       category,
-            'match_type':          match_type,
-            'match_name':          match_name,
-            'is_skip_record':       r['is_skip_record'],
-            'is往来':              r['is往来'],
-            '往来_type':           r.get('往来_type', ''),
-            '往来_remark':         r.get('往来_remark', ''),
-            'cp_type':             r['cp_type'],
-            'note':                TX_TYPE_RULES.get(
-                                      (t.transaction_type or '').strip(), {}
-                                  ).get('note', ''),
-            # 去重
-            'dedup_key': t.bank_serial or
-                         f"{t.transaction_date}_{t.counterparty_account}_{t.amount}",
+            'amount':             str(t.amount),
+            'balance':            str(t.balance) if t.balance else '',
+            'counterparty_name':  t.counterparty_name,
+            'counterparty_account': t.counterparty_account,
+            'counterparty_bank':  t.counterparty_bank,
+            'summary':            t.summary[:200] if t.summary else '',
+            'bank_serial':        t.bank_serial,
+            'transaction_type':   t.transaction_type,
         })
 
     return Response({
         'bank_code':    used_bank,
         'total_count':  len(transactions),
-        'skip_count':   skip_count,
         'total_income': str(total_income),
         'total_expense':str(total_expense),
         'preview_rows': preview_rows[:200],
@@ -777,33 +732,16 @@ def confirm_bank_import(request):
 
     for row in rows:
         try:
-            # ── 解析基础字段 ───────────────────────────────────────────
-            t_date   = row.get('transaction_date', '')
-            t_time   = row.get('transaction_time', '')
-            amount   = Decimal(str(row.get('amount', '0')))
-            direction= row.get('direction', '')
-            cp_name  = row.get('counterparty_name', '').strip()
+            t_date     = row.get('transaction_date', '')
+            t_time     = row.get('transaction_time', '')
+            amount     = Decimal(str(row.get('amount', '0')))
+            direction  = row.get('direction', '')
+            cp_name    = row.get('counterparty_name', '').strip()
             cp_account = row.get('counterparty_account', '').strip()
-            cp_bank  = row.get('counterparty_bank', '').strip()
-            summary  = row.get('summary', '')[:500]
-            usage    = row.get('usage', '')[:500]
-            serial   = row.get('bank_serial', '')
-
-            # 扩展字段（原样存储）
+            cp_bank    = row.get('counterparty_bank', '').strip()
+            summary    = row.get('summary', '')[:500]
+            serial     = row.get('bank_serial', '')
             tx_type    = row.get('transaction_type', '')[:100]
-            tx_code    = row.get('tx_code', '')[:50]
-            value_date = row.get('value_date', '')
-            biz_name   = row.get('biz_name', '')[:200]
-            biz_summary= row.get('biz_summary', '')[:500]
-            other_sum  = row.get('other_summary', '')[:500]
-            ext_sum    = row.get('ext_summary', '')[:500]
-            biz_ref    = row.get('biz_ref', '')[:100]
-            bill_no    = row.get('bill_no', '')[:100]
-            cp_branch  = row.get('counterparty_bank_branch', '')[:200]
-            cp_bcode   = row.get('counterparty_bank_code', '')[:50]
-            cp_baddr   = row.get('counterparty_bank_addr', '')[:200]
-            info_flag  = row.get('info_flag', '')[:10]
-            rev_flag   = row.get('reverse_flag', '')[:10]
 
             # 解析日期
             if isinstance(t_date, str) and t_date:
@@ -823,21 +761,12 @@ def confirm_bank_import(request):
                 except ValueError:
                     tx_time = None
 
-            # 起息日
-            vd = None
-            if value_date:
-                try:
-                    vd = datetime.datetime.strptime(value_date[:10], '%Y-%m-%d').date()
-                except ValueError:
-                    pass
-
             # 去重
             dedup = serial or f"{tx_date}_{cp_account}_{amount}"
             if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
                 continue
 
-            # ── 写 Income / Expense（文件方向是什么就写什么）──────────
-            # source 存文件原始交易类型，用于读报表时分类
+            # ── 写 Income / Expense ─────────────────────────────────
             if direction == 'income':
                 inc = Income.objects.create(
                     company=company,
@@ -865,7 +794,7 @@ def confirm_bank_import(request):
                 expense_sum += amount
                 inc_obj, exp_obj = None, exp
 
-            # ── 写 BankStatement ────────────────────────────────────────
+            # ── 写 BankStatement ──────────────────────────────────────
             bs = BankStatement.objects.create(
                 company=company,
                 bank_account=bank_account,
@@ -879,28 +808,14 @@ def confirm_bank_import(request):
                 counterparty_account=cp_account,
                 counterparty_bank=cp_bank,
                 summary=summary,
-                usage=usage,
                 source_bank=bank_code,
                 import_batch=batch_id,
                 transaction_type=tx_type,
-                tx_code=tx_code,
-                value_date=vd,
-                biz_name=biz_name,
-                biz_summary=biz_summary,
-                other_summary=other_sum,
-                ext_summary=ext_sum,
-                biz_ref=biz_ref,
-                bill_no=bill_no,
-                counterparty_bank_branch=cp_branch,
-                counterparty_bank_code=cp_bcode,
-                counterparty_bank_addr=cp_baddr,
-                info_flag=info_flag,
-                reverse_flag=rev_flag,
                 matched_income=inc_obj,
                 matched_expense=exp_obj,
             )
 
-            # ── 自动核销发票 ──────────────────────────────────────────
+            # ── 自动核销发票 ─────────────────────────────────────────
             try:
                 _reconcile_bank_statement(bs)
             except Exception as rec_err:
