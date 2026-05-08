@@ -76,7 +76,7 @@ def cash_flow_report(request):
         year_start = f"{year}-01-01"
         prior_bs = bs_qs.filter(transaction_date__lt=year_start).exclude(
             balance__isnull=True
-        ).exclude(balance='').order_by('transaction_date', 'id')
+        ).order_by('transaction_date', 'id')
         begin_balance = 0.0
         if prior_bs.exists():
             begin_balance = float(prior_bs.last().balance or 0)
@@ -107,7 +107,7 @@ def cash_flow_report(request):
 
             # 月末余额：取该月最后一条有余额的记录
             end_balance = begin_balance + inc_total - exp_total
-            month_end_bs = month_bs.exclude(balance__isnull=True).exclude(balance='').order_by('transaction_date', 'id')
+            month_end_bs = month_bs.exclude(balance__isnull=True).order_by('transaction_date', 'id')
             if month_end_bs.exists():
                 end_balance = float(month_end_bs.last().balance or 0)
 
