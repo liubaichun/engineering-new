@@ -810,20 +810,17 @@ def confirm_bank_import(request):
                 continue
 
             # ── 智能匹配客户/供应商 ─────────────────────────────
-            # 已档案匹配：优先用档案名称
-            # 无档案+非排除词：自动建档案（真实公司首次出现时）
-            # 排除词命中：跳过，不建档也不写入customer/supplier
+            # 已档案匹配（精确或子串）→ 用档案名称
+            # 未匹配且非排除词 → 自动建档案
+            # 排除词命中 → 不建档
             _row = type('ParsedTransaction', (), {
                 'counterparty_name': cp_name,
                 'counterparty_account': cp_account,
             })()
             match_type, match_name = match_counterparty(_row, company)
 
-            # 排除词命中则跳过建档
-            is_excluded = _is_excluded_counterparty(cp_name) if cp_name else False
-
             # 未匹配到档案且非排除词 → 自动建档案
-            if not match_name and cp_name and not is_excluded:
+            if not match_name and cp_name and not _is_excluded_counterparty(cp_name):
                 cp_type = _classify_cp_type(cp_name)
                 _upsert_counterparty(company, cp_name, cp_account, cp_bank, cp_type, direction)
 
