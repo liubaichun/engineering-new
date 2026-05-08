@@ -25,6 +25,34 @@ from apps.crm.models import Client, Supplier
 # 分类规则（优先级：TX_TYPE_RULES > 摘要关键词 > 默认）
 # ═══════════════════════════════════════════════════════════════════════════
 
+# ── 0. 税务子类型判断 ─────────────────────────────────────────────────
+def _detect_tax_subtype(summary: str, t) -> str:
+    """
+    根据摘要判断税务子类型。
+    返回：税务 | 社保 | 个人所得税 | 增值税 | 企业所得税 | ...
+    """
+    text = ' '.join(filter(None, [
+        summary,
+        getattr(t, 'biz_summary', '') or '',
+        getattr(t, 'other_summary', '') or '',
+        getattr(t, 'ext_summary', '') or '',
+        getattr(t, 'usage', '') or '',
+    ])).lower()
+
+    # 按优先级匹配
+    if any(kw in text for kw in ('社保费', '社保', '养老', '失业', '生育', '医疗')):
+        return '社保'
+    if any(kw in text for kw in ('个税', '个人所得税', '工资薪金')):
+        return '个人所得税'
+    if any(kw in text for kw in ('增值税', '营改增')):
+        return '增值税'
+    if any(kw in text for kw in ('企业所得税', '所得', '利得')):
+        return '企业所得税'
+    if any(kw in text for kw in ('印花税', '城建税', '教育费', '地方教育费', '水利基金')):
+        return '其他税金'
+    return '税务'  # 默认
+
+
 # ── 0. 往来子类型判断 ─────────────────────────────────────────────────
 def _detect_往来_subtype(cp_name, summary, tx_type, t):
     """
@@ -70,17 +98,22 @@ def _detect_往来_subtype(cp_name, summary, tx_type, t):
 TX_TYPE_RULES = {
     # 支出类
     '税款':                   {'direction': 'expense', 'category': '税务',
-                               'cp_override': '国家金库', 'skip_cp': False,
-                               'note': '税款走暂收款通道，实际对手是国家金库'},
+                               'cp_override': '', 'skip_cp': False,
+                               'note': '保留文件原始对手方，从摘要识别税种（社保/个税/增值税等）'},
     '企业银行各项费用':        {'direction': 'expense', 'category': '金融服务',
-                               'skip_cp': True,
-                               'note': '银行手续费，不建档'},
+                               'cp_override': '银行服务费', 'skip_cp': False,
+                               'note': '银行服务费，对手方统一为银行服务费'},
     '批量代发付费':           {'direction': 'expense', 'category': 'skip',
                                'note': '银行批量代发手续费，直接跳过'},
     '跨行汇款-普通':          {'direction': 'expense', 'category': '金融服务',
-                               'note': '跨行转账手续费'},
+                               'cp_override': '银行服务费', 'skip_cp': False,
+                               'note': '跨行转账手续费，对手方显示为银行服务费'},
     '跨行汇款-实时':          {'direction': 'expense', 'category': '金融服务',
-                               'note': '跨行转账手续费'},
+                               'cp_override': '银行服务费', 'skip_cp': False,
+                               'note': '跨行转账手续费，对手方显示为银行服务费'},
+    '转账收费':               {'direction': 'expense', 'category': '金融服务',
+                               'cp_override': '银行服务费', 'skip_cp': False,
+                               'note': '转账手续费，对手方显示为银行服务费'},
     '行内汇款-普通':          {'direction': 'expense', 'category': 'skip',
                                'note': '行内转账，手续费可忽略'},
     '银承到期扣款':           {'direction': 'expense', 'category': '金融服务',
@@ -94,8 +127,8 @@ TX_TYPE_RULES = {
                                'cp_override': '银行', 'skip_cp': True,
                                'note': '银行结息，不建档'},
     '企业银行各项费用入账':   {'direction': 'income',  'category': '金融服务',
-                               'skip_cp': True,
-                               'note': '银行费用入账'},
+                               'cp_override': '银行服务费', 'skip_cp': False,
+                               'note': '银行费用入账，对手方显示为银行服务费'},
     # IBPS/转账类（看摘要关键词再判断方向和类别）
     'IBPS对公提回贷记':      {'direction': 'income',  'category': 'auto',
                                'note': '看摘要关键词决定最终类别'},
@@ -255,15 +288,16 @@ def _classify(t: ParsedTransaction) -> dict:
     is_skip = False
     is往来  = False
 
-    # ── 数字钱包兑回：强制覆盖为收入（银行借方金额不代表真实方向）─────────
-    # "兑回"可能出现在摘要/其它摘要/业务摘要/扩展摘要/交易类型等多个字段
+    # ── 数字钱包兑回/兑出：保留原始对手方（公司自己/数字银行）────────────────
+    # 数字货币是公司内部账户间划转，台账需真实记录
     all_texts = [tx_type, summary, other_summary, biz_summary, ext_summary]
-    if any('兑回' in s for s in all_texts):
+    if any('兑回' in s or '兑出' in s for s in all_texts):
+        direction_val = 'income' if any('兑回' in s for s in all_texts) else 'expense'
         return dict(
-            direction='income',
-            category='数字钱包充值',
-            counterparty_override='',
-            skip_cp=True,         # 数字钱包不算真实对手，跳过
+            direction=direction_val,
+            category='数字货币',
+            counterparty_override='',   # 保留文件原始对手方
+            skip_cp=False,
             cp_type=cp_type,
             is_skip_record=False,
             is往来=False,
@@ -305,6 +339,16 @@ def _classify(t: ParsedTransaction) -> dict:
                 cp_name, summary, tx_type, t)
         else:
             往来_type, 往来_remark = '', ''
+
+        # ── 后处理：税款对手方为"暂收款"时，改为"税务局"+识别具体税种 ────────
+        if category == '税务' and cp_name == '暂收款':
+            tax_type = _detect_tax_subtype(summary, t)
+            # 从摘要提取税种，摘要本身含税种关键词（如"社保"、"个税"）
+            if tax_type:
+                category = tax_type
+            # 对手方改为税务局
+            cp_name = '税务局'
+            cp_override = '税务局'
 
         return dict(
             direction=direction, category=category,
@@ -870,8 +914,14 @@ def confirm_bank_import(request):
             else:
                 cat_to_etype = {
                     '税务':        'tax',
-                    '金融服务':   'other',
-                    '采购':       'other',
+                    '社保':        'social',
+                    '个人所得税':  'other',
+                    '增值税':      'tax',
+                    '企业所得税':  'tax',
+                    '其他税金':    'tax',
+                    '金融服务':    'other',
+                    '数字货币':    'other',
+                    '采购':        'other',
                     '招待':       'entertainment',
                     '差旅':       'travel',
                     '薪资':       'salary',
