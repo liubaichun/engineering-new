@@ -234,7 +234,7 @@ def export_income_records(records):
     """导出收入记录"""
     title = f'收入记录 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
-        'ID', '公司', '交易时间', '来源', '对手账号', '对手开户行',
+        'ID', '公司', '交易时间', '来源', '交易类型', '摘要',
         '金额(元)', '余额', '日期', '客户', '关联项目',
         '状态', '审批状态', '操作人', '备注', '创建时间'
     ]
@@ -243,8 +243,8 @@ def export_income_records(records):
         r.company.name if r.company else '',
         r.transaction_time.strftime('%H:%M:%S') if r.transaction_time else '',
         r.source or '',
-        r.counterparty_account or '',
-        r.counterparty_bank or '',
+        r.transaction_type or '',
+        r.summary or '',
         r.amount,
         f'{r.balance}' if r.balance else '',
         r.date or '',
@@ -266,7 +266,7 @@ def export_expense_records(records):
     """导出支出记录"""
     title = f'支出记录 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
-        'ID', '公司', '交易时间', '支出类型', '对手账号', '对手开户行',
+        'ID', '公司', '交易时间', '支出类型', '交易类型', '摘要',
         '金额(元)', '余额', '日期', '供应商', '关联项目',
         '状态', '审批状态', '操作人', '备注', '创建时间'
     ]
@@ -275,8 +275,8 @@ def export_expense_records(records):
         r.company.name if r.company else '',
         r.transaction_time.strftime('%H:%M:%S') if r.transaction_time else '',
         r.get_expense_type_display() if hasattr(r, 'get_expense_type_display') else '',
-        r.counterparty_account or '',
-        r.counterparty_bank or '',
+        r.transaction_type or '',
+        r.summary or '',
         r.amount,
         f'{r.balance}' if r.balance else '',
         r.date or '',

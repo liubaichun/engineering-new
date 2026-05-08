@@ -780,6 +780,8 @@ def confirm_bank_import(request):
                     balance=Decimal(row['balance']) if row.get('balance') else None,
                     counterparty_account=cp_account,
                     counterparty_bank=cp_bank,
+                    transaction_type=tx_type,
+                    summary=summary,
                 )
                 income_count += 1
                 income_sum += amount
@@ -799,6 +801,8 @@ def confirm_bank_import(request):
                     balance=Decimal(row['balance']) if row.get('balance') else None,
                     counterparty_account=cp_account,
                     counterparty_bank=cp_bank,
+                    transaction_type=tx_type,
+                    summary=summary,
                 )
                 expense_count += 1
                 expense_sum += amount

@@ -173,6 +173,17 @@ class Income(models.Model):
         max_length=200, blank=True, default='',
         help_text='收(付)方开户行名称'
     )
+    # ── 银行流水11字段扩展（续）─────────────────────────────────────────
+    transaction_type = models.CharField(
+        verbose_name='交易类型',
+        max_length=100, blank=True, default='',
+        help_text='银行流水原始交易类型（如：转账/工资/货款）'
+    )
+    summary = models.CharField(
+        verbose_name='摘要',
+        max_length=500, blank=True, default='',
+        help_text='银行流水原始摘要/附言'
+    )
     # ── 原有字段 ────────────────────────────────────────────────────────
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     date = models.DateField(verbose_name='日期')
@@ -267,6 +278,17 @@ class Expense(models.Model):
         verbose_name='对手开户行',
         max_length=200, blank=True, default='',
         help_text='收(付)方开户行名称'
+    )
+    # ── 银行流水11字段扩展（续）─────────────────────────────────────────
+    transaction_type = models.CharField(
+        verbose_name='交易类型',
+        max_length=100, blank=True, default='',
+        help_text='银行流水原始交易类型（如：转账/工资/货款）'
+    )
+    summary = models.CharField(
+        verbose_name='摘要',
+        max_length=500, blank=True, default='',
+        help_text='银行流水原始摘要/附言'
     )
     # ── 原有字段 ────────────────────────────────────────────────────────
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)

@@ -111,10 +111,17 @@
                 </select>
                 <select class="form-select form-select-sm" id="filterExpenseType" onchange="loadExpenses(1)" style="width:auto;">
                     <option value="">全部类型</option>
-                    <option value="expense">费用报销</option>
+                    <option value="salary">工资薪酬</option>
+                    <option value="social">社保公积金</option>
+                    <option value="office">办公费用</option>
+                    <option value="travel">差旅费用</option>
+                    <option value="communication">通讯费用</option>
+                    <option value="entertainment">业务招待</option>
+                    <option value="marketing">市场营销</option>
+                    <option value="rd">研发费用</option>
+                    <option value="tax">税费</option>
                     <option value="advance">预付款</option>
-                    <option value="deposit">押金</option>
-                    <option value="wage">工资支出</option>
+                    <option value="other">其他</option>
                 </select>
                 <input type="date" class="form-control form-control-sm" id="filterDateStart" placeholder="开始日期" style="width:auto;">
                 <span class="text-muted">-</span>
@@ -176,8 +183,8 @@
                                 <th>公司</th>
                                 <th>交易时间</th>
                                 <th>来源</th>
-                                <th>对手账号</th>
-                                <th>对手开户行</th>
+                                <th>交易类型</th>
+                                <th>摘要</th>
                                 <th>金额</th>
                                 <th>余额</th>
                                 <th>日期</th>
@@ -222,10 +229,17 @@
                         <label class="form-label">支出类型 <span class="text-danger">*</span></label>
                         <select class="form-select" id="expenseType" required>
                             <option value="">选择类型</option>
-                            <option value="expense">费用报销</option>
+                            <option value="salary">工资薪酬</option>
+                            <option value="social">社保公积金</option>
+                            <option value="office">办公费用</option>
+                            <option value="travel">差旅费用</option>
+                            <option value="communication">通讯费用</option>
+                            <option value="entertainment">业务招待</option>
+                            <option value="marketing">市场营销</option>
+                            <option value="rd">研发费用</option>
+                            <option value="tax">税费</option>
                             <option value="advance">预付款</option>
-                            <option value="deposit">押金</option>
-                            <option value="wage">工资支出</option>
+                            <option value="other">其他</option>
                         </select>
                     </div>
                 </div>
@@ -354,8 +368,6 @@
             </div>
         </div>
     </div>
-        </div>
-    </div>
 </div>
 {% endblock %}
 
@@ -415,7 +427,7 @@ function onYearChange() {
     const year = document.getElementById('filterYear').value;
     currentYear = parseInt(year);
     document.getElementById('filterDateStart').value = `${year}-01-01`;
-    document.getElementById('filterDateEnd').value = '';
+    document.getElementById('filterDateEnd').value = `${year}-12-31`;
     loadExpenses(1);
 }
 async function loadCompanies() {
@@ -534,8 +546,8 @@ function renderExpenses(expenses) {
             <td><strong>${companyName}</strong></td>
             <td>${transactionTime}</td>
             <td><span class="source-badge ${sourceClass}">${sourceText}</span></td>
-            <td>${expense.counterparty_account || '-'}</td>
-            <td>${expense.counterparty_bank || '-'}</td>
+            <td>${expense.transaction_type || '-'}</td>
+            <td>${expense.summary || '-'}</td>
             <td class="fw-bold text-danger">¥${formatNumber(expense.amount)}</td>
             <td>${balance}</td>
             <td>${expense.expense_date || '-'}</td>

@@ -237,6 +237,8 @@ INCOME_FIELDS = {
     'status': '状态',
     'customer': '客户名称',
     'description': '描述/说明',
+    'transaction_type': '交易类型',
+    'summary': '摘要',
 }
 
 
@@ -289,6 +291,8 @@ def import_incomes(request):
         source = str(_cell(ws, row_num, col_map['source']) or '').strip()
         status_val = STATUS_MAP.get(str(_cell(ws, row_num, col_map['status']) or '待审批').strip(), 'pending')
         description = str(_cell(ws, row_num, col_map['description']) or '').strip()
+        transaction_type = str(_cell(ws, row_num, col_map.get('transaction_type')) or '').strip()
+        summary = str(_cell(ws, row_num, col_map.get('summary')) or '').strip()
 
         try:
             with transaction.atomic():
@@ -300,6 +304,8 @@ def import_incomes(request):
                     status=status_val,
                     customer=customer,
                     description=description,
+                    transaction_type=transaction_type,
+                    summary=summary,
                     operator=request.user,
                 )
                 result.created_ids.append(obj.id)
@@ -321,6 +327,8 @@ EXPENSE_FIELDS = {
     'supplier': '供应商/对方',
     'note': '摘要',
     'description': '详细说明',
+    'transaction_type': '交易类型',
+    'summary': '摘要2',
 }
 
 
@@ -370,6 +378,8 @@ def import_expenses(request):
 
         date = _parse_date(_cell(ws, row_num, col_map.get('date'))) or datetime.date.today()
         expense_date = _parse_date(_cell(ws, row_num, col_map.get('expense_date'))) or date
+        transaction_type = str(_cell(ws, row_num, col_map.get('transaction_type')) or '').strip()
+        summary = str(_cell(ws, row_num, col_map.get('summary')) or '').strip()
 
         try:
             with transaction.atomic():
@@ -384,6 +394,8 @@ def import_expenses(request):
                     supplier=str(_cell(ws, row_num, col_map.get('supplier')) or '').strip(),
                     note=str(_cell(ws, row_num, col_map.get('note')) or '').strip(),
                     description=str(_cell(ws, row_num, col_map.get('description')) or '').strip(),
+                    transaction_type=transaction_type,
+                    summary=summary,
                     operator=request.user,
                 )
                 result.created_ids.append(obj.id)

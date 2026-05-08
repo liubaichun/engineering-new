@@ -189,8 +189,8 @@
                                 <th>公司</th>
                                 <th>交易时间</th>
                                 <th>来源</th>
-                                <th>对手账号</th>
-                                <th>对手开户行</th>
+                                <th>交易类型</th>
+                                <th>摘要</th>
                                 <th>金额</th>
                                 <th>余额</th>
                                 <th>日期</th>
@@ -504,8 +504,8 @@ async function loadIncomes(page = 1) {
     let url = '/api/finance/incomes/?page=' + page;
     if (company) url += `&company_id=${company}`;
     if (year) url += '&year=' + year;
-    if (dateStart) url += '&date_start=' + dateStart;
-    if (dateEnd) url += '&date_end=' + dateEnd;
+    if (dateStart) url += '&date_from=' + dateStart;
+    if (dateEnd) url += '&date_to=' + dateEnd;
     
     try {
         const response = await fetch(url, { credentials: 'include' });
@@ -554,8 +554,8 @@ function renderIncomes(data) {
             <td><strong>${companyName}</strong></td>
             <td>${transactionTime}</td>
             <td><span class="source-badge ${sourceClass}">${sourceText}</span></td>
-            <td>${income.counterparty_account || '-'}</td>
-            <td>${income.counterparty_bank || '-'}</td>
+            <td>${income.transaction_type || '-'}</td>
+            <td>${income.summary || '-'}</td>
             <td class="amount-display">¥${formatNumber(income.amount)}</td>
             <td>${balance}</td>
             <td>${income.date || '-'}</td>
