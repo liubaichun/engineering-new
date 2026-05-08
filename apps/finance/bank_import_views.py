@@ -391,7 +391,7 @@ def _classify(t: ParsedTransaction) -> dict:
 # 交易对手档案处理（统一 Client/Supplier，含银行信息）
 # ═══════════════════════════════════════════════════════════════════════════
 
-def _upsert_counterparty(company, t: ParsedTransaction, cp_type: str, direction: str):
+def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, cp_type: str, direction: str):
     """
     自动创建或更新 Client / Supplier 档案。
     同一企业可以是客户也可以是供应商（双向交易）。
@@ -399,9 +399,9 @@ def _upsert_counterparty(company, t: ParsedTransaction, cp_type: str, direction:
     - direction=expense → upsert Supplier（对手是供应商）
     - 如果对手已存在于另一张表，同时创建双向档案
     """
-    name    = t.counterparty_name.strip()
-    account = t.counterparty_account.strip()
-    bank    = t.counterparty_bank.strip()
+    name    = cp_name.strip()
+    account = cp_account.strip()
+    bank    = cp_bank.strip()
     defaults = {'counterparty_type': cp_type, 'created_by': None}
 
     if not name:
@@ -827,6 +827,11 @@ def confirm_bank_import(request):
                 matched_income=inc_obj,
                 matched_expense=exp_obj,
             )
+
+            # ── 自动建档 Client / Supplier（含银行账号/开户行）────────────
+            if cp_name and direction:
+                cp_type = _classify_cp_type(cp_name)
+                _upsert_counterparty(company, cp_name, cp_account, cp_bank, cp_type, direction)
 
             # ── 自动核销发票 ─────────────────────────────────────────
             try:
