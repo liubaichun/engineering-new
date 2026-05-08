@@ -926,8 +926,8 @@ async function doImport() {
 }
 
 function downloadTemplate() {
-    var headers = ['金额', '日期', '公司', '支出类型', '项目', '供应商/收款方', '付款方式', '备注'];
-    var rows = [[12000, '2026-04-26', '深圳市龙晟科技贸易有限公司', '材料费', '城市综合体', '建材公司', '银行转账', '示例支出']];
+    var headers = ['金额', '日期', '公司', '支出类型', '交易类型', '摘要', '项目', '供应商/收款方', '备注'];
+    var rows = [[12000, '2026-04-26', '深圳市龙晟科技贸易有限公司', '费用报销', '转账', '测试摘要', '城市综合体', '建材公司', '示例支出']];
     var xls = '\uFEFF' + headers.join('\t') + '\n' + rows.map(function(r) { return r.join('\t'); }).join('\n');
     var blob = new Blob([xls], { type: 'application/vnd.ms-excel;charset=utf-8' });
     var url = URL.createObjectURL(blob);
