@@ -237,6 +237,7 @@
                 </table>
             </div>
             <div class="card-footer d-flex justify-content-between align-items-center">
+                <span style="font-size:0.85rem; color:var(--text-secondary);" id="expensePaginationInfo">显示 0 条</span>
                 <span style="font-size:0.85rem; color:var(--text-secondary);">共 <strong id="expenseRecordCount">0</strong> 条</span>
                 <ul class="pagination mb-0" id="expensePagination"></ul>
             </div>
@@ -266,6 +267,7 @@
                 </table>
             </div>
             <div class="card-footer d-flex justify-content-between align-items-center">
+                <span style="font-size:0.85rem; color:var(--text-secondary);" id="incomePaginationInfo">显示 0 条</span>
                 <span style="font-size:0.85rem; color:var(--text-secondary);">共 <strong id="incomeRecordCount">0</strong> 条</span>
                 <ul class="pagination mb-0" id="incomePagination"></ul>
             </div>
@@ -520,12 +522,12 @@ async function loadInvoices(type, page) {
         if (type === 'income') {
             incomePage = page;
             renderInvoiceTable(data.results || data, 'income');
-            renderPagination(data, type, 'incomePagination', incomePage);
+            renderPagination(data, type, 'incomePagination', incomePage, 'incomePaginationInfo');
             document.getElementById('incomeRecordCount').textContent = data.count || 0;
         } else {
             expensePage = page;
             renderInvoiceTable(data.results || data, 'expense');
-            renderPagination(data, type, 'expensePagination', expensePage);
+            renderPagination(data, type, 'expensePagination', expensePage, 'expensePaginationInfo');
             document.getElementById('expenseRecordCount').textContent = data.count || 0;
         }
     } catch (error) {
@@ -564,9 +566,15 @@ function renderInvoiceTable(invoices, type) {
     `).join('');
 }
 
-function renderPagination(data, type, paginationId, currentPage) {
+function renderPagination(data, type, paginationId, currentPage, infoId) {
     const totalPages = Math.ceil((data.count || 0) / pageSize);
     const ul = document.getElementById(paginationId);
+    const infoEl = document.getElementById(infoId);
+    if (infoEl) {
+        const start = (currentPage - 1) * pageSize + 1;
+        const end = Math.min(currentPage * pageSize, data.count || 0);
+        infoEl.textContent = `显示 ${start}-${end} 条，共 ${data.count || 0} 条`;
+    }
     if (!ul || totalPages <= 1) return;
     ul.innerHTML = '';
     if (currentPage > 1) ul.innerHTML += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="loadInvoices('${type}', ${currentPage - 1})">‹</a></li>`;
