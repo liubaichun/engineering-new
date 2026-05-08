@@ -563,6 +563,21 @@ def _reconcile_bank_statement(bs: BankStatement):
         return None, None
 
 
+# 不应匹配的对手方关键词（银行内部账户、转账类、利息结算）
+EXCLUDED_CP_PATTERNS = [
+    '个人', '利息', '结算', '转账', '充值', '提现',
+    '备用金', '内部户', '过渡户', '暂挂户',
+    '税款', '社保', '公积金', '代发',
+]
+
+def _is_excluded_counterparty(name: str) -> bool:
+    """判断对手方名称是否属于不应建档的类型（如银行内部账户、个人转账）。"""
+    for p in EXCLUDED_CP_PATTERNS:
+        if p in name:
+            return True
+    return False
+
+
 def match_counterparty(t: ParsedTransaction, company):
     """智能匹配已有的 Client / Supplier 档案。"""
     name    = t.counterparty_name.strip()
@@ -572,10 +587,23 @@ def match_counterparty(t: ParsedTransaction, company):
         return '', ''
 
     if name:
+        # 精确匹配优先
         c = Client.objects.filter(company=company, name=name).first()
         if c:
             return 'client', c.name
         s = Supplier.objects.filter(company=company, name=name).first()
+        if s:
+            return 'supplier', s.name
+
+        # 排除词命中的不继续匹配（防止"个人""银行利息"类污染档案）
+        if _is_excluded_counterparty(name):
+            return '', ''
+
+        # 子串包含匹配（真实客户名可能包含在对手方文本中）
+        c = Client.objects.filter(company=company, name__contains=name).first()
+        if c:
+            return 'client', c.name
+        s = Supplier.objects.filter(company=company, name__contains=name).first()
         if s:
             return 'supplier', s.name
 
