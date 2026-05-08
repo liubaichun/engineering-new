@@ -809,11 +809,33 @@ def confirm_bank_import(request):
                 skipped += 1
                 continue
 
-            # ── 写 Income / Expense ─────────────────────────────
+            # ── 档案匹配（包含排除词过滤：银行内部/个人/利息等不进档案）──
+            # match_counterparty 接收 ParsedTransaction，这里直接内联匹配逻辑避免重复构建对象
+            档案名 = ''
+            if cp_name:
+                # 精确匹配已有档案
+                c = Client.objects.filter(name=cp_name).first()
+                if c:
+                    档案名 = c.name
+                else:
+                    s = Supplier.objects.filter(name=cp_name).first()
+                    if s:
+                        档案名 = s.name
+                    elif not _is_excluded_counterparty(cp_name):
+                        # 非排除词且无档案 → 自动建档（真实对手方才建）
+                        档案对象 = _auto_create_counterparty(
+                            company, cp_name, cp_account, cp_bank,
+                            'income' if direction == 'income' else 'expense'
+                        )
+                        if 档案对象:
+                            档案名 = 档案对象.name
+            # 排除词命中但无档案匹配 → 档案名为空，不建档不写入
+
+            # ── 写 Income / Expense（customer/supplier 用档案匹配名）────
             if direction == 'income':
                 inc = Income.objects.create(
                     company=company,
-                    customer=cp_name or '',
+                    customer=档案名,          # 档案匹配名，排除词命中为空
                     source=tx_type,
                     amount=amount,
                     date=tx_date,
@@ -832,7 +854,7 @@ def confirm_bank_import(request):
             else:
                 exp = Expense.objects.create(
                     company=company,
-                    supplier=cp_name or '',
+                    supplier=档案名,          # 档案匹配名，排除词命中为空
                     expense_type='other',
                     expense_category=tx_type,
                     amount=amount,
