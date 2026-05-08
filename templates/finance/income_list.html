@@ -187,18 +187,19 @@
                             <tr>
                                 <th style="width:50px;"><input class="form-check-input" type="checkbox"></th>
                                 <th>公司</th>
-                                <th>金额</th>
-                                <th>日期</th>
+                                <th>交易时间</th>
                                 <th>来源</th>
+                                <th>对手账号</th>
+                                <th>对手开户行</th>
+                                <th>金额</th>
+                                <th>余额</th>
+                                <th>日期</th>
                                 <th>客户</th>
-                                <th>关联项目</th>
-                                <th>状态</th>
-                                <th>审批状态</th>
-                                <th style="width:120px;">操作</th>
+                                <th style="width:80px;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="incomeTableBody">
-                            <tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>
+                            <tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -273,6 +274,32 @@
     </div>
 </div>
 
+<!-- 关联项目 Modal -->
+<div class="modal fade" id="linkProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-link me-2"></i>关联项目</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="linkProjectType">
+                <input type="hidden" id="linkProjectId">
+                <div class="mb-3">
+                    <label class="form-label">选择项目</label>
+                    <select class="form-select" id="linkProjectSelect">
+                        <option value="">无项目</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveLinkProject()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- 删除确认 Modal -->
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog modal-sm">
@@ -341,7 +368,7 @@
 
 {% block scripts %}
 <script>
-var incomeModal, deleteModal;
+var incomeModal, deleteModal, linkProjectModal;
 var currentPage = 1;
 var deleteTargetId = null;
 var companies = [];
@@ -350,6 +377,7 @@ var projects = [];
 document.addEventListener('DOMContentLoaded', function() {
     incomeModal = new bootstrap.Modal(document.getElementById('incomeModal'));
     deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    linkProjectModal = new bootstrap.Modal(document.getElementById('linkProjectModal'));
 
     // 初始化年份日期范围
     const currentYear = new Date().getFullYear();
@@ -466,7 +494,7 @@ function clearFilters() {
 async function loadIncomes(page = 1) {
     currentPage = page;
     const tableBody = document.getElementById('incomeTableBody');
-    tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>';
 
     const company = document.getElementById('filterCompany').value;
     const year = document.getElementById('filterYear') ? document.getElementById('filterYear').value : new Date().getFullYear();
@@ -486,12 +514,12 @@ async function loadIncomes(page = 1) {
             renderIncomes(data);
             updateSummary(data);
         } else {
-            tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">加载失败</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
             showToast('加载收入数据失败', 'error');
         }
     } catch (error) {
         console.error('加载收入数据失败:', error);
-        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">网络错误</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">网络错误</td></tr>';
         showToast('网络错误', 'error');
     }
 }
@@ -501,7 +529,7 @@ function renderIncomes(data) {
     const incomes = data.results || data;
     
     if (!incomes || incomes.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无数据</td></tr>';
         document.getElementById('recordCount').textContent = '0';
         return;
     }
@@ -516,29 +544,34 @@ function renderIncomes(data) {
             'bank_import': '银行流水', '银行流水': '银行流水',
             'other': '其他', '其他': '其他'
         }[sourceClass] || '其他';
-        const statusClass = income.status === 'approved' ? 'badge-approved' : income.status === 'rejected' ? 'badge-rejected' : 'badge-pending';
-        const statusText = income.status === 'approved' ? '已确认' : income.status === 'rejected' ? '已拒绝' : '待确认';
         const companyName = income.company_name || income.company || '-';
-        const projectName = income.project_name || income.project || '-';
-        
+        const transactionTime = income.transaction_time ? income.transaction_time.substring(0, 5) : '-';
+        const balance = income.balance != null ? `¥${formatNumber(income.balance)}` : '-';
+
         html += `
         <tr>
             <td><input class="form-check-input" type="checkbox" value="${income.id}"></td>
             <td><strong>${companyName}</strong></td>
-            <td class="amount-display">¥${formatNumber(income.amount)}</td>
-            <td>${income.date || '-'}</td>
+            <td>${transactionTime}</td>
             <td><span class="source-badge ${sourceClass}">${sourceText}</span></td>
+            <td>${income.counterparty_account || '-'}</td>
+            <td>${income.counterparty_bank || '-'}</td>
+            <td class="amount-display">¥${formatNumber(income.amount)}</td>
+            <td>${balance}</td>
+            <td>${income.date || '-'}</td>
             <td>${income.customer || '-'}</td>
-            <td>${projectName}</td>
-            <td><span class="badge ${statusClass}">${statusText}</span></td>
-            <td>${income.approval_status ? `<span class="badge ${income.approval_status === 'approved' ? 'bg-success' : income.approval_status === 'rejected' ? 'bg-danger' : income.approval_status === 'pending' ? 'bg-warning' : 'bg-secondary'}">${income.approval_status === 'approved' ? '已批准' : income.approval_status === 'rejected' ? '已拒绝' : income.approval_status === 'pending' ? '待审批' : income.approval_status}</span>` : '<span class="text-muted">—</span>'}</td>
             <td>
-                <button class="btn btn-sm btn-outline-secondary" onclick="editIncome(${income.id})" title="编辑">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteIncome(${income.id})" title="删除" data-perm="income.delete">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" onclick="event.stopPropagation();">
+                        <i class="bi bi-gear"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" onclick="linkProject('income', ${income.id}); return false;"><i class="bi bi-link me-1"></i>关联项目</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="editIncome(${income.id}); return false;"><i class="bi bi-pencil me-1"></i>编辑</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteIncome(${income.id}); return false;"><i class="bi bi-trash me-1"></i>删除</a></li>
+                    </ul>
+                </div>
             </td>
         </tr>
         `;
@@ -721,6 +754,39 @@ async function saveIncome() {
 function deleteIncome(id) {
     deleteTargetId = id;
     deleteModal.show();
+}
+
+function linkProject(type, id) {
+    document.getElementById('linkProjectType').value = type;
+    document.getElementById('linkProjectId').value = id;
+    const select = document.getElementById('linkProjectSelect');
+    select.innerHTML = '<option value="">无项目</option>';
+    projects.forEach(p => { select.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+    linkProjectModal.show();
+}
+
+async function saveLinkProject() {
+    const type = document.getElementById('linkProjectType').value;
+    const id = document.getElementById('linkProjectId').value;
+    const projectId = document.getElementById('linkProjectSelect').value;
+    const endpoint = type === 'income' ? `/api/finance/incomes/${id}/` : `/api/finance/expenses/${id}/`;
+    try {
+        const resp = await fetch(endpoint, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ project: projectId ? parseInt(projectId) : null })
+        });
+        if (resp.ok) {
+            showToast('项目关联成功', 'success');
+            linkProjectModal.hide();
+            if (type === 'income') loadIncomes(); else loadExpenses();
+        } else {
+            showToast('保存失败', 'error');
+        }
+    } catch (e) {
+        showToast('保存失败', 'error');
+    }
 }
 
 async function confirmDelete() {

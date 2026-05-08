@@ -233,18 +233,30 @@ def export_wage_records(records, company_name=''):
 def export_income_records(records):
     """导出收入记录"""
     title = f'收入记录 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
-    headers = ['ID', '公司', '项目', '来源', '金额(元)', '日期', '状态', '审批状态', '操作人', '备注', '创建时间']
+    headers = [
+        'ID', '公司', '交易时间', '来源', '对手账号', '对手开户行',
+        '金额(元)', '余额', '日期', '客户', '关联项目',
+        '状态', '审批状态', '操作人', '备注', '创建时间'
+    ]
     rows = [[
-        r.id, r.company.name if r.company else '',
+        r.id,
+        r.company.name if r.company else '',
+        r.transaction_time.strftime('%H:%M:%S') if r.transaction_time else '',
+        r.source or '',
+        r.counterparty_account or '',
+        r.counterparty_bank or '',
+        r.amount,
+        f'{r.balance}' if r.balance else '',
+        r.date or '',
+        r.customer or '',
         r.project.name if r.project else '',
-        r.source or '', r.amount, r.date or '',
-        r.get_status_display() if hasattr(r,'get_status_display') else r.status or '',
+        r.get_status_display() if hasattr(r, 'get_status_display') else r.status or '',
         r.approval_flow.get_status_display() if r.approval_flow else '',
         r.operator.username if r.operator else '',
         r.description or '',
         r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
     ] for r in records]
-    col_types = ['text','text','text','text','money','date','status','status','text','text','text']
+    col_types = ['text', 'text', 'time', 'text', 'text', 'text', 'money', 'money', 'date', 'text', 'text', 'status', 'status', 'text', 'text', 'text']
     return export_to_xlsx([{'title': title, 'headers': headers, 'rows': rows,
                              'column_types': col_types, 'freeze': 'A3'}],
                            filename=f'收入记录_{datetime.datetime.now().strftime("%Y%m%d")}.xlsx')
@@ -253,18 +265,30 @@ def export_income_records(records):
 def export_expense_records(records):
     """导出支出记录"""
     title = f'支出记录 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
-    headers = ['ID', '公司', '支出类型', '项目', '金额(元)', '日期',
-               '供应商/收款方', '操作人', '备注', '创建时间']
+    headers = [
+        'ID', '公司', '交易时间', '支出类型', '对手账号', '对手开户行',
+        '金额(元)', '余额', '日期', '供应商', '关联项目',
+        '状态', '审批状态', '操作人', '备注', '创建时间'
+    ]
     rows = [[
-        r.id, r.company.name if r.company else '',
-        r.get_expense_type_display() if hasattr(r,'get_expense_type_display') else '',
+        r.id,
+        r.company.name if r.company else '',
+        r.transaction_time.strftime('%H:%M:%S') if r.transaction_time else '',
+        r.get_expense_type_display() if hasattr(r, 'get_expense_type_display') else '',
+        r.counterparty_account or '',
+        r.counterparty_bank or '',
+        r.amount,
+        f'{r.balance}' if r.balance else '',
+        r.date or '',
+        r.supplier or '',
         r.project.name if r.project else '',
-        r.amount, r.date or '',
-        r.supplier or '', r.operator.username if r.operator else '',
+        r.get_status_display() if hasattr(r, 'get_status_display') else r.status or '',
+        r.approval_flow.get_status_display() if r.approval_flow else '',
+        r.operator.username if r.operator else '',
         r.description or '',
         r.created_at.strftime('%Y-%m-%d %H:%M') if r.created_at else '',
     ] for r in records]
-    col_types = ['text','text','text','text','money','date','text','text','text','text']
+    col_types = ['text', 'text', 'time', 'text', 'text', 'text', 'money', 'money', 'date', 'text', 'text', 'status', 'status', 'text', 'text', 'text']
     return export_to_xlsx([{'title': title, 'headers': headers, 'rows': rows,
                              'column_types': col_types, 'freeze': 'A3'}],
                            filename=f'支出记录_{datetime.datetime.now().strftime("%Y%m%d")}.xlsx')

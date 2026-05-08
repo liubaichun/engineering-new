@@ -174,19 +174,20 @@
                             <tr>
                                 <th style="width:50px;"><input class="form-check-input" type="checkbox"></th>
                                 <th>公司</th>
-                                <th>支出类型</th>
+                                <th>交易时间</th>
+                                <th>来源</th>
+                                <th>对手账号</th>
+                                <th>对手开户行</th>
                                 <th>金额</th>
+                                <th>余额</th>
                                 <th>日期</th>
                                 <th>供应商</th>
-                                <th>关联项目</th>
-                                <th>状态</th>
-                                <th>审批状态</th>
-                                <th style="width:120px;">操作</th>
+                                <th style="width:80px;">操作</th>
                             </tr>
                         </thead>
                         <tbody id="expenseTableBody">
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-4">加载中...</td>
+                                <td colspan="11" class="text-center text-muted py-4">加载中...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -258,6 +259,32 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" onclick="saveExpense()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 关联项目 Modal -->
+<div class="modal fade" id="linkProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-link me-2"></i>关联项目</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="linkProjectType">
+                <input type="hidden" id="linkProjectId">
+                <div class="mb-3">
+                    <label class="form-label">选择项目</label>
+                    <select class="form-select" id="linkProjectSelect">
+                        <option value="">无项目</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveLinkProject()">保存</button>
             </div>
         </div>
     </div>
@@ -340,11 +367,12 @@ var pageSize = 10;
 var currentYear = new Date().getFullYear();
 var companies = [];
 var projects = [];
-var incomeModal, expenseModal, deleteModal, importModal;
+var incomeModal, expenseModal, deleteModal, importModal, linkProjectModal;
 
 document.addEventListener('DOMContentLoaded', function() {
     expenseModal = new bootstrap.Modal(document.getElementById('expenseModal'));
     deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    linkProjectModal = new bootstrap.Modal(document.getElementById('linkProjectModal'));
     importModal = new bootstrap.Modal(document.getElementById('importModal'));
 
     loadCompanies();
@@ -461,10 +489,12 @@ async function loadExpenses(page) {
             updateSummary(data.results || data);
         } else {
             showToast('加载支出数据失败', 'error');
+            document.getElementById('expenseTableBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">加载失败</td></tr>';
         }
     } catch (error) {
         console.error('加载支出数据失败:', error);
-        showToast('加载支出数据失败', 'error');
+        document.getElementById('expenseTableBody').innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">网络错误</td></tr>';
+        showToast('网络错误', 'error');
     }
 }
 
@@ -472,7 +502,7 @@ function renderExpenses(expenses) {
     const tbody = document.getElementById('expenseTableBody');
     
     if (!expenses || expenses.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4">暂无数据</td></tr>`;
         return;
     }
     
@@ -480,35 +510,52 @@ function renderExpenses(expenses) {
         'expense': '费用报销',
         'advance': '预付款',
         'deposit': '押金',
-        'wage': '工资支出'
+        'wage': '工资支出',
+        'bank_import': '银行流水'
     };
-    
-    tbody.innerHTML = expenses.map(expense => `
+    const sourceMap = {
+        'expense': '费用报销',
+        'advance': '预付款',
+        'deposit': '押金',
+        'wage': '工资支出',
+        'bank_import': '银行流水',
+        'bank': '银行流水'
+    };
+
+    tbody.innerHTML = expenses.map(expense => {
+        const sourceClass = expense.source || expense.expense_type || 'other';
+        const sourceText = sourceMap[sourceClass] || typeMap[expense.expense_type] || expense.expense_type || '其他';
+        const companyName = expense.company_name || expense.company || '-';
+        const transactionTime = expense.transaction_time ? expense.transaction_time.substring(0, 5) : '-';
+        const balance = expense.balance != null ? `¥${formatNumber(expense.balance)}` : '-';
+        return `
         <tr>
             <td><input class="form-check-input" type="checkbox" value="${expense.id}"></td>
-            <td>
-                <div class="expense-company">
-                    <div class="company-avatar">${expense.company_name ? expense.company_name.charAt(0) : '未'}</div>
-                    <div class="company-name">${expense.company_name ? expense.company_name.substring(1) : '-'}</div>
-                </div>
-            </td>
-            <td><span class="expense-type-badge ${expense.expense_type}">${expense.expense_type_display || expense.expense_type || '-'}</span></td>
+            <td><strong>${companyName}</strong></td>
+            <td>${transactionTime}</td>
+            <td><span class="source-badge ${sourceClass}">${sourceText}</span></td>
+            <td>${expense.counterparty_account || '-'}</td>
+            <td>${expense.counterparty_bank || '-'}</td>
             <td class="fw-bold text-danger">¥${formatNumber(expense.amount)}</td>
+            <td>${balance}</td>
             <td>${expense.expense_date || '-'}</td>
             <td>${expense.supplier || '-'}</td>
-            <td>${expense.project_name ? `<span class="project-tag"><i class="bi bi-folder"></i>${expense.project_name}</span>` : '-'}</td>
-            <td><span class="badge ${expense.status === 'draft' ? 'bg-secondary' : expense.status === 'pending' ? 'bg-warning' : expense.status === 'approved' ? 'bg-success' : expense.status === 'rejected' ? 'bg-danger' : 'bg-secondary'}">${expense.status === 'draft' ? '草稿' : expense.status === 'pending' ? '待审核' : expense.status === 'approved' ? '已批准' : expense.status === 'rejected' ? '已拒绝' : expense.status}</span></td>
-            <td>${expense.approval_status ? `<span class="badge ${expense.approval_status === 'approved' ? 'bg-success' : expense.approval_status === 'rejected' ? 'bg-danger' : expense.approval_status === 'pending' ? 'bg-warning' : 'bg-secondary'}">${expense.approval_status === 'approved' ? '已批准' : expense.approval_status === 'rejected' ? '已拒绝' : expense.approval_status === 'pending' ? '待审批' : expense.approval_status}</span>` : '<span class="text-muted">—</span>'}</td>
             <td>
-                <button class="btn btn-sm btn-outline-secondary" onclick="editExpense(${expense.id})">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteExpense(${expense.id})" data-perm="expense.delete">
-                    <i class="bi bi-trash"></i>
-                </button>
+                <div class="dropdown">
+                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" data-bs-toggle="dropdown" onclick="event.stopPropagation();">
+                        <i class="bi bi-gear"></i>
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" onclick="linkProject('expense', ${expense.id}); return false;"><i class="bi bi-link me-1"></i>关联项目</a></li>
+                        <li><a class="dropdown-item" href="#" onclick="editExpense(${expense.id}); return false;"><i class="bi bi-pencil me-1"></i>编辑</a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item text-danger" href="#" onclick="deleteExpense(${expense.id}); return false;"><i class="bi bi-trash me-1"></i>删除</a></li>
+                    </ul>
+                </div>
             </td>
         </tr>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function renderPagination(totalCount) {
@@ -685,6 +732,39 @@ async function saveExpense() {
 function deleteExpense(id) {
     document.getElementById('deleteExpenseId').value = id;
     deleteModal.show();
+}
+
+function linkProject(type, id) {
+    document.getElementById('linkProjectType').value = type;
+    document.getElementById('linkProjectId').value = id;
+    const select = document.getElementById('linkProjectSelect');
+    select.innerHTML = '<option value="">无项目</option>';
+    projects.forEach(p => { select.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+    linkProjectModal.show();
+}
+
+async function saveLinkProject() {
+    const type = document.getElementById('linkProjectType').value;
+    const id = document.getElementById('linkProjectId').value;
+    const projectId = document.getElementById('linkProjectSelect').value;
+    const endpoint = type === 'income' ? `/api/finance/incomes/${id}/` : `/api/finance/expenses/${id}/`;
+    try {
+        const resp = await fetch(endpoint, {
+            method: 'PATCH',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ project: projectId ? parseInt(projectId) : null })
+        });
+        if (resp.ok) {
+            showToast('项目关联成功', 'success');
+            linkProjectModal.hide();
+            if (type === 'income') loadIncomes(); else loadExpenses();
+        } else {
+            showToast('保存失败', 'error');
+        }
+    } catch (e) {
+        showToast('保存失败', 'error');
+    }
 }
 
 async function confirmDelete() {

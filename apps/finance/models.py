@@ -152,6 +152,28 @@ class Income(models.Model):
         on_delete=models.CASCADE,
         related_name='incomes'
     )
+    # ── 银行流水11字段扩展（从 ParsedTransaction 写入） ────────────────
+    transaction_time = models.TimeField(
+        verbose_name='交易时间',
+        null=True, blank=True,
+        help_text='来自银行流水的交易时间'
+    )
+    balance = models.DecimalField(
+        verbose_name='余额',
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='银行流水交易后的账户余额'
+    )
+    counterparty_account = models.CharField(
+        verbose_name='对手账号',
+        max_length=50, blank=True, default='',
+        help_text='收(付)方银行账号'
+    )
+    counterparty_bank = models.CharField(
+        verbose_name='对手开户行',
+        max_length=200, blank=True, default='',
+        help_text='收(付)方开户行名称'
+    )
+    # ── 原有字段 ────────────────────────────────────────────────────────
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     date = models.DateField(verbose_name='日期')
     source = models.CharField(verbose_name='来源', max_length=200, blank=True, default='')
@@ -225,6 +247,28 @@ class Expense(models.Model):
         on_delete=models.CASCADE,
         related_name='expenses'
     )
+    # ── 银行流水11字段扩展（从 ParsedTransaction 写入） ────────────────
+    transaction_time = models.TimeField(
+        verbose_name='交易时间',
+        null=True, blank=True,
+        help_text='来自银行流水的交易时间'
+    )
+    balance = models.DecimalField(
+        verbose_name='余额',
+        max_digits=14, decimal_places=2, null=True, blank=True,
+        help_text='银行流水交易后的账户余额'
+    )
+    counterparty_account = models.CharField(
+        verbose_name='对手账号',
+        max_length=50, blank=True, default='',
+        help_text='收(付)方银行账号'
+    )
+    counterparty_bank = models.CharField(
+        verbose_name='对手开户行',
+        max_length=200, blank=True, default='',
+        help_text='收(付)方开户行名称'
+    )
+    # ── 原有字段 ────────────────────────────────────────────────────────
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     expense_type = models.CharField(
         verbose_name='支出类型', max_length=20,

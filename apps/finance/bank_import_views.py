@@ -775,6 +775,11 @@ def confirm_bank_import(request):
                     amount=amount,
                     date=tx_date,
                     description=summary,
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    transaction_time=tx_time,
+                    balance=Decimal(row['balance']) if row.get('balance') else None,
+                    counterparty_account=cp_account,
+                    counterparty_bank=cp_bank,
                 )
                 income_count += 1
                 income_sum += amount
@@ -789,6 +794,11 @@ def confirm_bank_import(request):
                     expense_date=tx_date,
                     description=summary,
                     note=f"流水号:{serial}" if serial else '',
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    transaction_time=tx_time,
+                    balance=Decimal(row['balance']) if row.get('balance') else None,
+                    counterparty_account=cp_account,
+                    counterparty_bank=cp_bank,
                 )
                 expense_count += 1
                 expense_sum += amount

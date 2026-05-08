@@ -143,6 +143,11 @@ def import_income(file_obj, company_id=None, operator=None):
     col_status   = match_header(headers, '状态', 'status')
     col_desc     = match_header(headers, '备注', 'description', '描述', '说明')
     col_operator = match_header(headers, '操作人', 'operator', '经办人')
+    # ── 银行流水11字段扩展（可选列）───────────────────────────────
+    col_tx_time  = match_header(headers, '交易时间', 'time')
+    col_balance  = match_header(headers, '余额', 'balance')
+    col_cp_acc   = match_header(headers, '对手账号', '账号')
+    col_cp_bank  = match_header(headers, '对手开户行', '开户行')
 
     if col_amount == -1:
         result.add_error(0, '未找到"金额"列，请确保 Excel 包含金额列')
@@ -203,6 +208,11 @@ def import_income(file_obj, company_id=None, operator=None):
                 'date': date,
                 'status': status,
                 'description': desc or '',
+                # ── 银行流水11字段扩展 ─────────────────────────────
+                'transaction_time': row[col_tx_time].strip() if col_tx_time >= 0 and col_tx_time < len(row) and row[col_tx_time] else '',
+                'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
+                'counterparty_account': row[col_cp_acc].strip() if col_cp_acc >= 0 and col_cp_acc < len(row) else '',
+                'counterparty_bank': row[col_cp_bank].strip() if col_cp_bank >= 0 and col_cp_bank < len(row) else '',
             })
             result.success += 1
         except Exception as e:
@@ -228,9 +238,13 @@ def import_expense(file_obj, company_id=None, operator=None):
     col_type     = match_header(headers, '类型', 'type', '支出类型', '费用类型')
     col_project  = match_header(headers, '项目', 'project', '所属项目')
     col_payee    = match_header(headers, '供应商', '收款方', 'payee', '供应商/收款方')
-    # 注意：Expense 模型没有 payment_method/payee 字段，已移除对应导入逻辑
     col_status   = match_header(headers, '状态', 'status')
     col_desc     = match_header(headers, '备注', 'description', '描述', '说明')
+    # ── 银行流水11字段扩展（可选列）───────────────────────────────
+    col_tx_time  = match_header(headers, '交易时间', 'time')
+    col_balance  = match_header(headers, '余额', 'balance')
+    col_cp_acc   = match_header(headers, '对手账号', '账号')
+    col_cp_bank  = match_header(headers, '对手开户行', '开户行')
 
     if col_amount == -1:
         result.add_error(0, '未找到"金额"列')
@@ -292,6 +306,11 @@ def import_expense(file_obj, company_id=None, operator=None):
                 'supplier': str(payee_val).strip() if payee_val else '',
                 'status': status_map.get(str(status_val).strip(), 'draft') if status_val else 'draft',
                 'description': str(desc_val).strip() if desc_val else '',
+                # ── 银行流水11字段扩展 ─────────────────────────────
+                'transaction_time': row[col_tx_time].strip() if col_tx_time >= 0 and col_tx_time < len(row) and row[col_tx_time] else '',
+                'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
+                'counterparty_account': row[col_cp_acc].strip() if col_cp_acc >= 0 and col_cp_acc < len(row) else '',
+                'counterparty_bank': row[col_cp_bank].strip() if col_cp_bank >= 0 and col_cp_bank < len(row) else '',
             })
             result.success += 1
         except Exception as e:

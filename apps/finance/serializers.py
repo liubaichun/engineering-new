@@ -38,9 +38,17 @@ class IncomeSerializer(serializers.ModelSerializer):
             'customer', 'description', 'attachment', 'operator',
             'operator_name', 'approval_flow', 'approval_status',
             'bank_statement',
+            # ── 银行流水11字段扩展 ────────────────────────────────────────
+            'transaction_time', 'balance',
+            'counterparty_account', 'counterparty_bank',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'operator', 'operator_name', 'approval_flow', 'approval_status', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'operator', 'operator_name', 'approval_flow', 'approval_status',
+            'created_at', 'updated_at',
+            # 银行流水来源字段，人工录入不填
+            'transaction_time', 'balance', 'counterparty_account', 'counterparty_bank',
+        ]
 
     def get_approval_status(self, obj):
         try:
@@ -91,9 +99,17 @@ class ExpenseSerializer(serializers.ModelSerializer):
             'supplier', 'note', 'description', 'attachment', 'operator',
             'operator_name', 'approval_flow', 'approval_status', 'status', 'status_display',
             'bank_statement',
+            # ── 银行流水11字段扩展 ────────────────────────────────────────
+            'transaction_time', 'balance',
+            'counterparty_account', 'counterparty_bank',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'operator', 'operator_name', 'approval_flow', 'approval_status', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'operator', 'operator_name', 'approval_flow', 'approval_status',
+            'created_at', 'updated_at',
+            # 银行流水来源字段，人工录入不填
+            'transaction_time', 'balance', 'counterparty_account', 'counterparty_bank',
+        ]
 
     def get_approval_status(self, obj):
         try:

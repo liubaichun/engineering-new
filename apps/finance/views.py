@@ -324,8 +324,18 @@ class IncomeViewSet(viewsets.ModelViewSet):
         created = 0
         errors = []
         user = request.user
+        import datetime as dt
         for i, row_data in enumerate(result.rows):
             try:
+                # 解析交易时间（字符串 → time对象）
+                tx_time = None
+                tx_time_str = row_data.get('transaction_time', '')
+                if tx_time_str:
+                    try:
+                        tx_time = dt.datetime.strptime(str(tx_time_str).strip()[:8], '%H:%M:%S').time()
+                    except ValueError:
+                        tx_time = None
+
                 income = Income.objects.create(
                     company_id=row_data.get('company'),
                     project_id=row_data.get('project'),
@@ -335,6 +345,11 @@ class IncomeViewSet(viewsets.ModelViewSet):
                     status=row_data.get('status', 'pending'),
                     description=row_data.get('description', ''),
                     operator=user,
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    transaction_time=tx_time,
+                    balance=row_data.get('balance'),
+                    counterparty_account=row_data.get('counterparty_account', ''),
+                    counterparty_bank=row_data.get('counterparty_bank', ''),
                 )
                 created += 1
                 # 触发审批流（与 perform_create 保持一致）
@@ -477,8 +492,18 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         created = 0
         errors = []
         user = request.user
+        import datetime as dt
         for i, row_data in enumerate(result.rows):
             try:
+                # 解析交易时间（字符串 → time对象）
+                tx_time = None
+                tx_time_str = row_data.get('transaction_time', '')
+                if tx_time_str:
+                    try:
+                        tx_time = dt.datetime.strptime(str(tx_time_str).strip()[:8], '%H:%M:%S').time()
+                    except ValueError:
+                        tx_time = None
+
                 expense = Expense.objects.create(
                     company_id=row_data.get('company'),
                     project_id=row_data.get('project'),
@@ -490,6 +515,11 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     supplier=row_data.get('supplier', ''),
                     description=row_data.get('description', ''),
                     operator=user,
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    transaction_time=tx_time,
+                    balance=row_data.get('balance'),
+                    counterparty_account=row_data.get('counterparty_account', ''),
+                    counterparty_bank=row_data.get('counterparty_bank', ''),
                 )
                 created += 1
             except Exception as e:

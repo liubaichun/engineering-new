@@ -27,12 +27,16 @@ class IncomeFilter(django_filters.FilterSet):
     max_amount = django_filters.NumberFilter(field_name='amount', lookup_expr='lte')
     date_from = django_filters.DateFilter(field_name='date', lookup_expr='gte')
     date_to = django_filters.DateFilter(field_name='date', lookup_expr='lte')
+    # ── 银行流水11字段扩展 ──────────────────────────────────────────
+    counterparty_account = django_filters.CharFilter(field_name='counterparty_account', lookup_expr='icontains')
+    counterparty_bank = django_filters.CharFilter(field_name='counterparty_bank', lookup_expr='icontains')
 
     class Meta:
         model = Income
         fields = [
             'company_id', 'year', 'month', 'status', 'source',
-            'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to'
+            'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to',
+            'counterparty_account', 'counterparty_bank',
         ]
 
 
@@ -45,14 +49,18 @@ class ExpenseFilter(django_filters.FilterSet):
     project_id = django_filters.NumberFilter(field_name='project__id')
     min_amount = django_filters.NumberFilter(field_name='amount', lookup_expr='gte')
     max_amount = django_filters.NumberFilter(field_name='amount', lookup_expr='lte')
-    date_from = django_filters.DateFilter(field_name='expense_date', lookup_expr='gte')
-    date_to = django_filters.DateFilter(field_name='expense_date', lookup_expr='lte')
+    date_from = django_filters.DateFilter(field_name='expense_date__gte')
+    date_to = django_filters.DateFilter(field_name='expense_date__lte')
+    # ── 银行流水11字段扩展 ──────────────────────────────────────────
+    counterparty_account = django_filters.CharFilter(field_name='counterparty_account', lookup_expr='icontains')
+    counterparty_bank = django_filters.CharFilter(field_name='counterparty_bank', lookup_expr='icontains')
 
     class Meta:
         model = Expense
         fields = [
             'company_id', 'year', 'month', 'expense_type',
-            'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to'
+            'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to',
+            'counterparty_account', 'counterparty_bank',
         ]
 
 
