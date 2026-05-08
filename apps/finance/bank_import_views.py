@@ -853,12 +853,11 @@ def confirm_bank_import(request):
             exp_obj = None
 
             if direction == 'income':
-                # source='bank_import' 表示来自银行流水（统一标记，source_display='银行流水'）
-                # description 里保留原始 category 信息（往来/销售收款/退款等）
+                # source 记录原始分类（往来/退款/销售收款等），用于报表区分业务类型
                 inc_obj = Income.objects.create(
                     company=company,
                     customer=cp_name,
-                    source='bank_import',
+                    source=category,
                     amount=amount,
                     date=tx_date,
                     description=summary + (f" [流水号:{serial}]" if serial else '') +
