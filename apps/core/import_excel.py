@@ -148,6 +148,8 @@ def import_income(file_obj, company_id=None, operator=None):
     col_balance  = match_header(headers, '余额', 'balance')
     col_cp_acc   = match_header(headers, '对手账号', '账号')
     col_cp_bank  = match_header(headers, '对手开户行', '开户行')
+    col_tx_type  = match_header(headers, '交易类型')
+    col_summary  = match_header(headers, '摘要')
 
     if col_amount == -1:
         result.add_error(0, '未找到"金额"列，请确保 Excel 包含金额列')
@@ -213,6 +215,8 @@ def import_income(file_obj, company_id=None, operator=None):
                 'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
                 'counterparty_account': row[col_cp_acc].strip() if col_cp_acc >= 0 and col_cp_acc < len(row) else '',
                 'counterparty_bank': row[col_cp_bank].strip() if col_cp_bank >= 0 and col_cp_bank < len(row) else '',
+                'transaction_type': row[col_tx_type].strip() if col_tx_type >= 0 and col_tx_type < len(row) and row[col_tx_type] else '',
+                'summary': row[col_summary].strip() if col_summary >= 0 and col_summary < len(row) and row[col_summary] else '',
             })
             result.success += 1
         except Exception as e:
@@ -245,6 +249,8 @@ def import_expense(file_obj, company_id=None, operator=None):
     col_balance  = match_header(headers, '余额', 'balance')
     col_cp_acc   = match_header(headers, '对手账号', '账号')
     col_cp_bank  = match_header(headers, '对手开户行', '开户行')
+    col_tx_type  = match_header(headers, '交易类型')
+    col_summary  = match_header(headers, '摘要', '摘要2')
 
     if col_amount == -1:
         result.add_error(0, '未找到"金额"列')
@@ -311,6 +317,8 @@ def import_expense(file_obj, company_id=None, operator=None):
                 'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
                 'counterparty_account': row[col_cp_acc].strip() if col_cp_acc >= 0 and col_cp_acc < len(row) else '',
                 'counterparty_bank': row[col_cp_bank].strip() if col_cp_bank >= 0 and col_cp_bank < len(row) else '',
+                'transaction_type': row[col_tx_type].strip() if col_tx_type >= 0 and col_tx_type < len(row) and row[col_tx_type] else '',
+                'summary': row[col_summary].strip() if col_summary >= 0 and col_summary < len(row) and row[col_summary] else '',
             })
             result.success += 1
         except Exception as e:
