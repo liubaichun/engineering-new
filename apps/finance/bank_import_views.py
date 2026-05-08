@@ -808,7 +808,6 @@ def confirm_bank_import(request):
                 counterparty_account=cp_account,
                 counterparty_bank=cp_bank,
                 summary=summary,
-                source_bank=bank_code,
                 import_batch=batch_id,
                 transaction_type=tx_type,
                 matched_income=inc_obj,
