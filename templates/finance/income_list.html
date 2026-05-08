@@ -466,7 +466,7 @@ function clearFilters() {
 async function loadIncomes(page = 1) {
     currentPage = page;
     const tableBody = document.getElementById('incomeTableBody');
-    tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">加载中...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">加载中...</td></tr>';
 
     const company = document.getElementById('filterCompany').value;
     const year = document.getElementById('filterYear') ? document.getElementById('filterYear').value : new Date().getFullYear();
@@ -486,12 +486,12 @@ async function loadIncomes(page = 1) {
             renderIncomes(data);
             updateSummary(data);
         } else {
-            tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">加载失败</td></tr>';
+            tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">加载失败</td></tr>';
             showToast('加载收入数据失败', 'error');
         }
     } catch (error) {
         console.error('加载收入数据失败:', error);
-        tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">网络错误</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-danger py-4">网络错误</td></tr>';
         showToast('网络错误', 'error');
     }
 }
@@ -501,7 +501,7 @@ function renderIncomes(data) {
     const incomes = data.results || data;
     
     if (!incomes || incomes.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无数据</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无数据</td></tr>';
         document.getElementById('recordCount').textContent = '0';
         return;
     }
