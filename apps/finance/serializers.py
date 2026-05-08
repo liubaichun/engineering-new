@@ -324,6 +324,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'counterparty', 'is_credited', 'is_credited_display',
             'project', 'project_name', 'company', 'company_name',
             'status', 'status_display', 'issue_date', 'due_date',
+            'payment_date', 'matched_bank_statement',
             'remarks', 'created_at', 'updated_at'
         ]
         extra_kwargs = {

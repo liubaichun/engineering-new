@@ -593,6 +593,12 @@ class Invoice(models.Model):
     )
     is_credited = models.BooleanField('已认证抵扣', default=False)
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    payment_date = models.DateField('实际收/付款日期', blank=True, null=True, help_text='银行到账/扣款后自动填入')
+    matched_bank_statement = models.ForeignKey(
+        'BankStatement', verbose_name='核销银行流水',
+        on_delete=models.SET_NULL, blank=True, null=True,
+        related_name='matched_invoices'
+    )
     issue_date = models.DateField('开票日期', blank=True, null=True)
     due_date = models.DateField('到期日期', blank=True, null=True)
     remarks = models.TextField('备注', blank=True, default='')

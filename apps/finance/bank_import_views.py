@@ -16,7 +16,7 @@ from rest_framework.response import Response
 from apps.finance.bank_adapters import (
     ALL_ADAPTERS, detect_and_parse, parse_with_adapter, ParsedTransaction
 )
-from apps.finance.models import Company, Income, Expense
+from apps.finance.models import Company, Income, Expense, Invoice
 from apps.finance.models_bank import BankAccount, BankStatement
 from apps.crm.models import Client, Supplier
 
@@ -386,6 +386,122 @@ def _upsert_counterparty(company, t: ParsedTransaction, cp_type: str, direction:
         return supplier
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Payment Reconciliation — 银行流水自动核销发票
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _reconcile_bank_statement(bs: BankStatement):
+    """
+    银行流水写入后，自动核销对应发票。
+
+    收入类流水（对方打款）→ 核销 type='income' 的待收款发票（AR）
+    支出类流水（我方打款）→ 核销 type='expense' 的待付款发票（AP）
+
+    匹配逻辑（三个条件全部满足）：
+    1. 对方名称包含匹配（Invoice.counterparty 包含 BankStatement.counterparty_name）
+    2. 金额完全相等
+    3. 日期容差 ±5天
+
+    核销动作：
+    - Invoice.status → 'paid'
+    - Invoice.payment_date → 交易日期
+    - Invoice.matched_bank_statement → 本条 BankStatement
+    - BankStatement.reconcile_status → 'matched'
+    - BankStatement.reconcile_time → now
+    - BankStatement.matched_income / matched_expense → 对应记录
+    """
+    direction = bs.direction
+    cp_name = (bs.counterparty_name or '').strip()
+    amount = bs.amount
+    tx_date = bs.transaction_date
+
+    if direction == 'income':
+        # 收入类：找 type='income' + status='pending' 的待收款发票
+        candidates = Invoice.objects.filter(
+            type='income',
+            status='pending',
+            company=bs.company,
+        ).exclude(payment_date__isnull=False)  # 排除已核销的
+
+        # 过滤：对方名称匹配（包含匹配，宽松）
+        if cp_name:
+            candidates = candidates.filter(counterparty__icontains=cp_name)
+
+        # 金额匹配
+        candidates = candidates.filter(amount=amount)
+
+        # 日期容差 ±5天
+        from datetime import timedelta
+        date_min = tx_date - timedelta(days=5)
+        date_max = tx_date + timedelta(days=5)
+        candidates = candidates.filter(issue_date__range=(date_min, date_max))
+
+        # 取最早的一条
+        matched = candidates.order_by('issue_date', 'id').first()
+
+        if matched:
+            # 核销收入发票（AR）
+            matched.status = 'paid'
+            matched.payment_date = tx_date
+            matched.matched_bank_statement = bs
+            matched.save(update_fields=['status', 'payment_date', 'matched_bank_statement'])
+
+            # 更新流水核销标记
+            bs.reconcile_status = 'matched'
+            bs.reconcile_time = timezone.now()
+            bs.matched_income = Income.objects.filter(
+                company=bs.company,
+                customer=cp_name,
+                amount=amount,
+                date=tx_date
+            ).first()
+            bs.save(update_fields=[
+                'reconcile_status', 'reconcile_time', 'matched_income'
+            ])
+            return matched, 'ar'
+        return None, None
+
+    else:
+        # 支出类：找 type='expense' + status='pending' 的待付款发票
+        candidates = Invoice.objects.filter(
+            type='expense',
+            status='pending',
+            company=bs.company,
+        ).exclude(payment_date__isnull=False)
+
+        if cp_name:
+            candidates = candidates.filter(counterparty__icontains=cp_name)
+
+        candidates = candidates.filter(amount=amount)
+
+        from datetime import timedelta
+        date_min = tx_date - timedelta(days=5)
+        date_max = tx_date + timedelta(days=5)
+        candidates = candidates.filter(issue_date__range=(date_min, date_max))
+
+        matched = candidates.order_by('issue_date', 'id').first()
+
+        if matched:
+            matched.status = 'paid'
+            matched.payment_date = tx_date
+            matched.matched_bank_statement = bs
+            matched.save(update_fields=['status', 'payment_date', 'matched_bank_statement'])
+
+            bs.reconcile_status = 'matched'
+            bs.reconcile_time = timezone.now()
+            bs.matched_expense = Expense.objects.filter(
+                company=bs.company,
+                supplier=cp_name,
+                amount=amount,
+                expense_date=tx_date
+            ).first()
+            bs.save(update_fields=[
+                'reconcile_status', 'reconcile_time', 'matched_expense'
+            ])
+            return matched, 'ap'
+        return None, None
+
+
 def match_counterparty(t: ParsedTransaction, company):
     """智能匹配已有的 Client / Supplier 档案。"""
     name    = t.counterparty_name.strip()
@@ -701,27 +817,13 @@ def confirm_bank_import(request):
                 往来_count += 1
                 continue
 
-            # ── 正常记录：写 BankStatement + Income/Expense ───────────────
-            bs = BankStatement.objects.create(**bs_data)
+            # ── 正常记录：写 Income/Expense → BankStatement → 自动核销 ────────
+            # 顺序很重要：先有 Income/Expense（取得pk），再写 BankStatement（带FK），最后核销
+            inc_obj = None
+            exp_obj = None
 
-            # 自动建档（只在有真实对手方时）
-            cp_obj = None
-            if cp_name and cp_type in ('enterprise', 'government') and not row.get('is_skip_counterparty'):
-                # 构造 ParsedTransaction 传参
-                class _T:
-                    def __init__(self):
-                        self.counterparty_name   = cp_name
-                        self.counterparty_account = cp_account
-                        self.counterparty_bank    = cp_bank
-                        self.counterparty_bank_branch = cp_branch
-                        self.counterparty_bank_code   = cp_bcode
-                        self.counterparty_bank_addr   = cp_baddr
-                        self.direction = direction
-                cp_obj = _upsert_counterparty(company, _T(), cp_type, direction)
-
-            # 写 Income / Expense
             if direction == 'income':
-                Income.objects.create(
+                inc_obj = Income.objects.create(
                     company=company,
                     customer=cp_name,
                     source=category,
@@ -732,7 +834,6 @@ def confirm_bank_import(request):
                 income_count += 1
                 income_sum += amount
             else:
-                # ── 银行导入 category → expense_type 映射（新枚举）──────────────
                 cat_to_etype = {
                     '税务':        'tax',
                     '金融服务':   'other',
@@ -755,10 +856,9 @@ def confirm_bank_import(request):
                     '借款还款':   'other',
                 }
                 exp_type = cat_to_etype.get(category, 'other')
-
-                Expense.objects.create(
+                exp_obj = Expense.objects.create(
                     company=company,
-                    supplier=cp_name,  # CharField
+                    supplier=cp_name,
                     expense_type=exp_type,
                     expense_category=category,
                     amount=amount,
@@ -768,6 +868,32 @@ def confirm_bank_import(request):
                 )
                 expense_count += 1
                 expense_sum += amount
+
+            # 自动建档（只在有真实对手方时）
+            if cp_name and cp_type in ('enterprise', 'government') and not row.get('is_skip_counterparty'):
+                class _T:
+                    def __init__(self):
+                        self.counterparty_name   = cp_name
+                        self.counterparty_account = cp_account
+                        self.counterparty_bank    = cp_bank
+                        self.counterparty_bank_branch = cp_branch
+                        self.counterparty_bank_code   = cp_bcode
+                        self.counterparty_bank_addr   = cp_baddr
+                        self.direction = direction
+                _upsert_counterparty(company, _T(), cp_type, direction)
+
+            # 写 BankStatement（带已知的matched_xxx FK）
+            bs_data['matched_income'] = inc_obj
+            bs_data['matched_expense'] = exp_obj
+            bs = BankStatement.objects.create(**bs_data)
+
+            # 自动核销发票（银行到账/扣款后自动更新Invoice状态）
+            reconciled = None
+            rec_type = ''
+            try:
+                reconciled, rec_type = _reconcile_bank_statement(bs)
+            except Exception as rec_err:
+                errors.append(f"核销异常 行 {row.get('transaction_date','')}: {rec_err}")
 
             imported += 1
 

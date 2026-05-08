@@ -45,6 +45,9 @@ class Supplier(models.Model):
     tax_id = models.CharField(max_length=30, blank=True, default='', verbose_name='纳税人识别号')
     bank_account = models.CharField(max_length=50, blank=True, default='', verbose_name='银行账号')
     bank_name = models.CharField(max_length=200, blank=True, default='', verbose_name='开户行')
+    bank_branch = models.CharField(max_length=200, blank=True, default='', verbose_name='开户行支行')
+    bank_code = models.CharField(max_length=30, blank=True, default='', verbose_name='支行联行号')
+    bank_addr = models.CharField(max_length=200, blank=True, default='', verbose_name='支行地址')
     contact_person = models.CharField('联系人', max_length=100, blank=True, null=True)
     contact_phone = models.CharField('联系电话', max_length=50, blank=True, null=True)
     contact_email = models.EmailField('邮箱', blank=True, null=True)
@@ -91,6 +94,9 @@ class Client(models.Model):
     tax_id = models.CharField(max_length=30, blank=True, default='', verbose_name='纳税人识别号')
     bank_account = models.CharField(max_length=50, blank=True, default='', verbose_name='银行账号')
     bank_name = models.CharField(max_length=200, blank=True, default='', verbose_name='开户行')
+    bank_branch = models.CharField(max_length=200, blank=True, default='', verbose_name='开户行支行')
+    bank_code = models.CharField(max_length=30, blank=True, default='', verbose_name='支行联行号')
+    bank_addr = models.CharField(max_length=200, blank=True, default='', verbose_name='支行地址')
     source = models.ForeignKey(
         ClientSource,
         verbose_name='客户来源',
