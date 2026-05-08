@@ -730,19 +730,17 @@ def preview_bank_statement(request):
 def confirm_bank_import(request):
     """
     确认导入银行流水。
-    - 往来款：只写 BankStatement（标记 is往来=True），不写 Income/Expense
-    - skip_record：整条跳过（既不写 BankStatement 也不写 Income/Expense）
-    - 普通记录：写 BankStatement + Income/Expense
-    - 自动Upsert Client/Supplier 档案（含银行信息）
+    原则：文件有多少行就写多少行，不跳、不过滤、不分类。
+    每行 → BankStatement + Income（贷）或 Expense（借）。
+    source / expense_category 直接存文件的原始交易类型文本。
     """
     body = request.data
-    company_id  = body.get('company_id')
-    bank_code   = body.get('bank_code', '')
-    bank_serial = body.get('bank_serial', '')
-    rows        = body.get('transactions', []) or body.get('rows', [])
+    company_id = body.get('company_id')
+    bank_code  = body.get('bank_code', '')
+    rows       = body.get('transactions', []) or body.get('rows', [])
+
     if not rows:
         return Response({'error': '没有要导入的流水记录，请先上传文件预览'}, status=400)
-
     if not company_id:
         return Response({'error': '缺少 company_id'}, status=400)
 
@@ -751,7 +749,7 @@ def confirm_bank_import(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
-    # ── 银行账户解析（优先级：bank_account_id > bank_code+account_no > 新建） ──
+    # ── 银行账户（优先级：bank_account_id > account_no 精确查找 > 新建） ──
     bank_account = None
     ba_id   = body.get('bank_account_id', '')
     ba_no   = body.get('account_no', '').strip()
@@ -759,64 +757,55 @@ def confirm_bank_import(request):
     ba_code = body.get('bank_code', '')
 
     if ba_id:
-        # 优先用用户选择的已有账户
         bank_account = BankAccount.objects.filter(id=ba_id, company=company).first()
         if not bank_account:
             return Response({'error': '所选银行账户不存在'}, status=400)
     elif ba_no:
-        # 用账号+银行代码查找（精确匹配公司+账号）
-        bank_account = BankAccount.objects.filter(
-            company=company, account_no=ba_no
-        ).first()
+        bank_account = BankAccount.objects.filter(company=company, account_no=ba_no).first()
         if not bank_account and ba_name:
-            # 找不到则新建（用户填了新账户信息）
-            bank_account, created = BankAccount.objects.get_or_create(
+            bank_account, _ = BankAccount.objects.get_or_create(
                 company=company, account_no=ba_no,
                 defaults={'bank_code': ba_code or 'OTHER', 'bank_name': '', 'account_name': ba_name}
             )
     else:
         return Response({'error': '请选择已有银行账户，或填写新账户的账号和户名'}, status=400)
 
-    imported = skipped = income_count = expense_count =往来_count = 0
+    income_count = expense_count = 0
     income_sum = expense_sum = Decimal('0')
     errors = []
-
     batch_id = uuid.uuid4().hex[:12].upper()
 
     for row in rows:
         try:
+            # ── 解析基础字段 ───────────────────────────────────────────
             t_date   = row.get('transaction_date', '')
             t_time   = row.get('transaction_time', '')
             amount   = Decimal(str(row.get('amount', '0')))
             direction= row.get('direction', '')
-            category = row.get('auto_category', '其他')
             cp_name  = row.get('counterparty_name', '').strip()
             cp_account = row.get('counterparty_account', '').strip()
             cp_bank  = row.get('counterparty_bank', '').strip()
             summary  = row.get('summary', '')[:500]
             usage    = row.get('usage', '')[:500]
             serial   = row.get('bank_serial', '')
-            is_skip  = row.get('is_skip_record', False)
-            is往来   = row.get('is往来', False)
-            cp_type  = row.get('cp_type', 'individual')
 
-            # 扩展字段
-            tx_type     = row.get('transaction_type', '')[:100]
-            tx_code     = row.get('tx_code', '')[:50]
-            value_date  = row.get('value_date', '')
-            biz_name    = row.get('biz_name', '')[:200]
-            biz_summary = row.get('biz_summary', '')[:500]
-            other_sum   = row.get('other_summary', '')[:500]
-            ext_sum     = row.get('ext_summary', '')[:500]
-            biz_ref     = row.get('biz_ref', '')[:100]
-            bill_no     = row.get('bill_no', '')[:100]
-            cp_branch   = row.get('counterparty_bank_branch', '')[:200]
-            cp_bcode    = row.get('counterparty_bank_code', '')[:50]
-            cp_baddr    = row.get('counterparty_bank_addr', '')[:200]
-            info_flag   = row.get('info_flag', '')[:10]
-            rev_flag    = row.get('reverse_flag', '')[:10]
+            # 扩展字段（原样存储）
+            tx_type    = row.get('transaction_type', '')[:100]
+            tx_code    = row.get('tx_code', '')[:50]
+            value_date = row.get('value_date', '')
+            biz_name   = row.get('biz_name', '')[:200]
+            biz_summary= row.get('biz_summary', '')[:500]
+            other_sum  = row.get('other_summary', '')[:500]
+            ext_sum    = row.get('ext_summary', '')[:500]
+            biz_ref    = row.get('biz_ref', '')[:100]
+            bill_no    = row.get('bill_no', '')[:100]
+            cp_branch  = row.get('counterparty_bank_branch', '')[:200]
+            cp_bcode   = row.get('counterparty_bank_code', '')[:50]
+            cp_baddr   = row.get('counterparty_bank_addr', '')[:200]
+            info_flag  = row.get('info_flag', '')[:10]
+            rev_flag   = row.get('reverse_flag', '')[:10]
 
-            # 解析日期时间
+            # 解析日期
             if isinstance(t_date, str) and t_date:
                 if 'T' in t_date:
                     t_date = t_date.split('T')[0]
@@ -824,6 +813,7 @@ def confirm_bank_import(request):
             else:
                 tx_date = datetime.date.today()
 
+            # 解析时间
             tx_time = None
             if t_time:
                 try:
@@ -843,19 +833,40 @@ def confirm_bank_import(request):
 
             # 去重
             dedup = serial or f"{tx_date}_{cp_account}_{amount}"
-            if BankStatement.objects.filter(
-                company=company, bank_serial=dedup
-            ).exists():
-                skipped += 1
+            if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
                 continue
 
-            # 整条跳过（批量代发付费等）
-            if is_skip:
-                skipped += 1
-                continue
+            # ── 写 Income / Expense（文件方向是什么就写什么）──────────
+            # source 存文件原始交易类型，用于读报表时分类
+            if direction == 'income':
+                inc = Income.objects.create(
+                    company=company,
+                    customer=cp_name,
+                    source=tx_type,
+                    amount=amount,
+                    date=tx_date,
+                    description=summary,
+                )
+                income_count += 1
+                income_sum += amount
+                inc_obj, exp_obj = inc, None
+            else:
+                exp = Expense.objects.create(
+                    company=company,
+                    supplier=cp_name,
+                    expense_type='other',
+                    expense_category=tx_type,
+                    amount=amount,
+                    expense_date=tx_date,
+                    description=summary,
+                    note=f"流水号:{serial}" if serial else '',
+                )
+                expense_count += 1
+                expense_sum += amount
+                inc_obj, exp_obj = None, exp
 
-            # ── 写 BankStatement ──────────────────────────────────────────
-            bs_data = dict(
+            # ── 写 BankStatement ────────────────────────────────────────
+            bs = BankStatement.objects.create(
                 company=company,
                 bank_account=bank_account,
                 bank_serial=dedup,
@@ -871,7 +882,6 @@ def confirm_bank_import(request):
                 usage=usage,
                 source_bank=bank_code,
                 import_batch=batch_id,
-                # 扩展字段
                 transaction_type=tx_type,
                 tx_code=tx_code,
                 value_date=vd,
@@ -886,114 +896,25 @@ def confirm_bank_import(request):
                 counterparty_bank_addr=cp_baddr,
                 info_flag=info_flag,
                 reverse_flag=rev_flag,
-                # 往来款字段
-                is_往来=is往来,
-                往来_type=row.get('往来_type', ''),
-                往来_remark=row.get('往来_remark', ''),
+                matched_income=inc_obj,
+                matched_expense=exp_obj,
             )
 
-            # ── 正常记录：写 Income/Expense → BankStatement → 自动核销 ────────
-            # 注：往来款（is往来=True）不再分流跳过，同样走下面的正常流程创建 Income/Expense 记录
-            # 顺序很重要：先有 Income/Expense（取得pk），再写 BankStatement（带FK），最后核销
-            inc_obj = None
-            exp_obj = None
-
-            if direction == 'income':
-                # source 记录原始分类（往来/退款/销售收款等），用于报表区分业务类型
-                inc_obj = Income.objects.create(
-                    company=company,
-                    customer=cp_name,
-                    source=category,
-                    amount=amount,
-                    date=tx_date,
-                    description=summary + (f" [流水号:{serial}]" if serial else '') +
-                                (f" [往来类型:{往来_remark}]" if is往来 and 往来_remark else ''),
-                )
-                income_count += 1
-                income_sum += amount
-            else:
-                cat_to_etype = {
-                    '税务':        'tax',
-                    '社保':        'social',
-                    '个人所得税':  'other',
-                    '增值税':      'tax',
-                    '企业所得税':  'tax',
-                    '其他税金':    'tax',
-                    '金融服务':    'other',
-                    '数字货币':    'other',
-                    '采购':        'other',
-                    '招待':       'entertainment',
-                    '差旅':       'travel',
-                    '薪资':       'salary',
-                    '社保':       'social',
-                    '租金':       'other',
-                    '物业':       'office',
-                    '运费':       'other',
-                    '往来':       'other',
-                    '其他费用':   'other',
-                    # 历史数据兼容
-                    '工资':        'salary',
-                    '社保公积金': 'social',
-                    '报销':       'other',
-                    '备用金':     'advance',
-                    '税费':       'tax',
-                    '借款还款':   'other',
-                }
-                exp_type = cat_to_etype.get(category, 'other')
-                exp_obj = Expense.objects.create(
-                    company=company,
-                    supplier=cp_name,
-                    expense_type=exp_type,
-                    expense_category=category,
-                    amount=amount,
-                    expense_date=tx_date,
-                    description=summary,
-                    note=(f"流水号:{serial}" if serial else ''),
-                )
-                expense_count += 1
-                expense_sum += amount
-
-            # 自动建档（只在有真实对手方时）
-            if cp_name and cp_type in ('enterprise', 'government') and not row.get('is_skip_counterparty'):
-                class _T:
-                    def __init__(self):
-                        self.counterparty_name   = cp_name
-                        self.counterparty_account = cp_account
-                        self.counterparty_bank    = cp_bank
-                        self.counterparty_bank_branch = cp_branch
-                        self.counterparty_bank_code   = cp_bcode
-                        self.counterparty_bank_addr   = cp_baddr
-                        self.direction = direction
-                _upsert_counterparty(company, _T(), cp_type, direction)
-
-            # 写 BankStatement（带已知的matched_xxx FK）
-            bs_data['matched_income'] = inc_obj
-            bs_data['matched_expense'] = exp_obj
-            bs = BankStatement.objects.create(**bs_data)
-
-            # 自动核销发票（银行到账/扣款后自动更新Invoice状态）
-            reconciled = None
-            rec_type = ''
+            # ── 自动核销发票 ──────────────────────────────────────────
             try:
-                reconciled, rec_type = _reconcile_bank_statement(bs)
+                _reconcile_bank_statement(bs)
             except Exception as rec_err:
-                errors.append(f"核销异常 行 {row.get('transaction_date','')}: {rec_err}")
-
-            imported += 1
+                errors.append(f"核销异常 {tx_date}: {rec_err}")
 
         except Exception as e:
             errors.append(f"行 {row.get('transaction_date','')} {row.get('counterparty_name','')}: {e}")
 
     return Response({
-        'batch_no':       batch_id,
-        'imported':       imported,
-        'skipped':        skipped,
-        'auto_created': {
-            'income_count':  income_count,
-            'expense_count': expense_count,
-        },
-        '往来_count':    往来_count,
-        'income_sum':     str(income_sum),
-        'expense_sum':    str(expense_sum),
-        'errors':         errors[:20],
+        'batch_no':    batch_id,
+        'imported':    income_count + expense_count,
+        'income_count':  income_count,
+        'expense_count': expense_count,
+        'income_sum':   str(income_sum),
+        'expense_sum':  str(expense_sum),
+        'errors':       errors[:20],
     })
