@@ -695,7 +695,9 @@ def confirm_bank_import(request):
     company_id  = body.get('company_id')
     bank_code   = body.get('bank_code', '')
     bank_serial = body.get('bank_serial', '')
-    rows        = body.get('rows', [])
+    rows        = body.get('transactions', []) or body.get('rows', [])
+    if not rows:
+        return Response({'error': '没有要导入的流水记录，请先上传文件预览'}, status=400)
 
     if not company_id:
         return Response({'error': '缺少 company_id'}, status=400)
