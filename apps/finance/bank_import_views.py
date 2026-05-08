@@ -655,6 +655,16 @@ def preview_bank_statement(request):
         else:
             total_expense += t.amount
 
+        # 客户/供应商智能匹配
+        match_type, match_name = _match_counterparty(company, t)
+
+        # 自动分类描述
+        category = direction == 'income' and '收入' or '支出'
+        if hasattr(t, 'auto_category') and t.auto_category:
+            category = t.auto_category
+        elif hasattr(t, 'category') and t.category:
+            category = t.category
+
         preview_rows.append({
             'transaction_date':    t.transaction_date.isoformat() if t.transaction_date else '',
             'transaction_time':   t.transaction_time.isoformat() if t.transaction_time else '',
@@ -668,6 +678,9 @@ def preview_bank_statement(request):
             'summary':            t.summary[:200] if t.summary else '',
             'bank_serial':        t.bank_serial,
             'transaction_type':   t.transaction_type,
+            'auto_description':   category,
+            'match_type':         match_type,
+            'match_name':         match_name,
         })
 
     return Response({
