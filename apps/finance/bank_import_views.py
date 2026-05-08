@@ -846,26 +846,23 @@ def confirm_bank_import(request):
                 往来_remark=row.get('往来_remark', ''),
             )
 
-            # 往来款：只写 BankStatement
-            if is往来:
-                BankStatement.objects.create(**bs_data)
-                imported += 1
-                往来_count += 1
-                continue
-
             # ── 正常记录：写 Income/Expense → BankStatement → 自动核销 ────────
+            # 注：往来款（is往来=True）不再分流跳过，同样走下面的正常流程创建 Income/Expense 记录
             # 顺序很重要：先有 Income/Expense（取得pk），再写 BankStatement（带FK），最后核销
             inc_obj = None
             exp_obj = None
 
             if direction == 'income':
+                # source='bank_import' 表示来自银行流水（统一标记，source_display='银行流水'）
+                # description 里保留原始 category 信息（往来/销售收款/退款等）
                 inc_obj = Income.objects.create(
                     company=company,
                     customer=cp_name,
-                    source=category,
+                    source='bank_import',
                     amount=amount,
                     date=tx_date,
-                    description=summary + (f" [流水号:{serial}]" if serial else ''),
+                    description=summary + (f" [流水号:{serial}]" if serial else '') +
+                                (f" [往来类型:{往来_remark}]" if is往来 and 往来_remark else ''),
                 )
                 income_count += 1
                 income_sum += amount

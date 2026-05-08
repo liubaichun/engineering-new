@@ -492,7 +492,7 @@ function renderExpenses(expenses) {
                     <div class="company-name">${expense.company_name ? expense.company_name.substring(1) : '-'}</div>
                 </div>
             </td>
-            <td><span class="expense-type-badge ${expense.expense_type}">${typeMap[expense.expense_type] || expense.expense_type}</span></td>
+            <td><span class="expense-type-badge ${expense.expense_type}">${expense.expense_type_display || expense.expense_type || '-'}</span></td>
             <td class="fw-bold text-danger">¥${formatNumber(expense.amount)}</td>
             <td>${expense.expense_date || '-'}</td>
             <td>${expense.supplier || '-'}</td>

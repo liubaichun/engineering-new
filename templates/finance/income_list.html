@@ -1014,11 +1014,11 @@ async function loadExpenses() {
         tbody.innerHTML = results.map(function(r) {
             var statusMap = {'pending':'badge-pending','approved':'badge-approved','rejected':'badge-rejected'};
             var statusTextMap = {'pending':'待审批','approved':'已批准','rejected':'已拒绝'};
-            var expTypeMap = {'expense':'费用报销','advance':'预付款','deposit':'押金','wage':'工资支出','other':'其他'};
+            var expTypeMap = {'expense':'费用报销','advance':'预付款','deposit':'押金','wage':'工资支出','other':'其他','tax':'税费','salary':'薪资','social':'社保公积金','entertainment':'业务招待','travel':'差旅','office':'办公费用','income':'收入'};
             return '<tr>' +
                 '<td><input class="form-check-input" type="checkbox" value="' + r.id + '"></td>' +
                 '<td>' + (r.company_name || '-') + '</td>' +
-                '<td>' + (expTypeMap[r.expense_type] || r.expense_type || '-') + '</td>' +
+                '<td>' + (r.expense_type_display || expTypeMap[r.expense_type] || r.expense_type || '-') + '</td>' +
                 '<td>¥' + parseFloat(r.amount||0).toLocaleString('zh-CN') + '</td>' +
                 '<td>' + (r.date || '-') + '</td>' +
                 '<td>' + (r.payment_method || '-') + '</td>' +
