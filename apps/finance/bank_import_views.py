@@ -587,11 +587,11 @@ def match_counterparty(t: ParsedTransaction, company):
         return '', ''
 
     if name:
-        # 精确匹配优先
-        c = Client.objects.filter(company=company, name=name).first()
+        # 精确匹配优先（跨公司查找，名称相同即为同一主体）
+        c = Client.objects.filter(name=name).first()
         if c:
             return 'client', c.name
-        s = Supplier.objects.filter(company=company, name=name).first()
+        s = Supplier.objects.filter(name=name).first()
         if s:
             return 'supplier', s.name
 
@@ -599,16 +599,16 @@ def match_counterparty(t: ParsedTransaction, company):
         if _is_excluded_counterparty(name):
             return '', ''
 
-        # 子串包含匹配（真实客户名可能包含在对手方文本中）
-        c = Client.objects.filter(company=company, name__contains=name).first()
+        # 子串包含匹配（真实客户名可能包含在对手方文本中，跨公司）
+        c = Client.objects.filter(name__contains=name).first()
         if c:
             return 'client', c.name
-        s = Supplier.objects.filter(company=company, name__contains=name).first()
+        s = Supplier.objects.filter(name__contains=name).first()
         if s:
             return 'supplier', s.name
 
     if account:
-        c = Client.objects.filter(company=company, contact_phone__contains=account).first()
+        c = Client.objects.filter(contact_phone__contains=account).first()
         if c:
             return 'client', c.name
 
