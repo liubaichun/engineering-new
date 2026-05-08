@@ -809,26 +809,11 @@ def confirm_bank_import(request):
                 skipped += 1
                 continue
 
-            # ── 智能匹配客户/供应商 ─────────────────────────────
-            # 已档案匹配（精确或子串）→ 用档案名称
-            # 未匹配且非排除词 → 自动建档案
-            # 排除词命中 → 不建档
-            _row = type('ParsedTransaction', (), {
-                'counterparty_name': cp_name,
-                'counterparty_account': cp_account,
-            })()
-            match_type, match_name = match_counterparty(_row, company)
-
-            # 未匹配到档案且非排除词 → 自动建档案
-            if not match_name and cp_name and not _is_excluded_counterparty(cp_name):
-                cp_type = _classify_cp_type(cp_name)
-                _upsert_counterparty(company, cp_name, cp_account, cp_bank, cp_type, direction)
-
             # ── 写 Income / Expense ─────────────────────────────
             if direction == 'income':
                 inc = Income.objects.create(
                     company=company,
-                    customer=match_name if match_type == 'client' else '',
+                    customer=cp_name or '',
                     source=tx_type,
                     amount=amount,
                     date=tx_date,
@@ -847,7 +832,7 @@ def confirm_bank_import(request):
             else:
                 exp = Expense.objects.create(
                     company=company,
-                    supplier=match_name if match_type == 'supplier' else '',
+                    supplier=cp_name or '',
                     expense_type='other',
                     expense_category=tx_type,
                     amount=amount,

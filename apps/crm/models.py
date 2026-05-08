@@ -68,6 +68,20 @@ class Supplier(models.Model):
     def __str__(self):
         return f"{self.code} - {self.name}" if self.code else self.name
 
+    def save(self, *args, **kwargs):
+        if not self.code:
+            year = self.created_at.year if self.created_at else 2026
+            last = Supplier.objects.filter(code__startswith=f'GYS-{year}-').order_by('-code').first()
+            if last and last.code:
+                try:
+                    seq = int(last.code.split('-')[-1]) + 1
+                except:
+                    seq = 1
+            else:
+                seq = 1
+            self.code = f'GYS-{year}-{seq:04d}'
+        super().save(*args, **kwargs)
+
 
 class Client(models.Model):
     """客户模型"""
