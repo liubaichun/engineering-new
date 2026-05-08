@@ -74,6 +74,28 @@ class BankStatement(models.Model):
     summary = models.CharField('交易摘要', max_length=500, blank=True, default='')
     usage = models.TextField('用途/附言', blank=True, default='')
 
+    # ── CMB v2.0 扩展字段 ──────────────────────────────────
+    transaction_type = models.CharField('交易类型', max_length=100, blank=True, default='')
+    tx_code = models.CharField('交易分析码', max_length=50, blank=True, default='')
+    value_date = models.DateField('起息日', blank=True, null=True)
+    biz_name = models.CharField('业务名称', max_length=200, blank=True, default='')
+    biz_summary = models.TextField('业务摘要', blank=True, default='')
+    other_summary = models.TextField('其它摘要', blank=True, default='')
+    ext_summary = models.TextField('扩展摘要', blank=True, default='')
+    biz_ref = models.CharField('业务参考号', max_length=100, blank=True, default='')
+    process_instance = models.CharField('流程实例号', max_length=100, blank=True, default='')
+    bill_no = models.CharField('票据号', max_length=100, blank=True, default='')
+    pay_order = models.CharField('商务支付订单号', max_length=100, blank=True, default='')
+    internal_id = models.CharField('内部编号', max_length=100, blank=True, default='')
+    parent_account = models.CharField('母(子)公司账号', max_length=50, blank=True, default='')
+    parent_name = models.CharField('母(子)公司名称', max_length=200, blank=True, default='')
+    info_flag = models.CharField('信息标志', max_length=10, blank=True, default='')
+    attach_flag = models.CharField('有否附件', max_length=10, blank=True, default='')
+    reverse_flag = models.CharField('冲账标志', max_length=10, blank=True, default='')
+    counterparty_bank_branch = models.CharField('对方分行名', max_length=200, blank=True, default='')
+    counterparty_bank_code = models.CharField('对方行号', max_length=50, blank=True, default='')
+    counterparty_bank_addr = models.CharField('对方行地址', max_length=200, blank=True, default='')
+
     # 关联核销
     matched_income = models.ForeignKey(
         'Income', verbose_name='核销收入',
@@ -88,6 +110,14 @@ class BankStatement(models.Model):
     reconcile_status = models.CharField('核销状态', max_length=20,
                                         choices=STATUS_CHOICES, default='unmatched')
     reconcile_time = models.DateTimeField('核销时间', blank=True, null=True)
+
+    # 往来款标识
+    is_往来 = models.BooleanField('是否往来款', default=False)
+    往来_type = models.CharField('往来类型', max_length=50, blank=True, default='',
+        help_text='借款/投资款/社保退款/个人往来/待核查')
+    往来_remark = models.TextField('往来备注', blank=True, default='',
+        help_text='往来详细说明，如：借款期限、利率、用途等')
+    往来_verified = models.BooleanField('往来已核销', default=False)
 
     # 来源
     source_bank = models.CharField('来源银行', max_length=20, blank=True, default='')

@@ -11,17 +11,45 @@ from typing import Optional
 
 @dataclass
 class ParsedTransaction:
+    # ── 核心字段 ──────────────────────────────────────────────
     transaction_date: Optional[datetime.date] = None
     transaction_time: Optional[datetime.time] = None
+    value_date: Optional[datetime.date] = None          # 起息日
     amount: Decimal = Decimal('0')
     direction: str = 'expense'   # income / expense
     balance: Optional[Decimal] = None
-    counterparty_name: str = ''
-    counterparty_account: str = ''
-    counterparty_bank: str = ''
-    summary: str = ''
-    usage: str = ''
-    bank_serial: str = ''
+    bank_serial: str = ''       # 流水号
+    # ── 交易对手（收/付方）───────────────────────────────────
+    counterparty_name: str = ''      # 收(付)方名称
+    counterparty_account: str = ''   # 收(付)方账号
+    counterparty_bank: str = ''      # 收(付)方开户行名
+    counterparty_bank_branch: str = '' # 收(付)方分行名
+    counterparty_bank_code: str = ''  # 收(付)方开户行行号
+    counterparty_bank_addr: str = ''  # 收(付)方开户行地址
+    # ── 摘要/用途 ────────────────────────────────────────────
+    summary: str = ''            # 摘要
+    usage: str = ''              # 用途
+    biz_name: str = ''           # 业务名称
+    biz_summary: str = ''         # 业务摘要
+    other_summary: str = ''       # 其它摘要
+    ext_summary: str = ''         # 扩展摘要
+    # ── 交易类型（CMB v2.0新增关键字段）───────────────────────
+    transaction_type: str = ''   # 交易类型：税款/企业银行各项费用/IBPS对公提回贷记/账户结息 等
+    tx_code: str = ''            # 交易分析码
+    # ── 关联号 ───────────────────────────────────────────────
+    biz_ref: str = ''           # 业务参考号
+    process_instance: str = ''   # 流程实例号
+    bill_no: str = ''           # 票据号
+    pay_order: str = ''         # 商务支付订单号
+    internal_id: str = ''       # 内部编号
+    # ── 母子公司 ─────────────────────────────────────────────
+    parent_account: str = ''    # 母(子)公司账号
+    parent_name: str = ''        # 母(子)公司名称
+    # ── 标志 ─────────────────────────────────────────────────
+    info_flag: str = ''         # 信息标志（1=系统自动处理）
+    attach_flag: str = ''       # 有否附件
+    reverse_flag: str = ''      # 冲账标志
+    # ── 原始 ─────────────────────────────────────────────────
     raw_data: dict = field(default_factory=dict)
 
     def get_dedup_key(self) -> str:
@@ -189,7 +217,18 @@ class CMBAdapter(BankStatementAdapter):
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
-        # 找表头行（包含'交易日'的行，同时有'流水号'）
+        # ── CMB v2.0 对账单格式 ────────────────────────────────
+        # 元数据行（不含列头），表头在第N行（含'交易日'+'流水号'），数据从第N+1行起
+        # 全部36列：
+        #  1:账号 2:账号名称 3:币种 4:交易日 5:交易时间 6:起息日 7:交易类型
+        #  8:借方金额 9:贷方金额 10:余额 11:摘要 12:流水号 13:流程实例号
+        # 14:业务名称 15:用途 16:业务参考号 17:业务摘要 18:其它摘要
+        # 19:收(付)方分行名 20:收(付)方名称 21:收(付)方账号 22:收(付)方开户行行号
+        # 23:收(付)方开户行名 24:收(付)方开户行地址
+        # 25:母(子)公司账号分行名 26:母(子)公司账号 27:母(子)公司名称
+        # 28:信息标志 29:有否附件信息 30:冲账标志 31:扩展摘要
+        # 32:交易分析码 33:票据号 34:商务支付订单号 35:内部编号 36:公司一卡通号
+
         header_row = None
         for r in range(1, ws.max_row + 1):
             row_vals = [str(ws.cell(r, c).value or '') for c in range(1, ws.max_column + 1)]
@@ -202,17 +241,21 @@ class CMBAdapter(BankStatementAdapter):
         if header_row is None:
             return []
 
-        # 读取表头
+        # 读取表头（动态匹配，允许全角/半角括号）
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
         def get_col(row, name):
-            # 尝试多个可能的列名变体
-            for variant in [name, name.replace('(', '（').replace(')', '）'),
-                           name.replace('（', '(').replace('）', ')')]:
+            for variant in [
+                name,
+                name.replace('(', '（').replace(')', '）'),
+                name.replace('（', '(').replace('）', ')'),
+            ]:
                 c = col_idx.get(variant)
                 if c:
-                    return ws.cell(row, c).value
+                    val = ws.cell(row, c).value
+                    if val is not None:
+                        return val
             return None
 
         records = []
@@ -232,18 +275,47 @@ class CMBAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
+                value_d = self._parse_date(get_col(row_idx, '起息日'))
+
                 records.append(ParsedTransaction(
                     transaction_date=txn_date,
                     transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                    value_date=value_d,
                     amount=amount,
                     direction=direction,
                     balance=self._decimal(get_col(row_idx, '余额')),
+                    bank_serial=str(get_col(row_idx, '流水号') or '').strip(),
+                    # 交易对手
                     counterparty_name=str(get_col(row_idx, '收(付)方名称') or '').strip(),
                     counterparty_account=str(get_col(row_idx, '收(付)方账号') or '').strip(),
                     counterparty_bank=str(get_col(row_idx, '收(付)方开户行名') or '').strip(),
+                    counterparty_bank_branch=str(get_col(row_idx, '收(付)方分行名') or '').strip(),
+                    counterparty_bank_code=str(get_col(row_idx, '收(付)方开户行行号') or '').strip(),
+                    counterparty_bank_addr=str(get_col(row_idx, '收(付)方开户行地址') or '').strip(),
+                    # 摘要/用途
                     summary=str(get_col(row_idx, '摘要') or '').strip(),
-                    usage=str(get_col(row_idx, '其它摘要') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '流水号') or '').strip(),
+                    usage=str(get_col(row_idx, '用途') or '').strip(),
+                    biz_name=str(get_col(row_idx, '业务名称') or '').strip(),
+                    biz_summary=str(get_col(row_idx, '业务摘要') or '').strip(),
+                    other_summary=str(get_col(row_idx, '其它摘要') or '').strip(),
+                    ext_summary=str(get_col(row_idx, '扩展摘要') or '').strip(),
+                    # 交易类型
+                    transaction_type=str(get_col(row_idx, '交易类型') or '').strip(),
+                    tx_code=str(get_col(row_idx, '交易分析码') or '').strip(),
+                    # 关联号
+                    biz_ref=str(get_col(row_idx, '业务参考号') or '').strip(),
+                    process_instance=str(get_col(row_idx, '流程实例号') or '').strip(),
+                    bill_no=str(get_col(row_idx, '票据号') or '').strip(),
+                    pay_order=str(get_col(row_idx, '商务支付订单号') or '').strip(),
+                    internal_id=str(get_col(row_idx, '内部编号') or '').strip(),
+                    # 母子公司
+                    parent_account=str(get_col(row_idx, '母(子)公司账号') or '').strip(),
+                    parent_name=str(get_col(row_idx, '母(子)公司名称') or '').strip(),
+                    # 标志
+                    info_flag=str(get_col(row_idx, '信息标志') or '').strip(),
+                    attach_flag=str(get_col(row_idx, '有否附件信息') or '').strip(),
+                    reverse_flag=str(get_col(row_idx, '冲账标志') or '').strip(),
+                    # 原始完整数据
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
             except Exception:

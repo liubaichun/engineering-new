@@ -199,10 +199,17 @@ class Income(models.Model):
 class Expense(models.Model):
     """支出模型"""
     EXPENSE_TYPE_CHOICES = [
-        ('expense', '费用报销'),
-        ('advance', '预付款'),
-        ('deposit', '押金'),
-        ('wage', '工资支出'),
+        ('salary',      '工资薪酬'),
+        ('social',      '社保公积金'),
+        ('office',      '办公费用'),
+        ('travel',      '差旅费用'),
+        ('communication', '通讯费用'),
+        ('entertainment','业务招待'),
+        ('marketing',   '市场营销'),
+        ('rd',          '研发费用'),
+        ('tax',         '税费'),
+        ('advance',     '预付款'),
+        ('other',       '其他'),
     ]
 
     EXPENSE_STATUS_CHOICES = [
@@ -221,7 +228,7 @@ class Expense(models.Model):
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     expense_type = models.CharField(
         verbose_name='支出类型', max_length=20,
-        choices=EXPENSE_TYPE_CHOICES, default='expense'
+        choices=EXPENSE_TYPE_CHOICES, default='other'
     )
     expense_date = models.DateField(verbose_name='日期', help_text='支出日期', default=date.today)
     date = models.DateField(verbose_name='日期', help_text='兼容性别名', blank=True, null=True)
