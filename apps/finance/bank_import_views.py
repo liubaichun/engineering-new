@@ -568,13 +568,38 @@ EXCLUDED_CP_PATTERNS = [
     '个人', '利息', '结算', '转账', '充值', '提现',
     '备用金', '内部户', '过渡户', '暂挂户',
     '税款', '社保', '公积金', '代发',
+    '暂收款', '对公中间业务收入', '中间业务收入',
+    '应付利息', '单位活期存款利息', '自动计提',
 ]
 
+# 公司/组织常见后缀（人名不含这些）
+COMPANY_SUFFIXES = ['公司', '集团', '有限', '责任', '企业', '工厂', '酒店',
+                     '中心', '医院', '学校', '银行', '支行', '分部', '事务所',
+                     '经营部', '服务部', '营业部', '办事处', '门市', '商店',
+                     '科技', '实业', '商贸', '贸易', '工程', '传媒']
+
+def _is_personal_name(name: str) -> bool:
+    """判断是否为自然人姓名（2-4个汉字，无公司后缀，无数字/字母混排）。"""
+    import re
+    if not name:
+        return False
+    # 纯中文，2-4个字符
+    if not re.fullmatch(r'[\u4e00-\u9fff]{2,4}', name):
+        return False
+    # 不含公司后缀
+    for suf in COMPANY_SUFFIXES:
+        if suf in name:
+            return False
+    return True
+
 def _is_excluded_counterparty(name: str) -> bool:
-    """判断对手方名称是否属于不应建档的类型（如银行内部账户、个人转账）。"""
+    """判断对手方名称是否属于不应建档的类型（银行内部账户、个人转账、自然人）。"""
     for p in EXCLUDED_CP_PATTERNS:
         if p in name:
             return True
+    # 自然人姓名（2-4字纯中文，无公司后缀）不建档
+    if _is_personal_name(name):
+        return True
     return False
 
 
