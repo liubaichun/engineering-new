@@ -688,12 +688,31 @@ def confirm_bank_import(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
-    # 找银行账户
+    # ── 银行账户解析（优先级：bank_account_id > bank_code+account_no > 新建） ──
     bank_account = None
-    if bank_code:
+    ba_id   = body.get('bank_account_id', '')
+    ba_no   = body.get('account_no', '').strip()
+    ba_name = body.get('account_name', '').strip()
+    ba_code = body.get('bank_code', '')
+
+    if ba_id:
+        # 优先用用户选择的已有账户
+        bank_account = BankAccount.objects.filter(id=ba_id, company=company).first()
+        if not bank_account:
+            return Response({'error': '所选银行账户不存在'}, status=400)
+    elif ba_no:
+        # 用账号+银行代码查找（精确匹配公司+账号）
         bank_account = BankAccount.objects.filter(
-            company=company, bank_code=bank_code
+            company=company, account_no=ba_no
         ).first()
+        if not bank_account and ba_name:
+            # 找不到则新建（用户填了新账户信息）
+            bank_account, created = BankAccount.objects.get_or_create(
+                company=company, account_no=ba_no,
+                defaults={'bank_code': ba_code or 'OTHER', 'bank_name': '', 'account_name': ba_name}
+            )
+    else:
+        return Response({'error': '请选择已有银行账户，或填写新账户的账号和户名'}, status=400)
 
     imported = skipped = income_count = expense_count =往来_count = 0
     income_sum = expense_sum = Decimal('0')

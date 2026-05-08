@@ -449,6 +449,14 @@ function updateSelectedStats() {
 async function doImport() {
     if (!previewData || selectedRows.size === 0) return alert('请至少选择1条记录');
 
+    // ── 校验：必须选择已有账户 或 填写新账户信息 ──────────────────────
+    const bankAccountId = currentBankAccount || '';
+    const accountNo   = (document.getElementById('inpAccountNo')   || {}).value || '';
+    const accountName = (document.getElementById('inpAccountName') || {}).value || '';
+    if (!bankAccountId && (!accountNo || !accountName)) {
+        return alert('请选择已有银行账户，或填写新账户的账号和户名。');
+    }
+
     const btn = document.getElementById('btnConfirm');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>导入中...';
@@ -460,9 +468,9 @@ async function doImport() {
     const payload = {
         company_id: companyId,
         bank_code: previewData.bank_code,
-        bank_account_id: currentBankAccount || '',
-        account_no: document.getElementById('inpAccountNo').value,
-        account_name: document.getElementById('inpAccountName').value,
+        bank_account_id: bankAccountId,
+        account_no: accountNo,
+        account_name: accountName,
         transactions: selected,
         auto_create_records: autoCreate
     };
