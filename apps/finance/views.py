@@ -350,6 +350,8 @@ class IncomeViewSet(viewsets.ModelViewSet):
                     balance=row_data.get('balance'),
                     counterparty_account=row_data.get('counterparty_account', ''),
                     counterparty_bank=row_data.get('counterparty_bank', ''),
+                    transaction_type=row_data.get('transaction_type', ''),
+                    summary=row_data.get('summary', ''),
                 )
                 created += 1
                 # 触发审批流（与 perform_create 保持一致）
@@ -520,6 +522,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     balance=row_data.get('balance'),
                     counterparty_account=row_data.get('counterparty_account', ''),
                     counterparty_bank=row_data.get('counterparty_bank', ''),
+                    transaction_type=row_data.get('transaction_type', ''),
+                    summary=row_data.get('summary', ''),
                 )
                 created += 1
             except Exception as e:

@@ -382,6 +382,8 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                         description=f"{goods_name}\n票号:{invoice_no}\n开票人:{issuer}\n来源:{invoice_source}".strip(),
                         operator=operator,
                         status='approved',
+                        transaction_type=f"进项票-{invoice_type_name}",
+                        summary=summary,
                     )
                     result.created_expense_ids.append(obj.id)
 
@@ -424,6 +426,8 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                         description=f"{goods_name}\n票号:{invoice_no}\n开票人:{issuer}\n税率:{tax_rate}%".strip(),
                         operator=operator,
                         status='approved',
+                        transaction_type=f"销项票-{invoice_type_name}",
+                        summary=summary,
                     )
                     result.created_income_ids.append(obj.id)
 
