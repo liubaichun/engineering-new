@@ -152,11 +152,13 @@ def ar_ap_aging_report(request):
                 due = getattr(rec, 'due_date', None) or getattr(rec, 'date', None) or today
                 bucket = age_bucket(due)
                 amount = float(getattr(rec, 'amount', 0) or 0)
+                tax_amount = float(getattr(rec, 'tax_amount', 0) or 0) if hasattr(rec, 'tax_amount') else 0
+                amount_with_tax = amount + tax_amount
                 if bucket in buckets:
-                    buckets[bucket] += amount
+                    buckets[bucket] += amount_with_tax
                 name = getattr(rec, name_field, '') or ''
                 details.append({
-                    'id': rec.id, 'name': str(name), 'amount': amount,
+                    'id': rec.id, 'name': str(name), 'amount': amount_with_tax,
                     'due_date': str(due), 'days': (today - due).days if due else 0,
                     'bucket': bucket,
                 })
@@ -169,12 +171,12 @@ def ar_ap_aging_report(request):
         return results
 
     ar_results = build_arap(
-        Income.objects.filter(status='pending'),
-        'customer'
+        Invoice.objects.filter(type='income', status='pending'),
+        'counterparty'
     )
     ap_results = build_arap(
-        Expense.objects.filter(status='pending'),
-        'supplier'
+        Invoice.objects.filter(type='expense', status='pending'),
+        'counterparty'
     )
 
     return Response({

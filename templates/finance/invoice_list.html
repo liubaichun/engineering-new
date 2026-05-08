@@ -283,6 +283,33 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" id="invoiceId">
+                <input type="hidden" id="invoiceType">
+
+                <!-- 编辑时的只读信息区 -->
+                <div id="editInvoiceInfo" class="d-none mb-3">
+                    <div class="row g-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">发票号码</label>
+                            <p class="mb-0 fw-medium" id="infoInvoiceNo">-</p>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">类型</label>
+                            <p class="mb-0 fw-medium" id="infoInvoiceType">-</p>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">金额</label>
+                            <p class="mb-0 fw-medium" id="infoInvoiceAmount">-</p>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">对方公司</label>
+                            <p class="mb-0 fw-medium" id="infoInvoiceCounterparty">-</p>
+                        </div>
+                    </div>
+                    <hr>
+                </div>
+
+                <!-- 新建时的完整表单 -->
+                <div id="newInvoiceForm">
                 <div class="row g-3 mb-3">
                     <div class="col-6">
                         <label class="form-label">发票号 <span class="text-danger">*</span></label>
@@ -290,7 +317,7 @@
                     </div>
                     <div class="col-6">
                         <label class="form-label">类型 <span class="text-danger">*</span></label>
-                        <select class="form-select" id="invoiceType" required>
+                        <select class="form-select" id="invoiceTypeNew" required>
                             <option value="">选择类型</option>
                             <option value="income">收入发票</option>
                             <option value="expense">支出发票</option>
@@ -311,17 +338,24 @@
                 </div>
                 <div class="row g-3 mb-3">
                     <div class="col-4">
-                        <label class="form-label">发票类型</label>
-                        <select class="form-select" id="invoiceType2">
-                            <option value="">普通发票</option>
-                            <option value="special">增值税专用发票</option>
-                        </select>
-                    </div>
-                    <div class="col-4">
                         <label class="form-label">税率(%)</label>
                         <input type="number" class="form-control" id="invoiceTaxRate" placeholder="如: 6, 13" step="0.01" min="0" max="100">
                     </div>
                     <div class="col-4">
+                        <label class="form-label">对方公司</label>
+                        <input type="text" class="form-control" id="invoiceCounterparty" placeholder="对方公司名称">
+                    </div>
+                    <div class="col-4">
+                        <label class="form-label">对方税号</label>
+                        <input type="text" class="form-control" id="invoiceTaxNo" placeholder="税号">
+                    </div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">开票日期</label>
+                        <input type="date" class="form-control" id="invoiceIssueDate">
+                    </div>
+                    <div class="col-6">
                         <label class="form-label">认证抵扣</label>
                         <select class="form-select" id="invoiceIsCredited">
                             <option value="false">未认证</option>
@@ -329,39 +363,25 @@
                         </select>
                     </div>
                 </div>
-                <div class="row g-3 mb-3">
+                </div>
+
+                <!-- 共同可编辑字段：状态 + 关联项目 -->
+                <div class="row g-3 mt-0">
                     <div class="col-6">
-                        <label class="form-label">对方公司</label>
-                        <input type="text" class="form-control" id="invoiceCounterparty" placeholder="对方公司名称">
+                        <label class="form-label">状态</label>
+                        <select class="form-select" id="invoiceStatus">
+                            <!-- 选项由JS根据type动态填充 -->
+                        </select>
                     </div>
                     <div class="col-6">
                         <label class="form-label">关联项目</label>
                         <select class="form-select" id="invoiceProject">
-                            <option value="">选择项目</option>
+                            <option value="">选择项目（可选）</option>
                         </select>
                     </div>
                 </div>
-                <div class="row g-3 mb-3">
-                    <div class="col-4">
-                        <label class="form-label">开票日期</label>
-                        <input type="date" class="form-control" id="invoiceIssueDate">
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label">状态</label>
-                        <select class="form-select" id="invoiceStatus">
-                            <option value="pending">待收款/待付款</option>
-                            <option value="paid">已完成</option>
-                            <option value="cancelled">已作废</option>
-                        </select>
-                    </div>
-                    <div class="col-4">
-                        <label class="form-label">对方税号</label>
-                        <input type="text" class="form-control" id="invoiceTaxNo" placeholder="税号">
-                    </div>
-                </div>
-                <input type="hidden" id="invoiceDate">
-                <input type="hidden" id="invoiceTaxAmount">
-                <div class="mb-3">
+
+                <div class="mb-3 mt-3">
                     <label class="form-label">备注</label>
                     <textarea class="form-control" id="invoiceRemarks" rows="2" placeholder="备注信息"></textarea>
                 </div>
@@ -534,7 +554,7 @@ function renderInvoiceTable(invoices, type) {
             <td class="text-end">¥${fmtAmt(inv.tax_amount)}</td>
             <td class="text-end">¥${taxIncluded(inv)}</td>
             <td>${inv.issue_date || '-'}</td>
-            <td><span class="status-badge ${inv.status}">${statusMap[inv.status] || inv.status}</span></td>
+            <td><span class="status-badge ${inv.status}">${getStatusText(inv.status, inv.type)}</span></td>
             <td>
                 <button class="btn btn-link btn-sm p-1" onclick="showInvoiceDetail(${inv.id})"><i class="bi bi-eye"></i></button>
                 <button class="btn btn-link btn-sm p-1" onclick="showEditInvoiceModal(${inv.id})"><i class="bi bi-pencil"></i></button>
@@ -556,7 +576,11 @@ function renderPagination(data, type, paginationId, currentPage) {
     if (currentPage < totalPages) ul.innerHTML += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="loadInvoices('${type}', ${currentPage + 1})">›</a></li>`;
 }
 
-const statusMap = {'pending': '待收款/待付款', 'paid': '已完成', 'cancelled': '已作废'};
+const statusMap = {'paid': '已完成', 'cancelled': '已作废'};
+function getStatusText(status, type) {
+    if (status === 'pending') return type === 'income' ? '待收款' : '待付款';
+    return statusMap[status] || status;
+}
 
 async function showInvoiceDetail(id) {
     try {
@@ -574,7 +598,7 @@ async function showInvoiceDetail(id) {
                 <tr><th>对方公司</th><td>${inv.counterparty||'-'}</td></tr>
                 <tr><th>对方税号</th><td>${inv.counterparty_tax_id||'-'}</td></tr>
                 <tr><th>开票日期</th><td>${inv.issue_date||'-'}</td></tr>
-                <tr><th>状态</th><td><span class="status-badge ${inv.status}">${statusMap[inv.status]||inv.status}</span></td></tr>
+                <tr><th>状态</th><td><span class="status-badge ${inv.status}">${getStatusText(inv.status, inv.type)}</span></td></tr>
                 <tr><th>认证</th><td>${inv.is_credited?'已认证':'未认证'}</td></tr>
                 <tr><th>备注</th><td>${inv.remarks||'-'}</td></tr>
             </table>`;
@@ -587,22 +611,31 @@ async function showEditInvoiceModal(id) {
         const resp = await fetch(`/api/finance/invoices/${id}/`, { credentials: 'include' });
         if (!resp.ok) return;
         const inv = await resp.json();
-        document.getElementById('invoiceModalTitle').textContent = '编辑发票 - ' + (inv.invoice_no || id);
+        document.getElementById('invoiceModalTitle').textContent = '编辑发票';
         document.getElementById('invoiceId').value = inv.id;
-        document.getElementById('invoiceNo').value = inv.invoice_no || '';
-        document.getElementById('invoiceAmount').value = inv.amount || '';
-        document.getElementById('invoiceTaxRate').value = inv.tax_rate != null ? parseFloat(inv.tax_rate) : '';
-        document.getElementById('invoiceStatus').value = inv.status;
+        document.getElementById('invoiceType').value = inv.type;
+
+        // 显示只读信息，隐藏新建表单
+        document.getElementById('editInvoiceInfo').classList.remove('d-none');
+        document.getElementById('newInvoiceForm').classList.add('d-none');
+        document.getElementById('infoInvoiceNo').textContent = inv.invoice_no || '-';
+        document.getElementById('infoInvoiceType').textContent = inv.type === 'income' ? '收入发票（开出的）' : '支出发票（收到的）';
+        document.getElementById('infoInvoiceAmount').textContent = '¥' + (parseFloat(inv.amount) || 0).toLocaleString('zh-CN', {minimumFractionDigits: 2});
+        document.getElementById('infoInvoiceCounterparty').textContent = inv.counterparty || '-';
+
+        // 状态下拉框根据类型显示不同选项
+        const statusSel = document.getElementById('invoiceStatus');
+        if (inv.type === 'income') {
+            statusSel.innerHTML = '<option value="pending">待收款</option><option value="paid">已完成</option><option value="cancelled">已作废</option>';
+        } else {
+            statusSel.innerHTML = '<option value="pending">待付款</option><option value="paid">已完成</option><option value="cancelled">已作废</option>';
+        }
+        statusSel.value = inv.status || 'pending';
+
+        // 关联项目
+        document.getElementById('invoiceProject').value = inv.project_id || '';
         document.getElementById('invoiceRemarks').value = inv.remarks || '';
-        document.getElementById('invoiceCounterparty').value = inv.counterparty || '';
-        document.getElementById('invoiceTaxNo').value = inv.counterparty_tax_id || '';
-        document.getElementById('invoiceIssueDate').value = inv.issue_date ? inv.issue_date.split('T')[0] : '';
-        document.getElementById('invoiceTaxAmount').value = inv.tax_amount || '';
-        // 移除禁用状态，确保所有字段可编辑
-        ['invoiceNo','invoiceAmount','invoiceTaxRate','invoiceRemarks','invoiceCounterparty','invoiceTaxNo','invoiceIssueDate','invoiceTaxAmount'].forEach(fid => {
-            const el = document.getElementById(fid);
-            if (el) el.readOnly = false;
-        });
+
         const modalEl = document.getElementById('invoiceModal');
         const modalInstance = bootstrap.Modal.getOrCreateInstance(modalEl);
         modalInstance.show();
@@ -632,13 +665,24 @@ async function markInvoicePaid(id) {
 
 function showAddInvoiceModal() {
     document.getElementById('invoiceModalTitle').textContent = '新建发票';
-    ['invoiceId','invoiceNo','invoiceAmount','invoiceTaxRate','invoiceStatus','invoiceRemarks',
-     'invoiceCounterparty','invoiceTaxNo','invoiceDate','invoiceTaxAmount'].forEach(id => {
+    document.getElementById('invoiceId').value = '';
+    document.getElementById('invoiceType').value = '';
+
+    // 显示新建表单，隐藏编辑信息区
+    document.getElementById('editInvoiceInfo').classList.add('d-none');
+    document.getElementById('newInvoiceForm').classList.remove('d-none');
+
+    // 状态下拉框默认选项
+    document.getElementById('invoiceStatus').innerHTML =
+        '<option value="pending">待收款</option><option value="paid">已完成</option><option value="cancelled">已作废</option>';
+
+    ['invoiceNo','invoiceAmount','invoiceTaxRate','invoiceRemarks',
+     'invoiceCounterparty','invoiceTaxNo','invoiceIssueDate','invoiceIsCredited',
+     'invoiceProject'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
-    const el = document.getElementById('invoiceStatus');
-    if (el) el.value = 'pending';
+    document.getElementById('invoiceTypeNew').value = '';
     new bootstrap.Modal(document.getElementById('invoiceModal')).show();
 }
 
@@ -649,37 +693,57 @@ function getVal(id) {
 
 async function saveInvoice() {
     const id = document.getElementById('invoiceId').value;
+    const invoiceType = document.getElementById('invoiceType').value; // 编辑时有值
     const csrftoken = document.cookie.split(';').find(r => r.trim().startsWith('csrftoken='))?.split('=')[1];
-    const data = {
-        invoice_no: getVal('invoiceNo'),
-        type: getVal('invoiceType') || 'expense',
-        amount: parseFloat(getVal('invoiceAmount')) || 0,
-        tax_rate: parseFloat(getVal('invoiceTaxRate')) || 0,
-        status: getVal('invoiceStatus') || 'pending',
-        remarks: getVal('invoiceRemarks'),
-        counterparty: getVal('invoiceCounterparty'),
-        counterparty_tax_id: getVal('invoiceTaxNo'),
-        issue_date: getVal('invoiceIssueDate'),
-        tax_amount: parseFloat(getVal('invoiceTaxAmount')) || 0,
-    };
+
+    let data;
+    if (id && invoiceType) {
+        // 编辑模式：只改状态、项目、备注
+        data = {
+            status: getVal('invoiceStatus'),
+            remarks: getVal('invoiceRemarks'),
+        };
+        const projVal = getVal('invoiceProject');
+        if (projVal) data.project_id = parseInt(projVal);
+    } else {
+        // 新建模式：完整字段
+        data = {
+            invoice_no: getVal('invoiceNo'),
+            type: getVal('invoiceTypeNew') || 'income',
+            amount: parseFloat(getVal('invoiceAmount')) || 0,
+            tax_rate: parseFloat(getVal('invoiceTaxRate')) || 0,
+            status: getVal('invoiceStatus') || 'pending',
+            remarks: getVal('invoiceRemarks'),
+            counterparty: getVal('invoiceCounterparty'),
+            counterparty_tax_id: getVal('invoiceTaxNo'),
+            issue_date: getVal('invoiceIssueDate'),
+        };
+        const projVal = getVal('invoiceProject');
+        if (projVal) data.project_id = parseInt(projVal);
+        const companyVal = getVal('invoiceCompany');
+        if (companyVal) data.company_id = parseInt(companyVal);
+    }
+
     try {
         const url = id ? `/api/finance/invoices/${id}/` : '/api/finance/invoices/';
         const resp = await fetch(url, {
             method: id ? 'PATCH' : 'POST',
             credentials: 'include',
-            headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrftoken},
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrftoken },
             body: JSON.stringify(data)
         });
         if (resp.ok) {
-            const modal = bootstrap.Modal.getInstance(document.getElementById('invoiceModal'));
-            if (modal) modal.hide();
+            bootstrap.Modal.getInstance(document.getElementById('invoiceModal'))?.hide();
             loadInvoices(currentTab, currentTab === 'income' ? incomePage : expensePage);
             loadSummary('income');
             loadSummary('expense');
         } else {
-            alert('保存失败');
+            const err = await resp.text();
+            alert('保存失败：' + err);
         }
-    } catch (e) { console.error(e); alert('保存出错'); }
+    } catch (e) {
+        alert('保存失败：' + e.message);
+    }
 }
 
 async function exportInvoices() {

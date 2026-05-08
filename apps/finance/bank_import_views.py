@@ -53,10 +53,13 @@ SKIP_PATTERNS = [
     r'国家金库', r'中华人民共和国国家金库', r'税务局', r'国家税务总局',
     r'住房公积金', r'深圳市住房公积金', r'社保', r'医疗保险',
     r'养老保险', r'失业保险', r'生育保险',
-    r'对公中间业务收入', r'网上企业银行服务费',
-    r'暂收款$', r'应付利息', r'应收利息',
+    r'对公中间业务收入', r'对公中间业务', r'网上企业银行服务费',
+    r'网上电子汇划收入',  # 银行内部收入账号，非真实供应商
+    r'批量代发付费',       # 银行代发工资的手续费，内部费用
+    r'暂收款', r'应付利息', r'应收利息',   # 精确匹配，去掉$锚点（否则摘要中的"暂收款"匹配不到）
     r'备付金',
-    r'测试户$',
+    r'测试户$', r'手工补录', r'司法扣划', r'退商', r'错账冲正', r'休眠户', r'冒名账户',
+    r'待核查户', r'过渡户', r'汇划待转', r'久悬户',
 ]
 
 
@@ -132,7 +135,7 @@ def _classify_expense_category(summary: str, counterparty: str) -> str:
         return '维修维护'
     if '水' in text or '电' in text or '煤气' in text or '燃气' in text or '物业' in text:
         return '水电物业'
-    if '银行' in text or '手续费' in text:
+    if '银行' in text or '手续费' in text or '网上企业银行' in text or '网上银行' in text:
         return '金融服务'
     if '租赁' in text or '租金' in text:
         return '租赁费'
@@ -140,6 +143,8 @@ def _classify_expense_category(summary: str, counterparty: str) -> str:
         return '物流快递'
     if '借款' in text or '还款' in text:
         return '借款还款'
+    if '往来' in text:
+        return 'skip'   # 往来款是公司间拆借，不产生真实损益，不记账
     if '备用金' in text:
         return '备用金'
     if '报销' in text:
@@ -531,38 +536,44 @@ def confirm_bank_import(request):
 
                 if direction == 'income':
                     desc = _classify_income_category(t.summary, counterparty)
-                    income = Income.objects.create(
-                        company=company,
-                        amount=t.amount,
-                        date=t.transaction_date,
-                        source='bank_import',
-                        customer=counterparty,
-                        description=remark,
-                        operator=request.user,
-                        status='approved',
-                    )
-                    stmt.matched_income = income
-                    stmt.reconcile_status = 'matched'
-                    stmt.save(update_fields=['matched_income', 'reconcile_status'])
-                    created_income_ids.append(income.id)
+                    if desc == 'skip':
+                        pass  # 往来款等公司间拆借，不记账
+                    else:
+                        income = Income.objects.create(
+                            company=company,
+                            amount=t.amount,
+                            date=t.transaction_date,
+                            source='bank_import',
+                            customer=counterparty,
+                            description=remark,
+                            operator=request.user,
+                            status='approved',
+                        )
+                        stmt.matched_income = income
+                        stmt.reconcile_status = 'matched'
+                        stmt.save(update_fields=['matched_income', 'reconcile_status'])
+                        created_income_ids.append(income.id)
                 else:
                     desc = _classify_expense_category(t.summary, counterparty)
-                    expense = Expense.objects.create(
-                        company=company,
-                        amount=t.amount,
-                        expense_date=t.transaction_date,
-                        date=t.transaction_date,
-                        expense_type='expense',
-                        expense_category=desc,
-                        supplier=counterparty,
-                        description=remark,
-                        operator=request.user,
-                        status='approved',
-                    )
-                    stmt.matched_expense = expense
-                    stmt.reconcile_status = 'matched'
-                    stmt.save(update_fields=['matched_expense', 'reconcile_status'])
-                    created_expense_ids.append(expense.id)
+                    if desc == 'skip':
+                        pass  # 往来款等公司间拆借，不记账
+                    else:
+                        expense = Expense.objects.create(
+                            company=company,
+                            amount=t.amount,
+                            expense_date=t.transaction_date,
+                            date=t.transaction_date,
+                            expense_type='expense',
+                            expense_category=desc,
+                            supplier=counterparty,
+                            description=remark,
+                            operator=request.user,
+                            status='approved',
+                        )
+                        stmt.matched_expense = expense
+                        stmt.reconcile_status = 'matched'
+                        stmt.save(update_fields=['matched_expense', 'reconcile_status'])
+                        created_expense_ids.append(expense.id)
 
             imported += 1
 
