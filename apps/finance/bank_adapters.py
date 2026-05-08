@@ -272,10 +272,17 @@ class CMBAdapter(BankStatementAdapter):
                     continue
 
                 # 数字钱包"兑回"：从数字钱包转回银行账户，贷方结算，方向应为收入
-                txn_type_raw = str(get_col(row_idx, '交易类型') or '').strip()
-                summary_raw = str(get_col(row_idx, '摘要') or '').strip()
-                if '兑回' in txn_type_raw or '兑回' in summary_raw:
-                    amount, direction = credit or debit, 'income'
+                # "兑回"可能出现在交易类型/摘要/其它摘要/业务摘要/扩展摘要等字段
+                for field_val in [
+                    get_col(row_idx, '交易类型'),
+                    get_col(row_idx, '摘要'),
+                    get_col(row_idx, '其它摘要'),
+                    get_col(row_idx, '业务摘要'),
+                    get_col(row_idx, '扩展摘要'),
+                ]:
+                    if '兑回' in str(field_val or ''):
+                        amount, direction = (credit or debit), 'income'
+                        break
 
                 txn_date = self._parse_date(get_col(row_idx, '交易日'))
                 if not txn_date:
