@@ -593,7 +593,9 @@ def _is_personal_name(name: str) -> bool:
     return True
 
 def _is_excluded_counterparty(name: str) -> bool:
-    """判断对手方名称是否属于不应建档的类型（银行内部账户、个人转账、自然人）。"""
+    """判断对手方名称是否属于不应建档的类型（银行内部账户、个人转账、自然人、空名称）。"""
+    if not name or not name.strip():
+        return True  # 空名称不建档
     for p in EXCLUDED_CP_PATTERNS:
         if p in name:
             return True
