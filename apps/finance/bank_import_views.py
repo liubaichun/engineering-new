@@ -836,11 +836,10 @@ def confirm_bank_import(request):
                 skipped += 1
                 continue
 
-            # ── 档案匹配（包含排除词过滤：银行内部/个人/利息等不进档案）──
-            # match_counterparty 接收 ParsedTransaction，这里直接内联匹配逻辑避免重复构建对象
+            # ── 档案匹配（排除词优先：命中排除词则不匹配档案也不建档）──
             档案名 = ''
-            if cp_name:
-                # 精确匹配已有档案
+            if cp_name and not _is_excluded_counterparty(cp_name):
+                # 排除词未命中 → 精确匹配已有档案
                 c = Client.objects.filter(name=cp_name).first()
                 if c:
                     档案名 = c.name
@@ -848,8 +847,8 @@ def confirm_bank_import(request):
                     s = Supplier.objects.filter(name=cp_name).first()
                     if s:
                         档案名 = s.name
-                    elif not _is_excluded_counterparty(cp_name):
-                        # 非排除词且无档案 → 自动建档（真实对手方才建）
+                    else:
+                        # 无档案 → 自动建档
                         cp_type = 'income' if direction == 'income' else 'expense'
                         档案对象 = _upsert_counterparty(
                             company, cp_name, cp_account, cp_bank, cp_type, direction
