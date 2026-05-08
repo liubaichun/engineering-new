@@ -823,9 +823,9 @@ def confirm_bank_import(request):
                         档案名 = s.name
                     elif not _is_excluded_counterparty(cp_name):
                         # 非排除词且无档案 → 自动建档（真实对手方才建）
-                        档案对象 = _auto_create_counterparty(
-                            company, cp_name, cp_account, cp_bank,
-                            'income' if direction == 'income' else 'expense'
+                        cp_type = 'income' if direction == 'income' else 'expense'
+                        档案对象 = _upsert_counterparty(
+                            company, cp_name, cp_account, cp_bank, cp_type, direction
                         )
                         if 档案对象:
                             档案名 = 档案对象.name
