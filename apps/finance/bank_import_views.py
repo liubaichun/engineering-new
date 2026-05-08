@@ -852,11 +852,6 @@ def confirm_bank_import(request):
                 matched_expense=exp_obj,
             )
 
-            # ── 自动建档 Client / Supplier（含银行账号/开户行）────────────
-            if cp_name and direction:
-                cp_type = _classify_cp_type(cp_name)
-                _upsert_counterparty(company, cp_name, cp_account, cp_bank, cp_type, direction)
-
             # ── 自动核销发票 ─────────────────────────────────────────
             try:
                 _reconcile_bank_statement(bs)
