@@ -331,15 +331,6 @@ def tax_summary_report(request):
     for company in companies:
         inv_qs = Invoice.objects.filter(company=company)
         w_qs = WageRecord.objects.filter(company=company)
-        if year:
-            inv_qs = inv_qs.filter(issue_date__year=year)
-            w_qs = w_qs.filter(year=year)
-            bs_qs = bs_qs.filter(transaction_date__year=year)
-        if month:
-            inv_qs = inv_qs.filter(issue_date__month=month)
-            w_qs = w_qs.filter(month=month)
-            bs_qs = bs_qs.filter(transaction_date__month=month)
-
         exp_tax_qs = Expense.objects.filter(company=company, expense_type='tax')
         if year:
             inv_qs = inv_qs.filter(issue_date__year=year)
