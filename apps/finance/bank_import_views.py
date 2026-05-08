@@ -656,7 +656,7 @@ def preview_bank_statement(request):
             total_expense += t.amount
 
         # 客户/供应商智能匹配
-        match_type, match_name = _match_counterparty(company, t)
+        match_type, match_name = match_counterparty(t, company)
 
         # 自动分类描述
         category = direction == 'income' and '收入' or '支出'
