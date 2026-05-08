@@ -572,10 +572,10 @@ def match_counterparty(t: ParsedTransaction, company):
         return '', ''
 
     if name:
-        c = Client.objects.filter(company=company, name__contains=name).first()
+        c = Client.objects.filter(company=company, name=name).first()
         if c:
             return 'client', c.name
-        s = Supplier.objects.filter(company=company, name__contains=name).first()
+        s = Supplier.objects.filter(company=company, name=name).first()
         if s:
             return 'supplier', s.name
 
