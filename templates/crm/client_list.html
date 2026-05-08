@@ -53,6 +53,8 @@
                         <th>客户名称</th>
                         <th>联系人</th>
                         <th>电话</th>
+                        <th>银行账号</th>
+                        <th>开户行</th>
                         <th>分类</th>
                         <th>状态</th>
                         <th>创建时间</th>
@@ -61,7 +63,7 @@
                 </thead>
                 <tbody id="clientTableBody">
                     <tr>
-                        <td colspan="8" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
                         </td>
                     </tr>
@@ -131,6 +133,27 @@
                     <div class="col-12">
                         <label class="form-label">地址</label>
                         <input type="text" class="form-control" id="address" placeholder="公司地址">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">对方类型</label>
+                        <select class="form-select" id="counterpartyType">
+                            <option value="">选择类型</option>
+                            <option value="enterprise">企业</option>
+                            <option value="individual">个人</option>
+                            <option value="government">政府/事业单位</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">纳税人识别号</label>
+                        <input type="text" class="form-control" id="taxId" placeholder="税号">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">银行账号</label>
+                        <input type="text" class="form-control" id="bankAccount" placeholder="对公账户">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">开户行</label>
+                        <input type="text" class="form-control" id="bankName" placeholder="开户银行">
                     </div>
                     <div class="col-12">
                         <label class="form-label">备注</label>
@@ -217,6 +240,8 @@ function renderClients() {
             html += '<td><strong>' + escapeHtml(client.name) + '</strong></td>';
             html += '<td>' + escapeHtml(client.contact_person || '-') + '</td>';
             html += '<td>' + escapeHtml(client.contact_phone || '-') + '</td>';
+            html += '<td><small>' + escapeHtml(client.bank_account || '-') + '</small></td>';
+            html += '<td><small>' + escapeHtml(client.bank_name || '-') + '</small></td>';
             html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryText) + '</span></td>';
             html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
             html += '<td>' + createdAt + '</td>';
@@ -289,6 +314,10 @@ function showClientModal() {
     document.getElementById('clientCategory').value = '';
     document.getElementById('clientSource').value = '';
     document.getElementById('address').value = '';
+    document.getElementById('counterpartyType').value = '';
+    document.getElementById('taxId').value = '';
+    document.getElementById('bankAccount').value = '';
+    document.getElementById('bankName').value = '';
     document.getElementById('remark').value = '';
     clientModal.show();
 }
@@ -306,6 +335,10 @@ function editClient(clientId) {
     document.getElementById('clientCategory').value = client.category || '';
     document.getElementById('clientSource').value = client.source || '';
     document.getElementById('address').value = client.address || '';
+    document.getElementById('counterpartyType').value = client.counterparty_type || '';
+    document.getElementById('taxId').value = client.tax_id || '';
+    document.getElementById('bankAccount').value = client.bank_account || '';
+    document.getElementById('bankName').value = client.bank_name || '';
     document.getElementById('remark').value = client.remark || '';
     clientModal.show();
 }
@@ -324,6 +357,10 @@ async function saveClient() {
         category: document.getElementById('clientCategory').value,
         source: document.getElementById('clientSource').value || null,
         address: document.getElementById('address').value.trim(),
+        counterparty_type: document.getElementById('counterpartyType').value,
+        tax_id: document.getElementById('taxId').value.trim(),
+        bank_account: document.getElementById('bankAccount').value.trim(),
+        bank_name: document.getElementById('bankName').value.trim(),
         remark: document.getElementById('remark').value.trim()
     };
     

@@ -45,6 +45,8 @@
                         <th>供应商名称</th>
                         <th>联系人</th>
                         <th>电话</th>
+                        <th>银行账号</th>
+                        <th>开户行</th>
                         <th>代理品牌</th>
                         <th>状态</th>
                         <th>创建时间</th>
@@ -53,7 +55,7 @@
                 </thead>
                 <tbody id="supplierTableBody">
                     <tr>
-                        <td colspan="8" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
                         </td>
                     </tr>
@@ -116,6 +118,27 @@
                     <div class="col-12">
                         <label class="form-label">地址</label>
                         <input type="text" class="form-control" id="supplierAddress" placeholder="公司地址">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">对方类型</label>
+                        <select class="form-select" id="counterpartyType">
+                            <option value="">选择类型</option>
+                            <option value="enterprise">企业</option>
+                            <option value="individual">个人</option>
+                            <option value="government">政府/事业单位</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">纳税人识别号</label>
+                        <input type="text" class="form-control" id="taxId" placeholder="税号">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">银行账号</label>
+                        <input type="text" class="form-control" id="bankAccount" placeholder="对公账户">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">开户行</label>
+                        <input type="text" class="form-control" id="bankName" placeholder="开户银行">
                     </div>
                     <div class="col-12">
                         <label class="form-label">备注</label>
@@ -184,7 +207,7 @@ function renderSuppliers() {
 
     var tbody = document.getElementById('supplierTableBody');
     if (pageData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无供应商数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无供应商数据</td></tr>';
     } else {
         var html = '';
         pageData.forEach(function(s) {
@@ -197,6 +220,8 @@ function renderSuppliers() {
             html += '<td><strong>' + escapeHtml(s.name) + '</strong></td>';
             html += '<td>' + escapeHtml(s.contact_person || '-') + '</td>';
             html += '<td>' + escapeHtml(s.contact_phone || '-') + '</td>';
+            html += '<td><small>' + escapeHtml(s.bank_account || '-') + '</small></td>';
+            html += '<td><small>' + escapeHtml(s.bank_name || '-') + '</small></td>';
             html += '<td><small>' + escapeHtml(s.brands || '-') + '</small></td>';
             html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
             html += '<td>' + createdAt + '</td>';
@@ -265,6 +290,10 @@ function showSupplierModal() {
     document.getElementById('supplierStatus').value = 'active';
     document.getElementById('supplierBrands').value = '';
     document.getElementById('supplierAddress').value = '';
+    document.getElementById('counterpartyType').value = '';
+    document.getElementById('taxId').value = '';
+    document.getElementById('bankAccount').value = '';
+    document.getElementById('bankName').value = '';
     document.getElementById('supplierRemark').value = '';
     supplierModal.show();
 }
@@ -282,6 +311,10 @@ function editSupplier(id) {
     document.getElementById('supplierStatus').value = s.status || 'active';
     document.getElementById('supplierBrands').value = s.brands || '';
     document.getElementById('supplierAddress').value = s.address || '';
+    document.getElementById('counterpartyType').value = s.counterparty_type || '';
+    document.getElementById('taxId').value = s.tax_id || '';
+    document.getElementById('bankAccount').value = s.bank_account || '';
+    document.getElementById('bankName').value = s.bank_name || '';
     document.getElementById('supplierRemark').value = s.remark || '';
     supplierModal.show();
 }
@@ -300,6 +333,10 @@ async function saveSupplier() {
         status: document.getElementById('supplierStatus').value,
         brands: document.getElementById('supplierBrands').value.trim(),
         address: document.getElementById('supplierAddress').value.trim(),
+        counterparty_type: document.getElementById('counterpartyType').value,
+        tax_id: document.getElementById('taxId').value.trim(),
+        bank_account: document.getElementById('bankAccount').value.trim(),
+        bank_name: document.getElementById('bankName').value.trim(),
         remark: document.getElementById('supplierRemark').value.trim()
     };
 

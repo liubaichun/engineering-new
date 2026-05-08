@@ -11,11 +11,14 @@ class ClientSourceSerializer(serializers.ModelSerializer):
 
 class SupplierSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+    counterparty_type_display = serializers.CharField(source='get_counterparty_type_display', read_only=True, default='')
 
     class Meta:
         model = Supplier
         fields = ['id', 'code', 'name', 'contact_person', 'contact_phone',
                   'contact_email', 'brands', 'status', 'address', 'remark',
+                  'counterparty_type', 'counterparty_type_display',
+                  'tax_id', 'bank_account', 'bank_name',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
         read_only_fields = ['code', 'created_by']
 
@@ -42,6 +45,7 @@ class ClientSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     category_display = serializers.CharField(source='get_category_display', read_only=True)
     source_name = serializers.CharField(source='source.name', read_only=True)
+    counterparty_type_display = serializers.CharField(source='get_counterparty_type_display', read_only=True, default='')
 
     class Meta:
         model = Client
@@ -49,6 +53,8 @@ class ClientSerializer(serializers.ModelSerializer):
                   'contact_person', 'contact_phone', 'contact_email',
                   'address', 'remark', 'is_active',
                   'source', 'source_name',
+                  'counterparty_type', 'counterparty_type_display',
+                  'tax_id', 'bank_account', 'bank_name',
                   'created_at', 'updated_at', 'created_by', 'created_by_name']
         read_only_fields = ['code', 'created_by']
 
