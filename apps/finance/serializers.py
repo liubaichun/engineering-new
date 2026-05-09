@@ -86,7 +86,8 @@ class IncomeSerializer(serializers.ModelSerializer):
         return income
 
 
-    class ExpenseSerializer(serializers.ModelSerializer):
+
+class ExpenseSerializer(serializers.ModelSerializer):
         """支出序列化器"""
         company_name = serializers.CharField(source='company.name', read_only=True)
         project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
