@@ -278,7 +278,7 @@ async function loadYearOptions() {
         if (years.length === 0) {
             const opt = document.createElement('option');
             opt.value = new Date().getFullYear();
-            opt.textContent = new Date().getFullYear();
+            opt.textContent = new Date().getFullYear() + '年';
             select.appendChild(opt);
         } else {
             years.forEach(y => {
@@ -287,6 +287,10 @@ async function loadYearOptions() {
                 opt.textContent = y + '年';
                 select.appendChild(opt);
             });
+            // 自动选中第一个非当前年份（有完整数据的最近年份）
+            const currentYear = new Date().getFullYear();
+            const validYear = years.find(y => y !== currentYear);
+            if (validYear) select.value = validYear;
         }
     } catch (err) {
         console.error('加载年份失败', err);
