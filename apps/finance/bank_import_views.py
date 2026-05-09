@@ -738,13 +738,13 @@ def preview_bank_statement(request):
             'match_name':         match_name,
         })
 
+    # 不截断：全部返回，让前端处理大数据量（如需分页可后续扩展）
     return Response({
         'bank_code':    used_bank,
         'total_count':  len(transactions),
         'total_income': str(total_income),
         'total_expense':str(total_expense),
-        'preview_rows': preview_rows[:200],
-        'has_more':     len(transactions) > 200,
+        'preview_rows': preview_rows,
     })
 
 
