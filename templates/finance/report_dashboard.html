@@ -150,23 +150,23 @@
 </div>
 
 <!-- 报表卡片 -->
-<div class="report-cards">
-    <div class="report-card" onclick="showReport('monthly', this)">
+<div class="report-cards" id="reportCardsContainer">
+    <div class="report-card" data-report="monthly">
         <div class="icon blue"><i class="bi bi-calendar-month"></i></div>
         <h5>月度报表</h5>
         <p>按月份统计各公司收入、支出和结余情况</p>
     </div>
-    <div class="report-card" onclick="showReport('yearly', this)">
+    <div class="report-card" data-report="yearly">
         <div class="icon green"><i class="bi bi-calendar3"></i></div>
         <h5>年度报表</h5>
         <p>按年份统计各公司年度收支汇总</p>
     </div>
-    <div class="report-card" onclick="showReport('wage_summary', this)">
+    <div class="report-card" data-report="wage_summary">
         <div class="icon orange"><i class="bi bi-wallet2"></i></div>
         <h5>工资汇总</h5>
         <p>按公司/月份汇总员工工资和个税</p>
     </div>
-    <div class="report-card" onclick="showReport('invoice_summary', this)">
+    <div class="report-card" data-report="invoice_summary">
         <div class="icon purple"><i class="bi bi-receipt"></i></div>
         <h5>发票汇总</h5>
         <p>按公司统计发票开具和收取情况</p>
@@ -178,32 +178,32 @@
     <span class="text-muted" style="font-size:0.8rem"><i class="bi bi-chevron-expand me-1"></i>补充报表</span>
 </div>
 <div class="report-cards">
-    <div class="report-card" onclick="showReport('cash_flow', this)">
+    <div class="report-card" data-report="cash_flow">
         <div class="icon blue"><i class="bi bi-water"></i></div>
         <h5>现金流量表</h5>
         <p>按月列示期初余额+收入+支出+期末余额</p>
     </div>
-    <div class="report-card" onclick="showReport('ar_ap_aging', this)">
+    <div class="report-card" data-report="ar_ap_aging">
         <div class="icon orange"><i class="bi bi-hourglass-split"></i></div>
         <h5>应收应付账龄</h5>
         <p>客户未收/供应商未付款账龄分析</p>
     </div>
-    <div class="report-card" onclick="showReport('customer_revenue', this)">
+    <div class="report-card" data-report="customer_revenue">
         <div class="icon green"><i class="bi bi-trophy"></i></div>
         <h5>客户收入排行</h5>
         <p>各客户收入贡献排行与趋势</p>
     </div>
-    <div class="report-card" onclick="showReport('supplier_expense', this)">
+    <div class="report-card" data-report="supplier_expense">
         <div class="icon purple"><i class="bi bi-truck"></i></div>
         <h5>供应商支出</h5>
         <p>按供应商汇总支出金额与笔数</p>
     </div>
-    <div class="report-card" onclick="showReport('tax_summary', this)">
+    <div class="report-card" data-report="tax_summary">
         <div class="icon orange"><i class="bi bi-receipt-cutoff"></i></div>
         <h5>税费汇总</h5>
         <p>增值税/企业所得税/个税等汇总</p>
     </div>
-    <div class="report-card" onclick="showReport('budget_execution', this)">
+    <div class="report-card" data-report="budget_execution">
         <div class="icon blue"><i class="bi bi-graph-up-arrow"></i></div>
         <h5>预算执行表</h5>
         <p>各费用类型实际支出与执行率</p>
@@ -245,7 +245,22 @@ document.addEventListener('DOMContentLoaded', function() {
     loadYearOptions();
     // 默认选中月度报表
     showReport('monthly');
-    document.querySelector('.report-card[onclick*="monthly"]').classList.add('active');
+
+    // 事件委托：替代 onclick 属性，彻底解决点击失灵
+    document.getElementById('reportCardsContainer').addEventListener('click', function(e) {
+        const card = e.target.closest('.report-card');
+        if (!card) return;
+        const type = card.getAttribute('data-report');
+        if (type) showReport(type);
+    });
+    document.querySelectorAll('.report-cards:not(#reportCardsContainer)').forEach(function(container) {
+        container.addEventListener('click', function(e) {
+            const card = e.target.closest('.report-card');
+            if (!card) return;
+            const type = card.getAttribute('data-report');
+            if (type) showReport(type);
+        });
+    });
 });
 
 async function loadCompanies() {
@@ -297,10 +312,11 @@ async function loadYearOptions() {
     }
 }
 
-function showReport(type, el) {
+function showReport(type) {
     currentReport = type;
     document.querySelectorAll('.report-card').forEach(c => c.classList.remove('active'));
-    if (el && el.classList) el.classList.add('active');
+    const activeCard = document.querySelector(`.report-card[data-report="${type}"]`);
+    if (activeCard) activeCard.classList.add('active');
     document.getElementById('exportButtons').style.display = 'flex';
     loadReport();
 }
