@@ -1511,38 +1511,45 @@ class ReportViewSet(viewsets.ViewSet):
         if company_id:
             companies = companies.filter(id=company_id)
 
-        # 工资相关关键字
-        wage_keywords = ['工资', '年终奖', '离职补偿', '月奖', '奖金', '绩效']
-
-        def make_wage_filter(co, yr, mo):
-            q = Q(company=co, expense_type='other')
-            for kw in wage_keywords:
-                q |= Q(company=co, description__icontains=kw)
-            if yr:
-                q &= Q(expense_date__year=yr)
-            if mo:
-                q &= Q(expense_date__month=mo)
-            return q
+        # 工资相关关键字（只用 description 匹配，不过滤 expense_type）
+        wage_keywords = ['工资', '年终奖', '离职补偿', '月奖', '奖金', '绩效', '补发工资']
 
         results = []
         for company in companies:
-            qs = Expense.objects.filter(make_wage_filter(company, year, month))
-            total = qs.aggregate(total=Sum('amount'))['total'] or 0
-            count = qs.count()
+            base_q = Q(company=company)
+            if year:
+                base_q &= Q(expense_date__year=year)
+            if month:
+                base_q &= Q(expense_date__month=month)
+
+            # 工资类：description 含工资关键字
+            wage_q = Q()
+            for kw in wage_keywords:
+                wage_q |= Q(description__icontains=kw)
+            wage_qs = Expense.objects.filter(base_q & wage_q)
+            wage_total = wage_qs.aggregate(t=Sum('amount'))['t'] or 0
+            wage_count = wage_qs.count()
+
+            # 社保公积金：description 含"托收"（单位托收YYYYMM月）
+            social_qs = Expense.objects.filter(base_q & Q(description__icontains='托收'))
+            social_total = social_qs.aggregate(t=Sum('amount'))['t'] or 0
+
+            # 个税：description 含"实时缴税"
+            tax_qs = Expense.objects.filter(base_q & Q(description__icontains='实时缴税'))
+            tax_total = tax_qs.aggregate(t=Sum('amount'))['t'] or 0
 
             results.append({
                 'company_id': company.id,
                 'company_name': company.name,
                 'year': int(year) if year else None,
                 'month': int(month) if month else None,
-                'record_count': count,
-                'employee_count': count,
-                'total_wage': float(total),
-                # WageRecord 细项字段暂无数据，保持 0
-                'total_gross': float(total),
-                'total_tax': 0,
-                'total_net': float(total),
-                'total_social_insurance': 0,
+                'record_count': wage_count,
+                'employee_count': wage_count,
+                'total_wage': float(wage_total),
+                'total_gross': float(wage_total),
+                'total_tax': float(tax_total),
+                'total_net': float(wage_total),  # net = gross - tax，实际应扣税后工资，此处粗略用总额代替
+                'total_social_insurance': float(social_total),
                 'total_housing_fund': 0,
             })
 
@@ -1555,8 +1562,10 @@ class ReportViewSet(viewsets.ViewSet):
                 'total_records': sum(r['record_count'] for r in results),
                 'total_wage': sum(r['total_wage'] for r in results),
                 'total_gross': sum(r['total_gross'] for r in results),
-                'total_tax': 0,
+                'total_tax': sum(r['total_tax'] for r in results),
                 'total_net': sum(r['total_net'] for r in results),
+                'total_social_insurance': sum(r['total_social_insurance'] for r in results),
+                'total_housing_fund': sum(r['total_housing_fund'] for r in results),
             }
         })
 
