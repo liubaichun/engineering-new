@@ -949,8 +949,11 @@ def confirm_bank_import(request):
                           f"exp_id={exp_obj.id if exp_obj else None}\n")
 
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             with open(LOG_PATH, 'a') as _lf:
                 _lf.write(f"  *** ATOMIC_ROLLBACK idx={idx}: {e}\n")
+                _lf.write(f"  TRACE: {tb}\n")
             errors.append(f"行 {tx_date} {cp_name}: {e}")
             continue  # 本行失败，继续下一行，不污染全局状态
 
