@@ -62,14 +62,18 @@ class IncomeSerializer(serializers.ModelSerializer):
         return None
 
     def get_source_display(self, obj):
+        if obj.source in ('bank_import', '网银'):
+            return '网银'
+        # 中文来源值也显示为网银（如IBPS对公提回贷记/代发工资等）
+        if obj.source and any(k in obj.source for k in ['IBPS', '代发', '转账', '提回', '贷记', '借记', '网银', '电子']):
+            return '网银'
         source_map = {
             'contract': '合同收入',
             'project': '项目收入',
             'service': '服务收入',
-            'bank_import': '银行流水',
             'other': '其他'
         }
-        return source_map.get(obj.source, '其他')
+        return source_map.get(obj.source, obj.source or '网银')
 
     def get_bank_statement(self, obj):
         """反向追溯：关联的银行流水摘要"""
@@ -82,73 +86,70 @@ class IncomeSerializer(serializers.ModelSerializer):
         return income
 
 
-class ExpenseSerializer(serializers.ModelSerializer):
-    """支出序列化器"""
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
-    operator_name = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
-    expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
-    date = serializers.SerializerMethodField()
-    expense_date = serializers.DateField(help_text='支出日期', required=False, allow_null=True)
-    approval_status = serializers.SerializerMethodField()
-    status_display = serializers.CharField(source='get_status_display', read_only=True)
-    bank_statement = serializers.SerializerMethodField()
+    class ExpenseSerializer(serializers.ModelSerializer):
+        """支出序列化器"""
+        company_name = serializers.CharField(source='company.name', read_only=True)
+        project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
+        operator_name = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
+        expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
+        date = serializers.SerializerMethodField()
+        expense_date = serializers.DateField(help_text='支出日期', required=False, allow_null=True)
+        approval_status = serializers.SerializerMethodField()
+        status_display = serializers.CharField(source='get_status_display', read_only=True)
+        bank_statement = serializers.SerializerMethodField()
+        source_display = serializers.SerializerMethodField()
 
-    class Meta:
-        model = Expense
-        fields = [
-            'id', 'company', 'company_name', 'amount', 'expense_type', 'expense_type_display',
-            'date', 'expense_date', 'expense_category', 'project', 'project_name',
-            'supplier', 'note', 'description', 'attachment', 'operator',
-            'operator_name', 'approval_flow', 'approval_status', 'status', 'status_display',
-            'bank_statement',
-            # ── 银行流水11字段扩展 ────────────────────────────────────────
-            'transaction_time', 'balance',
-            'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary',
-            'created_at', 'updated_at'
-        ]
-        read_only_fields = [
-            'id', 'operator', 'operator_name', 'approval_flow', 'approval_status',
-            'created_at', 'updated_at',
-            # 银行流水来源字段，人工录入不填
-            'transaction_time', 'balance',
-            'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary',
-        ]
+        class Meta:
+            model = Expense
+            fields = [
+                'id', 'company', 'company_name', 'amount', 'expense_type', 'expense_type_display',
+                'date', 'expense_date', 'expense_category', 'source', 'source_display', 'project', 'project_name',
+                'supplier', 'note', 'description', 'attachment', 'operator',
+                'operator_name', 'approval_flow', 'approval_status', 'status', 'status_display',
+                'bank_statement',
+                # ── 银行流水11字段扩展 ────────────────────────────────────────
+                'transaction_time', 'balance',
+                'counterparty_account', 'counterparty_bank',
+                'transaction_type', 'summary',
+                'created_at', 'updated_at'
+            ]
 
-    def get_approval_status(self, obj):
-        try:
-            if obj.approval_flow_id and obj.approval_flow:
-                return obj.approval_flow.status
-        except Exception:
-            pass
-        return None
+        def get_source_display(self, obj):
+            if obj.source in ('bank_import', '网银'):
+                return '网银'
+            return obj.source or '网银'
 
-    def get_date(self, obj):
-        if obj.date:
-            return obj.date.isoformat()
-        return None
+        def get_approval_status(self, obj):
+            try:
+                if obj.approval_flow_id and obj.approval_flow:
+                    return obj.approval_flow.status
+            except Exception:
+                pass
+            return None
 
-    def get_bank_statement(self, obj):
-        """反向追溯：关联的银行流水摘要"""
-        stmts = obj.matched_statements.all()
-        return BankStatementSerializer(stmts, many=True).data
+        def get_date(self, obj):
+            if obj.date:
+                return obj.date.isoformat()
+            return None
 
-    def create(self, validated_data):
-        expense_date = validated_data.pop('expense_date', None)
-        if expense_date:
-            validated_data['date'] = expense_date
-        expense = super().create(validated_data)
-        # 审批流由 ExpenseViewSet.perform_create() 处理，这里不再创建
-        return expense
+        def get_bank_statement(self, obj):
+            """反向追溯：关联的银行流水摘要"""
+            stmts = obj.matched_statements.all()
+            return BankStatementSerializer(stmts, many=True).data
 
-    def update(self, instance, validated_data):
-        expense_date = validated_data.pop('expense_date', None)
-        if expense_date:
-            instance.date = expense_date
-            instance.expense_date = expense_date
-        return super().update(instance, validated_data)
+        def create(self, validated_data):
+            expense_date = validated_data.pop('expense_date', None)
+            if expense_date:
+                validated_data['date'] = expense_date
+            expense = super().create(validated_data)
+            return expense
+
+        def update(self, instance, validated_data):
+            expense_date = validated_data.pop('expense_date', None)
+            if expense_date:
+                instance.date = expense_date
+                instance.expense_date = expense_date
+            return super().update(instance, validated_data)
 
 
 class WageRecordSerializer(serializers.ModelSerializer):

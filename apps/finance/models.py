@@ -292,6 +292,7 @@ class Expense(models.Model):
     )
     # ── 原有字段 ────────────────────────────────────────────────────────
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
+    source = models.CharField(verbose_name='来源', max_length=200, blank=True, default='')
     expense_type = models.CharField(
         verbose_name='支出类型', max_length=20,
         choices=EXPENSE_TYPE_CHOICES, default='other'

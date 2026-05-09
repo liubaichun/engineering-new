@@ -858,7 +858,7 @@ def confirm_bank_import(request):
             with transaction.atomic():
                 if direction == 'income':
                     inc = Income.objects.create(
-                        company=company, customer=档案名, source=tx_type,
+                        company=company, customer=cp_name or '未知对手方', source=tx_type,
                         amount=amount, date=tx_date, description=summary,
                         transaction_time=tx_time,
                         balance=Decimal(row['balance']) if row.get('balance') else None,
@@ -870,7 +870,7 @@ def confirm_bank_import(request):
                     inc_obj = inc
                 else:
                     exp = Expense.objects.create(
-                        company=company, supplier=档案名,
+                        company=company, supplier=cp_name or '未知对手方',
                         expense_type='other', expense_category=tx_type,
                         amount=amount, expense_date=tx_date, description=summary,
                         note=f"流水号:{serial}" if serial else '',
