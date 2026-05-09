@@ -839,6 +839,9 @@ def confirm_bank_import(request):
             # 去重
             dedup = serial or f"{tx_date}_{cp_account}_{amount}"
             if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"[BANK_IMPORT] 去重跳过 row: date={tx_date} serial={serial!r} dedup_key={dedup!r} cp={cp_name} amount={amount}")
                 skipped += 1
                 continue
 
