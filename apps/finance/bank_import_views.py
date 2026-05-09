@@ -797,26 +797,10 @@ def confirm_bank_import(request):
     else:
         return Response({'error': '请选择已有银行账户，或填写新账户的账号和户名'}, status=400)
 
-    # ── 预分配序列（提前获取ID，避免跨表竞争） ───────────────────────
-    with transaction.atomic():
-        inc_next = _safe_int(Income.objects.raw(
-            "SELECT nextval('finance_income_id_seq') AS id")[0].id)
-        exp_next = _safe_int(Expense.objects.raw(
-            "SELECT nextval('finance_expense_id_seq') AS id")[0].id)
-        bs_next  = _safe_int(BankStatement.objects.raw(
-            "SELECT nextval('finance_bank_statement_id_seq') AS id")[0].id)
-
-    LOG_PATH = '/root/engineering-new/logs/bank_import_skip.log'
-    batch_id = uuid.uuid4().hex[:12].upper()
-
-    # 幂等日志：每次调用覆盖文件
-    with open(LOG_PATH, 'w') as _lf:
-        _lf.write(f"===== confirm_bank_import START =====\n")
-        _lf.write(f"company={company_id} bank_account={bank_account.id} rows={len(rows)}\n")
-        _lf.write(f"batch_id={batch_id} seq_preallocated: inc={inc_next} exp={exp_next} bs={bs_next}\n")
+    # ── 预加载待核销发票
 
     # ── 预加载待核销发票（批量优化，避免N条流水触发N次DB查询）────────
-    # 收入类：type=income + status=pending + 有未付款日期
+    # ── 预加载待核销发票
     pending_income_invoices = list(Invoice.objects.filter(
         type='income', status='pending', company=company,
     ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
@@ -825,6 +809,14 @@ def confirm_bank_import(request):
     pending_expense_invoices = list(Invoice.objects.filter(
         type='expense', status='pending', company=company,
     ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
+
+    LOG_PATH = '/root/engineering-new/logs/bank_import_skip.log'
+    batch_id = uuid.uuid4().hex[:12].upper()
+
+    with open(LOG_PATH, 'w') as _lf:
+        _lf.write(f"===== confirm_bank_import START =====\n")
+        _lf.write(f"company={company_id} bank_account={bank_account.id} rows={len(rows)}\n")
+        _lf.write(f"batch_id={batch_id}\n")
 
     income_count = expense_count = 0
     income_sum = expense_sum = Decimal('0')

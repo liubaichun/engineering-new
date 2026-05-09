@@ -86,19 +86,32 @@ def _log_operation(instance, action, **kwargs):
         elif request is not None:
             company_id = getattr(request, 'company_id', None)
 
-        OperationAuditLog.objects.create(
-            user=user,
-            username=username,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            app_label=app_label,
-            model_name=model_name,
-            object_id=instance.pk,
-            object_repr=str(instance)[:500],
-            action=action,
-            changes=changes,
-            company_id=company_id,
-        )
+        from django.db import transaction
+
+        # 审计日志必须写在 on_commit 里，不能在 atomic 块内同步执行
+        # 否则 audit_log 序列冲突会导致主业务事务被标记为失败，整批回滚
+        _audit_args = {
+            'user': user,
+            'username': username,
+            'ip_address': ip_address,
+            'user_agent': user_agent,
+            'app_label': app_label,
+            'model_name': model_name,
+            'object_id': instance.pk,
+            'object_repr': str(instance)[:500],
+            'action': action,
+            'changes': changes,
+            'company_id': company_id,
+        }
+
+        def _write_audit():
+            try:
+                OperationAuditLog.objects.create(**_audit_args)
+            except Exception:
+                # 审计日志失败不能影响主业务
+                pass
+
+        transaction.on_commit(_write_audit)
     except Exception:
         # 审计日志失败不能影响主业务
         pass
