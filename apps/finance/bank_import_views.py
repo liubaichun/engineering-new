@@ -804,8 +804,14 @@ def confirm_bank_import(request):
     skipped = 0
     errors = []
     batch_id = uuid.uuid4().hex[:12].upper()
+    with open('/root/engineering-new/logs/bank_import_skip.log', 'a') as _lf:
+        _lf.write(f"\n===== confirm_bank_import START =====\n")
+        _lf.write(f"company={company_id} bank_account={bank_account.id if bank_account else None} rows_count={len(rows)}\n")
+        _lf.write(f"batch_id={batch_id}\n")
 
-    for row in rows:
+    for idx, row in enumerate(rows):
+        with open('/root/engineering-new/logs/bank_import_skip.log', 'a') as _lf:
+            _lf.write(f"[{idx}] date={row.get('transaction_date','')} serial={row.get('bank_serial','')!r} amount={row.get('amount','')} dir={row.get('direction','')}\n")
         try:
             t_date     = row.get('transaction_date', '')
             t_time     = row.get('transaction_time', '')
@@ -839,9 +845,14 @@ def confirm_bank_import(request):
             # 去重
             dedup = serial or f"{tx_date}_{cp_account}_{amount}"
             if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
-                import logging
-                logger = logging.getLogger(__name__)
-                logger.warning(f"[BANK_IMPORT] 去重跳过 row: date={tx_date} serial={serial!r} dedup_key={dedup!r} cp={cp_name} amount={amount}")
+                import logging, os
+                _logger = logging.getLogger('bank_import_skip')
+                if not _logger.handlers:
+                    _logger.setLevel(logging.WARNING)
+                    _handler = logging.FileHandler('/root/engineering-new/logs/bank_import_skip.log')
+                    _handler.setFormatter(logging.Formatter('%(asctime)s %(message)s'))
+                    _logger.addHandler(_handler)
+                _logger.warning(f"去重跳过 | date={tx_date} | serial={serial!r} | dedup_key={dedup!r} | cp={cp_name} | amount={amount}")
                 skipped += 1
                 continue
 
