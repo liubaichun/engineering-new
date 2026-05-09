@@ -412,7 +412,11 @@ def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, c
     if account:
         bank_updates['bank_account'] = account
     if bank:
-        bank_updates['bank_name'] = bank
+        parsed = _parse_bank_info(bank)
+        if parsed['bank_name'] and not bank_updates.get('bank_name'):
+            bank_updates['bank_name'] = parsed['bank_name']
+        if parsed['bank_branch']:
+            bank_updates['bank_branch'] = parsed['bank_branch']
 
     if direction == 'income':
         # 对方是客户 → 写入Client
@@ -513,34 +517,75 @@ def _reconcile_invoice(bs, cp_name, amount, tx_date,
     bs.save(update_fields=['reconcile_status', 'reconcile_time'])
 
 
-# 不应匹配的对手方关键词（银行内部账户、转账类、利息结算）
-EXCLUDED_CP_PATTERNS = [
-    '个人', '利息', '结算', '转账', '充值', '提现',
-    '备用金', '内部户', '过渡户', '暂挂户',
-    '税款', '社保', '公积金', '代发',
-    '暂收款', '对公中间业务收入', '中间业务收入',
-    '应付利息', '单位活期存款利息', '自动计提',
-]
-
 # 公司/组织常见后缀（人名不含这些）
 COMPANY_SUFFIXES = ['公司', '集团', '有限', '责任', '企业', '工厂', '酒店',
                      '中心', '医院', '学校', '银行', '支行', '分部', '事务所',
                      '经营部', '服务部', '营业部', '办事处', '门市', '商店',
                      '科技', '实业', '商贸', '贸易', '工程', '传媒']
 
+# 银行名称前缀（总行），用于从完整支行地址中提取总行名
+BANK_NAME_PREFIXES = [
+    '中国银行', '中国农业银行', '中国工商银行', '中国建设银行', '中国交通银行',
+    '招商银行', '浦发银行', '光大银行', '民生银行', '中信银行', '华夏银行',
+    '广发银行', '平安银行', '兴业银行', '浙商银行', '恒丰银行', '渤海银行',
+    '深圳农村商业银行', '农村商业银行', '农村信用合作社', '中国邮政储蓄银行',
+    '上海银行', '北京银行', '广州银行', '东莞银行', '惠州银行',
+    '交通银行', '国家金库', '中国人民银行',
+]
+
+# 排除词（命中即不建档、不写进对手方字段）
+EXCLUDED_CP_PATTERNS = [
+    # 银行内部/系统账户
+    '个人', '利息', '结算', '转账', '充值', '提现', '退款',
+    '备用金', '内部户', '过渡户', '暂挂户', '备付金',
+    '税款', '社保', '公积金', '代发', '代扣',
+    '暂收款', '对公中间业务收入', '中间业务收入',
+    '应付利息', '单位活期存款利息', '自动计提',
+    # 税务/政府类（不是供应商/客户）
+    '税务局', '财政', '国库', '中华人民共和国国家金库',
+    # 特殊标识
+    '(1)', '(2)', '(3)',  # 龙华区税务局（1）类后缀
+]
+
 def _is_personal_name(name: str) -> bool:
-    """判断是否为自然人姓名（2-4个汉字，无公司后缀，无数字/字母混排）。"""
+    """判断是否为自然人姓名（2-6个汉字，无公司后缀，无数字/字母混排）。"""
     import re
     if not name:
         return False
-    # 纯中文，2-4个字符
-    if not re.fullmatch(r'[\u4e00-\u9fff]{2,4}', name):
+    # 纯中文，2-6个字符（覆盖常见姓名）
+    if not re.fullmatch(r'[\u4e00-\u9fff]{2,6}', name):
+        return False
+    # 含数字或字母 → 不是人名
+    if re.search(r'[a-zA-Z0-9]', name):
         return False
     # 不含公司后缀
     for suf in COMPANY_SUFFIXES:
         if suf in name:
             return False
     return True
+
+def _parse_bank_info(cp_bank: str) -> dict:
+    """
+    解析完整支行地址，返回 {bank_name, bank_branch}。
+    例如：
+      '中国银行上海市长宁支行' → bank_name='中国银行', bank_branch='上海市长宁支行'
+      '中国农业银行'           → bank_name='中国农业银行', bank_branch=''
+      '招商银行深圳分行深圳民治支行' → bank_name='招商银行', bank_branch='深圳民治支行'
+      ''                       → bank_name='', bank_branch=''
+    """
+    if not cp_bank:
+        return {'bank_name': '', 'bank_branch': ''}
+    # 按前缀从长到短排序，确保优先匹配最长前缀
+    for prefix in sorted(BANK_NAME_PREFIXES, key=len, reverse=True):
+        if cp_bank.startswith(prefix):
+            branch = cp_bank[len(prefix):]
+            # 清理支行名称常见冗余词
+            for redundant in ['分行', '支行', '营业部']:
+                if branch.endswith(redundant):
+                    branch = branch[:-len(redundant)]
+            return {'bank_name': prefix, 'bank_branch': branch}
+    # 没有匹配到已知银行前缀，整体作为支行名
+    return {'bank_name': '', 'bank_branch': cp_bank}
 
 def _is_excluded_counterparty(name: str) -> bool:
     """判断对手方名称是否属于不应建档的类型（银行内部账户、个人转账、自然人、空名称）。"""
@@ -835,7 +880,7 @@ def confirm_bank_import(request):
             skipped += 1
             continue
 
-        # ── 档案匹配 ────────────────────────────────────────────────
+        # ── 档案匹配（排除词命中则不建档，档案名为空）────────────────────
         档案名 = ''
         if cp_name and not _is_excluded_counterparty(cp_name):
             c = Client.objects.filter(name=cp_name).first()
@@ -853,12 +898,15 @@ def confirm_bank_import(request):
                         档案名 = 档案对象.name
 
         # ── 原子事务：Income/Expense + BankStatement 要么全成功，要么全回滚 ──
+        # 排除词命中的对手方不进 Finance 表（customer/supplier/counterparty_name 为空）
+        # BankStatement 原始对手方仍记录在 counterparty_account / counterparty_bank 中
         inc_obj, exp_obj, bs = None, None, None
+        写进流水的主营对手方 = 档案名 or '未知对手方'
         try:
             with transaction.atomic():
                 if direction == 'income':
                     inc = Income.objects.create(
-                        company=company, customer=cp_name or '未知对手方', source=tx_type,
+                        company=company, customer=写进流水的主营对手方, source=tx_type,
                         amount=amount, date=tx_date, description=summary,
                         transaction_time=tx_time,
                         balance=Decimal(row['balance']) if row.get('balance') else None,
@@ -870,7 +918,7 @@ def confirm_bank_import(request):
                     inc_obj = inc
                 else:
                     exp = Expense.objects.create(
-                        company=company, supplier=cp_name or '未知对手方',
+                        company=company, supplier=写进流水的主营对手方,
                         expense_type='other', expense_category=tx_type,
                         amount=amount, expense_date=tx_date, description=summary,
                         note=f"流水号:{serial}" if serial else '',
@@ -883,14 +931,14 @@ def confirm_bank_import(request):
                     expense_sum += amount
                     exp_obj = exp
 
-                # BankStatement 必须与 Income/Expense 在同一事务内
+                # BankStatement 对手方名称：排除词命中时写空，不写原始cp_name
                 bs = BankStatement.objects.create(
                     company=company, bank_account=bank_account,
                     bank_serial=dedup, transaction_date=tx_date,
                     transaction_time=tx_time, direction=direction,
                     amount=amount,
                     balance=Decimal(row['balance']) if row.get('balance') else None,
-                    counterparty_name=cp_name, counterparty_account=cp_account,
+                    counterparty_name=档案名, counterparty_account=cp_account,
                     counterparty_bank=cp_bank, summary=summary,
                     import_batch=batch_id, transaction_type=tx_type,
                     matched_income=inc_obj, matched_expense=exp_obj,
