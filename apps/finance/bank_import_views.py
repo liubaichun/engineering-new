@@ -422,7 +422,10 @@ def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, c
             for k, v in bank_updates.items():
                 if not getattr(client, k):
                     setattr(client, k, v)
-            client.save(update_fields=list(bank_updates.keys()))
+            try:
+                client.save(update_fields=list(bank_updates.keys()))
+            except Exception:
+                pass  # 字段已存在或并发冲突，不打断导入流程
 
         # 如果该对手已存在于Supplier表，也建Client档案（双向交易）
         if Supplier.objects.filter(company=company, name=name).exists():
@@ -438,7 +441,10 @@ def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, c
             for k, v in bank_updates.items():
                 if not getattr(supplier, k):
                     setattr(supplier, k, v)
-            supplier.save(update_fields=list(bank_updates.keys()))
+            try:
+                supplier.save(update_fields=list(bank_updates.keys()))
+            except Exception:
+                pass  # 字段已存在或并发冲突，不打断导入流程
 
         # 如果该对手已存在于Client表，也建Supplier档案（双向交易）
         if Client.objects.filter(company=company, name=name).exists():
