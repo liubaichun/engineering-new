@@ -28,17 +28,21 @@ def parse_date_range(request):
     year = request.query_params.get('year', str(timezone.now().year))
     month = request.query_params.get('month')
     company_id = request.query_params.get('company')
-    # 多租户隔离：非超级用户强制使用自己的公司ID，不允许查其他公司数据
+    # 多租户隔离：非超级用户强制使用自己的公司ID
+    # 超级用户（admin）company_id=NULL，视为"全公司视图"，不过滤company_id
     user = request.user
+    effective_company_id = None
     if user.is_authenticated and not user.is_superuser:
         if hasattr(user, 'company') and user.company_id:
-            # 前端显式传了company_id时，只允许查看自己的公司（防止横向越权）
             if company_id and int(company_id) != user.company_id:
-                company_id = user.company_id  # 忽略非法请求，强制用自己公司
+                effective_company_id = user.company_id
             else:
-                company_id = user.company_id
+                effective_company_id = user.company_id
+    elif company_id:
+        effective_company_id = int(company_id)
+    # else: superuser with no company_id → effective_company_id=None（查全部）
     return {
-        'company_id': int(company_id) if company_id else None,
+        'company_id': effective_company_id,
         'year': int(year) if year else None,
         'month': int(month) if month else None,
     }
@@ -47,8 +51,14 @@ def parse_date_range(request):
 def build_qs(model, company_id=None, year=None, month=None):
     qs = model.objects.all()
     if company_id: qs = qs.filter(company_id=company_id)
-    if year: qs = qs.filter(date__year=year)
-    if month: qs = qs.filter(date__month=month)
+    # 不同模型使用不同日期字段
+    date_field = 'date'
+    if model.__name__ == 'Expense':
+        date_field = 'expense_date'
+    elif model.__name__ == 'Income':
+        date_field = 'date'
+    if year:  qs = qs.filter(**{f'{date_field}__year': year})
+    if month: qs = qs.filter(**{f'{date_field}__month': month})
     return qs
 
 
@@ -409,7 +419,7 @@ def budget_execution_report(request):
                 total = agg(WageRecord.objects.filter(company=company, year=year), 'social_insurance')
             else:
                 total = agg(Expense.objects.filter(
-                    company=company, date__year=year, expense_type=exp_type), 'amount')
+                    company=company, expense_date__year=year, expense_type=exp_type), 'amount')
             type_totals.append({'type': exp_type, 'label': label, 'actual': total})
 
         total_actual = sum(t['actual'] for t in type_totals)
