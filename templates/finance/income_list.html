@@ -549,13 +549,13 @@ function renderIncomes(data) {
     let html = '';
     incomes.forEach(income => {
         const sourceClass = income.source || 'other';
-        const sourceText = {
+        const sourceText = income.source_display || {
             'contract': '合同收入', '合同收入': '合同收入',
             'project': '项目收入', '项目收入': '项目收入',
             'service': '服务收入', '服务收入': '服务收入',
-            'bank_import': '银行流水', '银行流水': '银行流水',
+            'bank_import': '网银', '银行流水': '网银',
             'other': '其他', '其他': '其他'
-        }[sourceClass] || '其他';
+        }[sourceClass] || income.source || '网银';
         const companyName = income.company_name || income.company || '-';
         const transactionTime = income.transaction_time ? income.transaction_time.substring(0, 5) : '-';
         const balance = income.balance != null ? `¥${formatNumber(income.balance)}` : '-';
