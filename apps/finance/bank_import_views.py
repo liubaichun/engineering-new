@@ -938,6 +938,8 @@ def confirm_bank_import(request):
                 matched_income=inc_obj,
                 matched_expense=exp_obj,
             )
+            with open('/root/engineering-new/logs/bank_import_skip.log', 'a') as _lf:
+                _lf.write(f"  >>> BS CREATED id={bs.id} idx={idx} serial={serial!r} dedup={dedup!r}\n")
 
             # ── 自动核销发票 ─────────────────────────────────────────
             try:
@@ -946,7 +948,15 @@ def confirm_bank_import(request):
                 errors.append(f"核销异常 {tx_date}: {rec_err}")
 
         except Exception as e:
+            with open('/root/engineering-new/logs/bank_import_skip.log', 'a') as _lf:
+                _lf.write(f"  *** EXCEPTION row idx={idx}: {e}\n")
             errors.append(f"行 {row.get('transaction_date','')} {row.get('counterparty_name','')}: {e}")
+
+    with open('/root/engineering-new/logs/bank_import_skip.log', 'a') as _lf:
+        _lf.write(f"===== confirm_bank_import END =====\n")
+        _lf.write(f"imported_income={income_count} imported_expense={expense_count} skipped={skipped} errors_count={len(errors)}\n")
+        for err in errors:
+            _lf.write(f"  ERROR: {err}\n")
 
     return Response({
         'batch_no':    batch_id,
