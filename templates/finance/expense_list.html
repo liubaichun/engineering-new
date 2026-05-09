@@ -548,7 +548,7 @@ function renderExpenses(expenses) {
 
     tbody.innerHTML = expenses.map(expense => {
         const sourceClass = expense.source || expense.expense_type || 'other';
-        const sourceText = sourceMap[sourceClass] || typeMap[expense.expense_type] || expense.expense_type || '其他';
+        const sourceText = sourceMap[sourceClass] || typeMap[expense.expense_type] || (expense.source ? expense.source : '网银');
         const companyName = expense.company_name || expense.company || '-';
         const transactionTime = expense.transaction_time ? expense.transaction_time.substring(0, 5) : '-';
         const balance = expense.balance != null ? `¥${formatNumber(expense.balance)}` : '-';
