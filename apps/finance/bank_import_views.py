@@ -756,7 +756,8 @@ def confirm_bank_import(request):
     架构原则：
     1. 每行数据（三张表：Income/Expense + BankStatement）在同一事务内创建，
        任一失败则整行回滚，不产生脏数据。
-    2. 序列通过 nextval() 预分配，避免跨表序列竞争导致的主键冲突。
+    2. 审计日志通过 transaction.on_commit() 延迟写入，不在 atomic 块内同步执行，
+       避免审计日志失败污染主业务事务。
     3. 去重检查在事务外，避免不必要的锁。
     4. 发票核销：收入流水的对方名称 → Invoice.counterparty（含匹配），
        支出流水的对方名称 → Invoice.counterparty（含匹配）。

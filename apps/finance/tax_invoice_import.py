@@ -332,17 +332,22 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         invoice_source = str(meta.get('invoice_source') or '').strip()
         issuer = str(meta.get('issuer') or '').strip()
 
+        # 验证：进项票必须有销方名称，销项票必须有购方名称（在 atomic 外检查，避免事务污染）
+        seller_name = str(meta.get('seller_name') or '').strip()
+        buyer_name = str(meta.get('buyer_name') or '').strip()
+        if invoice_type == 'expense' and not seller_name:
+            result.add_skipped(row, '销方名称为空，跳过')
+            continue
+        if invoice_type != 'expense' and not buyer_name:
+            result.add_skipped(row, '购买方名称为空，跳过')
+            continue
+
         try:
             with transaction.atomic():
                 if invoice_type == 'expense':
                     # 进项票：供应商开给我们 → 支出
                     seller_tax_id = str(meta.get('seller_tax_id') or '').strip()
-                    seller_name = str(meta.get('seller_name') or '').strip()
                     buyer_tax_id = str(meta.get('buyer_tax_id') or '').strip()  # 我们公司
-
-                    if not seller_name:
-                        result.add_skipped(row, '销方名称为空，跳过')
-                        continue
 
                     cp_type = _classify_counterparty(seller_name)
                     category = _classify_expense_category(summary, goods_name)
@@ -390,12 +395,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                 else:
                     # 销项票：我们开给客户 → 收入
                     buyer_tax_id = str(meta.get('buyer_tax_id') or '').strip()
-                    buyer_name = str(meta.get('buyer_name') or '').strip()
                     seller_tax_id = str(meta.get('seller_tax_id') or '').strip()  # 我们公司
-
-                    if not buyer_name:
-                        result.add_skipped(row, '购买方名称为空，跳过')
-                        continue
 
                     cp_type = _classify_counterparty(buyer_name)
                     category = _classify_income_category(summary, goods_name)
