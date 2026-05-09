@@ -760,6 +760,15 @@ function renderCustomerRevenueReport(data, container) {
 </tr>`;
     });
     html += `</tbody></table></div>`;
+
+    // 内部公司转账汇总（不计入外部客户排行）
+    const internal = data.internal_transfers;
+    if (internal && internal.count > 0) {
+        html += `<div class="alert alert-secondary mt-2">
+<b>内部公司转账</b>（不计入外部客户排行）: ${internal.count}笔 &nbsp; 合计 <b class="text-success">¥${fmt(internal.total)}</b>
+</div>`;
+    }
+
     container.innerHTML = html;
 }
 
@@ -794,6 +803,17 @@ function renderSupplierExpenseReport(data, container) {
 支出总计: <b class="text-danger">¥${fmt(data.summary.total_expense)}</b>
 </div>`;
     }
+
+    // 个人/内部支付汇总（单独展示，不混入供应商排行）
+    const pp = data.personal_payments;
+    if (pp && pp.count > 0) {
+        const ppTypes = Object.entries(pp.types || {}).map(([k, v]) => `${escapeHtml(k)}:¥${fmt(v)}`).join('，');
+        html += `<div class="alert alert-secondary mt-2">
+<b>个人/内部支付</b>（不计入供应商排行）: ${pp.count}笔 &nbsp; 合计 <b class="text-danger">¥${fmt(pp.total)}</b>
+<div style="font-size:0.82rem;margin-top:4px">${escapeHtml(ppTypes)}</div>
+</div>`;
+    }
+
     container.innerHTML = html;
 }
 

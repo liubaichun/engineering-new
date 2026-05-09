@@ -14,6 +14,13 @@ from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
 from apps.finance.models_bank import BankStatement
 from apps.crm.models import Client, Supplier
 
+# 内部公司名称（同一集团内各公司互转不算外部收入）
+INTERNAL_COMPANY_NAMES = {
+    '深圳市绿聚能科技有限公司',
+    '深圳市金易豪信息技术有限公司',
+    '深圳市百川软件科技发展有限公司',
+}
+
 
 def agg(qs, field):
     """安全聚合，返回float，None当0处理"""
@@ -245,7 +252,13 @@ def customer_revenue_report(request):
     inc_qs = build_qs(Income, company_id, year, month)
 
     global_stats = {}
+    internal_stats = {'total': 0.0, 'count': 0}
     for inc in inc_qs.select_related('company'):
+        # 内部公司转账不计入外部客户收入
+        if inc.customer in INTERNAL_COMPANY_NAMES:
+            internal_stats['total'] += float(inc.amount or 0)
+            internal_stats['count'] += 1
+            continue
         key = f"{inc.company.name} / {inc.customer or '（未指定）'}"
         if key not in global_stats:
             global_stats[key] = {
@@ -267,6 +280,7 @@ def customer_revenue_report(request):
         'title': '客户收入排行',
         'params': params,
         'global_ranking': results,
+        'internal_transfers': internal_stats,
         'summary': {
             'total_revenue': sum(x['total'] for x in results),
             'customer_count': len(results),
@@ -287,8 +301,17 @@ def supplier_expense_report(request):
     exp_qs = build_qs(Expense, company_id, year, month)
 
     global_stats = {}
+    personal_stats = {'total': 0.0, 'count': 0, 'types': {}}
     for exp in exp_qs.select_related('company', 'project'):
-        supplier = exp.supplier or '（未指定）'
+        supplier = exp.supplier or ''
+        # 无供应商名称 → 个人支付/内部转账，不计入供应商报表
+        if not supplier:
+            personal_stats['total'] += float(exp.amount or 0)
+            personal_stats['count'] += 1
+            exp_type = exp.expense_type or '未分类'
+            personal_stats['types'][exp_type] = \
+                personal_stats['types'].get(exp_type, 0.0) + float(exp.amount or 0)
+            continue
         if supplier not in global_stats:
             global_stats[supplier] = {
                 'company': exp.company.name,
@@ -313,6 +336,7 @@ def supplier_expense_report(request):
         'title': '供应商支出报表',
         'params': params,
         'results': results,
+        'personal_payments': personal_stats,
         'summary': {
             'total_expense': sum(r['total'] for r in results),
             'supplier_count': len(results),
