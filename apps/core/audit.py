@@ -11,6 +11,31 @@ from django.dispatch import receiver
 _connected_models = set()
 _local = threading.local()
 
+# 批量导入期间暂停审计（避免在 atomic 块内触发 on_commit 导致序列冲突）
+# 使用 thread-local，支持嵌套
+_AUDIT_PAUSED = threading.local()
+
+
+def pause_audit():
+    """暂停当前线程的审计日志写入（可嵌套）"""
+    stack = getattr(_AUDIT_PAUSED, 'stack', None)
+    if stack is None:
+        _AUDIT_PAUSED.stack = []
+    _AUDIT_PAUSED.stack.append(True)
+
+
+def resume_audit():
+    """恢复当前线程的审计日志写入（须与 pause_audit 配对）"""
+    stack = getattr(_AUDIT_PAUSED, 'stack', None)
+    if stack:
+        stack.pop()
+
+
+def is_audit_paused():
+    """当前线程审计是否被暂停"""
+    stack = getattr(_AUDIT_PAUSED, 'stack', None)
+    return stack is not None and len(stack) > 0
+
 
 def _get_request():
     """从当前线程获取请求对象"""
@@ -49,6 +74,10 @@ def _build_changes(instance, action):
 def _log_operation(instance, action, **kwargs):
     """实际写入 OperationAuditLog"""
     try:
+        # 批量导入期间暂停审计，避免在 atomic 块内触发 on_commit 导致序列冲突
+        if is_audit_paused():
+            return
+
         from apps.core.models import OperationAuditLog
 
         app_label = instance._meta.app_label

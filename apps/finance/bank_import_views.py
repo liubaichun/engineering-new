@@ -4,7 +4,10 @@ POST /api/finance/import/bank-statement/        — 预览（不写库）
 POST /api/finance/import/bank-statement/confirm/ — 确认导入
 GET  /api/finance/import/bank-statement/banks/  — 支持的银行列表
 """
-import datetime, io, re, uuid
+from apps.core.audit import pause_audit, resume_audit
+import datetime
+import re
+import uuid
 from decimal import Decimal
 
 from django.db import transaction
@@ -763,216 +766,221 @@ def confirm_bank_import(request):
        支出流水的对方名称 → Invoice.counterparty（含匹配）。
     5. 幂等日志：每次调用覆盖日志文件，精准定位本次问题。
     """
-    body = request.data
-    company_id = body.get('company_id')
-    rows       = body.get('transactions', []) or body.get('rows', [])
-
-    if not rows:
-        return Response({'error': '没有要导入的流水记录，请先上传文件预览'}, status=400)
-    if not company_id:
-        return Response({'error': '缺少 company_id'}, status=400)
-
+    pause_audit()
     try:
-        company = Company.objects.get(id=company_id)
-    except Company.DoesNotExist:
-        return Response({'error': '公司不存在'}, status=400)
-
-    # ── 银行账户解析 ───────────────────────────────────────────────
-    bank_account = None
-    ba_id = body.get('bank_account_id', '')
-    ba_no = body.get('account_no', '').strip()
-    ba_name = body.get('account_name', '').strip()
-    ba_code = body.get('bank_code', '')
-
-    if ba_id:
-        bank_account = BankAccount.objects.filter(id=ba_id, company=company).first()
-        if not bank_account:
-            return Response({'error': '所选银行账户不存在'}, status=400)
-    elif ba_no:
-        bank_account = BankAccount.objects.filter(company=company, account_no=ba_no).first()
-        if not bank_account and ba_name:
-            bank_account, _ = BankAccount.objects.get_or_create(
-                company=company, account_no=ba_no,
-                defaults={'bank_code': ba_code or 'OTHER', 'bank_name': '', 'account_name': ba_name}
-            )
-    else:
-        return Response({'error': '请选择已有银行账户，或填写新账户的账号和户名'}, status=400)
-
-    # ── 预加载待核销发票
-
-    # ── 预加载待核销发票（批量优化，避免N条流水触发N次DB查询）────────
-    # ── 预加载待核销发票
-    pending_income_invoices = list(Invoice.objects.filter(
-        type='income', status='pending', company=company,
-    ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
-
-    # 支出类：type=expense + status=pending + 有未付款日期
-    pending_expense_invoices = list(Invoice.objects.filter(
-        type='expense', status='pending', company=company,
-    ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
-
-    LOG_PATH = '/root/engineering-new/logs/bank_import_skip.log'
-    batch_id = uuid.uuid4().hex[:12].upper()
-
-    with open(LOG_PATH, 'w') as _lf:
-        _lf.write(f"===== confirm_bank_import START =====\n")
-        _lf.write(f"company={company_id} bank_account={bank_account.id} rows={len(rows)}\n")
-        _lf.write(f"batch_id={batch_id}\n")
-
-    income_count = expense_count = 0
-    income_sum = expense_sum = Decimal('0')
-    skipped = 0
-    errors = []
-    from datetime import timedelta
-
-    for idx, row in enumerate(rows):
-        with open(LOG_PATH, 'a') as _lf:
-            _lf.write(f"[{idx}] date={row.get('transaction_date','')} serial={row.get('bank_serial','')!r} "
-                      f"amount={row.get('amount','')} dir={row.get('direction','')}\n")
-
-        # ── 解析 ────────────────────────────────────────────────────
-        t_date = row.get('transaction_date', '')
-        t_time = row.get('transaction_time', '')
+        body = request.data
+        company_id = body.get('company_id')
+        rows       = body.get('transactions', []) or body.get('rows', [])
+    
+        if not rows:
+            return Response({'error': '没有要导入的流水记录，请先上传文件预览'}, status=400)
+        if not company_id:
+            return Response({'error': '缺少 company_id'}, status=400)
+    
         try:
-            amount = Decimal(str(row.get('amount', '0')))
-        except Exception:
-            amount = Decimal('0')
-        direction  = row.get('direction', '')
-        cp_name    = row.get('counterparty_name', '').strip()
-        cp_account = row.get('counterparty_account', '').strip()
-        cp_bank    = row.get('counterparty_bank', '').strip()
-        summary    = row.get('summary', '')[:500]
-        serial     = row.get('bank_serial', '')
-        tx_type    = row.get('transaction_type', '')[:100]
-
-        # 日期解析
-        if isinstance(t_date, str) and t_date:
-            tx_date = datetime.datetime.strptime(
-                t_date.split('T')[0] if 'T' in t_date else t_date, '%Y-%m-%d').date()
+            company = Company.objects.get(id=company_id)
+        except Company.DoesNotExist:
+            return Response({'error': '公司不存在'}, status=400)
+    
+        # ── 银行账户解析 ───────────────────────────────────────────────
+        bank_account = None
+        ba_id = body.get('bank_account_id', '')
+        ba_no = body.get('account_no', '').strip()
+        ba_name = body.get('account_name', '').strip()
+        ba_code = body.get('bank_code', '')
+    
+        if ba_id:
+            bank_account = BankAccount.objects.filter(id=ba_id, company=company).first()
+            if not bank_account:
+                return Response({'error': '所选银行账户不存在'}, status=400)
+        elif ba_no:
+            bank_account = BankAccount.objects.filter(company=company, account_no=ba_no).first()
+            if not bank_account and ba_name:
+                bank_account, _ = BankAccount.objects.get_or_create(
+                    company=company, account_no=ba_no,
+                    defaults={'bank_code': ba_code or 'OTHER', 'bank_name': '', 'account_name': ba_name}
+                )
         else:
-            tx_date = datetime.date.today()
-
-        # 时间解析
-        tx_time = None
-        if t_time:
-            try:
-                t_time_clean = t_time.split('T')[1][:8] if 'T' in t_time else t_time[:8]
-                tx_time = datetime.datetime.strptime(t_time_clean, '%H:%M:%S').time()
-            except ValueError:
-                tx_time = None
-
-        # ── 去重（在事务外，避免锁） ──────────────────────────────────
-        dedup = serial or f"{tx_date}_{cp_account}_{amount}"
-        if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
+            return Response({'error': '请选择已有银行账户，或填写新账户的账号和户名'}, status=400)
+    
+        # ── 预加载待核销发票
+    
+        # ── 预加载待核销发票（批量优化，避免N条流水触发N次DB查询）────────
+        # ── 预加载待核销发票
+        pending_income_invoices = list(Invoice.objects.filter(
+            type='income', status='pending', company=company,
+        ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
+    
+        # 支出类：type=expense + status=pending + 有未付款日期
+        pending_expense_invoices = list(Invoice.objects.filter(
+            type='expense', status='pending', company=company,
+        ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
+    
+        LOG_PATH = '/root/engineering-new/logs/bank_import_skip.log'
+        batch_id = uuid.uuid4().hex[:12].upper()
+    
+        with open(LOG_PATH, 'w') as _lf:
+            _lf.write(f"===== confirm_bank_import START =====\n")
+            _lf.write(f"company={company_id} bank_account={bank_account.id} rows={len(rows)}\n")
+            _lf.write(f"batch_id={batch_id}\n")
+    
+        income_count = expense_count = 0
+        income_sum = expense_sum = Decimal('0')
+        skipped = 0
+        errors = []
+        from datetime import timedelta
+    
+        for idx, row in enumerate(rows):
             with open(LOG_PATH, 'a') as _lf:
-                _lf.write(f"  >> SKIP dedup: serial={serial!r} dedup={dedup!r}\n")
-            skipped += 1
-            continue
-
-        # ── 档案匹配（排除词命中则不建档，档案名为空）────────────────────
-        档案名 = ''
-        if cp_name and not _is_excluded_counterparty(cp_name):
-            c = Client.objects.filter(name=cp_name).first()
-            if c:
-                档案名 = c.name
+                _lf.write(f"[{idx}] date={row.get('transaction_date','')} serial={row.get('bank_serial','')!r} "
+                          f"amount={row.get('amount','')} dir={row.get('direction','')}\n")
+    
+            # ── 解析 ────────────────────────────────────────────────────
+            t_date = row.get('transaction_date', '')
+            t_time = row.get('transaction_time', '')
+            try:
+                amount = Decimal(str(row.get('amount', '0')))
+            except Exception:
+                amount = Decimal('0')
+            direction  = row.get('direction', '')
+            cp_name    = row.get('counterparty_name', '').strip()
+            cp_account = row.get('counterparty_account', '').strip()
+            cp_bank    = row.get('counterparty_bank', '').strip()
+            summary    = row.get('summary', '')[:500]
+            serial     = row.get('bank_serial', '')
+            tx_type    = row.get('transaction_type', '')[:100]
+    
+            # 日期解析
+            if isinstance(t_date, str) and t_date:
+                tx_date = datetime.datetime.strptime(
+                    t_date.split('T')[0] if 'T' in t_date else t_date, '%Y-%m-%d').date()
             else:
-                s = Supplier.objects.filter(name=cp_name).first()
-                if s:
-                    档案名 = s.name
+                tx_date = datetime.date.today()
+    
+            # 时间解析
+            tx_time = None
+            if t_time:
+                try:
+                    t_time_clean = t_time.split('T')[1][:8] if 'T' in t_time else t_time[:8]
+                    tx_time = datetime.datetime.strptime(t_time_clean, '%H:%M:%S').time()
+                except ValueError:
+                    tx_time = None
+    
+            # ── 去重（在事务外，避免锁） ──────────────────────────────────
+            dedup = serial or f"{tx_date}_{cp_account}_{amount}"
+            if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
+                with open(LOG_PATH, 'a') as _lf:
+                    _lf.write(f"  >> SKIP dedup: serial={serial!r} dedup={dedup!r}\n")
+                skipped += 1
+                continue
+    
+            # ── 档案匹配（排除词命中则不建档，档案名为空）────────────────────
+            档案名 = ''
+            if cp_name and not _is_excluded_counterparty(cp_name):
+                c = Client.objects.filter(name=cp_name).first()
+                if c:
+                    档案名 = c.name
                 else:
-                    cp_type = 'income' if direction == 'income' else 'expense'
-                    档案对象 = _upsert_counterparty(
-                        company, cp_name, cp_account, cp_bank, cp_type, direction)
-                    if 档案对象:
-                        档案名 = 档案对象.name
-
-        # ── 原子事务：每行独立事务，互不污染 ─────────────────────────
-        # 排除词命中的对手方不进 Finance 表（customer/supplier/counterparty_name 为空）
-        # BankStatement 原始对手方仍记录在 counterparty_account / counterparty_bank 中
-        写进流水的主营对手方 = 档案名 or '未知对手方'
-        inc_obj, exp_obj, bs = None, None, None
-        try:
-            with transaction.atomic():
-                if direction == 'income':
-                    inc = Income.objects.create(
-                        company=company, customer=写进流水的主营对手方, source=tx_type,
-                        amount=amount, date=tx_date, description=summary,
-                        transaction_time=tx_time,
-                        balance=Decimal(row['balance']) if row.get('balance') else None,
-                        counterparty_account=cp_account, counterparty_bank=cp_bank,
-                        transaction_type=tx_type, summary=summary,
-                    )
-                    income_count += 1
-                    income_sum += amount
-                    inc_obj = inc
-                else:
-                    exp = Expense.objects.create(
-                        company=company, supplier=写进流水的主营对手方,
-                        expense_type='other', expense_category=tx_type,
-                        amount=amount, expense_date=tx_date, description=summary,
-                        note=f"流水号:{serial}" if serial else '',
-                        transaction_time=tx_time,
-                        balance=Decimal(row['balance']) if row.get('balance') else None,
-                        counterparty_account=cp_account, counterparty_bank=cp_bank,
-                        transaction_type=tx_type, summary=summary,
-                    )
-                    expense_count += 1
-                    expense_sum += amount
-                    exp_obj = exp
-
-                # BankStatement 对手方名称：排除词命中时写空，不写原始cp_name
-                bs = BankStatement.objects.create(
-                    company=company, bank_account=bank_account,
-                    bank_serial=dedup, transaction_date=tx_date,
-                    transaction_time=tx_time, direction=direction,
-                    amount=amount,
-                    balance=Decimal(row['balance']) if row.get('balance') else None,
-                    counterparty_name=档案名, counterparty_account=cp_account,
-                    counterparty_bank=cp_bank, summary=summary,
-                    import_batch=batch_id, transaction_type=tx_type,
-                    matched_income=inc_obj, matched_expense=exp_obj,
-                )
-
-            with open(LOG_PATH, 'a') as _lf:
-                _lf.write(f"  >>> OK idx={idx} bs_id={bs.id} inc_id={inc_obj.id if inc_obj else None} "
-                          f"exp_id={exp_obj.id if exp_obj else None}\n")
-
-        except Exception as e:
-            import traceback
-            tb = traceback.format_exc()
-            with open(LOG_PATH, 'a') as _lf:
-                _lf.write(f"  *** ATOMIC_ROLLBACK idx={idx}: {e}\n")
-                _lf.write(f"  TRACE: {tb}\n")
-            errors.append(f"行 {tx_date} {cp_name}: {e}")
-
-        # ── 发票核销（在事务外，不阻塞主流程）────────────────────────
-        if bs and amount and cp_name:
+                    s = Supplier.objects.filter(name=cp_name).first()
+                    if s:
+                        档案名 = s.name
+                    else:
+                        cp_type = 'income' if direction == 'income' else 'expense'
+                        档案对象 = _upsert_counterparty(
+                            company, cp_name, cp_account, cp_bank, cp_type, direction)
+                        if 档案对象:
+                            档案名 = 档案对象.name
+    
+            # ── 原子事务：每行独立事务，互不污染 ─────────────────────────
+            # 排除词命中的对手方不进 Finance 表（customer/supplier/counterparty_name 为空）
+            # BankStatement 原始对手方仍记录在 counterparty_account / counterparty_bank 中
+            写进流水的主营对手方 = 档案名 or '未知对手方'
+            inc_obj, exp_obj, bs = None, None, None
             try:
-                _reconcile_invoice(
-                    bs, cp_name, amount, tx_date,
-                    pending_income_invoices, pending_expense_invoices,
-                    date_tolerance=5
-                )
-            except Exception as rec_err:
-                errors.append(f"核销异常 {tx_date}: {rec_err}")
-
-    # ── 汇总写入 ───────────────────────────────────────────────────
-    with open(LOG_PATH, 'a') as _lf:
-        _lf.write(f"===== confirm_bank_import END =====\n")
-        _lf.write(f"imported_income={income_count} imported_expense={expense_count} "
-                  f"skipped={skipped} errors={len(errors)}\n")
-        for err in errors:
-            _lf.write(f"  ERROR: {err}\n")
-
-    return Response({
-        'batch_no':    batch_id,
-        'imported':    income_count + expense_count,
-        'skipped':     skipped,
-        'auto_created': {
-            'income_count':  income_count,
-            'expense_count': expense_count,
-        },
-        'income_sum':   str(income_sum),
-        'expense_sum':  str(expense_sum),
-        'errors':       errors[:20],
-    })
+                with transaction.atomic():
+                    if direction == 'income':
+                        inc = Income.objects.create(
+                            company=company, customer=写进流水的主营对手方, source=tx_type,
+                            amount=amount, date=tx_date, description=summary,
+                            transaction_time=tx_time,
+                            balance=Decimal(row['balance']) if row.get('balance') else None,
+                            counterparty_account=cp_account, counterparty_bank=cp_bank,
+                            transaction_type=tx_type, summary=summary,
+                        )
+                        income_count += 1
+                        income_sum += amount
+                        inc_obj = inc
+                    else:
+                        exp = Expense.objects.create(
+                            company=company, supplier=写进流水的主营对手方,
+                            expense_type='other', expense_category=tx_type,
+                            amount=amount, expense_date=tx_date, description=summary,
+                            note=f"流水号:{serial}" if serial else '',
+                            transaction_time=tx_time,
+                            balance=Decimal(row['balance']) if row.get('balance') else None,
+                            counterparty_account=cp_account, counterparty_bank=cp_bank,
+                            transaction_type=tx_type, summary=summary,
+                        )
+                        expense_count += 1
+                        expense_sum += amount
+                        exp_obj = exp
+    
+                    # BankStatement 对手方名称：排除词命中时写空，不写原始cp_name
+                    bs = BankStatement.objects.create(
+                        company=company, bank_account=bank_account,
+                        bank_serial=dedup, transaction_date=tx_date,
+                        transaction_time=tx_time, direction=direction,
+                        amount=amount,
+                        balance=Decimal(row['balance']) if row.get('balance') else None,
+                        counterparty_name=档案名, counterparty_account=cp_account,
+                        counterparty_bank=cp_bank, summary=summary,
+                        import_batch=batch_id, transaction_type=tx_type,
+                        matched_income=inc_obj, matched_expense=exp_obj,
+                    )
+    
+                with open(LOG_PATH, 'a') as _lf:
+                    _lf.write(f"  >>> OK idx={idx} bs_id={bs.id} inc_id={inc_obj.id if inc_obj else None} "
+                              f"exp_id={exp_obj.id if exp_obj else None}\n")
+    
+            except Exception as e:
+                import traceback
+                tb = traceback.format_exc()
+                with open(LOG_PATH, 'a') as _lf:
+                    _lf.write(f"  *** ATOMIC_ROLLBACK idx={idx}: {e}\n")
+                    _lf.write(f"  TRACE: {tb}\n")
+                errors.append(f"行 {tx_date} {cp_name}: {e}")
+    
+            # ── 发票核销（在事务外，不阻塞主流程）────────────────────────
+            if bs and amount and cp_name:
+                try:
+                    _reconcile_invoice(
+                        bs, cp_name, amount, tx_date,
+                        pending_income_invoices, pending_expense_invoices,
+                        date_tolerance=5
+                    )
+                except Exception as rec_err:
+                    errors.append(f"核销异常 {tx_date}: {rec_err}")
+    
+        # ── 汇总写入 ───────────────────────────────────────────────────
+        with open(LOG_PATH, 'a') as _lf:
+            _lf.write(f"===== confirm_bank_import END =====\n")
+            _lf.write(f"imported_income={income_count} imported_expense={expense_count} "
+                      f"skipped={skipped} errors={len(errors)}\n")
+            for err in errors:
+                _lf.write(f"  ERROR: {err}\n")
+    
+        return Response({
+            'batch_no':    batch_id,
+            'imported':    income_count + expense_count,
+            'skipped':     skipped,
+            'auto_created': {
+                'income_count':  income_count,
+                'expense_count': expense_count,
+            },
+            'income_sum':   str(income_sum),
+            'expense_sum':  str(expense_sum),
+            'errors':       errors[:20],
+        })
+    
+    finally:
+        resume_audit()
