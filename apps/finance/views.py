@@ -100,7 +100,7 @@ def _require_perms(*perm_codes):
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
 from django.db import models
-from django.db.models import Sum, Count
+from django.db.models import Q, Sum, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
 from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
@@ -1496,37 +1496,38 @@ class ReportViewSet(viewsets.ViewSet):
 
     @action(detail=False, methods=['get'])
     def wage_summary(self, request):
-        """工资汇总报表"""
+        """
+        工资汇总报表 - 从 Expense 表读取工资相关支出（description 含'工资'/'年终奖'/'离职补偿'）。
+        不依赖 WageRecord 表（该表暂无数据）。
+        """
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        # 自动多租户：普通用户只看本公司数据；超管可以传 company 参数指定公司
         user_company_id = _get_user_company_id(request.user)
         if user_company_id is not None:
-            # 普通用户：强制只看本公司
             company_id = user_company_id
-        # else: 超管可以自由指定 company（company_id 可以是 None=查全部）
-
-        queryset = WageRecord.objects.all()
-        if year:
-            queryset = queryset.filter(year=int(year))
-        if month:
-            queryset = queryset.filter(month=int(month))
-        if company_id:
-            queryset = queryset.filter(company_id=company_id)
 
         companies = Company.objects.all()
         if company_id:
             companies = companies.filter(id=company_id)
 
+        # 工资相关关键字
+        wage_keywords = ['工资', '年终奖', '离职补偿', '月奖', '奖金', '绩效']
+
+        def make_wage_filter(co, yr, mo):
+            q = Q(company=co, expense_type='other')
+            for kw in wage_keywords:
+                q |= Q(company=co, description__icontains=kw)
+            if yr:
+                q &= Q(expense_date__year=yr)
+            if mo:
+                q &= Q(expense_date__month=mo)
+            return q
+
         results = []
         for company in companies:
-            qs = queryset.filter(company=company)
-            total_gross = qs.aggregate(total=Sum('gross_salary'))['total'] or 0
-            total_tax = qs.aggregate(total=Sum('tax'))['total'] or 0
-            total_net = qs.aggregate(total=Sum('net_salary'))['total'] or 0
-            total_social = qs.aggregate(total=Sum('social_insurance'))['total'] or 0
-            total_housing = qs.aggregate(total=Sum('housing_fund'))['total'] or 0
+            qs = Expense.objects.filter(make_wage_filter(company, year, month))
+            total = qs.aggregate(total=Sum('amount'))['total'] or 0
             count = qs.count()
 
             results.append({
@@ -1534,12 +1535,15 @@ class ReportViewSet(viewsets.ViewSet):
                 'company_name': company.name,
                 'year': int(year) if year else None,
                 'month': int(month) if month else None,
+                'record_count': count,
                 'employee_count': count,
-                'total_gross': float(total_gross),
-                'total_social_insurance': float(total_social),
-                'total_housing_fund': float(total_housing),
-                'total_tax': float(total_tax),
-                'total_net': float(total_net),
+                'total_wage': float(total),
+                # WageRecord 细项字段暂无数据，保持 0
+                'total_gross': float(total),
+                'total_tax': 0,
+                'total_net': float(total),
+                'total_social_insurance': 0,
+                'total_housing_fund': 0,
             })
 
         return Response({
@@ -1548,9 +1552,10 @@ class ReportViewSet(viewsets.ViewSet):
             'company_id': int(company_id) if company_id else None,
             'results': results,
             'summary': {
-                'total_employees': sum(r['employee_count'] for r in results),
+                'total_records': sum(r['record_count'] for r in results),
+                'total_wage': sum(r['total_wage'] for r in results),
                 'total_gross': sum(r['total_gross'] for r in results),
-                'total_tax': sum(r['total_tax'] for r in results),
+                'total_tax': 0,
                 'total_net': sum(r['total_net'] for r in results),
             }
         })
