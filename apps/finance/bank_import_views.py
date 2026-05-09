@@ -893,11 +893,11 @@ def confirm_bank_import(request):
                     if 档案对象:
                         档案名 = 档案对象.name
 
-        # ── 原子事务：Income/Expense + BankStatement 要么全成功，要么全回滚 ──
+        # ── 原子事务：每行独立事务，互不污染 ─────────────────────────
         # 排除词命中的对手方不进 Finance 表（customer/supplier/counterparty_name 为空）
         # BankStatement 原始对手方仍记录在 counterparty_account / counterparty_bank 中
-        inc_obj, exp_obj, bs = None, None, None
         写进流水的主营对手方 = 档案名 or '未知对手方'
+        inc_obj, exp_obj, bs = None, None, None
         try:
             with transaction.atomic():
                 if direction == 'income':
@@ -951,7 +951,6 @@ def confirm_bank_import(request):
                 _lf.write(f"  *** ATOMIC_ROLLBACK idx={idx}: {e}\n")
                 _lf.write(f"  TRACE: {tb}\n")
             errors.append(f"行 {tx_date} {cp_name}: {e}")
-            continue  # 本行失败，继续下一行，不污染全局状态
 
         # ── 发票核销（在事务外，不阻塞主流程）────────────────────────
         if bs and amount and cp_name:
