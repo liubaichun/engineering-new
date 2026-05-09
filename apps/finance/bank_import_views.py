@@ -393,16 +393,18 @@ def _classify(t: ParsedTransaction) -> dict:
 
 def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, cp_type: str, direction: str):
     """
-    自动创建或更新 Client / Supplier 档案。
+    自动创建或更新 Client / Supplier 档案（独立事务，不干扰调用方事务）。
     同一企业可以是客户也可以是供应商（双向交易）。
     - direction=income → upsert Client（对手是客户）
     - direction=expense → upsert Supplier（对手是供应商）
     - 如果对手已存在于另一张表，同时创建双向档案
+    所有 DB 操作被 try-except 包裹，失败不影响主流程。
     """
     name    = cp_name.strip()
     account = cp_account.strip()
     bank    = cp_bank.strip()
-    defaults = {'counterparty_type': cp_type, 'created_by': None}
+    # 注意：created_by=None 表示匿名创建，不传该字段让 ORM 使用模型默认值
+    base_fields = {'counterparty_type': cp_type}
 
     if not name:
         return None
@@ -413,51 +415,45 @@ def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, c
         bank_updates['bank_account'] = account
     if bank:
         parsed = _parse_bank_info(bank)
-        if parsed['bank_name'] and not bank_updates.get('bank_name'):
-            bank_updates['bank_name'] = parsed['bank_name']
+        if parsed['bank_name']:
+            bank_updates.setdefault('bank_name', parsed['bank_name'])
         if parsed['bank_branch']:
             bank_updates['bank_branch'] = parsed['bank_branch']
 
-    if direction == 'income':
-        # 对方是客户 → 写入Client
-        client, created = Client.objects.get_or_create(
-            company=company, name=name, defaults=defaults)
-        if bank_updates:
-            for k, v in bank_updates.items():
-                if not getattr(client, k):
-                    setattr(client, k, v)
-            try:
-                client.save(update_fields=list(bank_updates.keys()))
-            except Exception:
-                pass  # 字段已存在或并发冲突，不打断导入流程
-
-        # 如果该对手已存在于Supplier表，也建Client档案（双向交易）
-        if Supplier.objects.filter(company=company, name=name).exists():
-            if not Client.objects.filter(company=company, name=name).exists():
-                Client.objects.get_or_create(company=company, name=name, defaults={**defaults, **bank_updates})
-        return client
-
-    else:
-        # 对方是供应商 → 写入Supplier
-        supplier, created = Supplier.objects.get_or_create(
-            company=company, name=name, defaults=defaults)
-        if bank_updates:
-            for k, v in bank_updates.items():
-                if not getattr(supplier, k):
-                    setattr(supplier, k, v)
-            try:
-                supplier.save(update_fields=list(bank_updates.keys()))
-            except Exception:
-                pass  # 字段已存在或并发冲突，不打断导入流程
-
-        # 如果该对手已存在于Client表，也建Supplier档案（双向交易）
-        if Client.objects.filter(company=company, name=name).exists():
-            if not Supplier.objects.filter(company=company, name=name).exists():
-                Supplier.objects.get_or_create(company=company, name=name, defaults={**defaults, **bank_updates})
-        return supplier
+    try:
+        if direction == 'income':
+            # 对方是客户 → 写入Client
+            client, created = Client.objects.get_or_create(
+                company=company, name=name, defaults=base_fields)
+            if bank_updates and created:
+                for k, v in bank_updates.items():
+                    if not getattr(client, k):
+                        setattr(client, k, v)
+                Client.objects.filter(pk=client.pk).update(**bank_updates)
+            # 双向交易：如果该对手已存在于Supplier表，也建Client档案
+            if Supplier.objects.filter(company=company, name=name).exists():
+                Client.objects.get_or_create(
+                    company=company, name=name, defaults=base_fields)
+            return client
+        else:
+            # 对方是供应商 → 写入Supplier
+            supplier, created = Supplier.objects.get_or_create(
+                company=company, name=name, defaults=base_fields)
+            if bank_updates and created:
+                for k, v in bank_updates.items():
+                    if not getattr(supplier, k):
+                        setattr(supplier, k, v)
+                Supplier.objects.filter(pk=supplier.pk).update(**bank_updates)
+            # 双向交易：如果该对手已存在于Client表，也建Supplier档案
+            if Client.objects.filter(company=company, name=name).exists():
+                Supplier.objects.get_or_create(
+                    company=company, name=name, defaults=base_fields)
+            return supplier
+    except Exception:
+        return None
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+@api_view(['POST'])
 # Payment Reconciliation — 银行流水自动核销发票
 # ═══════════════════════════════════════════════════════════════════════════
 
