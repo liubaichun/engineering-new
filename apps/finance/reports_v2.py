@@ -382,10 +382,15 @@ def tax_summary_report(request):
         # 发票税额：销项（开给客户）和进项（收供应商）
         invoice_input_tax = agg(inv_qs.filter(type='expense'), 'tax_amount')   # 进项税
         invoice_output_tax = agg(inv_qs.filter(type='income'), 'tax_amount')    # 销项税
-        # 工资代扣个税
-        personal_tax = agg(w_qs, 'tax')
-        # 社保公积金（公司部分+个人部分，个人部分为代扣非公司费用，这里用合计展示）
-        social_total = agg(w_qs, 'social_insurance') + agg(w_qs, 'housing_fund')
+        # 工资代扣个税：从Expense(description含'个税')获取，没有则查银行流水
+        personal_tax = 0
+        # 社保公积金：从Expense(expense_type='social')读取
+        social_qs = Expense.objects.filter(company=company, expense_type='social')
+        if year:
+            social_qs = social_qs.filter(expense_date__year=year)
+        if month:
+            social_qs = social_qs.filter(expense_date__month=month)
+        social_total = agg(social_qs, 'amount')
         # 银行实时缴税（含增值税及附加税）
         bank_vat = agg(exp_vat_qs, 'amount')
 
