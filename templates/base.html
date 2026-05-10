@@ -760,12 +760,27 @@ function hideUnauthorizedButtons() {
 }
 
 function waitForPermissions(callback) {
-    // 等待 USER_PERMS.codes 被填充（loadPermissions 完成后）
+    // 如果已有权限数据，直接回调（loadPermissions 已完成）
+    if (USER_PERMS.codes && USER_PERMS.codes.length > 0) {
+        callback();
+        return;
+    }
+    // 如果 is_superuser，直接回调
+    if (USER_PERMS.is_superuser) {
+        callback();
+        return;
+    }
+    // 等待 loadPermissions() 的 fetch 完成
     var attempts = 0;
     var interval = setInterval(function() {
         attempts++;
-        if (USER_PERMS.codes.length > 0 || attempts > 50) {
+        if (USER_PERMS.codes.length > 0 || USER_PERMS.is_superuser) {
             clearInterval(interval);
+            callback();
+        } else if (attempts >= 300) { // 最多30秒
+            clearInterval(interval);
+            // 超时后强制刷新权限
+            loadPermissions();
             callback();
         }
     }, 100);
