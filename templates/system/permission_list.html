@@ -162,17 +162,23 @@ function waitForPermissions(callback) {
 
 async function loadPermissions() {
     try {
-        var response = await fetch('/api/core/permissions/', { credentials: 'include' });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        var data = await response.json();
-        // 兼容分页格式(data.results)和普通数组格式
-        if (Array.isArray(data)) {
-            allPermissions = data;
-        } else if (Array.isArray(data.results)) {
-            allPermissions = data.results;
-        } else {
-            allPermissions = [];
+        // 分页获取所有权限：循环请求直到没有 next
+        var allData = [];
+        var page = 1;
+        while (true) {
+            var response = await fetch('/api/core/permissions/?page=' + page + '&page_size=100', { credentials: 'include' });
+            if (!response.ok) throw new Error('HTTP ' + response.status);
+            var data = await response.json();
+            if (Array.isArray(data.results)) {
+                allData = allData.concat(data.results);
+            } else if (Array.isArray(data)) {
+                allData = allData.concat(data);
+            }
+            if (!data.next) break;
+            page++;
+            if (page > 20) break; // 安全上限
         }
+        allPermissions = allData;
         buildCategoryButtons();
         renderPermissions();
     } catch (error) {

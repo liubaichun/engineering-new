@@ -482,7 +482,7 @@
                         <small class="text-muted">同项目内编号唯一</small>
                     </div>
                     <div class="col-6">
-                        <label class="form-label">所属项目 <span class="text-danger">*</span></label>
+                        <label class="form-label">所属项目</label>
                         <select class="form-select" id="taskProject">
                             <option value="">选择项目</option>
                         </select>
@@ -583,6 +583,7 @@
             </div>
             <div class="modal-footer" id="taskDetailFooter">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-danger" onclick="deleteCurrentTask()">删除</button>
                 <button type="button" class="btn btn-primary" onclick="editCurrentTask()">编辑</button>
                 <button type="button" class="btn btn-success" id="btnStartTask" onclick="startTask()">开始任务</button>
                 <button type="button" class="btn btn-success" id="btnCompleteTask" onclick="completeTask()">完成任务</button>
@@ -941,12 +942,11 @@ async function saveTask() {
     
     if (!title) { showToast('请输入任务标题', 'warning'); return; }
     if (!code) { showToast('请输入任务编号', 'warning'); return; }
-    if (!project) { showToast('请选择所属项目', 'warning'); return; }
-    
+
     var payload = {
         title: title,
         code: code,
-        project: project,
+        project: project || null,
         priority: priority,
         status: currentTaskStatus,
         assignee: assignee || null,
@@ -1269,10 +1269,39 @@ async function submitDependency() {
     } catch(e) { alert('添加失败'); }
 }
 
+async function deleteCurrentTask() {
+    if (!confirm('确定要删除该任务吗？删除后无法恢复。')) return;
+    try {
+        var response = await fetch('/api/tasks/tasks/' + currentTaskId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (response.ok) {
+            showToast('任务已删除', 'success');
+            taskDetailModal.hide();
+            document.getElementById('taskDetailModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('taskDetailModal').removeEventListener('hidden.bs.modal', handler);
+                loadTasks();
+            });
+        } else {
+            var err = await response.json();
+            alert('删除失败：' + JSON.stringify(err));
+        }
+    } catch(e) { alert('删除失败'); }
+}
+
 function editCurrentTask() {
-    // 直接打开编辑弹窗，不依赖 hide 的时序（避免竞态条件）
-    loadTaskData(currentTaskId);
-    document.getElementById('taskModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑任务';
+    // 先关闭详情弹窗及其遮罩，再打开编辑弹窗，避免层叠遮挡
+    taskDetailModal.hide();
+    setTimeout(function() {
+        document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+        document.body.style.overflow = '';
+        loadTaskData(currentTaskId);
+        document.getElementById('taskModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑任务';
+        taskModal.show();
+    }, 150);
 }
 
 async function startTask() {

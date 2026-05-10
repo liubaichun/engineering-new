@@ -319,6 +319,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-danger" onclick="deleteCurrentProject()">删除</button>
                 <button type="button" class="btn btn-primary" onclick="editCurrentProject()">编辑</button>
             </div>
         </div>
@@ -678,8 +679,37 @@ async function showProjectDetail(projectId) {
 }
 
 function editCurrentProject() {
-    // 直接打开编辑弹窗，不依赖 hide 的时序（避免竞态条件）
-    showProjectModal(currentProjectId);
+    // 先关闭详情弹窗及其遮罩，再打开编辑弹窗，避免层叠遮挡
+    detailModal.hide();
+    // 强制移除所有 backdrop，避免残留遮罩挡住编辑弹窗
+    setTimeout(function() {
+        document.querySelectorAll('.modal-backdrop').forEach(function(el) { el.remove(); });
+        document.body.classList.remove('modal-open');
+        document.body.style.paddingRight = '';
+        document.body.style.overflow = '';
+        showProjectModal(currentProjectId);
+    }, 150);
+}
+
+async function deleteCurrentProject() {
+    if (!confirm('确定要删除该项目吗？删除后无法恢复。')) return;
+    try {
+        var response = await fetch('/api/tasks/projects/' + currentProjectId + '/', {
+            method: 'DELETE',
+            credentials: 'include'
+        });
+        if (response.ok) {
+            showToast('项目已删除', 'success');
+            detailModal.hide();
+            document.getElementById('projectDetailModal').addEventListener('hidden.bs.modal', function handler() {
+                document.getElementById('projectDetailModal').removeEventListener('hidden.bs.modal', handler);
+                loadProjects();
+            });
+        } else {
+            var err = await response.json();
+            alert('删除失败：' + JSON.stringify(err));
+        }
+    } catch(e) { alert('删除失败'); }
 }
 
 async function deleteProject(projectId) {

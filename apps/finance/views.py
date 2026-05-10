@@ -1235,6 +1235,20 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         return Response({'status': 'success', 'message': '发票已开具'})
 
     @action(detail=False, methods=['get'])
+    def years(self, request):
+        """返回数据库中实际存在的发票年份列表"""
+        from django.db.models.functions import ExtractYear
+        years = (
+            self.get_queryset()
+            .annotate(year=ExtractYear('issue_date'))
+            .values_list('year', flat=True)
+            .distinct()
+            .exclude(year=None)
+            .order_by('-year')
+        )
+        return Response({'years': list(years)})
+
+    @action(detail=False, methods=['get'])
     def summary(self, request):
         """发票汇总统计 — 用于前端顶部三个金额指标"""
         queryset = self.get_queryset()
@@ -1247,7 +1261,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if company_id:
             queryset = queryset.filter(company_id=company_id)
 
-        from django.db.models import Sum, F, ExpressionWrapper, DecimalField
+        date_min = request.query_params.get('issue_date_min')
+        date_max = request.query_params.get('issue_date_max')
+        if date_min:
+            queryset = queryset.filter(issue_date__gte=date_min)
+        if date_max:
+            queryset = queryset.filter(issue_date__lte=date_max)
+
+        from django.db.models import Sum, F
 
         total_count = queryset.count()
 

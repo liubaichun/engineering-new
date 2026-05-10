@@ -1,9 +1,11 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.urls import path, include, re_path
 from django.views.generic import TemplateView
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
 from django.views.generic import RedirectView
+from django.views.static import serve
+from django.conf import settings
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.core.views import ChangePasswordView
 from apps.finance.views import render_bank_import_page
@@ -287,6 +289,31 @@ def api_auth_status(request):
 def notification_channels_page(request):
     return TemplateView.as_view(template_name='system/notification_channels.html')(request)
 
+def serve_media(request, path):
+    """生产环境 media 文件服务 — 支持 /media/ 和 /company_files/ 两种路径格式"""
+    import os, mimetypes
+    from django.http import Http404, HttpResponse
+    from django.conf import settings
+    from django.utils.encoding import force_bytes
+    if request.path.startswith('/company_files/'):
+        # /company_files/2026/04/xxx.pdf → BASE_DIR/company_files/2026/04/xxx.pdf
+        # path 正则捕获的是 2026/04/xxx.pdf（无 company_files/ 前缀），需拼接完整路径
+        full_path = os.path.join(settings.BASE_DIR, 'company_files', path)
+    else:
+        # /media/company_files/2026/04/xxx.pdf → MEDIA_ROOT/2026/04/xxx.pdf
+        # path 正则捕获的是 company_files/2026/04/xxx.pdf，需去掉前缀
+        if path.startswith('company_files/'):
+            path = path[len('company_files/'):]
+        full_path = os.path.join(settings.MEDIA_ROOT, path)
+    if not os.path.exists(full_path):
+        raise Http404("File not found")
+    with open(full_path, 'rb') as f:
+        content = f.read()
+    content_type, _ = mimetypes.guess_type(full_path)
+    response = HttpResponse(force_bytes(content))
+    response['Content-Type'] = content_type or 'application/octet-stream'
+    return response
+
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', home_page, name='home'),
@@ -375,4 +402,7 @@ urlpatterns = [
     path('equipment/', lambda request: render(request, 'equipment/equipment_list.html'), name='equipment_list'),
     path('repair/requests/', lambda request: render(request, 'repair/repair_request_list.html'), name='repair_request_list'),
     path('equipment/bom/', lambda request: render(request, 'equipment/bom_list.html'), name='equipment_bom'),
+    # Media file serving (生产环境绕过 DEBUG=False 限制)
+    re_path(r'^media/(?P<path>.*)$', serve_media, name='serve_media'),
+    re_path(r'^company_files/(?P<path>.*)$', serve_media, name='serve_company_files'),
 ]

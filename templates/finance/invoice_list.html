@@ -80,6 +80,9 @@
             <option value="paid">已完成</option>
             <option value="cancelled">已作废</option>
         </select>
+        <select class="form-select form-select-sm" id="filterYear" style="width: auto;" onchange="loadInvoices(); loadSummary(currentTab);">
+            <option value="">全部年份</option>
+        </select>
         <input type="date" class="form-control form-control-sm" id="filterDateFrom" style="width: auto;" placeholder="开始日期" onchange="loadInvoices()">
         <input type="date" class="form-control form-control-sm" id="filterDateTo" style="width: auto;" placeholder="结束日期" onchange="loadInvoices()">
         <button class="btn btn-primary btn-sm" onclick="showAddInvoiceModal()" data-perm="invoice.add">
@@ -129,7 +132,7 @@
                         <div class="mb-2">
                             <input type="file" class="form-control" id="importFileIncome" accept=".xlsx,.xls">
                         </div>
-                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('income')">
+                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('expense', 'importFileIncome', 'importProgressIncome')">
                             <i class="bi bi-upload me-1"></i>导入收到发票
                         </button>
                         <div class="import-progress mt-2" id="importProgressIncome" style="display:none">
@@ -141,7 +144,7 @@
                         <div class="mb-2">
                             <input type="file" class="form-control" id="importFileExpense" accept=".xlsx,.xls">
                         </div>
-                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('expense')">
+                        <button class="btn btn-primary btn-sm w-100" onclick="importInvoices('income', 'importFileExpense', 'importProgressExpense')">
                             <i class="bi bi-upload me-1"></i>导入开出发票
                         </button>
                         <div class="import-progress mt-2" id="importProgressExpense" style="display:none">
@@ -468,9 +471,11 @@ function switchTab(btn) {
 document.addEventListener('DOMContentLoaded', function() {
     loadCompanies();
     loadProjects();
+    loadInvoiceYears();
     // 默认展示收到发票（expense），开出发票按需加载
     loadInvoices('expense', 1);
     loadSummary('expense');
+    loadSummary('income');
 
     // shown.bs.tab 在默认 Tab 不会自动触发，用于后续切换时的数据加载
     document.getElementById('invoiceListTabs').addEventListener('shown.bs.tab', function(e) {
@@ -487,10 +492,31 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+async function loadInvoiceYears() {
+    try {
+        const resp = await fetch('/api/finance/invoices/years/', { credentials: 'include' });
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const sel = document.getElementById('filterYear');
+        // 保留"全部年份"选项，动态插入有数据的年份
+        data.years.forEach(y => {
+            const opt = document.createElement('option');
+            opt.value = y;
+            opt.textContent = y + '年';
+            sel.appendChild(opt);
+        });
+    } catch (e) { console.error('loadInvoiceYears failed:', e); }
+}
+
 async function loadSummary(type) {
     const company = document.getElementById('filterCompany').value;
+    const year = document.getElementById('filterYear').value;
     const params = new URLSearchParams();
     if (company) params.append('company_id', company);
+    if (year) {
+        params.append('issue_date_min', year + '-01-01');
+        params.append('issue_date_max', year + '-12-31');
+    }
     params.append('type', type);
     const url = '/api/finance/invoices/summary/?' + params.toString();
     try {
@@ -759,7 +785,7 @@ async function exportInvoices() {
     const status = document.getElementById('filterStatus').value;
     const dateFrom = document.getElementById('filterDateFrom').value;
     const dateTo = document.getElementById('filterDateTo').value;
-    let url = `/api/finance/invoices/export/?format=csv&type=${currentTab}`;
+    let url = `/api/finance/invoices/export/?type=${currentTab}`;
     if (company) url += `&company_id=${company}`;
     if (status) url += `&status=${status}`;
     if (dateFrom) url += `&date_start=${dateFrom}`;
@@ -771,11 +797,11 @@ function showImportInvoiceModal() {
     new bootstrap.Modal(document.getElementById('importInvoiceModal')).show();
 }
 
-async function importInvoices(type) {
-    const fileInput = type === 'income' ? document.getElementById('importFileIncome') : document.getElementById('importFileExpense');
+async function importInvoices(type, fileInputId, progressId) {
+    const fileInput = document.getElementById(fileInputId);
     const file = fileInput.files[0];
     if (!file) { alert('请先选择 Excel 文件'); return; }
-    const progressEl = document.getElementById(type === 'income' ? 'importProgressIncome' : 'importProgressExpense');
+    const progressEl = document.getElementById(progressId);
     progressEl.style.display = 'block';
     progressEl.querySelector('.progress-bar').style.width = '30%';
     const formData = new FormData();

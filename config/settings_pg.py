@@ -26,9 +26,10 @@ CSRF_TRUSTED_ORIGINS = ["https://43.156.139.37", "https://124.222.227.37", "http
 INSTALLED_APPS = [
     'django.contrib.admin', 'django.contrib.auth', 'django.contrib.contenttypes',
     'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles',
-    'rest_framework', 'corsheaders', 'django_filters',
+    'rest_framework', 'corsheaders', 'django_filters', 'drf_spectacular',
     'apps.core', 'apps.tasks', 'apps.approvals', 'apps.notifications',
     'apps.finance', 'apps.crm', 'apps.files', 'apps.material', 'apps.equipment',
+    'apps.purchasing', 'apps.repair',
 ]
 
 AUTH_USER_MODEL = 'core.User'
@@ -89,6 +90,8 @@ USE_I18N = True
 USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'company_files'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ALLOWED_ORIGINS = [h.strip() for h in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if h.strip()]
 

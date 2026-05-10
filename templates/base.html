@@ -759,6 +759,18 @@ function hideUnauthorizedButtons() {
     });
 }
 
+function waitForPermissions(callback) {
+    // 等待 USER_PERMS.codes 被填充（loadPermissions 完成后）
+    var attempts = 0;
+    var interval = setInterval(function() {
+        attempts++;
+        if (USER_PERMS.codes.length > 0 || attempts > 50) {
+            clearInterval(interval);
+            callback();
+        }
+    }, 100);
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     // 检查是否已登录（通过session cookie）
     fetch('/api/core/auth/user/', {
