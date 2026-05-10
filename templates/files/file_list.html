@@ -670,20 +670,39 @@ async function previewFile(fileId) {
         if (isImage) {
             body.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:75vh;" />';
         } else if (isPdf) {
-            body.innerHTML = '<div id="pdfContainer" style="width:100%;height:75vh;overflow:auto;background:#525659;text-align:center;"><div id="pdfLoading" style="color:#fff;padding:40px;"><div class="spinner-border text-light"></div><p style="margin-top:12px;">正在加载 PDF...</p></div><canvas id="pdfCanvas" style="display:none;margin:0 auto;"></canvas><div id="pdfError" style="display:none;color:#fff;padding:40px;text-align:center;"><i class="bi bi-exclamation-triangle" style="font-size:3rem;"></i><p style="margin-top:12px;">PDF 加载失败，可能是文件损坏或网络问题</p><a href="' + url + '" target="_blank" class="btn btn-light mt-2">直接下载查看</a></div></div>';
+            body.innerHTML = '<div id="pdfContainer" style="width:100%;height:75vh;overflow-y:auto;background:#3d3d3d;text-align:center;padding:16px;"><div id="pdfLoading" style="color:#fff;padding:40px;"><div class="spinner-border text-light"></div><p style="margin-top:12px;">正在加载 PDF...</p></div><div id="pdfPages" style="display:none;text-align:center;"></div><div id="pdfError" style="display:none;color:#fff;padding:40px;"><i class="bi bi-exclamation-triangle" style="font-size:3rem;"></i><p style="margin-top:12px;">PDF 加载失败，可能是文件损坏或网络问题</p><a href="' + url + '" target="_blank" class="btn btn-light mt-2">直接下载查看</a></div></div>';
             var loadingEl = document.getElementById('pdfLoading');
-            var canvasEl = document.getElementById('pdfCanvas');
+            var pagesEl = document.getElementById('pdfPages');
             var errorEl = document.getElementById('pdfError');
             pdfjsLib.getDocument(url).promise.then(function(pdf) {
                 loadingEl.style.display = 'none';
-                canvasEl.style.display = 'block';
-                pdf.getPage(1).then(function(page) {
-                    var scale = 1.2;
-                    var viewport = page.getViewport({scale: scale});
-                    canvasEl.width = viewport.width;
-                    canvasEl.height = viewport.height;
-                    page.render({canvasContext: canvasEl.getContext('2d'), viewport: viewport});
-                });
+                pagesEl.style.display = 'block';
+                var scale = 1.2;
+                var allPages = [];
+                for (var i = 1; i <= pdf.numPages; i++) {
+                    (function(pageNum) {
+                        pdf.getPage(pageNum).then(function(page) {
+                            var viewport = page.getViewport({scale: scale});
+                            var canvas = document.createElement('canvas');
+                            canvas.width = viewport.width;
+                            canvas.height = viewport.height;
+                            canvas.style.display = 'block';
+                            canvas.style.margin = '0 auto 16px auto';
+                            canvas.style.boxShadow = '0 2px 8px rgba(0,0,0,0.4)';
+                            var wrapper = document.createElement('div');
+                            wrapper.style.marginBottom = '8px';
+                            var label = document.createElement('div');
+                            label.style.color = '#aaa';
+                            label.style.fontSize = '12px';
+                            label.style.marginBottom = '6px';
+                            label.textContent = '第 ' + pageNum + ' / ' + pdf.numPages + ' 页';
+                            wrapper.appendChild(label);
+                            wrapper.appendChild(canvas);
+                            pagesEl.appendChild(wrapper);
+                            page.render({canvasContext: canvas.getContext('2d'), viewport: viewport});
+                        });
+                    })(i);
+                }
             }).catch(function(err) {
                 loadingEl.style.display = 'none';
                 errorEl.style.display = 'block';
