@@ -387,6 +387,7 @@ class MyPermissionsView(APIView):
         return Response({
             'status': 'success',
             'codes': codes,
+            'is_superuser': user.is_superuser,
         }, status=status.HTTP_200_OK)
 
 

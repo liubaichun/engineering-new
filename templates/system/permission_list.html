@@ -140,13 +140,19 @@ function waitForPermissions(callback) {
     var attempts = 0;
     var interval = setInterval(function() {
         attempts++;
+        // superuser 直接放行
+        if (USER_PERMS.is_superuser) {
+            clearInterval(interval);
+            callback();
+            return;
+        }
         // 如果已有权限数据，直接回调
         if (USER_PERMS.codes && USER_PERMS.codes.length > 0) {
             clearInterval(interval);
             callback();
             return;
         }
-        // 最多等待 3 秒，超时视为无权限
+        // 最多等待 3 秒，超时视为无权限（会走 superuser 判断兜底）
         if (attempts >= 30) {
             clearInterval(interval);
             callback();

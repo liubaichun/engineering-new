@@ -724,7 +724,7 @@ function showToast(msg, type, duration) {
 }
 
 // Sidebar active state
-var USER_PERMS = { codes: [], menu_codes: [] };
+var USER_PERMS = { codes: [], menu_codes: [], is_superuser: false };
 
 function loadPermissions() {
     fetch('/api/core/auth/user/my-permissions/', {
@@ -735,6 +735,7 @@ function loadPermissions() {
         if (data.status === 'success') {
             USER_PERMS.codes = data.codes || [];
             USER_PERMS.menu_codes = data.menu_codes || [];
+            USER_PERMS.is_superuser = data.is_superuser || false;
             hideUnauthorizedButtons();
         }
     })
@@ -743,6 +744,7 @@ function loadPermissions() {
 
 function hasPermission(permCode) {
     if (!permCode) return true;
+    if (USER_PERMS.is_superuser) return true;
     var codes = USER_PERMS.codes || [];
     return codes.includes(permCode);
 }
