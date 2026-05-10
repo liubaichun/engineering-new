@@ -838,23 +838,40 @@ function renderTaxSummaryReport(data, container) {
     let html = `<h5 class="mb-4"><i class="bi bi-receipt-cutoff me-2"></i>${escapeHtml(data.title)}</h5>`;
 
     html += `<div class="table-responsive"><table class="table report-table">
-<thead><tr><th>公司</th><th>发票税额</th><th>工资代扣个税</th><th>税费合计</th></tr></thead><tbody>`;
+<thead>
+    <tr>
+        <th>公司</th>
+        <th>发票进项税</th>
+        <th>发票销项税</th>
+        <th>工资代扣个税</th>
+        <th>社保公积金合计</th>
+        <th>银行实时缴税</th>
+        <th>公司税费合计</th>
+    </tr>
+</thead>
+<tbody>`;
     rows.forEach(r => {
-        const total = (r.invoice_tax || 0) + (r.personal_tax || 0);
         html += `<tr>
-<td>${escapeHtml(r.company_name)}</td>
-<td>¥${fmt(r.invoice_tax || 0)}</td>
-<td>¥${fmt(r.personal_tax || 0)}</td>
-<td class="fw-bold text-danger">¥${fmt(total)}</td>
+<td><strong>${escapeHtml(r.company_name)}</strong></td>
+<td class="text-muted">¥${fmt(r.invoice_input_tax || 0)}</td>
+<td class="text-muted">¥${fmt(r.invoice_output_tax || 0)}</td>
+<td class="text-warning">¥${fmt(r.personal_income_tax || 0)}</td>
+<td class="text-warning">¥${fmt(r.social_housing_total || 0)}</td>
+<td class="text-danger">¥${fmt(r.bank_vat || 0)}</td>
+<td class="fw-bold text-danger">¥${fmt(r.company_tax_total || 0)}</td>
 </tr>`;
     });
     html += `</tbody></table></div>`;
 
     if (data.summary) {
         html += `<div class="alert alert-danger">
-发票税额合计: <b>¥${fmt(data.summary.total_invoice_tax || 0)}</b> |
-工资个税合计: <b>¥${fmt(data.summary.total_personal_tax || 0)}</b> |
-<b>税费总计: ¥${fmt((data.summary.total_invoice_tax || 0) + (data.summary.total_personal_tax || 0))}</b>
+发票进项税合计: <b>¥${fmt(data.summary.total_invoice_input_tax || 0)}</b> |
+发票销项税合计: <b>¥${fmt(data.summary.total_invoice_output_tax || 0)}</b> |
+工资代扣个税合计: <b class="text-warning">¥${fmt(data.summary.total_personal_income_tax || 0)}</b> |
+社保公积金合计: <b class="text-warning">¥${fmt(data.summary.total_social_housing || 0)}</b> |
+银行实时缴税合计: <b class="text-danger">¥${fmt(data.summary.total_bank_vat || 0)}</b>
+<br><b>公司税费总计: ¥${fmt(data.summary.grand_company_tax_total || 0)}</b>
+<span class="text-muted ms-3" style="font-size:0.8rem">（不含代扣个人社保/公积金部分）</span>
 </div>`;
     }
     container.innerHTML = html;

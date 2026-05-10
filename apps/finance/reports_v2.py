@@ -358,39 +358,61 @@ def tax_summary_report(request):
         companies = companies.filter(id=company_id)
 
     results = []
-    grand_invoice_tax = 0
+    grand_input_tax = 0
+    grand_output_tax = 0
     grand_personal_tax = 0
-    grand_bank_tax = 0
+    grand_social_company = 0
+    grand_bank_vat = 0
 
     for company in companies:
         inv_qs = Invoice.objects.filter(company=company)
         w_qs = WageRecord.objects.filter(company=company)
-        exp_tax_qs = Expense.objects.filter(company=company, expense_type='tax')
+        # 银行实时缴税：category='税款' 的所有记录（含 expense_type=tax 和 other）
+        exp_vat_qs = Expense.objects.filter(company=company, expense_category='税款')
+
         if year:
             inv_qs = inv_qs.filter(issue_date__year=year)
             w_qs = w_qs.filter(year=year)
-            exp_tax_qs = exp_tax_qs.filter(expense_date__year=year)
+            exp_vat_qs = exp_vat_qs.filter(expense_date__year=year)
         if month:
             inv_qs = inv_qs.filter(issue_date__month=month)
             w_qs = w_qs.filter(month=month)
-            exp_tax_qs = exp_tax_qs.filter(expense_date__month=month)
+            exp_vat_qs = exp_vat_qs.filter(expense_date__month=month)
 
-        invoice_tax = agg(inv_qs, 'tax_amount')
+        # 发票税额：销项（开给客户）和进项（收供应商）
+        invoice_input_tax = agg(inv_qs.filter(type='expense'), 'tax_amount')   # 进项税
+        invoice_output_tax = agg(inv_qs.filter(type='income'), 'tax_amount')    # 销项税
+        # 工资代扣个税
         personal_tax = agg(w_qs, 'tax')
-        # 银行流水税务支出：Expense由银行导入写入，expense_type='tax'
-        bank_tax = agg(exp_tax_qs, 'amount')
+        # 社保公积金（公司部分+个人部分，个人部分为代扣非公司费用，这里用合计展示）
+        social_total = agg(w_qs, 'social_insurance') + agg(w_qs, 'housing_fund')
+        # 银行实时缴税（含增值税及附加税）
+        bank_vat = agg(exp_vat_qs, 'amount')
+
+        # 公司税费合计（含个税+社保公司部分，不含代扣个人部分）
+        company_tax_total = personal_tax + social_total + bank_vat
 
         results.append({
             'company_id': company.id,
             'company_name': company.name,
-            'invoice_tax': round(invoice_tax, 2),
-            'personal_tax': round(personal_tax, 2),
-            'bank_tax': round(bank_tax, 2),
-            'total_tax': round(invoice_tax + personal_tax + bank_tax, 2),
+            # 发票税额
+            'invoice_input_tax': round(invoice_input_tax, 2),   # 进项税
+            'invoice_output_tax': round(invoice_output_tax, 2),  # 销项税
+            # 工资相关
+            'personal_income_tax': round(personal_tax, 2),       # 代扣个税（员工负担）
+            'social_housing_total': round(social_total, 2),     # 社保公积金合计（含个人代扣部分）
+            # 银行缴税
+            'bank_vat': round(bank_vat, 2),                     # 银行实时缴税（含增值税及附加）
+            # 合计
+            'company_tax_total': round(company_tax_total, 2),     # 公司税费合计（不含代扣个人）
         })
-        grand_invoice_tax += invoice_tax
+        grand_input_tax += invoice_input_tax
+        grand_output_tax += invoice_output_tax
         grand_personal_tax += personal_tax
-        grand_bank_tax += bank_tax
+        grand_social_company += social_total
+        grand_bank_vat += bank_vat
+
+    grand_company_total = grand_personal_tax + grand_social_company + grand_bank_vat
 
     return Response({
         'report': 'tax_summary',
@@ -398,10 +420,12 @@ def tax_summary_report(request):
         'params': params,
         'results': results,
         'summary': {
-            'total_invoice_tax': round(grand_invoice_tax, 2),
-            'total_personal_tax': round(grand_personal_tax, 2),
-            'total_bank_tax': round(grand_bank_tax, 2),
-            'total_tax': round(grand_invoice_tax + grand_personal_tax + grand_bank_tax, 2),
+            'total_invoice_input_tax': round(grand_input_tax, 2),
+            'total_invoice_output_tax': round(grand_output_tax, 2),
+            'total_personal_income_tax': round(grand_personal_tax, 2),
+            'total_social_housing': round(grand_social_company, 2),
+            'total_bank_vat': round(grand_bank_vat, 2),
+            'grand_company_tax_total': round(grand_company_total, 2),
         }
     })
 
