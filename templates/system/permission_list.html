@@ -152,8 +152,8 @@ function waitForPermissions(callback) {
             callback();
             return;
         }
-        // 最多等待 3 秒，超时视为无权限（会走 superuser 判断兜底）
-        if (attempts >= 30) {
+        // 最多等待 30 秒（fetch在远程服务器上较慢）
+        if (attempts >= 300) {
             clearInterval(interval);
             callback();
         }
