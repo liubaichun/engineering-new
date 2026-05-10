@@ -844,8 +844,9 @@ function renderTaxSummaryReport(data, container) {
         <th>发票进项税</th>
         <th>发票销项税</th>
         <th>工资代扣个税</th>
-        <th>社保公积金合计</th>
-        <th>银行实时缴税</th>
+        <th>企业所得税</th>
+        <th>增值税</th>
+        <th>社保公积金</th>
         <th>公司税费合计</th>
     </tr>
 </thead>
@@ -856,8 +857,9 @@ function renderTaxSummaryReport(data, container) {
 <td class="text-muted">¥${fmt(r.invoice_input_tax || 0)}</td>
 <td class="text-muted">¥${fmt(r.invoice_output_tax || 0)}</td>
 <td class="text-warning">¥${fmt(r.personal_income_tax || 0)}</td>
+<td class="text-primary">¥${fmt(r.corporate_income_tax || 0)}</td>
+<td class="text-danger">¥${fmt(r.vat || 0)}</td>
 <td class="text-warning">¥${fmt(r.social_housing_total || 0)}</td>
-<td class="text-danger">¥${fmt(r.bank_vat || 0)}</td>
 <td class="fw-bold text-danger">¥${fmt(r.company_tax_total || 0)}</td>
 </tr>`;
     });
@@ -867,11 +869,11 @@ function renderTaxSummaryReport(data, container) {
         html += `<div class="alert alert-danger">
 发票进项税合计: <b>¥${fmt(data.summary.total_invoice_input_tax || 0)}</b> |
 发票销项税合计: <b>¥${fmt(data.summary.total_invoice_output_tax || 0)}</b> |
-工资代扣个税合计: <b class="text-warning">¥${fmt(data.summary.total_personal_income_tax || 0)}</b> |
-社保公积金合计: <b class="text-warning">¥${fmt(data.summary.total_social_housing || 0)}</b> |
-银行实时缴税合计: <b class="text-danger">¥${fmt(data.summary.total_bank_vat || 0)}</b>
+代扣个税合计: <b class="text-warning">¥${fmt(data.summary.total_personal_income_tax || 0)}</b> |
+企业所得税合计: <b class="text-primary">¥${fmt(data.summary.total_corporate_income_tax || 0)}</b> |
+增值税合计: <b class="text-danger">¥${fmt(data.summary.total_vat || 0)}</b> |
+社保公积金合计: <b class="text-warning">¥${fmt(data.summary.total_social_housing || 0)}</b>
 <br><b>公司税费总计: ¥${fmt(data.summary.grand_company_tax_total || 0)}</b>
-<span class="text-muted ms-3" style="font-size:0.8rem">（不含代扣个人社保/公积金部分）</span>
 </div>`;
     }
     container.innerHTML = html;

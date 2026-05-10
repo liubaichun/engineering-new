@@ -345,6 +345,27 @@ def supplier_expense_report(request):
 
 
 # ─── 5. 税费汇总表 ─────────────────────────────────────────────────────
+def _parse_tax_type(desc: str, amount: float):
+    """根据税单号前缀和金额推断税费类型
+    344036 = 个税（龙华区税务局第三税务所）
+    625/626 = 增值税（龙华区税务局第二税务所）
+    444036 = 企业所得税（龙华区税务局第四税务所），但其中amount<2000为个税代扣
+    """
+    if '344036' in desc:
+        return 'personal_income_tax'
+    vat_codes = ['625', '626']
+    if any(f'{c}{y}' in desc or f'{c}1{y}' in desc or f'{c}2{y}' in desc
+           for c in vat_codes for y in ['2', '3']):
+        return 'vat'
+    if '444036' in desc:
+        # 444036里金额<2000的为个税代扣，>=2000的为企业所得税
+        if abs(amount) < 2000:
+            return 'personal_income_tax'
+        return 'corporate_income_tax'
+    # 其他税费归为其他
+    return 'other'
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def tax_summary_report(request):
@@ -361,63 +382,72 @@ def tax_summary_report(request):
     grand_input_tax = 0
     grand_output_tax = 0
     grand_personal_tax = 0
-    grand_social_company = 0
-    grand_bank_vat = 0
+    grand_corporate_tax = 0
+    grand_vat = 0
+    grand_social = 0
 
     for company in companies:
         inv_qs = Invoice.objects.filter(company=company)
-        w_qs = WageRecord.objects.filter(company=company)
-        # 银行实时缴税：category='税款' 的所有记录（含 expense_type=tax 和 other）
-        exp_vat_qs = Expense.objects.filter(company=company, expense_category='税款')
+        # 银行实时缴税：从Expense.category='税款'按税种拆分
+        exp_tax_qs = Expense.objects.filter(company=company, expense_category='税款')
+        # 社保公积金
+        social_qs = Expense.objects.filter(company=company, expense_type='social')
 
         if year:
             inv_qs = inv_qs.filter(issue_date__year=year)
-            w_qs = w_qs.filter(year=year)
-            exp_vat_qs = exp_vat_qs.filter(expense_date__year=year)
-        if month:
-            inv_qs = inv_qs.filter(issue_date__month=month)
-            w_qs = w_qs.filter(month=month)
-            exp_vat_qs = exp_vat_qs.filter(expense_date__month=month)
-
-        # 发票税额：销项（开给客户）和进项（收供应商）
-        invoice_input_tax = agg(inv_qs.filter(type='expense'), 'tax_amount')   # 进项税
-        invoice_output_tax = agg(inv_qs.filter(type='income'), 'tax_amount')    # 销项税
-        # 工资代扣个税：从Expense(description含'个税')获取，没有则查银行流水
-        personal_tax = 0
-        # 社保公积金：从Expense(expense_type='social')读取
-        social_qs = Expense.objects.filter(company=company, expense_type='social')
-        if year:
+            exp_tax_qs = exp_tax_qs.filter(expense_date__year=year)
             social_qs = social_qs.filter(expense_date__year=year)
         if month:
+            inv_qs = inv_qs.filter(issue_date__month=month)
+            exp_tax_qs = exp_tax_qs.filter(expense_date__month=month)
             social_qs = social_qs.filter(expense_date__month=month)
-        social_total = agg(social_qs, 'amount')
-        # 银行实时缴税（含增值税及附加税）
-        bank_vat = agg(exp_vat_qs, 'amount')
 
-        # 公司税费合计（含个税+社保公司部分，不含代扣个人部分）
-        company_tax_total = personal_tax + social_total + bank_vat
+        # 发票税额：销项（开给客户）和进项（收供应商）
+        invoice_input_tax = agg(inv_qs.filter(type='expense'), 'tax_amount')
+        invoice_output_tax = agg(inv_qs.filter(type='income'), 'tax_amount')
+
+        # 银行缴税：按税单号前缀拆分为三类
+        personal_tax = 0.0
+        corporate_tax = 0.0
+        vat = 0.0
+        other_tax = 0.0
+        for row in exp_tax_qs.only('amount', 'description'):
+            t = _parse_tax_type(row.description, float(row.amount))
+            if t == 'personal_income_tax':
+                personal_tax += float(row.amount)
+            elif t == 'corporate_income_tax':
+                corporate_tax += float(row.amount)
+            elif t == 'vat':
+                vat += float(row.amount)
+            else:
+                other_tax += float(row.amount)
+
+        # 社保公积金
+        social_total = agg(social_qs, 'amount')
+
+        # 合计
+        company_tax_total = personal_tax + corporate_tax + vat + social_total
 
         results.append({
             'company_id': company.id,
             'company_name': company.name,
-            # 发票税额
-            'invoice_input_tax': round(invoice_input_tax, 2),   # 进项税
-            'invoice_output_tax': round(invoice_output_tax, 2),  # 销项税
-            # 工资相关
-            'personal_income_tax': round(personal_tax, 2),       # 代扣个税（员工负担）
-            'social_housing_total': round(social_total, 2),     # 社保公积金合计（含个人代扣部分）
-            # 银行缴税
-            'bank_vat': round(bank_vat, 2),                     # 银行实时缴税（含增值税及附加）
-            # 合计
-            'company_tax_total': round(company_tax_total, 2),     # 公司税费合计（不含代扣个人）
+            'invoice_input_tax': round(invoice_input_tax, 2),
+            'invoice_output_tax': round(invoice_output_tax, 2),
+            'personal_income_tax': round(personal_tax, 2),        # 代扣个税
+            'corporate_income_tax': round(corporate_tax, 2),       # 企业所得税
+            'vat': round(vat, 2),                                  # 增值税
+            'social_housing_total': round(social_total, 2),        # 社保公积金
+            'other_tax': round(other_tax, 2),                       # 其他税费
+            'company_tax_total': round(company_tax_total, 2),
         })
         grand_input_tax += invoice_input_tax
         grand_output_tax += invoice_output_tax
         grand_personal_tax += personal_tax
-        grand_social_company += social_total
-        grand_bank_vat += bank_vat
+        grand_corporate_tax += corporate_tax
+        grand_vat += vat
+        grand_social += social_total
 
-    grand_company_total = grand_personal_tax + grand_social_company + grand_bank_vat
+    grand_company_total = grand_personal_tax + grand_corporate_tax + grand_vat + grand_social
 
     return Response({
         'report': 'tax_summary',
@@ -428,8 +458,9 @@ def tax_summary_report(request):
             'total_invoice_input_tax': round(grand_input_tax, 2),
             'total_invoice_output_tax': round(grand_output_tax, 2),
             'total_personal_income_tax': round(grand_personal_tax, 2),
-            'total_social_housing': round(grand_social_company, 2),
-            'total_bank_vat': round(grand_bank_vat, 2),
+            'total_corporate_income_tax': round(grand_corporate_tax, 2),
+            'total_vat': round(grand_vat, 2),
+            'total_social_housing': round(grand_social, 2),
             'grand_company_tax_total': round(grand_company_total, 2),
         }
     })
