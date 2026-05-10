@@ -15,6 +15,10 @@
     gap: 12px;
 }
 .batch-count { font-weight: 600; color: #1e40af; }
+#folderTree .cat-item { display: flex; align-items: center; }
+#folderTree .cat-item:hover .cat-actions { opacity: 1; }
+#folderTree .cat-actions { opacity: 0; transition: opacity 0.15s; margin-left: auto; }
+#folderTree .cat-actions button { padding: 1px 4px; font-size: 0.7rem; }
 </style>
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
@@ -37,8 +41,12 @@
 <div class="row">
     <div class="col-md-3">
         <div class="card">
-            <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-folder-s tree me-2"></i>文件夹</h6>
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="bi bi-folders me-2"></i>文件夹</h6>
+                <div class="d-flex gap-1">
+                    <button class="btn btn-sm btn-outline-primary" onclick="showCategoryModal(null)" title="新建分类"><i class="bi bi-plus"></i></button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentCategory()" id="btnDeleteCategory" title="删除当前分类" disabled><i class="bi bi-trash"></i></button>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush" id="folderTree">
@@ -74,7 +82,7 @@
                     <button class="btn btn-sm btn-danger" onclick="batchDeleteFiles()"><i class="bi bi-trash me-1"></i>批量删除</button>
                     <button class="btn btn-sm btn-secondary" onclick="clearSelection()"><i class="bi bi-x-lg me-1"></i>取消选择</button>
                 </div>
-                
+
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -163,11 +171,67 @@
     </div>
 </div>
 
+<!-- 分类管理Modal -->
+<div class="modal fade" id="categoryModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="categoryModalTitle"><i class="bi bi-folder-plus me-2"></i>新建分类</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editCategoryId">
+                <div class="mb-3">
+                    <label class="form-label">分类名称 <span class="text-danger">*</span></label>
+                    <input type="text" class="form-control" id="categoryName" placeholder="请输入分类名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveCategory()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 文件预览Modal（固定DOM，避免重复创建导致Bootstrap状态丢失） -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewTitle">文件预览</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="previewBody" style="text-align:center;background:#f5f5f5;min-height:400px;display:flex;align-items:center;justify-content:center;"></div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-primary" id="btnPreviewDownload"><i class="bi bi-download me-1"></i>下载</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 版本历史Modal -->
+<div class="modal fade" id="versionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="versionModalTitle">历史版本</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="versionListContainer">
+                <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
-var uploadModal;
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+var uploadModal, categoryModal, previewModal, versionModal;
 var allFiles = [];
 var allCategories = [];
 var allCompanies = [];
@@ -177,6 +241,15 @@ var selectedFile = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     uploadModal = new bootstrap.Modal(document.getElementById('uploadModal'));
+    categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+    previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
+    versionModal = new bootstrap.Modal(document.getElementById('versionModal'));
+
+    document.getElementById('btnPreviewDownload').addEventListener('click', function() {
+        var fileId = document.getElementById('previewBody').dataset.fileId;
+        if (fileId) downloadFile(fileId);
+    });
+
     loadCompanies();
     loadCategories();
     loadProjects();
@@ -188,7 +261,7 @@ async function loadContracts() {
     try {
         var response = await fetch('/api/crm/contracts/?page_size=500', { credentials: 'include' });
         var data = await response.json();
-        allContracts = data.results || data;
+        allContracts = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
         var select = document.getElementById('fileContract');
         select.innerHTML = '<option value="">无关联合同</option>';
         allContracts.forEach(function(c) {
@@ -203,7 +276,7 @@ async function loadProjects() {
     try {
         var response = await fetch('/api/tasks/projects/?page_size=200', { credentials: 'include' });
         var data = await response.json();
-        allProjects = data.results || data;
+        allProjects = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
         var select = document.getElementById('fileProject');
         select.innerHTML = '<option value="">无关联项目</option>';
         allProjects.forEach(function(p) {
@@ -218,8 +291,9 @@ async function loadCompanies() {
     try {
         var response = await fetch('/api/finance/companies/', { credentials: 'include' });
         var data = await response.json();
-        allCompanies = data.results || data;
-        
+        var companies = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
+        allCompanies = companies;
+
         var selects = ['companyFilter', 'fileCompany'];
         selects.forEach(function(selId) {
             var select = document.getElementById(selId);
@@ -239,8 +313,8 @@ async function loadCategories() {
     try {
         var response = await fetch('/api/files/categories/', { credentials: 'include' });
         var data = await response.json();
-        allCategories = data.results || data;
-        
+        allCategories = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
+
         var selects = ['categoryFilter', 'fileCategory'];
         selects.forEach(function(selId) {
             var select = document.getElementById(selId);
@@ -251,7 +325,7 @@ async function loadCategories() {
                 select.innerHTML += '<option value="' + cat.id + '">' + escapeHtml(cat.name) + '</option>';
             });
         });
-        
+
         renderFolderTree();
     } catch (error) {
         console.error('加载分类失败:', error);
@@ -260,22 +334,28 @@ async function loadCategories() {
 
 function renderFolderTree() {
     var container = document.getElementById('folderTree');
+    var activeCatId = window.currentCategory;
+
+    var html = '<a href="#" class="list-group-item list-group-item-action ' +
+               (!activeCatId ? 'active' : '') + '" onclick="setCategory(null); return false;">' +
+               '<i class="bi bi-folder2-open me-2"></i>全部文件</a>';
+
     if (allCategories.length === 0) {
-        container.innerHTML = '<div class="text-center text-muted py-3">暂无分类</div>';
+        container.innerHTML = html + '<div class="text-center text-muted py-3" style="font-size:0.8rem;">暂无分类</div>';
         return;
     }
-    
-    var html = '<a href="#" class="list-group-item list-group-item-action ' + 
-               (!window.currentCategory ? 'active' : '') + '" onclick="setCategory(null); return false;">' +
-               '<i class="bi bi-folder2-open me-2"></i>全部文件</a>';
-    
+
     allCategories.forEach(function(cat) {
-        var isActive = window.currentCategory == cat.id;
-        html += '<a href="#" class="list-group-item list-group-item-action ' + (isActive ? 'active' : '') + '" ' +
-                'onclick="setCategory(' + cat.id + '); return false;">' +
-                '<i class="bi bi-folder me-2"></i>' + escapeHtml(cat.name) + '</a>';
+        var isActive = activeCatId == cat.id;
+        html += '<div class="list-group-item list-group-item-action ' + (isActive ? 'active' : '') + ' cat-item">' +
+                 '<a href="#" onclick="setCategory(' + cat.id + '); return false;" style="flex:1;text-decoration:none;color:inherit;">' +
+                 '<i class="bi bi-folder me-2"></i>' + escapeHtml(cat.name) + '</a>' +
+                 '<div class="cat-actions">' +
+                 '<button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); showCategoryModal(' + cat.id + ')" title="编辑"><i class="bi bi-pencil"></i></button> ' +
+                 '<button class="btn btn-sm btn-outline-danger" onclick="event.stopPropagation(); confirmDeleteCategory(' + cat.id + ')" title="删除"><i class="bi bi-trash"></i></button>' +
+                 '</div></div>';
     });
-    
+
     container.innerHTML = html;
 }
 
@@ -284,45 +364,113 @@ function setCategory(catId) {
     document.getElementById('categoryFilter').value = catId || '';
     renderFolderTree();
     loadFiles();
+    document.getElementById('btnDeleteCategory').disabled = !catId;
 }
 
+// ---------- 分类管理 ----------
+function showCategoryModal(catId) {
+    document.getElementById('editCategoryId').value = catId || '';
+    document.getElementById('categoryName').value = '';
+    if (catId) {
+        var cat = allCategories.find(function(c) { return c.id == catId; });
+        document.getElementById('categoryModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑分类';
+        document.getElementById('categoryName').value = cat ? cat.name : '';
+    } else {
+        document.getElementById('categoryModalTitle').innerHTML = '<i class="bi bi-folder-plus me-2"></i>新建分类';
+    }
+    categoryModal.show();
+}
+
+async function saveCategory() {
+    var catId = document.getElementById('editCategoryId').value;
+    var name = document.getElementById('categoryName').value.trim();
+    if (!name) { showToast('请输入分类名称', 'warning'); return; }
+
+    var method = catId ? 'PUT' : 'POST';
+    var url = catId ? '/api/files/categories/' + catId + '/' : '/api/files/categories/';
+
+    try {
+        var resp = await fetch(url, {
+            method: method,
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+            body: JSON.stringify({ name: name })
+        });
+        if (!resp.ok) throw new Error('保存失败');
+        showToast(catId ? '分类已更新' : '分类已创建', 'success');
+        categoryModal.hide();
+        await loadCategories();
+        if (catId) setCategory(parseInt(catId));
+    } catch(e) {
+        showToast('保存失败', 'error');
+    }
+}
+
+function confirmDeleteCategory(catId) {
+    if (!confirm('确定要删除该分类吗？该分类下的文件将变为"未分类"。')) return;
+    doDeleteCategory(catId);
+}
+
+async function doDeleteCategory(catId) {
+    try {
+        var resp = await fetch('/api/files/categories/' + catId + '/', {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: { 'X-CSRFToken': getCookie('csrftoken') }
+        });
+        if (!resp.ok) throw new Error('删除失败');
+        showToast('分类已删除', 'success');
+        if (window.currentCategory == catId) setCategory(null);
+        await loadCategories();
+    } catch(e) {
+        showToast('删除失败', 'error');
+    }
+}
+
+async function deleteCurrentCategory() {
+    if (!window.currentCategory) return;
+    confirmDeleteCategory(window.currentCategory);
+}
+
+// ---------- 文件列表 ----------
 async function loadFiles() {
     try {
         var companyId = document.getElementById('companyFilter').value;
         var categoryId = document.getElementById('categoryFilter').value || window.currentCategory;
         var search = document.getElementById('searchFile').value.trim();
         var sortBy = document.getElementById('sortBy').value;
-        
+
         var url = '/api/files/files/?';
         if (companyId) url += 'company=' + companyId + '&';
         if (categoryId) url += 'category=' + categoryId + '&';
         if (search) url += 'search=' + encodeURIComponent(search) + '&';
         url += 'ordering=' + sortBy + '&page_size=100';
-        
+
         var response = await fetch(url, { credentials: 'include' });
         var data = await response.json();
-        allFiles = data.results || data;
+        var result = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
+        allFiles = result;
         renderFiles();
     } catch (error) {
         console.error('加载文件失败:', error);
-        document.getElementById('fileTableBody').innerHTML = 
-            '<tr><td colspan="9" class="text-center text-muted py-4">加载失败</td></tr>';
+        document.getElementById('fileTableBody').innerHTML =
+            '<tr><td colspan="10" class="text-center text-muted py-4">加载失败</td></tr>';
     }
 }
 
 function renderFiles() {
     var tbody = document.getElementById('fileTableBody');
-    
+
         if (allFiles.length === 0) {
         tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无文件</td></tr>';
         return;
     }
-    
+
     var categoryMap = {};
     allCategories.forEach(function(c) { categoryMap[c.id] = c.name; });
     var companyMap = {};
     allCompanies.forEach(function(c) { companyMap[c.id] = c.name; });
-    
+
     var html = '';
     allFiles.forEach(function(f) {
         var icon = getFileIcon(f.file_name);
@@ -346,7 +494,7 @@ function renderFiles() {
         html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteFile(' + f.id + ')" data-perm="file.delete"><i class="bi bi-trash"></i></button>';
         html += '</td></tr>';
     });
-    
+
     tbody.innerHTML = html;
 }
 
@@ -389,7 +537,6 @@ function updateBatchBar() {
     } else {
         toolbar.style.display = 'none';
     }
-    // sync selectAll checkbox
     var total = document.querySelectorAll('.file-checkbox').length;
     document.getElementById('selectAllFiles').checked = selected.length === total && total > 0;
 }
@@ -443,7 +590,7 @@ async function uploadFile() {
         showToast('请选择文件', 'warning');
         return;
     }
-    
+
     var category = document.getElementById('fileCategory').value;
     var company = document.getElementById('fileCompany').value;
     var project = document.getElementById('fileProject').value;
@@ -468,7 +615,7 @@ async function uploadFile() {
     if (contract) formData.append('contract', contract);
     if (remark) formData.append('remark', remark);
     if (alias) formData.append('alias', alias);
-    
+
     try {
         var xhr = new XMLHttpRequest();
         xhr.upload.onprogress = function(e) {
@@ -477,24 +624,21 @@ async function uploadFile() {
                 progress.querySelector('.progress-bar').style.width = percent + '%';
             }
         };
-        
+
         xhr.onload = function() {
             if (xhr.status === 201 || xhr.status === 200) {
                 showToast('文件上传成功', 'success');
                 uploadModal.hide();
-                document.getElementById('uploadModal').addEventListener('hidden.bs.modal', function handler() {
-                    document.getElementById('uploadModal').removeEventListener('hidden.bs.modal', handler);
-                    loadFiles();
-                });
+                setTimeout(function() { loadFiles(); }, 200);
             } else {
                 throw new Error('上传失败');
             }
         };
-        
+
         xhr.onerror = function() {
             showToast('上传失败', 'error');
         };
-        
+
         xhr.open('POST', '/api/files/files/');
         xhr.setRequestHeader('X-CSRFToken', getCookie('csrftoken'));
         xhr.send(formData);
@@ -519,42 +663,37 @@ async function previewFile(fileId) {
         var isImage = ['jpg','jpeg','png','gif','bmp','webp'].includes(ext);
         var isPdf = ext === 'pdf';
 
-        // Build preview modal
-        var previewBody = document.getElementById('previewBody');
-        if (!previewBody) {
-            var modal = document.createElement('div');
-            modal.id = 'previewModal';
-            modal.className = 'modal fade';
-            modal.tabIndex = -1;
-            modal.innerHTML = `
-                <div class="modal-dialog modal-xl modal-fullscreen-sm-down">
-                    <div class="modal-content">
-                        <div class="modal-header">
-                            <h5 class="modal-title" id="previewTitle">文件预览</h5>
-                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                        </div>
-                        <div class="modal-body" id="previewBody" style="text-align:center;background:#f5f5f5;min-height:400px;display:flex;align-items:center;justify-content:center;"></div>
-                        <div class="modal-footer">
-                            <button class="btn btn-outline-primary" onclick="downloadFile(${fileId})"><i class="bi bi-download me-1"></i>下载</button>
-                        </div>
-                    </div>
-                </div>`;
-            document.body.appendChild(modal);
-            window._previewModal = new bootstrap.Modal(document.getElementById('previewModal'));
-        }
-
         document.getElementById('previewTitle').textContent = f.file_name || '文件预览';
         var body = document.getElementById('previewBody');
+        body.dataset.fileId = fileId;
 
         if (isImage) {
             body.innerHTML = '<img src="' + url + '" style="max-width:100%;max-height:75vh;" />';
         } else if (isPdf) {
-            body.innerHTML = '<iframe src="' + url + '" style="width:100%;height:75vh;border:none;"></iframe>';
+            body.innerHTML = '<div id="pdfContainer" style="width:100%;height:75vh;overflow:auto;background:#525659;text-align:center;"><div id="pdfLoading" style="color:#fff;padding:40px;"><div class="spinner-border text-light"></div><p style="margin-top:12px;">正在加载 PDF...</p></div><canvas id="pdfCanvas" style="display:none;margin:0 auto;"></canvas><div id="pdfError" style="display:none;color:#fff;padding:40px;text-align:center;"><i class="bi bi-exclamation-triangle" style="font-size:3rem;"></i><p style="margin-top:12px;">PDF 加载失败，可能是文件损坏或网络问题</p><a href="' + url + '" target="_blank" class="btn btn-light mt-2">直接下载查看</a></div></div>';
+            var loadingEl = document.getElementById('pdfLoading');
+            var canvasEl = document.getElementById('pdfCanvas');
+            var errorEl = document.getElementById('pdfError');
+            pdfjsLib.getDocument(url).promise.then(function(pdf) {
+                loadingEl.style.display = 'none';
+                canvasEl.style.display = 'block';
+                pdf.getPage(1).then(function(page) {
+                    var scale = 1.2;
+                    var viewport = page.getViewport({scale: scale});
+                    canvasEl.width = viewport.width;
+                    canvasEl.height = viewport.height;
+                    page.render({canvasContext: canvasEl.getContext('2d'), viewport: viewport});
+                });
+            }).catch(function(err) {
+                loadingEl.style.display = 'none';
+                errorEl.style.display = 'block';
+                console.error('PDF load error:', err);
+            });
         } else {
             body.innerHTML = '<div style="text-align:center;padding:60px 20px;"><i class="bi bi-file-earmark" style="font-size:4rem;color:#ccc;"></i><p style="margin-top:16px;color:#666;">此文件类型不支持在线预览</p><button class="btn btn-primary mt-3" onclick="downloadFile(' + fileId + ')"><i class="bi bi-download me-1"></i>下载文件</button></div>';
         }
 
-        window._previewModal.show();
+        previewModal.show();
     } catch(e) {
         showToast('预览失败: ' + e.message, 'danger');
     }
@@ -562,13 +701,13 @@ async function previewFile(fileId) {
 
 async function deleteFile(fileId) {
     if (!confirm('确定要删除此文件吗？')) return;
-    
+
     try {
         var response = await fetch('/api/files/files/' + fileId + '/', {
             method: 'DELETE',
             credentials: 'include'
         });
-        
+
         if (!response.ok) throw new Error('删除失败');
         showToast('文件已删除', 'success');
         loadFiles();
@@ -593,7 +732,6 @@ async function showFileVersions(fileId) {
         container.innerHTML = '<div class="text-center py-3"><div class="spinner-border text-primary spinner-border-sm"></div></div>';
         document.getElementById('versionModalTitle').textContent = '历史版本 - ' + current.file_name;
 
-        // Fetch all versions of same file through previous_file chain
         var versions = [current];
         var vid = current.previous_version_id;
         while (vid) {
@@ -622,9 +760,7 @@ async function showFileVersions(fileId) {
             container.innerHTML = html;
         }
 
-        var modalEl = document.getElementById('versionModal');
-        var modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        versionModal.show();
     } catch(e) {
         console.error(e);
     }
@@ -643,26 +779,5 @@ function getCookie(name) {
     if (parts.length === 2) return parts.pop().split(';').shift();
     return '';
 }
-
-// 版本历史 Modal
-(function() {
-    var modal = document.createElement('div');
-    modal.id = 'versionModal';
-    modal.className = 'modal fade';
-    modal.tabIndex = -1;
-    modal.innerHTML = `
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="versionModalTitle">历史版本</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body" id="versionListContainer">
-                    <div class="text-center py-3"><div class="spinner-border text-primary"></div></div>
-                </div>
-            </div>
-        </div>`;
-    document.body.appendChild(modal);
-})();
 </script>
 {% endblock %}
