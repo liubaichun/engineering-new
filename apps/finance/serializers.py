@@ -335,6 +335,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
     """发票序列化器"""
     company_name = serializers.CharField(source='company.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
+    project_id = serializers.IntegerField(source='project.id', read_only=True, allow_null=True)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     invoice_type_display = serializers.CharField(source='get_invoice_type_display', read_only=True)
@@ -346,7 +347,7 @@ class InvoiceSerializer(serializers.ModelSerializer):
             'id', 'invoice_no', 'type', 'type_display', 'amount',
             'invoice_type', 'invoice_type_display', 'tax_rate', 'tax_amount',
             'counterparty', 'is_credited', 'is_credited_display',
-            'project', 'project_name', 'company', 'company_name',
+            'project', 'project_id', 'project_name', 'company', 'company_name',
             'status', 'status_display', 'issue_date', 'due_date',
             'payment_date', 'matched_bank_statement',
             'remarks', 'created_at', 'updated_at'
