@@ -11,6 +11,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 8001
 
-CMD ["gunicorn", "--bind", ":8080", "--workers", "2", "config.wsgi:application"]
+ENTRYPOINT ["/entrypoint.sh"]
