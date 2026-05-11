@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('core', '0013_add_auditlog_company_id'),
-        ('finance', '0009_add_company_id_to_items'),
+        ('finance', '0014_company_bank_account_company_bank_name_and_more'),
     ]
 
     operations = [

@@ -9,7 +9,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('crm', '0024_add_opportunity'),
-        ('finance', '0009_add_company_id_to_items'),
+        ('finance', '0014_company_bank_account_company_bank_name_and_more'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
