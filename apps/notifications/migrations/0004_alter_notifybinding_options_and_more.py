@@ -27,11 +27,7 @@ class Migration(migrations.Migration):
             name='updated_at',
             field=models.DateTimeField(auto_now=True, verbose_name='更新时间'),
         ),
-        migrations.AddField(
-            model_name='notifyapp',
-            name='company',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='notify_apps', to='finance.company', verbose_name='所属公司'),
-        ),
+        # Note: NotifyApp.company is already in 0001's CreateModel — NOT added here
         # AlterField — confirms field state (no-op from Django's perspective)
         migrations.AlterField(
             model_name='notificationlog',
