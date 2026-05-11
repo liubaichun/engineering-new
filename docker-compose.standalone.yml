@@ -1,7 +1,14 @@
-# 企业信息化管理系统 GREEN — 买断版 Docker 容器编排
+# 企业信息化管理系统 GREEN — 买断版 Docker 容器编排 (v2.2.0)
+#
 # 使用方式：
 #   1. 复制 .env.standalone.template 为 .env，修改其中的值
-#   2. 运行 docker-compose -f docker-compose.standalone.yml up -d
+#   2. 运行: docker-compose -f docker-compose.standalone.yml up -d
+#
+# 停止：
+#   docker-compose -f docker-compose.standalone.yml down
+#
+# 查看日志：
+#   docker-compose -f docker-compose.standalone.yml logs -f web
 
 services:
   db:
@@ -9,29 +16,33 @@ services:
     container_name: green_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: engineering
-      POSTGRES_USER: engineering
-      # POSTGRES_PASSWORD 在 .env 中配置
+      POSTGRES_DB: ${DB_NAME:-engineering}
+      POSTGRES_USER: ${DB_USER:-engineering}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-engineering_secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U engineering -d engineering"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-engineering} -d ${DB_NAME:-engineering}"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - green_net
 
   redis:
     image: redis:7-alpine
     container_name: green_redis
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redis_secret}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis_secret}", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - green_net
 
   web:
     build:
@@ -39,21 +50,6 @@ services:
       dockerfile: Dockerfile.standalone
     container_name: green_web
     restart: unless-stopped
-    command: >
-      sh -c "
-        python manage.py migrate --noinput &&
-        python manage.py collectstatic --noinput &&
-        gunicorn config.wsgi:application
-          --bind 0.0.0.0:8001
-          --workers 2
-          --log-level info
-          --log-file /var/log/gunicorn.log
-          --access-logfile -
-          --error-logfile -
-          --chdir /app
-      "
-    ports:
-      - "8001:8001"
     depends_on:
       db:
         condition: service_healthy
@@ -61,29 +57,51 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    environment:
+      - DB_ENGINE=django.db.backends.postgresql
+      - PG_HOST=db
+      - PG_PORT=5432
+      - PG_DATABASE=${PG_DATABASE:-engineering}
+      - PG_USER=${PG_USER:-engineering}
+      - PG_PASSWORD=${PG_PASSWORD:-engineering_secret}
     volumes:
       - static_files:/app/staticfiles
+      - media_files:/app/media
       - ./logs:/var/log
+    ports:
+      - "${APP_PORT:-8001}:8001"
+    networks:
+      - green_net
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/api/schema/ || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/api/core/health/ || curl -sf http://localhost:8001/ || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 60s
 
   nginx:
     image: nginx:1.25-alpine
     container_name: green_nginx
     restart: unless-stopped
+    depends_on:
+      - web
     ports:
-      - "80:80"
-      - "443:443"
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
     volumes:
       - ./nginx.standalone.conf:/etc/nginx/conf.d/default.conf:ro
       - static_files:/staticfiles:ro
-    depends_on:
-      - web
+      - media_files:/media:ro
+      - ./logs/nginx:/var/log/nginx
+    networks:
+      - green_net
 
 volumes:
   postgres_data:
   redis_data:
   static_files:
+  media_files:
+
+networks:
+  green_net:
+    driver: bridge
