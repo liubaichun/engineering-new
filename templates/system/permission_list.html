@@ -259,6 +259,9 @@ function showPermissionModal() {
     document.getElementById('permCategory').value = currentCategory || '';
     document.getElementById('permDesc').value = '';
     document.getElementById('permissionModalTitle').innerHTML = '<i class="bi bi-plus-circle me-2"></i>新建权限';
+    if (!permissionModal) {
+        permissionModal = new bootstrap.Modal(document.getElementById('permissionModal'));
+    }
     permissionModal.show();
 }
 
