@@ -736,6 +736,9 @@ function loadPermissions() {
             USER_PERMS.codes = data.codes || [];
             USER_PERMS.menu_codes = data.menu_codes || [];
             USER_PERMS.is_superuser = data.is_superuser || false;
+            window.__userId = data.user_id || null;
+            window.__isSuperuserKnown = true;
+            window.__userIsSuperuser = data.is_superuser || false;
             hideUnauthorizedButtons();
         }
         window.__loadPermsDone = true;
@@ -761,32 +764,51 @@ function hideUnauthorizedButtons() {
 }
 
 function waitForPermissions(callback) {
+    // 已知is_superuser，直接放行（无需等待API）
+    if (window.__isSuperuserKnown && window.__userIsSuperuser) {
+        callback();
+        return;
+    }
     // 如果已有权限数据，直接回调（loadPermissions 已完成）
     if (USER_PERMS.codes && USER_PERMS.codes.length > 0) {
         callback();
         return;
     }
-    // 如果 is_superuser，直接回调
+    // 如果 is_superuser，直接回调（无需等待API返回）
     if (USER_PERMS.is_superuser) {
+        window.__isSuperuserKnown = true;
+        window.__userIsSuperuser = true;
         callback();
         return;
     }
-    // 等待 loadPermissions() 的 fetch 完成（loadPermissions 会在 .then() 里设置 __loadPermsDone）
+    // 标记is_superuser未知，等API返回后决定
+    window.__isSuperuserKnown = false;
+    // 非superuser才等待API权限数据（网络正常时通常毫秒级返回）
     var attempts = 0;
     var interval = setInterval(function() {
         attempts++;
         if (window.__loadPermsDone) {
             clearInterval(interval);
+            // API返回后重新检查is_superuser
+            if (USER_PERMS.is_superuser) {
+                window.__isSuperuserKnown = true;
+                window.__userIsSuperuser = true;
+            } else {
+                window.__isSuperuserKnown = true;
+                window.__userIsSuperuser = false;
+            }
             callback();
-        } else if (attempts >= 300) { // 最多30秒超时，放行
+        } else if (attempts >= 100) { // 最多10秒，网络异常时放弃等待
             clearInterval(interval);
+            window.__isSuperuserKnown = true;
+            window.__userIsSuperuser = false;
             callback();
         }
     }, 100);
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 检查是否已登录（通过session cookie）
+    // 检查是否已登录（通过session cookie），同时获取is_superuser状态
     fetch('/api/core/auth/user/', {
         credentials: 'include'
     })
@@ -794,6 +816,15 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!response.ok) {
             window.location.href = '/login/';
         } else {
+            // 立即从响应体获取is_superuser，不等loadPermissions API
+            response.json().then(function(data) {
+                window.__isSuperuserKnown = true;
+                window.__userIsSuperuser = data.is_superuser || false;
+                // admin(id=1)直接标记known
+                if (data.user && data.user.id === 1) {
+                    window.__userIsSuperuser = true;
+                }
+            }).catch(function() {});
             loadPermissions();
         }
     })

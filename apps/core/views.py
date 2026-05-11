@@ -305,7 +305,8 @@ class CurrentUserView(APIView):
         serializer = UserSerializer(request.user)
         return Response({
             'status': 'success',
-            'user': serializer.data
+            'user': serializer.data,
+            'is_superuser': request.user.is_superuser,
         }, status=status.HTTP_200_OK)
 
     def put(self, request):
@@ -387,6 +388,7 @@ class MyPermissionsView(APIView):
         return Response({
             'status': 'success',
             'codes': codes,
+            'user_id': user.id,
             'is_superuser': user.is_superuser,
         }, status=status.HTTP_200_OK)
 

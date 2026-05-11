@@ -274,6 +274,9 @@ function editPermission(id) {
     document.getElementById('permCategory').value = perm.category || '';
     document.getElementById('permDesc').value = perm.description || '';
     document.getElementById('permissionModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑权限';
+    if (!permissionModal) {
+        permissionModal = new bootstrap.Modal(document.getElementById('permissionModal'));
+    }
     permissionModal.show();
 }
 
