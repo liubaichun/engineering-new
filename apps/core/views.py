@@ -306,6 +306,7 @@ class CurrentUserView(APIView):
         return Response({
             'status': 'success',
             'user': serializer.data,
+            'user_id': request.user.id,
             'is_superuser': request.user.is_superuser,
         }, status=status.HTTP_200_OK)
 
