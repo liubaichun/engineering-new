@@ -3,6 +3,8 @@ set -e
 
 echo "[ENTRYPOINT] Starting GREEN ERP v2.2.0..."
 
+export DJANGO_SETTINGS_MODULE=config.settings
+
 # 等待数据库就绪
 echo "[ENTRYPOINT] Waiting for database..."
 until python -c "import django; django.setup(); from django.db import connection; connection.ensure_connection()" 2>/dev/null; do

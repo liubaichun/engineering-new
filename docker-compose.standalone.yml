@@ -16,13 +16,13 @@ services:
     container_name: green_db
     restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-engineering}
-      POSTGRES_USER: ${DB_USER:-engineering}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-engineering_secret}
+      POSTGRES_DB: ${PG_DATABASE:-engineering_new}
+      POSTGRES_USER: ${PG_USER:-engineering}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-engineering_secret}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-engineering} -d ${DB_NAME:-engineering}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_USER:-engineering} -d ${PG_DATABASE:-engineering_new}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -58,12 +58,8 @@ services:
     env_file:
       - .env
     environment:
-      - DB_ENGINE=django.db.backends.postgresql
       - PG_HOST=db
       - PG_PORT=5432
-      - PG_DATABASE=${PG_DATABASE:-engineering}
-      - PG_USER=${PG_USER:-engineering}
-      - PG_PASSWORD=${PG_PASSWORD:-engineering_secret}
     volumes:
       - static_files:/app/staticfiles
       - media_files:/app/media

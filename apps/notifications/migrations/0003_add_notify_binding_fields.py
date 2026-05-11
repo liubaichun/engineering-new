@@ -1,8 +1,10 @@
 # Generated manually — aligns model state with actual DB structure for notify_binding
-# DB reality: notify_binding has notify_app_id FK (NOT channel_id)
-# Model has: channel FK + platform + receive_all + unique(user, channel, platform_open_id)
-# This migration adds DB columns channel_id, platform, receive_all + fixes unique_together
+# notify_binding table was created by 0001_add_notify_app_binding (CreateModel)
+# This migration adds DB columns that were NOT in the original 0001 model:
+#   channel_id FK, platform, receive_all
+from django.conf import settings
 from django.db import migrations, models
+import django.db.models.deletion
 
 
 class Migration(migrations.Migration):
@@ -12,21 +14,28 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunSQL(
-            sql="""
-            ALTER TABLE notify_binding ADD COLUMN channel_id bigint;
-            ALTER TABLE notify_binding ADD COLUMN platform varchar(20) DEFAULT 'feishu' NOT NULL;
-            ALTER TABLE notify_binding ADD COLUMN receive_all boolean DEFAULT true NOT NULL;
-            """,
-            reverse_sql="""
-            ALTER TABLE notify_binding DROP COLUMN IF EXISTS receive_all;
-            ALTER TABLE notify_binding DROP COLUMN IF EXISTS platform;
-            ALTER TABLE notify_binding DROP COLUMN IF EXISTS channel_id;
-            """,
+        migrations.AddField(
+            model_name='notifybinding',
+            name='channel',
+            field=models.ForeignKey(
+                blank=True, null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name='bindings',
+                to='notifications.notificationchannel',
+                verbose_name='推送渠道'
+            ),
         ),
-        # unique_together in DB is (user_id, notify_app_id); model should reflect that
-        migrations.AlterUniqueTogether(
-            name='notifybinding',
-            unique_together={('user', 'notify_app')},
+        migrations.AddField(
+            model_name='notifybinding',
+            name='platform',
+            field=models.CharField(
+                choices=[('feishu', '飞书'), ('wecom', '企业微信'), ('dingtalk', '钉钉'), ('email', '邮件')],
+                default='feishu', max_length=20, verbose_name='平台'
+            ),
+        ),
+        migrations.AddField(
+            model_name='notifybinding',
+            name='receive_all',
+            field=models.BooleanField(default=True, verbose_name='接收全部通知'),
         ),
     ]
