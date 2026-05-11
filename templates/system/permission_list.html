@@ -175,21 +175,20 @@ function getCategoryDisplay(cat) {
 }
 
 function buildCategoryTree() {
-    // 使用小写key归类，解决 crm/CRM、approval/Approval 等大小写重复问题
-    var catMap = {};       // key: 小写分类名 -> { display: 原始显示名, count: 数量 }
+    // 用中文显示名做分组key，解决 approval+审批管理、crm+CRM 等映射到同一中文名的重复问题
+    var catMap = {};  // key: 中文显示名 -> { display: 中文名, count: 数量 }
     allPermissions.forEach(function(p) {
         var cat = p.category || '其他';
-        var key = cat.toLowerCase();
-        if (!catMap[key]) catMap[key] = { display: cat, count: 0 };
-        catMap[key].count++;
+        var displayName = getCategoryDisplay(cat);  // 统一转中文
+        if (!catMap[displayName]) catMap[displayName] = { display: displayName, count: 0 };
+        catMap[displayName].count++;
     });
 
     var cats = Object.keys(catMap).sort();
     var container = document.getElementById('categoryTree');
 
     // 填充datalist（按中文显示名排序）
-    var uniqueDisplays = [...new Set(Object.values(catMap).map(function(v){ return getCategoryDisplay(v.display); }))].sort();
-    var datalistHtml = uniqueDisplays.map(function(c) { return '<option value="' + escapeHtml(c) + '">'; }).join('');
+    var datalistHtml = cats.map(function(c) { return '<option value="' + escapeHtml(c) + '">'; }).join('');
     document.getElementById('permCategoryDatalist').innerHTML = datalistHtml;
 
     var html = '<div class="list-group list-group-flush">';
@@ -198,11 +197,10 @@ function buildCategoryTree() {
 
     cats.forEach(function(cat) {
         var info = catMap[cat];
-        var displayName = getCategoryDisplay(info.display);
         var catId = 'cat-' + escapeHtml(cat).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-        var activeCls = currentCategory.toLowerCase() === cat ? 'active' : '';
+        var activeCls = currentCategory.toLowerCase() === cat.toLowerCase() ? 'active' : '';
         html += '<a href="javascript:filterByCategory(\'' + escapeHtml(info.display).replace(/'/g, "\\'") + '\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ' + activeCls + '" id="' + catId + '" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
-        html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(displayName) + '</span><span class="badge bg-secondary rounded-pill">' + info.count + '</span></a>';
+        html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(info.display) + '</span><span class="badge bg-secondary rounded-pill">' + info.count + '</span></a>';
     });
 
     html += '</div>';
@@ -225,10 +223,10 @@ function filterByCategory(category) {
     renderPermissions();
 }
 
-// 大小写不敏感的分类比较
+// 分类比较（统一中文对比）
 function categoryMatches(pCat, filterCat) {
     if (!filterCat) return true;
-    return (pCat || '其他').toLowerCase() === filterCat.toLowerCase();
+    return getCategoryDisplay(pCat) === filterCat;
 }
 
 function filterPermissions() {
@@ -256,19 +254,18 @@ function renderPermissions() {
         });
     }
 
-    var grouped = {};  // key: 小写分类 -> { display: 原始名, items: [...] }
+    var grouped = {};  // key: 中文显示名 -> { display: 中文名, items: [...] }
     filtered.forEach(function(p) {
         var cat = p.category || '其他';
-        var key = cat.toLowerCase();
-        if (!grouped[key]) grouped[key] = { display: cat, items: [] };
-        grouped[key].items.push(p);
+        var displayName = getCategoryDisplay(cat);
+        if (!grouped[displayName]) grouped[displayName] = { display: displayName, items: [] };
+        grouped[displayName].items.push(p);
     });
 
     var html = '';
     for (var cat in grouped) {
         var info = grouped[cat];
-        var displayName = getCategoryDisplay(info.display);
-        html += '<tr class="table-light"><td colspan="6"><strong><i class="bi bi-folder me-1"></i>' + escapeHtml(displayName) + '</strong> <span class="badge bg-secondary ms-1">' + info.items.length + '</span></td></tr>';
+        html += '<tr class="table-light"><td colspan="6"><strong><i class="bi bi-folder me-1"></i>' + escapeHtml(info.display) + '</strong> <span class="badge bg-secondary ms-1">' + info.items.length + '</span></td></tr>';
         info.items.forEach(function(p) {
             var desc = p.description ? '<span title="' + escapeHtml(p.description) + '">' + escapeHtml(p.description) + '</span>' : '<span class="text-muted">-</span>';
             html += '<tr>';
