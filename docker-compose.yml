@@ -1,19 +1,74 @@
-version: '3.8'
-
 services:
   web:
-    build: .
+    image: green-erp:test
+    container_name: green_web
+    working_dir: /app
+    volumes:
+      - /root/engineering-new:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
     ports:
-      - "8001:8080"
+      - "8001:8001"
     environment:
-      - POSTGRES_DB=engineering
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=engineering_new
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DEBUG=False
+      - ALLOWED_HOSTS=43.156.139.37,localhost,127.0.0.1
+      - DJANGO_SETTINGS_MODULE=config.settings
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    entrypoint: ["/bin/bash", "-c"]
+    command: ["python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:8001 --workers 2 --timeout 120 --log-level info --log-file /var/log/gunicorn.log --access-logfile /var/log/gunicorn_access.log --error-logfile /var/log/gunicorn_error.log"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: green_nginx
+    volumes:
+      - /root/engineering-new/nginx.conf:/etc/nginx/nginx.conf:ro
+      - static_volume:/static
+      - media_volume:/media
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - web
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: green_db
+    environment:
+      - POSTGRES_DB=engineering_new
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_HOST=10.3.0.10
-      - POSTGRES_PORT=5432
-      - DEBUG=True
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
-      - .:/app
-    command: gunicorn --bind :8080 --workers 2 config.wsgi:application
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: green_redis
+    restart: unless-stopped
+
+volumes:
+  static_volume:
+  media_volume:
+  postgres_data:

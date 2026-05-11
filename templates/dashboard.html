@@ -439,13 +439,18 @@ async function loadApprovalStats() {
         } catch(e) {}
     }
 
-    document.getElementById('statPendingApprovals').textContent = pendingApprovals;
-    document.getElementById('statRunningApprovals').textContent = pendingApprovals;
-    document.getElementById('statApprovedCount').textContent = thisMonthApproved;
-    document.getElementById('statRejectedCount').textContent = thisMonthRejected;
-    document.getElementById('statTotalApprovals').textContent = thisMonthTotal;
+    // 安全写入统计值，防止 API 超时后元素未找到导致 JS 崩溃
+    const setStat = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = value;
+    };
+    setStat('statPendingApprovals', pendingApprovals);
+    setStat('statRunningApprovals', pendingApprovals);
+    setStat('statApprovedCount', thisMonthApproved);
+    setStat('statRejectedCount', thisMonthRejected);
+    setStat('statTotalApprovals', thisMonthTotal);
     const rate = thisMonthTotal > 0 ? Math.round((thisMonthApproved / thisMonthTotal) * 100) : 0;
-    document.getElementById('statApprovalRate').textContent = rate;
+    setStat('statApprovalRate', rate);
 
     const alertBadge = document.getElementById('alertCountBadge');
     if (alertBadge && unreadCount > 0) {

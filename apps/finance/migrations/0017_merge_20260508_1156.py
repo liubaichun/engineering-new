@@ -6,7 +6,7 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('finance', '0011_bank_statement_extend_fields'),
+        ('finance', '0015_bank_statement'),
         ('finance', '0016_bank_statement_往来_fields'),
     ]
 

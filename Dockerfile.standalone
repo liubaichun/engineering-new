@@ -1,4 +1,4 @@
-# 企业信息化管理系统 GREEN — 买断版 Dockerfile
+# 企业信息化管理系统 GREEN — 买断版 Dockerfile (v2.2.0)
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -11,14 +11,24 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# 先安装依赖
+# 安装依赖（离线优先，有外网则直接装）
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN if [ -d /tmp/pkgs ] && [ "$(ls -A /tmp/pkgs/*.whl 2>/dev/null)" ]; then \
+        pip install --no-cache-dir /tmp/pkgs/*.whl; \
+    else \
+        pip install --no-cache-dir -r requirements.txt; \
+    fi
 
-# 复制代码（不在构建时暴露 .env）
+# 复制代码（.env 不在构建上下文，会通过 env_file 传入）
 COPY . .
 
-RUN chmod +x /app/start.sh 2>/dev/null || true
-
-# 预收集静态文件（运行时再做，这里只确保目录存在）
+# 预创建必要目录
 RUN mkdir -p /app/staticfiles /app/media /var/log
+
+# 启动脚本
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+EXPOSE 8001
+
+ENTRYPOINT ["/entrypoint.sh"]

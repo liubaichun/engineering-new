@@ -1,15 +1,16 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1 \
+    PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple \
+    PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn
 
-# 只从本地 wheel 安装（构建环境无外网）
-COPY packages/*.whl /tmp/pkgs/
-RUN pip install --no-cache-dir /tmp/pkgs/*.whl
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 8001
 
-CMD ["gunicorn", "--bind", ":8080", "--workers", "2", "config.wsgi:application"]
+ENTRYPOINT ["/entrypoint.sh"]
