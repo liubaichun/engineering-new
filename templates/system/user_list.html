@@ -288,12 +288,12 @@ function renderUsers() {
 
         if (status === 'pending') {
             // 待审批用户：显示批准和拒绝按钮
-            html += '<button class="btn btn-sm btn-success me-1" onclick="approveUser(' + user.id + ')"><i class="bi bi-check-lg"></i> 批准</button>';
-            html += '<button class="btn btn-sm btn-outline-danger me-1" onclick="rejectUser(' + user.id + ')"><i class="bi bi-x-lg"></i> 拒绝</button>';
+            html += '<button class="btn btn-sm btn-success me-1" onclick="approveUser(' + user.id + ')">批准</button>';
+            html += '<button class="btn btn-sm btn-outline-danger me-1" onclick="rejectUser(' + user.id + ')">拒绝</button>';
         } else {
-            html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editUser(' + user.id + ')"><i class="bi bi-pencil"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editUser(' + user.id + ')">编辑</button>';
             if (status !== 'superadmin') {
-                html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(' + user.id + ')"><i class="bi bi-trash"></i></button>';
+                html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteUser(' + user.id + ')">删除</button>';
             }
         }
         html += '</td></tr>';
