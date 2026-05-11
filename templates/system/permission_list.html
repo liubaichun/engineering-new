@@ -150,18 +150,21 @@ async function loadPermissions() {
 }
 
 function buildCategoryTree() {
-    var catMap = {};
+    // 使用小写key归类，解决 crm/CRM、approval/Approval 等大小写重复问题
+    var catMap = {};       // key: 小写分类名 -> { display: 原始显示名, count: 数量 }
     allPermissions.forEach(function(p) {
         var cat = p.category || '其他';
-        if (!catMap[cat]) catMap[cat] = 0;
-        catMap[cat]++;
+        var key = cat.toLowerCase();
+        if (!catMap[key]) catMap[key] = { display: cat, count: 0 };
+        catMap[key].count++;
     });
 
     var cats = Object.keys(catMap).sort();
     var container = document.getElementById('categoryTree');
 
-    // 填充datalist
-    var datalistHtml = cats.map(function(c) { return '<option value="' + escapeHtml(c) + '">'; }).join('');
+    // 填充datalist（按原始显示名排序去重）
+    var uniqueDisplays = [...new Set(Object.values(catMap).map(function(v){ return v.display; }))].sort();
+    var datalistHtml = uniqueDisplays.map(function(c) { return '<option value="' + escapeHtml(c) + '">'; }).join('');
     document.getElementById('permCategoryDatalist').innerHTML = datalistHtml;
 
     var html = '<div class="list-group list-group-flush">';
@@ -169,11 +172,11 @@ function buildCategoryTree() {
     html += '<span><i class="bi bi-grid-3x3-gap me-1"></i>全部</span><span class="badge bg-primary rounded-pill">' + allPermissions.length + '</span></a>';
 
     cats.forEach(function(cat) {
-        var count = catMap[cat];
+        var info = catMap[cat];
         var catId = 'cat-' + escapeHtml(cat).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-        var activeCls = currentCategory === cat ? 'active' : '';
-        html += '<a href="javascript:filterByCategory(\'' + escapeHtml(cat).replace(/'/g, "\\'") + '\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ' + activeCls + '" id="' + catId + '" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
-        html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(cat) + '</span><span class="badge bg-secondary rounded-pill">' + count + '</span></a>';
+        var activeCls = currentCategory.toLowerCase() === cat ? 'active' : '';
+        html += '<a href="javascript:filterByCategory(\'' + escapeHtml(info.display).replace(/'/g, "\\'") + '\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ' + activeCls + '" id="' + catId + '" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
+        html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(info.display) + '</span><span class="badge bg-secondary rounded-pill">' + info.count + '</span></a>';
     });
 
     html += '</div>';
@@ -196,6 +199,12 @@ function filterByCategory(category) {
     renderPermissions();
 }
 
+// 大小写不敏感的分类比较
+function categoryMatches(pCat, filterCat) {
+    if (!filterCat) return true;
+    return (pCat || '其他').toLowerCase() === filterCat.toLowerCase();
+}
+
 function filterPermissions() {
     currentSearch = document.getElementById('permSearchInput').value.trim().toLowerCase();
     renderPermissions();
@@ -211,7 +220,7 @@ function renderPermissions() {
 
     var filtered = allPermissions;
     if (currentCategory) {
-        filtered = filtered.filter(function(p) { return (p.category || '其他') === currentCategory; });
+        filtered = filtered.filter(function(p) { return categoryMatches(p.category, currentCategory); });
     }
     if (currentSearch) {
         filtered = filtered.filter(function(p) {
