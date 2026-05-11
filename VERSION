@@ -1,0 +1,130 @@
+# GREEN ERP 版本管理规范
+
+## 版本号规范
+
+格式：`v{MAJOR}.{MINOR}.{PATCH}`
+
+- **MAJOR**：架构重大变更（技术栈重构、新模块引入导致API不兼容）
+- **MINOR**：功能新增/删除（向后兼容的功能变更）
+- **PATCH**：Bug修复、字段调整（向后兼容）
+
+特殊情况：
+- `-commercial-ready`：商业化就绪版本
+- `-standalone`：买断版独立分支版本
+
+## 分支策略
+
+```
+master          ← 生产环境运行分支（43服务器）
+  └─ prod/master  ← 正式发布标签归档（每个版本打tag后不删）
+
+standalone      ← 买断版分支（124服务器）
+  └─ 每次从master cherry-pick或merge非租户隔离相关的commit
+```
+
+**合并规则**：
+- 所有功能/修复开发在master分支进行
+- 合并到standalone前需确认不含`company_id`租户隔离逻辑（除非standalone也有此需求）
+- 禁止在standalone上开发新功能，只做master的适配合并
+
+## 版本发布流程
+
+### 1. 确认发布点
+```bash
+# 确保所有悬停迁移已执行
+python manage.py showmigrations | grep "\[ \]"
+# 必须输出空，0个悬停迁移
+
+# Django check
+python manage.py check
+# 必须输出：System check identified no issues (0 silenced).
+```
+
+### 2. 生成CHANGELOG
+```bash
+# 安装conventional-changelog（可选）
+# 从上一个tag到当前HEAD生成变更日志
+git log v{prev}..HEAD --oneline --format="%h %s"
+```
+
+### 3. 打标签
+```bash
+# 创建annotate标签（含备注）
+git tag -a v2.2.0 -m "Version 2.2.0 - 商业化核心功能稳定版
+- 发票编辑弹窗修复
+- 权限管理页面重构
+- 税费汇总表重构
+- 银行流水导入去重优化
+- 驾驶舱报表数据修复
+"
+
+# 推送到远程
+git push origin v2.2.0
+```
+
+### 4. 部署验证
+```bash
+# 43服务器pull并重启
+cd /root/engineering-new
+git pull origin master
+systemctl restart engineering-gunicorn
+
+# 验证页面可访问
+for path in /stats/ /finance/incomes/ /finance/expenses/ /finance/invoices/ /crm/clients/; do
+    status=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:8001$path")
+    echo "$path -> $status"
+done
+```
+
+## CHANGELOG格式
+
+采用[Keep a Changelog](https://keepachangelog.com/)格式：
+
+```markdown
+# CHANGELOG
+
+## [v2.2.0] - 2026-05-11
+
+### 新增
+- InvoiceSerializer返回project_id字段，解决编辑弹窗项目无法回显
+
+### 修复
+- 用户管理操作按钮从图标改为文字，提高可辨识度
+- settings_pg添加X_FRAME_OPTIONS=SAMEORIGIN，允许同源iframe嵌入
+- 权限管理页面superuser被错误拦截的问题
+
+### 变更
+- 权限页面布局改为左侧树形分类+右侧表格
+- 税费汇总表重构，拆分为6列展示
+
+### 基础设施
+- 43/124服务器schema完全对齐
+- 迁移历史整理完毕，0个悬停迁移
+```
+
+## 版本存档
+
+| 标签 | 日期 | 主要内容 |
+|------|------|---------|
+| v2.0.0-standalone | - | 买断版初始版本 |
+| v2.1.0-commercial-ready | 2026-05初 | 商业化就绪，基础功能完整 |
+| v2.1.1-commercial-ready-hotfix | 2026-05 | 热修复版本 |
+| v2.1.2 | 2026-05-08 | 报表/驾驶舱数据修复 |
+| **v2.2.0** | **2026-05-11** | **核心Bug修复稳定版** |
+
+## 开发中（未发布）注意事项
+
+- commit message第一行用中文，简洁描述改动内容
+- commit body可补充技术细节和原因
+- 迁移文件合并后立即删除冲突迁移文件，避免重号问题
+- 每个功能模块开发前先`git pull origin master`，避免落后太多
+
+## 部署前检查清单
+
+发布前必须全部通过：
+
+- [ ] `python manage.py check` → 0 issues
+- [ ] `showmigrations | grep "\[ \]"` → 0个悬停迁移
+- [ ] `python manage.py test` → 无测试失败（无测试则跳过）
+- [ ] 核心页面curl检查返回200
+- [ ] Django shell可正常导入所有模型
