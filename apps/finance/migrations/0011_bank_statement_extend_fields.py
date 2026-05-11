@@ -8,7 +8,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('finance', '0010_add_counterparty_tax_bank'),
+        ('finance', '0015_bank_statement'),
     ]
 
     # 用 IF NOT EXISTS 防止重复添加（兼容已通过SQL直接加列的生产DB）
