@@ -58,8 +58,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
-<!-- 权限Modal -->
+{% block modal %}
 <div class="modal fade" id="permissionModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -78,8 +79,8 @@
                 </div>
                 <div class="mb-2">
                     <label class="form-label form-label-sm fw-semibold">分类</label>
-                    <input type="text" class="form-control form-control-sm" id="permCategory" placeholder="如: 系统管理" list="categoryList">
-                    <datalist id="categoryList"></datalist>
+                    <input type="text" class="form-control form-control-sm" id="permCategory" placeholder="如: 系统管理" list="permCategoryDatalist">
+                    <datalist id="permCategoryDatalist"></datalist>
                 </div>
                 <div class="mb-2">
                     <label class="form-label form-label-sm fw-semibold">描述</label>
@@ -102,17 +103,14 @@ var permissionModal;
 var allPermissions = [];
 var currentCategory = '';
 var currentSearch = '';
-var categoryTreeState = {}; // 记录每个分类的展开状态
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 权限检查：只有 system:role:manage 权限才能访问此页面
-    // superuser 直接放行，不等待
+    // 权限检查：只有 superuser 或有 system:role:manage 权限才能访问
     if (USER_PERMS.is_superuser) {
         permissionModal = new bootstrap.Modal(document.getElementById('permissionModal'));
         loadPermissions();
         return;
     }
-    // 非 superuser 才等待权限加载
     waitForPermissions(function() {
         if (!hasPermission('system:role:manage')) {
             document.querySelector('.main-content').innerHTML =
@@ -152,7 +150,6 @@ async function loadPermissions() {
 }
 
 function buildCategoryTree() {
-    // 按分类分组
     var catMap = {};
     allPermissions.forEach(function(p) {
         var cat = p.category || '其他';
@@ -163,20 +160,19 @@ function buildCategoryTree() {
     var cats = Object.keys(catMap).sort();
     var container = document.getElementById('categoryTree');
 
-    // 收集所有已有的分类名作为datalist
+    // 填充datalist
     var datalistHtml = cats.map(function(c) { return '<option value="' + escapeHtml(c) + '">'; }).join('');
-    document.getElementById('categoryList').innerHTML = datalistHtml;
+    document.getElementById('permCategoryDatalist').innerHTML = datalistHtml;
 
-    // 全部按钮
     var html = '<div class="list-group list-group-flush">';
-    html += '<a href="javascript:filterByCategory(\'\', null)" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center active" id="cat-all" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
+    html += '<a href="javascript:filterByCategory(\'\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center active" id="cat-all" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
     html += '<span><i class="bi bi-grid-3x3-gap me-1"></i>全部</span><span class="badge bg-primary rounded-pill">' + allPermissions.length + '</span></a>';
 
     cats.forEach(function(cat) {
         var count = catMap[cat];
-        var catId = 'cat-' + escapeHtml(cat);
+        var catId = 'cat-' + escapeHtml(cat).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
         var activeCls = currentCategory === cat ? 'active' : '';
-        html += '<a href="javascript:filterByCategory(\'' + escapeHtml(cat).replace(/'/g, "\\'") + '\', \'' + catId + '\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ' + activeCls + '" id="' + catId + '" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
+        html += '<a href="javascript:filterByCategory(\'' + escapeHtml(cat).replace(/'/g, "\\'") + '\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ' + activeCls + '" id="' + catId + '" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
         html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(cat) + '</span><span class="badge bg-secondary rounded-pill">' + count + '</span></a>';
     });
 
@@ -184,14 +180,15 @@ function buildCategoryTree() {
     container.innerHTML = html;
 }
 
-function filterByCategory(category, catDomId) {
+function filterByCategory(category) {
     currentCategory = category;
-    // 更新左侧激活状态
     document.querySelectorAll('#categoryTree .list-group-item').forEach(function(el) {
         el.classList.remove('active');
     });
-    if (catDomId) {
-        document.getElementById(catDomId).classList.add('active');
+    if (category) {
+        var catId = 'cat-' + category.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+        var btn = document.getElementById(catId);
+        if (btn) btn.classList.add('active');
     } else {
         var allBtn = document.getElementById('cat-all');
         if (allBtn) allBtn.classList.add('active');
@@ -224,7 +221,6 @@ function renderPermissions() {
         });
     }
 
-    // 按分类分组显示
     var grouped = {};
     filtered.forEach(function(p) {
         var cat = p.category || '其他';
