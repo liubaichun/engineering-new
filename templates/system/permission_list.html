@@ -230,17 +230,19 @@ function renderPermissions() {
         });
     }
 
-    var grouped = {};
+    var grouped = {};  // key: 小写分类 -> { display: 原始名, items: [...] }
     filtered.forEach(function(p) {
         var cat = p.category || '其他';
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(p);
+        var key = cat.toLowerCase();
+        if (!grouped[key]) grouped[key] = { display: cat, items: [] };
+        grouped[key].items.push(p);
     });
 
     var html = '';
     for (var cat in grouped) {
-        html += '<tr class="table-light"><td colspan="6"><strong><i class="bi bi-folder me-1"></i>' + escapeHtml(cat) + '</strong> <span class="badge bg-secondary ms-1">' + grouped[cat].length + '</span></td></tr>';
-        grouped[cat].forEach(function(p) {
+        var info = grouped[cat];
+        html += '<tr class="table-light"><td colspan="6"><strong><i class="bi bi-folder me-1"></i>' + escapeHtml(info.display) + '</strong> <span class="badge bg-secondary ms-1">' + info.items.length + '</span></td></tr>';
+        info.items.forEach(function(p) {
             var desc = p.description ? '<span title="' + escapeHtml(p.description) + '">' + escapeHtml(p.description) + '</span>' : '<span class="text-muted">-</span>';
             html += '<tr>';
             html += '<td>' + p.id + '</td>';
