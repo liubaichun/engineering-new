@@ -434,7 +434,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             'name': t.title,
             'type': 'task',
             'parent': f'project-{project.id}',
-            'start': t.start_date.isoformat() if t.start_date else (t.due_date - timedelta(days=7)).isoformat(),
+            'start': (t.due_date - timedelta(days=7)).isoformat() if t.due_date else None,
             'end': t.due_date.isoformat() if t.due_date else None,
             'progress': 100 if t.status == 'completed' else 0,
             'status': t.status,
