@@ -819,10 +819,14 @@ document.addEventListener('DOMContentLoaded', function() {
             // 立即从响应体获取is_superuser，不等loadPermissions API
             response.json().then(function(data) {
                 window.__isSuperuserKnown = true;
+                window.__userId = data.user_id || data.user?.id || null;
                 window.__userIsSuperuser = data.is_superuser || false;
-                // admin(id=1)直接标记known
+                // admin(id=1)直接标记superuser，同时更新USER_PERMS让所有页面立即生效
                 if (data.user && data.user.id === 1) {
                     window.__userIsSuperuser = true;
+                    if (typeof USER_PERMS !== 'undefined') {
+                        USER_PERMS.is_superuser = true;
+                    }
                 }
             }).catch(function() {});
             loadPermissions();

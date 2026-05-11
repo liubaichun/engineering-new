@@ -149,6 +149,31 @@ async function loadPermissions() {
     }
 }
 
+// 英文分类 -> 中文映射
+var CAT_DISPLAY_MAP = {
+    'approval': '审批管理',
+    'crm': 'CRM管理',
+    'equipment': '设备管理',
+    'finance': '财务管理',
+    'material': '物料管理',
+    'project': '项目管理',
+    'system': '系统管理',
+    'hr': '人力资源',
+    'inventory': '库存管理',
+    'quality': '质量管理',
+    'warehouse': '仓库管理'
+};
+
+// 获取分类显示名：英文转中文，中文保持原样
+function getCategoryDisplay(cat) {
+    cat = cat || '其他';
+    // 判断是否纯英文（不含中文）
+    if (/^[a-zA-Z]+$/.test(cat) && CAT_DISPLAY_MAP[cat.toLowerCase()]) {
+        return CAT_DISPLAY_MAP[cat.toLowerCase()];
+    }
+    return cat;
+}
+
 function buildCategoryTree() {
     // 使用小写key归类，解决 crm/CRM、approval/Approval 等大小写重复问题
     var catMap = {};       // key: 小写分类名 -> { display: 原始显示名, count: 数量 }
@@ -162,8 +187,8 @@ function buildCategoryTree() {
     var cats = Object.keys(catMap).sort();
     var container = document.getElementById('categoryTree');
 
-    // 填充datalist（按原始显示名排序去重）
-    var uniqueDisplays = [...new Set(Object.values(catMap).map(function(v){ return v.display; }))].sort();
+    // 填充datalist（按中文显示名排序）
+    var uniqueDisplays = [...new Set(Object.values(catMap).map(function(v){ return getCategoryDisplay(v.display); }))].sort();
     var datalistHtml = uniqueDisplays.map(function(c) { return '<option value="' + escapeHtml(c) + '">'; }).join('');
     document.getElementById('permCategoryDatalist').innerHTML = datalistHtml;
 
@@ -173,10 +198,11 @@ function buildCategoryTree() {
 
     cats.forEach(function(cat) {
         var info = catMap[cat];
+        var displayName = getCategoryDisplay(info.display);
         var catId = 'cat-' + escapeHtml(cat).replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
         var activeCls = currentCategory.toLowerCase() === cat ? 'active' : '';
         html += '<a href="javascript:filterByCategory(\'' + escapeHtml(info.display).replace(/'/g, "\\'") + '\')" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center ' + activeCls + '" id="' + catId + '" style="font-size:0.82rem; padding: 0.4rem 0.75rem; border-radius:0;">';
-        html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(info.display) + '</span><span class="badge bg-secondary rounded-pill">' + info.count + '</span></a>';
+        html += '<span><i class="bi bi-folder me-1"></i>' + escapeHtml(displayName) + '</span><span class="badge bg-secondary rounded-pill">' + info.count + '</span></a>';
     });
 
     html += '</div>';
@@ -241,14 +267,15 @@ function renderPermissions() {
     var html = '';
     for (var cat in grouped) {
         var info = grouped[cat];
-        html += '<tr class="table-light"><td colspan="6"><strong><i class="bi bi-folder me-1"></i>' + escapeHtml(info.display) + '</strong> <span class="badge bg-secondary ms-1">' + info.items.length + '</span></td></tr>';
+        var displayName = getCategoryDisplay(info.display);
+        html += '<tr class="table-light"><td colspan="6"><strong><i class="bi bi-folder me-1"></i>' + escapeHtml(displayName) + '</strong> <span class="badge bg-secondary ms-1">' + info.items.length + '</span></td></tr>';
         info.items.forEach(function(p) {
             var desc = p.description ? '<span title="' + escapeHtml(p.description) + '">' + escapeHtml(p.description) + '</span>' : '<span class="text-muted">-</span>';
             html += '<tr>';
             html += '<td>' + p.id + '</td>';
             html += '<td><strong>' + escapeHtml(p.name) + '</strong></td>';
             html += '<td><code>' + escapeHtml(p.code) + '</code></td>';
-            html += '<td><span class="badge bg-secondary">' + escapeHtml(p.category || '其他') + '</span></td>';
+            html += '<td><span class="badge bg-secondary">' + escapeHtml(getCategoryDisplay(p.category)) + '</span></td>';
             html += '<td style="max-width:300px;"><small class="text-muted">' + desc + '</small></td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editPermission(' + p.id + ')"><i class="bi bi-pencil"></i></button>';
