@@ -255,7 +255,7 @@ function collectWageData() {
     var leaveDed = parseFloat(document.getElementById('id_leave_deduction').value) || 0;
     var sickDed = parseFloat(document.getElementById('id_sick_leave_deduction').value) || 0;
     var lateTimes = parseInt(document.getElementById('id_late_times').value) || 0;
-    var lateDedPer = parseFloat(document.getElementById('id_late_deduction_per_time').value) || 0;
+    var lateDedPer = parseFloat(document.getElementById('id_late_deduction_per_time') && document.getElementById('id_late_deduction_per_time').value) || 0;
     var lateDed = lateTimes * lateDedPer;
     var loanRepay = parseFloat(document.getElementById('id_employee_loan_repayment').value) || 0;
     var otherLoan = parseFloat(document.getElementById('id_other_loan').value) || 0;
@@ -735,18 +735,20 @@ function showAddWageModal() {
     document.getElementById('id_leave_deduction').value = '0';
     document.getElementById('id_sick_leave_days').value = '0';
     document.getElementById('id_sick_leave_deduction').value = '0';
-    document.getElementById('id_employee_loan_repayment').value = '0';
-    document.getElementById('id_other_loan').value = '0';
-    document.getElementById('id_other_deductions').value = '0';
+    function el(id, v) { var e = document.getElementById(id); if (e) e.value = v; }
+    el('id_employee_loan_repayment', '0');
+    el('id_other_loan', '0');
+    el('id_other_deductions', '0');
     // 新增字段重置
-    document.getElementById('id_late_times').value = '0';
-    document.getElementById('id_children_education').value = '0';
-    document.getElementById('id_continuing_education').value = '0';
-    document.getElementById('id_serious_illness').value = '0';
-    document.getElementById('id_housing_loan').value = '0';
-    document.getElementById('id_housing_rent').value = '0';
-    document.getElementById('id_elderly_support').value = '0';
-    document.getElementById('id_infant_care').value = '0';
+    el('id_late_times', '0');
+    el('id_late_deduction_per_time', '0');
+    el('id_children_education', '0');
+    el('id_continuing_education', '0');
+    el('id_serious_illness', '0');
+    el('id_housing_loan', '0');
+    el('id_housing_rent', '0');
+    el('id_elderly_support', '0');
+    el('id_infant_care', '0');
     document.getElementById('id_remarks').value = '';
     document.getElementById('wageModalTitle').textContent = '录入工资';
     isEditingWage = false;
@@ -984,6 +986,9 @@ function editWage(id) {
         document.getElementById('id_other_deductions').value = w.other_deductions || 0;
         // 新增字段：迟到次数 + 7项专项附加扣除
         document.getElementById('id_late_times').value = w.late_times || 0;
+        var emp = employees.find(e => String(e.id) === String(w.employee));
+        var lateDedEl = document.getElementById('id_late_deduction_per_time');
+        if (lateDedEl) lateDedEl.value = emp ? (parseFloat(emp.late_deduction_per_time) || 0) : 0;
         document.getElementById('id_children_education').value = w.children_education || 0;
         document.getElementById('id_continuing_education').value = w.continuing_education || 0;
         document.getElementById('id_serious_illness').value = w.serious_illness || 0;
@@ -1286,8 +1291,9 @@ function exportWages(selectedFields) {
                     <div class="col-2"><label class="form-label">请假扣款</label><input type="number" class="form-control" id="id_leave_deduction" placeholder="0" value="0"></div>
                     <div class="col-2"><label class="form-label">病假天数</label><input type="number" class="form-control" id="id_sick_leave_days" placeholder="0" value="0" step="0.5"></div>
                     <div class="col-2"><label class="form-label">病假扣款</label><input type="number" class="form-control" id="id_sick_leave_deduction" placeholder="0" value="0"></div>
-                    <div class="col-2"><label class="form-label">迟到次数</label><input type="number" class="form-control" id="id_late_times" placeholder="0" value="0" min="0"></div>
+                    <div class="col-2"><label class="form-label">迟到次数</label><input type="number" class="form-control" id="id_late_times" placeholder="0" value="0" min="0" oninput="autoCalc()"></div>
                     <div class="col-2"><label class="form-label">借款还款</label><input type="number" class="form-control" id="id_employee_loan_repayment" placeholder="0" value="0"></div>
+                    <input type="hidden" id="id_late_deduction_per_time" value="0">
                 </div>
                 <div class="row g-3 mb-3">
                     <div class="col-3"><label class="form-label">其他借款</label><input type="number" class="form-control" id="id_other_loan" placeholder="0" value="0"></div>
