@@ -71,7 +71,19 @@ class TaskSerializer(serializers.ModelSerializer):
             'flow_instance', 'company_id'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
-    
+
+    def validate_assignee(self, value):
+        if value is None:
+            return None
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        if isinstance(value, str):
+            try:
+                return User.objects.get(username=value)
+            except User.DoesNotExist:
+                raise serializers.ValidationError("用户不存在: " + value)
+        return value
+
     def get_flow_instance(self, obj):
         if not hasattr(obj, 'flow_instance') or obj.flow_instance is None:
             return None
