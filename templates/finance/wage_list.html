@@ -721,6 +721,7 @@ function showAddWageModal() {
     document.getElementById('id_other_deductions').value = '0';
     document.getElementById('id_remarks').value = '';
     document.getElementById('wageModalTitle').textContent = '录入工资';
+    isEditingWage = false;
     var companySelect = document.getElementById('id_company');
     companySelect.innerHTML = '<option value="">选择公司</option>';
     companies.forEach(c => {
@@ -782,8 +783,12 @@ function onCompanyChange(companyId) {
 }
 
 // 选中员工后自动填充信息并计算社保扣款
+var isEditingWage = false;
+
 function onEmployeeSelect(empId) {
     if (!empId) return;
+    // 编辑状态时，切换员工下拉不覆盖已有数据（由用户手动点"自动计算"触发社保联动）
+    if (isEditingWage) return;
     var emp = employees.find(e => e.id == empId);
     if (!emp) return;
     document.getElementById('id_employee_name').value = emp.name;
@@ -821,35 +826,59 @@ function onEmployeeSelectWithEC(empId, ec) {
     autoCalc();
 }
 
+// 根据已选员工自动计算社保/公积金（按钮调用）
+// 与 onEmployeeSelect 的区别：不覆盖用户已填写的其他字段，只算社保公积金
+function autoCalcSocialFromEmployee() {
+    var empId = document.getElementById('id_employee_select').value;
+    if (!empId) {
+        showToast('请先选择员工', 'warning');
+        return;
+    }
+    var emp = employees.find(e => String(e.id) === String(empId));
+    if (!emp) return;
+    var selectedCompany = document.getElementById('id_company').value;
+    var co = selectedCompany
+        ? (emp.companies.find(c => String(c.company) === String(selectedCompany) && c.is_primary)
+           || emp.companies.find(c => String(c.company) === String(selectedCompany))
+           || emp.companies[0])
+        : (emp.companies && emp.companies[0]);
+    autoFillSocialInsurance(emp, co);
+    autoCalc();
+    showToast('已按员工信息自动计算社保/公积金', 'success');
+}
+
 // 根据员工任职信息和公司社保配置自动填充社保/公积金扣款
 // emp: 员工对象, co: 任职记录对象（来自 companies 数组）
 function autoFillSocialInsurance(emp, co) {
     // 优先用任职记录的公司ID，其次用员工主公司
     var companyId = (co && co.company) ? co.company : emp.company;
     var cfg = socialConfigs[companyId];
-    if (!cfg) {
-        // 没有配置则用员工自己的基数
-        var siBase = parseFloat(emp.social_insurance_base) || 0;
-        var hfBase = parseFloat(emp.housing_fund_base) || 0;
-        // 默认8%养老+2%医疗+0.3%失业 = 10.3%，公积金5%
-        document.getElementById('id_social_insurance').value = (siBase * 0.103).toFixed(2);
-        document.getElementById('id_housing_fund').value = emp.has_housing_fund ? (hfBase * 0.05).toFixed(2) : '0';
-        return;
+
+    // 社保：按 has_social_insurance 独立判断，不再和公积金混在一起
+    var siBase = parseFloat(emp.social_insurance_base) || 0;
+    if (cfg && siBase <= 0) siBase = parseFloat(cfg.social_base) || 0;
+    if (!emp.has_social_insurance || siBase <= 0) {
+        document.getElementById('id_social_insurance').value = '0';
+    } else {
+        var pensionEmp = cfg ? (parseFloat(cfg.pension_rate_employee) || 8) : 8;
+        var medicalEmp = cfg ? (parseFloat(cfg.medical_rate_employee) || 2) : 2;
+        var unempEmp = cfg ? (parseFloat(cfg.unemployment_rate_employee) || 0.3) : 0.3;
+        document.getElementById('id_social_insurance').value = (siBase * (pensionEmp + medicalEmp + unempEmp) / 100).toFixed(2);
     }
-    // 有配置：使用公司配置的费率和员工的社保基数
-    var siBase = parseFloat(emp.social_insurance_base) || parseFloat(cfg.social_base) || 0;
-    var hfBase = parseFloat(emp.housing_fund_base) || parseFloat(cfg.housing_fund_base) || 0;
-    var pensionEmp = parseFloat(cfg.pension_rate_employee) || 0;
-    var medicalEmp = parseFloat(cfg.medical_rate_employee) || 0;
-    var unempEmp = parseFloat(cfg.unemployment_rate_employee) || 0;
-    var hfEmp = parseFloat(cfg.housing_fund_rate_employee) || 0;
-    var socialIns = siBase * (pensionEmp + medicalEmp + unempEmp);
-    var housingFund = emp.has_housing_fund ? hfBase * hfEmp : 0;
-    document.getElementById('id_social_insurance').value = socialIns.toFixed(2);
-    document.getElementById('id_housing_fund').value = housingFund.toFixed(2);
+
+    // 公积金：按 has_housing_fund 独立判断
+    var hfBase = parseFloat(emp.housing_fund_base) || 0;
+    if (cfg && hfBase <= 0) hfBase = parseFloat(cfg.housing_fund_base) || 0;
+    if (!emp.has_housing_fund || hfBase <= 0) {
+        document.getElementById('id_housing_fund').value = '0';
+    } else {
+        var hfEmp = cfg ? (parseFloat(cfg.housing_fund_rate_employee) || 5) : 5;
+        document.getElementById('id_housing_fund').value = (hfBase * hfEmp / 100).toFixed(2);
+    }
 }
 
 function editWage(id) {
+    isEditingWage = true;
     fetch('/api/finance/wages/' + id + '/', { credentials: 'include' })
     .then(r => r.json())
     .then(w => {
@@ -1181,6 +1210,7 @@ function exportWages(selectedFields) {
                 <div class="row g-3 mb-3">
                     <div class="col-3"><label class="form-label">社保扣款</label><input type="number" class="form-control" id="id_social_insurance" placeholder="0" value="0"></div>
                     <div class="col-3"><label class="form-label">公积金扣款</label><input type="number" class="form-control" id="id_housing_fund" placeholder="0" value="0"></div>
+                    <div class="col-3 d-flex align-items-end"><button type="button" class="btn btn-outline-secondary w-100" onclick="autoCalcSocialFromEmployee()">自动计算</button></div>
                 </div>
 
                 <div class="section-title">其他扣款</div>

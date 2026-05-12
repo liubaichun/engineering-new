@@ -492,33 +492,30 @@ class WageRecord(models.Model):
             if not config:
                 return
 
-            # 如果员工基数未设置，使用公司配置的默认基数
-            if social_base <= 0:
-                social_base = float(config.social_base or 0)
-            if housing_base <= 0:
-                housing_base = float(config.housing_fund_base or 0)
+            # 分别处理社保和公积金：各自判断是否有购买，各自用各自的基数
+            # ——不再用"任一基数为0则全部不算"的错误逻辑
+            self.social_insurance = 0
+            self.housing_fund = 0
 
-            if social_base <= 0 or housing_base <= 0:
-                return
+            # --- 社保（五险）计算 ---
+            if employee_obj.has_social_insurance:
+                si_base = float(employee_obj.social_insurance_base or 0)
+                if si_base <= 0:
+                    si_base = float(config.social_base or 0)
+                if si_base > 0:
+                    pension_employee = si_base * float(config.pension_rate_employee or 8) / 100
+                    medical_employee = si_base * float(config.medical_rate_employee or 2) / 100
+                    unemployment_employee = si_base * float(config.unemployment_rate_employee or 0.3) / 100
+                    self.social_insurance = round(pension_employee + medical_employee + unemployment_employee, 2)
 
-            # 员工承担部分（从工资扣）
-            # 养老保险：个人8%
-            pension_employee = social_base * float(config.pension_rate_employee or 8) / 100
-            # 医疗保险：个人2%（+ 大额医疗通常由各地规定，此处简化）
-            medical_employee = social_base * float(config.medical_rate_employee or 2) / 100
-            # 失业保险：个人0.3%
-            unemployment_employee = social_base * float(config.unemployment_rate_employee or 0.3) / 100
-
-            # 公积金：个人缴存比例（5%-12%，公司配置）
-            housing_employee = housing_base * float(config.housing_fund_rate_employee or 5) / 100
-
-            # 社保合计 = 养老 + 医疗 + 失业
-            social_total = pension_employee + medical_employee + unemployment_employee
-            # 公积金
-            housing_total = housing_employee
-
-            self.social_insurance = round(social_total, 2)
-            self.housing_fund = round(housing_total, 2)
+            # --- 公积金计算 ---
+            if employee_obj.has_housing_fund:
+                hf_base = float(employee_obj.housing_fund_base or 0)
+                if hf_base <= 0:
+                    hf_base = float(config.housing_fund_base or 0)
+                if hf_base > 0:
+                    housing_employee = hf_base * float(config.housing_fund_rate_employee or 5) / 100
+                    self.housing_fund = round(housing_employee, 2)
         except Exception:
             pass  # 出错时保持原值不变
 
@@ -526,16 +523,8 @@ class WageRecord(models.Model):
         """计算应发合计、社保公积金自动扣款、累计预扣法个税、实发工资"""
         from decimal import Decimal
 
-        # Step 1: 自动计算五险一金（但保留用户手工录入的值）
-        # 保存用户已填写的值（>0 表示用户主动填写，应保留）
-        user_social = float(self.social_insurance or 0)
-        user_housing = float(self.housing_fund or 0)
+        # 自动计算五险一金（根据员工是否参保/是否缴纳公积金独立计算）
         self.auto_calculate_social_insurance()
-        # 用户录入值 > 0 时，以用户为准（系统只做辅助计算，不强制覆盖）
-        if user_social > 0:
-            self.social_insurance = Decimal(str(round(user_social, 2)))
-        if user_housing > 0:
-            self.housing_fund = Decimal(str(round(user_housing, 2)))
 
         # 自动从 employee_company 填充 employee_name（支持多公司任职）
         if self.employee_company_id and not self.employee_name:
