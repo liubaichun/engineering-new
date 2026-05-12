@@ -520,27 +520,39 @@
         </div>
 
         <!-- 分组4：财务 -->
-        {% if 'wage.view' in user_menu_codes or 'income.view' in user_menu_codes or 'expense.view' in user_menu_codes or 'invoice.view' in user_menu_codes or 'report.view' in user_menu_codes or request.user.is_superuser %}
+        {% if user_has_finance_perm or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">财务</div>
+            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/wages/" class="nav-link {% if '/finance/wages' in request.path %}active{% endif %}">
                 <i class="bi bi-wallet2"></i><span>工资管理</span>
             </a>
+            {% endif %}
+            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/employees/" class="nav-link {% if '/finance/employees' in request.path %}active{% endif %}">
                 <i class="bi bi-person-badge"></i><span>员工管理</span>
             </a>
+            {% endif %}
+            {% if 'finance:income:read' in user_menu_codes or 'finance:expense:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/incomes/" class="nav-link {% if '/finance/incomes' in request.path or '/finance/expenses' in request.path %}active{% endif %}">
                 <i class="bi bi-cash-stack"></i><span>收支管理</span>
             </a>
+            {% endif %}
+            {% if 'finance:invoice:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/invoices/" class="nav-link {% if '/finance/invoices' in request.path %}active{% endif %}">
                 <i class="bi bi-receipt"></i><span>发票管理</span>
             </a>
+            {% endif %}
+            {% if 'finance:report:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/reports/" class="nav-link {% if '/finance/reports' in request.path %}active{% endif %}">
                 <i class="bi bi-bar-chart"></i><span>财务报表</span>
             </a>
+            {% endif %}
+            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/bank-import/" class="nav-link {% if '/finance/bank-import' in request.path %}active{% endif %}">
                 <i class="bi bi-bank"></i><span>银行流水</span>
             </a>
+            {% endif %}
         </div>
         {% endif %}
 
