@@ -419,6 +419,12 @@ class WageRecord(models.Model):
     taxable_salary = models.DecimalField(verbose_name='个税前工资', max_digits=12, decimal_places=2, default=0, editable=False)
     tax = models.DecimalField(verbose_name='个税', max_digits=12, decimal_places=2, default=0, editable=False)
     cumulative_tax = models.DecimalField(verbose_name='累计税额', max_digits=12, decimal_places=2, default=0, editable=False)
+    cumulative_gross = models.DecimalField(verbose_name='累计应发工资', max_digits=12, decimal_places=2, default=0, editable=False)
+    cumulative_social_insurance = models.DecimalField(verbose_name='累计社保', max_digits=12, decimal_places=2, default=0, editable=False)
+    cumulative_housing_fund = models.DecimalField(verbose_name='累计公积金', max_digits=12, decimal_places=2, default=0, editable=False)
+    cumulative_taxable_income = models.DecimalField(verbose_name='累计应纳税所得额', max_digits=12, decimal_places=2, default=0, editable=False)
+    special_deduction = models.DecimalField(verbose_name='专项附加扣除', max_digits=12, decimal_places=2, default=0)
+    prior_cumulative_tax = models.DecimalField(verbose_name='上月累计已扣税', max_digits=12, decimal_places=2, default=0)
     net_salary = models.DecimalField(verbose_name='实发工资', max_digits=12, decimal_places=2, default=0, editable=False)
 
     year = models.IntegerField(verbose_name='年份')
