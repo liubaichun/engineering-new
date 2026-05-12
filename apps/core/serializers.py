@@ -139,6 +139,7 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'phone',
                   'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined',
+                  'password_changed',
                   'role_name', 'roles', 'role_ids', 'company_roles', 'company_role_ids']
 
     def get_role_name(self, obj):

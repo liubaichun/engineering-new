@@ -14,6 +14,7 @@ class User(AbstractUser):
     updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
     failed_login_attempts = models.IntegerField(default=0, verbose_name='失败登录次数')
     lock_until = models.DateTimeField(null=True, blank=True, verbose_name='锁定截止时间')
+    password_changed = models.BooleanField(default=False, verbose_name='密码是否已修改')
     # 所属公司（兼容旧数据，建议优先通过 UserCompanyRole 配置多公司访问）
     company = models.ForeignKey(
         'finance.Company', on_delete=models.SET_NULL,

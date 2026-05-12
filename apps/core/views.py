@@ -206,10 +206,12 @@ class LoginView(APIView):
             else:
                 request.session.set_expiry(0)  # 浏览器关闭失效
             self._log_login(request, user.username, 'success', user=user)
+            user_data = UserSerializer(user).data
+            user_data['require_password_change'] = not user.password_changed
             response = JsonResponse({
                 'status': 'success',
                 'message': '登录成功',
-                'user': UserSerializer(user).data,
+                'user': user_data,
             })
             # 设置 csrftoken cookie，后续POST请求需要
             response.set_cookie('csrftoken', get_token(request))
@@ -286,7 +288,8 @@ class ChangePasswordView(APIView):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(new_password)
-        user.save(update_fields=['password'])
+        user.password_changed = True
+        user.save(update_fields=['password', 'password_changed'])
 
         # 重新登录保持会话
         login(request, user)

@@ -340,8 +340,13 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
         btnText.textContent = '登录成功';
         btnSpinner.classList.add('d-none');
 
+        var redirectUrl = '/dashboard/';
+        if (data.user && data.user.require_password_change) {
+            redirectUrl = '/profile/';
+        }
+
         setTimeout(function() {
-            window.location.href = '/dashboard/';
+            window.location.href = redirectUrl;
         }, 500);
     })
     .catch(function(error) {
