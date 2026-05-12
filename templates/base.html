@@ -614,8 +614,8 @@
         </div>
         {% endif %}
 
-        <!-- 分组9：数据 -->
-        {% if 'stats:view' in user_menu_codes or 'notifications:channel:read' in user_menu_codes or request.user.is_superuser %}
+        <!-- 分组9：数据（仅超级用户可见） -->
+        {% if request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">数据</div>
             <a href="/stats/" class="nav-link {% if '/stats' in request.path %}active{% endif %}">
