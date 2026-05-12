@@ -43,4 +43,10 @@ def menu_permissions(request):
         for code in menu_codes
     ) if menu_codes else False
 
-    return {'user_menu_codes': menu_codes, 'user_has_finance_perm': has_finance_perm}
+    # 判断用户是否有任意审批相关权限（用于侧边栏"审批"分组显示控制）
+    has_approval_perm = any(
+        code.startswith('approval:')
+        for code in menu_codes
+    ) if menu_codes else False
+
+    return {'user_menu_codes': menu_codes, 'user_has_finance_perm': has_finance_perm, 'user_has_approval_perm': has_approval_perm}

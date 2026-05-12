@@ -512,12 +512,14 @@
         </div>
 
         <!-- 分组3：审批 -->
+        {% if user_has_approval_perm or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">审批</div>
             <a href="/approvals/" class="nav-link {% if '/approvals' in request.path %}active{% endif %}">
                 <i class="bi bi-git-branch"></i><span>审批管理</span>
             </a>
         </div>
+        {% endif %}
 
         <!-- 分组4：财务 -->
         {% if user_has_finance_perm or request.user.is_superuser %}
