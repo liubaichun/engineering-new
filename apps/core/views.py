@@ -291,8 +291,9 @@ class ChangePasswordView(APIView):
         user.password_changed = True
         user.save(update_fields=['password', 'password_changed'])
 
-        # 重新登录保持会话
-        login(request, user)
+        # 再刷新 session auth hash（用新密码哈希更新 session，否则后续请求 session 验证失败）
+        from django.contrib.auth import update_session_auth_hash
+        update_session_auth_hash(request, user)
 
         return Response({
             'status': 'success',
