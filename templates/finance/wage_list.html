@@ -849,8 +849,8 @@ function autoCalcSocialFromEmployee() {
 
 // 根据员工任职信息和公司社保配置自动填充社保/公积金扣款
 // emp: 员工对象, co: 任职记录对象（来自 companies 数组）
+// 逻辑：has_social_insurance=False → 社保=0；has_housing_fund=False → 公积金=0；各自独立判断
 function autoFillSocialInsurance(emp, co) {
-    // 优先用任职记录的公司ID，其次用员工主公司
     var companyId = (co && co.company) ? co.company : emp.company;
     var cfg = socialConfigs[companyId];
 

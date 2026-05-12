@@ -197,10 +197,14 @@ class WageRecordSerializer(serializers.ModelSerializer):
             # 其他扣款
             'leave_days', 'leave_deduction',
             'sick_leave_days', 'sick_leave_deduction',
+            'late_times',
             'employee_loan_repayment', 'other_loan', 'other_deductions',
+            # 专项附加扣除
+            'children_education', 'continuing_education', 'serious_illness',
+            'housing_loan', 'housing_rent', 'elderly_support', 'infant_care',
             # 计算项
             'gross_salary', 'total_deduction', 'taxable_salary',
-            'tax', 'cumulative_tax', 'net_salary',
+            'tax', 'cumulative_tax', 'prior_cumulative_tax', 'net_salary',
             # 基本信息
             'year', 'month', 'month_display',
             'department', 'position', 'status', 'status_display',
@@ -415,7 +419,11 @@ class EmployeeSerializer(serializers.ModelSerializer):
             'hire_date', 'leave_date', 'status', 'status_display',
             'has_social_insurance', 'has_social_insurance_display',
             'has_housing_fund', 'has_housing_fund_display',
-            'social_insurance_base', 'housing_fund_base',
+            'social_insurance_deduction', 'housing_fund_deduction',
+            'base_salary', 'position_salary',
+            'meal_allowance', 'transport_allowance', 'communication_allowance', 'other_allowance',
+            'leave_deduction_per_day', 'late_deduction_per_time',
+            'employee_loan_repayment', 'other_fixed_deduction',
             'email', 'emergency_contact', 'emergency_phone',
             'remarks',
             'companies',

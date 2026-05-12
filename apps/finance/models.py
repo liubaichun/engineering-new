@@ -34,8 +34,18 @@ class Employee(models.Model):
     status = models.CharField('状态', max_length=20, choices=EMPLOYEE_STATUS_CHOICES, default='active')
     has_social_insurance = models.BooleanField('是否购买社保', default=True)
     has_housing_fund = models.BooleanField('是否购买公积金', default=False)
-    social_insurance_base = models.DecimalField('社保基数', max_digits=10, decimal_places=2, default=0)
-    housing_fund_base = models.DecimalField('公积金基数', max_digits=10, decimal_places=2, default=0)
+    social_insurance_deduction = models.DecimalField('社保扣款（个人部分）', max_digits=10, decimal_places=2, default=0)
+    housing_fund_deduction = models.DecimalField('公积金扣款（个人部分）', max_digits=10, decimal_places=2, default=0)
+    base_salary = models.DecimalField('基本工资', max_digits=10, decimal_places=2, default=0)
+    position_salary = models.DecimalField('岗位工资', max_digits=10, decimal_places=2, default=0)
+    meal_allowance = models.DecimalField('餐补', max_digits=10, decimal_places=2, default=0)
+    transport_allowance = models.DecimalField('交通补贴', max_digits=10, decimal_places=2, default=0)
+    communication_allowance = models.DecimalField('通讯补贴', max_digits=10, decimal_places=2, default=0)
+    other_allowance = models.DecimalField('其他津贴', max_digits=10, decimal_places=2, default=0)
+    leave_deduction_per_day = models.DecimalField('请假扣款标准（元/天）', max_digits=10, decimal_places=2, default=0)
+    late_deduction_per_time = models.DecimalField('迟到扣款标准（元/次）', max_digits=10, decimal_places=2, default=0)
+    employee_loan_repayment = models.DecimalField('员工贷款月还款', max_digits=10, decimal_places=2, default=0)
+    other_fixed_deduction = models.DecimalField('其他固定扣款', max_digits=10, decimal_places=2, default=0)
     email = models.EmailField('邮箱', blank=True, default='')
     emergency_contact = models.CharField('紧急联系人', max_length=50, blank=True, default='')
     emergency_phone = models.CharField('紧急联系电话', max_length=20, blank=True, default='')
@@ -412,6 +422,16 @@ class WageRecord(models.Model):
     employee_loan_repayment = models.DecimalField(verbose_name='员工借款还款', max_digits=12, decimal_places=2, default=0)
     other_loan = models.DecimalField(verbose_name='其他借款', max_digits=12, decimal_places=2, default=0)
     other_deductions = models.DecimalField(verbose_name='其他扣款', max_digits=12, decimal_places=2, default=0)
+    late_times = models.IntegerField(verbose_name='迟到次数', default=0)
+
+    # 专项附加扣除（每月填，不固定的从员工档案读取）
+    children_education = models.DecimalField(verbose_name='子女教育', max_digits=10, decimal_places=2, default=0)
+    continuing_education = models.DecimalField(verbose_name='继续教育', max_digits=10, decimal_places=2, default=0)
+    serious_illness = models.DecimalField(verbose_name='大病医疗', max_digits=10, decimal_places=2, default=0)
+    housing_loan = models.DecimalField(verbose_name='住房贷款利息', max_digits=10, decimal_places=2, default=0)
+    housing_rent = models.DecimalField(verbose_name='住房租金', max_digits=10, decimal_places=2, default=0)
+    elderly_support = models.DecimalField(verbose_name='赡养老人', max_digits=10, decimal_places=2, default=0)
+    infant_care = models.DecimalField(verbose_name='3岁以下婴幼儿照护', max_digits=10, decimal_places=2, default=0)
 
     # 计算项
     gross_salary = models.DecimalField(verbose_name='应发合计', max_digits=12, decimal_places=2, default=0, editable=False)
@@ -492,8 +512,7 @@ class WageRecord(models.Model):
             if not config:
                 return
 
-            # 分别处理社保和公积金：各自判断是否有购买，各自用各自的基数
-            # ——不再用"任一基数为0则全部不算"的错误逻辑
+            # 分别处理社保和公积金：各自用 has_* 判断是否参保，各自用各自的基数
             self.social_insurance = 0
             self.housing_fund = 0
 
@@ -520,13 +539,28 @@ class WageRecord(models.Model):
             pass  # 出错时保持原值不变
 
     def calculate_gross_and_tax(self):
-        """计算应发合计、社保公积金自动扣款、累计预扣法个税、实发工资"""
+        """计算应发合计、社保公积金、个税（专项附加扣除7项）、实发工资"""
         from decimal import Decimal
 
-        # 自动计算五险一金（根据员工是否参保/是否缴纳公积金独立计算）
-        self.auto_calculate_social_insurance()
+        # Step 1: 迟到扣款 = 迟到次数 × 每次标准（从员工档案读取）
+        late_ded = 0
+        if self.employee_id:
+            emp = self.employee
+            if emp and self.late_times > 0:
+                late_per_time = float(emp.late_deduction_per_time or 0)
+                late_ded = self.late_times * late_per_time
 
-        # 自动从 employee_company 填充 employee_name（支持多公司任职）
+        # Step 2: 从员工档案读取固定扣除项（社保/公积金/贷款等）
+        fixed_ded_from_profile = 0
+        if self.employee_id:
+            emp = self.employee
+            if emp:
+                fixed_ded_from_profile = (
+                    float(emp.employee_loan_repayment or 0) +
+                    float(emp.other_fixed_deduction or 0)
+                )
+
+        # Step 3: 自动从 employee_company 填充 employee_name（支持多公司任职）
         if self.employee_company_id and not self.employee_name:
             try:
                 ec = self.employee_company
@@ -535,20 +569,26 @@ class WageRecord(models.Model):
             except Exception:
                 pass
 
-        # === Step 2: 计算当月应发工资 ===
-        gross = float(self.base_salary or 0) + float(self.position_salary or 0) \
-                + float(self.overtime_pay or 0) + float(self.bonus or 0) \
-                + float(self.commission or 0) + float(self.meal_allowance or 0) \
-                + float(self.transport_allowance or 0) + float(self.communication_allowance or 0) \
-                + float(self.other_allowance or 0)
+        # Step 4: 计算应发合计（基本+岗位+加班+奖金+提成+各项津贴）
+        gross = (float(self.base_salary or 0) + float(self.position_salary or 0)
+                + float(self.overtime_pay or 0) + float(self.bonus or 0)
+                + float(self.commission or 0) + float(self.meal_allowance or 0)
+                + float(self.transport_allowance or 0) + float(self.communication_allowance or 0)
+                + float(self.other_allowance or 0))
 
-        # 当月社保公积金（auto_calculate已填入）
         social_ins = float(self.social_insurance or 0)
         housing_ins = float(self.housing_fund or 0)
-        special_ded = float(self.special_deduction or 0)  # 专项附加扣除（子女教育等）
 
-        # === Step 3: 累计预扣法 ===
-        # 查找本员工本年1月至上月已申报记录
+        # Step 5: 7项专项附加扣除求和
+        special_ded = (float(self.children_education or 0)
+                     + float(self.continuing_education or 0)
+                     + float(self.serious_illness or 0)
+                     + float(self.housing_loan or 0)
+                     + float(self.housing_rent or 0)
+                     + float(self.elderly_support or 0)
+                     + float(self.infant_care or 0))
+
+        # Step 6: 累计预扣法
         prior_records = list(WageRecord.objects.filter(
             employee_company=self.employee_company,
             employee=self.employee,
@@ -557,25 +597,18 @@ class WageRecord(models.Model):
             month__lt=self.month
         ).order_by('month'))
 
-        # 累计应发工资
         cum_gross = sum(float(w.gross_salary or 0) for w in prior_records) + gross
-        # 累计社保
         cum_social = sum(float(w.social_insurance or 0) for w in prior_records) + social_ins
-        # 累计公积金
         cum_housing = sum(float(w.housing_fund or 0) for w in prior_records) + housing_ins
-        # 累计专项附加扣除
         cum_special = special_ded * self.month
 
-        # 月份数
         month_count = self.month
-        # 累计应纳税所得额 = 累计收入 - 累计三险一金 - 累计专项附加扣除 - 5000×月份
         cum_taxable = cum_gross - cum_social - cum_housing - cum_special - 5000 * month_count
         cum_taxable = max(cum_taxable, 0)
 
-        # 上月累计已扣税
         prior_cum_tax = float(self.prior_cumulative_tax or 0)
 
-        # === Step 4: 累计预扣税率表（7级超额累进） ===
+        # 7级超额累进税率
         thresholds = [0, 36000, 144000, 252000, 324000, 648000, 960000]
         rates = [3, 10, 20, 25, 30, 35, 45]
         quick_deds = [0, 2520, 16920, 31920, 52920, 85920, 181920]
@@ -589,30 +622,28 @@ class WageRecord(models.Model):
             cum_tax = cum_taxable * 45 / 100 - 181920
 
         cum_tax = max(cum_tax, 0)
-
-        # 当月应扣个税 = 累计税额 - 上月累计已扣税
         monthly_tax = cum_tax - prior_cum_tax
 
-        # === Step 5: 保存计算结果 ===
+        # Step 7: 保存结果
         self.cumulative_gross = round(cum_gross, 2)
         self.cumulative_social_insurance = round(cum_social, 2)
         self.cumulative_housing_fund = round(cum_housing, 2)
         self.cumulative_taxable_income = round(cum_taxable, 2)
 
-        # 扣款合计 = 社保 + 公积金 + 请假 + 借款 + 其他
+        # 扣款合计 = 社保 + 公积金 + 请假 + 病假 + 迟到 + 固定扣款 + 借款 + 其他
         total_ded = (social_ins + housing_ins
                      + float(self.leave_deduction or 0)
                      + float(self.sick_leave_deduction or 0)
-                     + float(self.employee_loan_repayment or 0)
+                     + late_ded
+                     + fixed_ded_from_profile
                      + float(self.other_loan or 0)
                      + float(self.other_deductions or 0))
 
         self.gross_salary = round(gross, 2)
         self.total_deduction = round(total_ded, 2)
-        self.taxable_salary = round(cum_taxable, 2)  # 保留当月计税基数
-        self.cumulative_tax = round(cum_tax, 2)       # 累计总税额
-        self.tax = round(max(monthly_tax, 0), 2)     # 当月应扣税额
-        # 实发工资 = 应发合计 - 扣款合计 - 当月个税
+        self.taxable_salary = round(cum_taxable, 2)
+        self.cumulative_tax = round(cum_tax, 2)
+        self.tax = round(max(monthly_tax, 0), 2)
         self.net_salary = round(gross - total_ded - max(monthly_tax, 0), 2)
 
     def save(self, *args, **kwargs):
