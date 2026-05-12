@@ -2,6 +2,7 @@ from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.permissions import RoleRequired
 from rest_framework.permissions import AllowAny
 from django.db import models
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, DateFilter, NumberFilter
@@ -36,7 +37,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name', 'spec', 'serial_number', 'batch_number']
     ordering_fields = ['code', 'name', 'created_at', 'purchase_date']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
         qs = Equipment.objects.select_related('project', 'project__company')
@@ -170,7 +171,7 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
     search_fields = ['equipment__name', 'material_bom__name']
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
         qs = EquipmentBOMRelation.objects.select_related('equipment', 'equipment__project', 'material_bom', 'material_bom__material')

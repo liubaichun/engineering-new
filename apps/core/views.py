@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
+from apps.core.auth import CSRFExemptSessionAuthentication
 from drf_spectacular.utils import extend_schema
 
 from django.contrib.auth import authenticate, login, logout
@@ -19,6 +20,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 
 from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting
+from .permissions import RoleRequired
 from apps.finance.models import Company as FinanceCompany
 from .serializers import (
     UserRegisterSerializer,
@@ -229,7 +231,7 @@ class LoginView(APIView):
 
 class LogoutView(APIView):
     """用户登出视图"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     @extend_schema(tags=['auth'], summary='用户登出', description='清除会话Cookie')
     def post(self, request):
@@ -242,7 +244,7 @@ class LogoutView(APIView):
 
 class ChangePasswordView(APIView):
     """修改密码视图 - POST /api/core/auth/password/"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def post(self, request):
         # DEBUG
@@ -297,7 +299,7 @@ class ChangePasswordView(APIView):
 
 class CurrentUserView(APIView):
     """当前用户信息视图"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     @extend_schema(tags=['auth'], summary='获取当前用户信息', description='返回当前登录用户的信息，包括用户名/邮箱/角色/公司/权限码列表')
     def get(self, request):
@@ -373,7 +375,7 @@ class CurrentUserView(APIView):
 
 class MyPermissionsView(APIView):
     """当前用户权限列表（用于前端按钮级权限控制）"""
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get(self, request):
         user = request.user
@@ -398,7 +400,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """用户管理视图集"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
         queryset = User.objects.all()
@@ -653,7 +655,7 @@ class RoleViewSet(viewsets.ModelViewSet):
     """角色管理视图集"""
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     
     def get_queryset(self):
         queryset = Role.objects.all()
@@ -702,7 +704,7 @@ class PermissionViewSet(viewsets.ModelViewSet):
     """权限管理视图集"""
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     
     def get_queryset(self):
         queryset = Permission.objects.all()
@@ -756,7 +758,7 @@ class RolePermissionViewSet(viewsets.ModelViewSet):
     """角色权限关联视图集"""
     queryset = RolePermission.objects.all()
     serializer_class = RolePermissionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     
     def get_queryset(self):
         queryset = RolePermission.objects.all()
@@ -850,7 +852,7 @@ class UserRoleViewSet(viewsets.ModelViewSet):
     """用户角色关联视图集"""
     queryset = UserRole.objects.all()
     serializer_class = UserRoleSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     
     def get_queryset(self):
         queryset = UserRole.objects.all()
@@ -905,7 +907,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
     """通知消息视图集"""
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     
     def get_queryset(self):
         queryset = Notification.objects.filter(user=self.request.user)
@@ -950,7 +952,7 @@ class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """权限审计日志视图集（仅读）"""
     queryset = PermissionAuditLog.objects.all()
     serializer_class = PermissionAuditLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
         queryset = PermissionAuditLog.objects.select_related('user', 'target_user', 'role', 'permission')
@@ -980,7 +982,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
     """登录日志视图集（仅读）"""
     queryset = LoginLog.objects.all()
     serializer_class = LoginLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['created_at', 'status']
     ordering = ['-created_at']
@@ -1016,7 +1018,7 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = OperationAuditLog.objects.all()
     serializer_class = OperationAuditLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['username', 'object_repr', 'app_label', 'model_name']
     ordering_fields = ['created_at', 'action']
@@ -1073,7 +1075,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
     """系统参数管理视图集"""
     queryset = SystemSetting.objects.all()
     serializer_class = SystemSettingSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     lookup_field = 'key'
 
     def get_queryset(self):
@@ -1153,7 +1155,7 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
     """公司信息管理视图集"""
     queryset = FinanceCompany.objects.all()
     serializer_class = FinanceCompanySerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
         queryset = FinanceCompany.objects.all()

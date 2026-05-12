@@ -19,6 +19,7 @@ class SafePageNumberPagination(PageNumberPagination):
         except Exception:
             return None
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.permissions import RoleRequired
 from django.shortcuts import render
 
 

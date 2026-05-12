@@ -5,7 +5,7 @@
     from apps.core.permissions import RoleRequired
 
     class MyViewSet(viewsets.ModelViewSet):
-        permission_classes = [CSRFExemptSessionAuthentication, IsAuthenticated, RoleRequired]
+        permission_classes = [IsAuthenticated, RoleRequired]
         required_roles = ['admin']                    # 需要 admin 角色（任一满足即可）
         required_perms = ['expense:create']            # 需要 expense:create 权限（同时满足）
         optional_perms = ['expense:read', 'expense:list']  # 可选权限（有则附加）
