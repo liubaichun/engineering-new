@@ -614,18 +614,22 @@
         </div>
         {% endif %}
 
-        <!-- 分组9：数据（仅超级用户可见） -->
+        <!-- 分组9：数据统计（仅超级用户可见） -->
         {% if request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">数据</div>
             <a href="/stats/" class="nav-link {% if '/stats' in request.path %}active{% endif %}">
                 <i class="bi bi-pie-chart"></i><span>数据统计</span>
             </a>
+        </div>
+        {% endif %}
+
+        <!-- 分组10：通知（所有登录用户可见） -->
+        <div class="sidebar-section">
             <a href="/notifications/" class="nav-link {% if '/notifications' in request.path %}active{% endif %}">
                 <i class="bi bi-inbox"></i><span>我的通知</span>
             </a>
         </div>
-        {% endif %}
         {% endblock %}
     </div>
     
