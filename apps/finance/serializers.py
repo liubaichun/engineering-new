@@ -166,6 +166,9 @@ class WageRecordSerializer(serializers.ModelSerializer):
     )
     employee_company_display = serializers.SerializerMethodField()
 
+    def to_representation(self, obj):
+        return super().to_representation(obj)
+
     def get_approval_flow_id(self, obj):
         try:
             return obj.approval_flow.id if obj.approval_flow else None
