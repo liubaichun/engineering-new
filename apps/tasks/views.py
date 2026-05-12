@@ -5,6 +5,7 @@ from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
+from django.contrib.auth import get_user_model
 from datetime import timedelta
 from django.db.models import Q
 
@@ -15,14 +16,31 @@ from .models import (
 )
 from .flow_engine import FlowEngine
 from apps.core.serializers import UserSerializer
+from apps.finance.models import Company
+
+User = get_user_model()
 
 class ProjectSerializer(serializers.ModelSerializer):
-    owner_name = serializers.CharField(source='owner.username', read_only=True)
+    owner_name = serializers.SerializerMethodField()
+    owner = serializers.SlugRelatedField(
+        queryset=User.objects.all(), slug_field='username',
+        required=False, allow_null=True
+    )
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_owner = serializers.SerializerMethodField()
     company_name = serializers.CharField(source='company.name', read_only=True, allow_null=True)
     computed_progress = serializers.SerializerMethodField()
     company_id = serializers.IntegerField(required=False, allow_null=True)
+    company = serializers.SlugRelatedField(
+        queryset=Company.objects.all(), slug_field='name',
+        required=False, allow_null=True
+    )
+
+    def get_owner_name(self, obj):
+        if not obj.owner:
+            return None
+        full = obj.owner.get_full_name()
+        return full if full else obj.owner.username
 
     def get_is_owner(self, obj):
         request = self.context.get('request')
@@ -55,8 +73,20 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 class TaskSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
-    assignee_name = serializers.CharField(source='assignee.username', read_only=True, allow_null=True)
-    reporter_name = serializers.CharField(source='reporter.username', read_only=True, allow_null=True)
+    assignee_name = serializers.SerializerMethodField()
+    reporter_name = serializers.SerializerMethodField()
+
+    def get_assignee_name(self, obj):
+        if not obj.assignee:
+            return None
+        full = obj.assignee.get_full_name()
+        return full if full else obj.assignee.username
+
+    def get_reporter_name(self, obj):
+        if not obj.reporter:
+            return None
+        full = obj.reporter.get_full_name()
+        return full if full else obj.reporter.username
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     flow_instance = serializers.SerializerMethodField()

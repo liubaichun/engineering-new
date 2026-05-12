@@ -294,6 +294,12 @@
                             <span class="input-group-text">%</span>
                         </div>
                     </div>
+                    <div class="col-6">
+                        <label class="form-label">所属公司</label>
+                        <select class="form-select" id="projectCompany">
+                            <option value="">选择公司</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer">
@@ -337,7 +343,22 @@ document.addEventListener('DOMContentLoaded', function() {
     detailModal = new bootstrap.Modal(document.getElementById('projectDetailModal'));
     loadProjects();
     loadUsers();
+    loadCompanies();
 });
+
+async function loadCompanies() {
+    try {
+        var response = await fetch('/api/companies/', { credentials: 'include' });
+        var data = await response.json();
+        var select = document.getElementById('projectCompany');
+        select.innerHTML = '<option value="">选择公司</option>';
+        (data.results || data).forEach(function(company) {
+            select.innerHTML += '<option value="' + escapeHtml(company.name) + '">' + escapeHtml(company.name) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
+}
 
 async function loadProjects() {
     var statusFilter = document.getElementById('statusFilter').value;
@@ -461,7 +482,10 @@ async function loadUsers() {
         var select = document.getElementById('projectOwner');
         select.innerHTML = '<option value="">选择负责人</option>';
         (data.results || data).forEach(function(user) {
-            select.innerHTML += '<option value="' + user.id + '">' + escapeHtml(user.username) + '</option>';
+            var displayName = (user.first_name || user.last_name)
+                ? (user.first_name + (user.last_name || ''))
+                : user.username;
+            select.innerHTML += '<option value="' + escapeHtml(user.username) + '">' + escapeHtml(displayName) + '</option>';
         });
     } catch (error) {
         console.error('加载用户失败:', error);
@@ -481,6 +505,7 @@ function showProjectModal(projectId) {
         document.getElementById('projectCode').value = '';
         document.getElementById('projectDescription').value = '';
         document.getElementById('projectOwner').value = '';
+        document.getElementById('projectCompany').value = '';
         document.getElementById('projectStatus').value = 'draft';
         document.getElementById('projectStartDate').value = '';
         document.getElementById('projectEndDate').value = '';
@@ -500,6 +525,7 @@ async function loadProjectData(projectId) {
         document.getElementById('projectCode').readOnly = true;
         document.getElementById('projectDescription').value = project.description || '';
         document.getElementById('projectOwner').value = project.owner || '';
+        document.getElementById('projectCompany').value = project.company_name || '';
         document.getElementById('projectStatus').value = project.status;
         document.getElementById('projectStartDate').value = project.start_date || '';
         document.getElementById('projectEndDate').value = project.end_date || '';
@@ -516,6 +542,7 @@ async function saveProject() {
     var code = document.getElementById('projectCode').value.trim();
     var description = document.getElementById('projectDescription').value.trim();
     var owner = document.getElementById('projectOwner').value;
+    var company = document.getElementById('projectCompany').value;
     var status = document.getElementById('projectStatus').value;
     var startDate = document.getElementById('projectStartDate').value;
     var endDate = document.getElementById('projectEndDate').value;
@@ -535,6 +562,7 @@ async function saveProject() {
         code: code,
         description: description,
         owner: owner || null,
+        company: company || null,
         status: status,
         start_date: startDate || null,
         end_date: endDate || null,
