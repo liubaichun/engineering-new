@@ -570,15 +570,15 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         data = serializer.validated_data
-        company_id = data.get('company_id')
-        emp_id = data.get('employee_id') or data.get('employee')
+        company_id = data.get('company')  # 序列化器字段名是 company，不是 company_id
+        emp_id = data.get('employee')
         ec_id = self._resolve_employee_company(emp_id, company_id)
         serializer.save(employee_company_id=ec_id)
 
     def perform_update(self, serializer):
         raw_data = getattr(self, 'request', None) and getattr(self.request, 'data', None) or {}
-        company_id = serializer.validated_data.get('company_id')
-        emp_id = raw_data.get('employee') or serializer.validated_data.get('employee_id') or serializer.validated_data.get('employee')
+        company_id = serializer.validated_data.get('company')  # 序列化器字段名是 company
+        emp_id = raw_data.get('employee') or serializer.validated_data.get('employee')
         ec_id = self._resolve_employee_company(emp_id, company_id)
         serializer.save(employee_company_id=ec_id)
 
