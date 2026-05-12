@@ -776,7 +776,7 @@ async function loadUsers() {
         var select = document.getElementById('taskAssignee');
         select.innerHTML = '<option value="">选择处理人</option>';
         users.forEach(function(user) {
-            select.innerHTML += '<option value="' + user.id + '">' + escapeHtml(user.username) + '</option>';
+            select.innerHTML += '<option value="' + escapeHtml(user.username) + '">' + escapeHtml(user.username) + '</option>';
         });
     } catch (error) {
         console.error('加载用户失败:', error);
@@ -918,7 +918,7 @@ async function loadTaskData(taskId) {
         document.getElementById('taskCode').value = task.code;
         document.getElementById('taskCode').readOnly = true;
         document.getElementById('taskProject').value = task.project;
-        document.getElementById('taskAssignee').value = task.assignee || '';
+        document.getElementById('taskAssignee').value = task.assignee_name || '';
         document.getElementById('taskPriority').value = task.priority;
         document.getElementById('taskDueDate').value = task.due_date || '';
         document.getElementById('taskDescription').value = task.description || '';
