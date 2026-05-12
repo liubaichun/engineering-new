@@ -559,7 +559,7 @@
         {% endif %}
 
         <!-- 分组5：CRM（Tab切换：客户|合同|供应商|商机） -->
-        {% if 'client.view' in user_menu_codes or 'contract.view' in user_menu_codes or 'supplier_view' in user_menu_codes or 'opportunity.view' in user_menu_codes or request.user.is_superuser %}
+        {% if 'crm:customer:read' in user_menu_codes or 'crm:contract:read' in user_menu_codes or 'crm:supplier:read' in user_menu_codes or 'crm:opportunity:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">CRM</div>
             <a href="/crm/" class="nav-link {% if '/crm' in request.path %}active{% endif %}">
@@ -579,7 +579,7 @@
         {% endif %}
 
         <!-- 分组7：运营（物料|设备|报修 Tab） -->
-        {% if 'material.list' in user_menu_codes or 'equipment.list' in user_menu_codes or request.user.is_superuser %}
+        {% if 'material:stock:read' in user_menu_codes or 'equipment:equipment:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">运营</div>
             <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or '/equipment' in request.path and '/repair' not in request.path %}active{% endif %}">
@@ -589,7 +589,7 @@
         {% endif %}
 
         <!-- 分组7b：文件管理（独立） -->
-        {% if 'file.view' in user_menu_codes or request.user.is_superuser %}
+        {% if 'files:file:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">文件</div>
             <a href="/files/" class="nav-link {% if '/files' in request.path %}active{% endif %}">
@@ -599,7 +599,7 @@
         {% endif %}
 
         <!-- 分组8：系统（公司|用户|角色|权限|审计|API|参数|渠道|预警） -->
-        {% if 'user.view' in user_menu_codes or 'role.view' in user_menu_codes or 'permission.view' in user_menu_codes or 'company.view' in user_menu_codes or request.user.is_superuser %}
+        {% if 'system:user:read' in user_menu_codes or 'system:role:read' in user_menu_codes or 'system:permission:read' in user_menu_codes or 'finance:company:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">系统</div>
             <a href="/system/" class="nav-link {% if '/system' in request.path and '/roles' not in request.path and '/permissions' not in request.path %}active{% endif %}">
@@ -615,7 +615,7 @@
         {% endif %}
 
         <!-- 分组9：数据 -->
-        {% if 'stats.view' in user_menu_codes or 'notification.view' in user_menu_codes or request.user.is_superuser %}
+        {% if 'stats:view' in user_menu_codes or 'notifications:channel:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">数据</div>
             <a href="/stats/" class="nav-link {% if '/stats' in request.path %}active{% endif %}">
