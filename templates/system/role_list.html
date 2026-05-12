@@ -430,7 +430,7 @@ async function saveRole() {
     var permissionIds = [];
     var checkboxes = document.querySelectorAll('#modalPermCategories input[type="checkbox"]');
     checkboxes.forEach(function(cb) {
-        if (cb.checked) permissionIds.push(parseInt(cb.value));
+        if (cb.checked) { var pid = parseInt(cb.value); if (!isNaN(pid)) permissionIds.push(pid); }
     });
 
     var payload = { name: name, code: code, description: description };

@@ -304,8 +304,11 @@ class RoleSerializer(serializers.ModelSerializer):
 
     def _update_permissions(self, role, permission_ids):
         RolePermission.objects.filter(role=role).delete()
-        for perm_id in permission_ids:
-            RolePermission.objects.create(role=role, permission_id=perm_id)
+        # 防御：过滤掉不存在的 permission_id，防止外键约束报错
+        if permission_ids:
+            valid_ids = Permission.objects.filter(id__in=permission_ids).values_list('id', flat=True)
+            for perm_id in valid_ids:
+                RolePermission.objects.create(role=role, permission_id=perm_id)
 
 
 class PermissionSerializer(serializers.ModelSerializer):
