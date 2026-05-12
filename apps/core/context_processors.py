@@ -39,7 +39,7 @@ def menu_permissions(request):
 
     # 判断用户是否有任意财务相关权限（用于侧边栏"财务"分组显示控制）
     has_finance_perm = any(
-        code.startswith('finance:') or code.startswith('approval:')
+        code.startswith('finance:')
         for code in menu_codes
     ) if menu_codes else False
 
