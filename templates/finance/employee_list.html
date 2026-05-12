@@ -191,6 +191,46 @@
                     </div>
                     <div class="col-12">
                         <hr>
+                        <h6 class="text-muted mb-3">薪资设置</h6>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">基本工资</label>
+                        <input type="number" class="form-control" id="employeeBaseSalary" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">岗位工资</label>
+                        <input type="number" class="form-control" id="employeePositionSalary" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">社保扣款（个人）</label>
+                        <input type="number" class="form-control" id="employeeSocialDeduction" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">公积金扣款（个人）</label>
+                        <input type="number" class="form-control" id="employeeHousingDeduction" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">餐补</label>
+                        <input type="number" class="form-control" id="employeeMealAllowance" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">交通补贴</label>
+                        <input type="number" class="form-control" id="employeeTransportAllowance" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">通讯补贴</label>
+                        <input type="number" class="form-control" id="employeeCommAllowance" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">请假扣款标准(元/天)</label>
+                        <input type="number" class="form-control" id="employeeLeaveDedPerDay" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">迟到扣款标准(元/次)</label>
+                        <input type="number" class="form-control" id="employeeLateDedPerTime" placeholder="0.00" step="0.01" min="0">
+                    </div>
+                    <div class="col-12">
+                        <hr>
                         <h6 class="text-muted mb-3">紧急联系人</h6>
                     </div>
                     <div class="col-md-6">
@@ -417,6 +457,15 @@ async function showEmployeeModal(id) {
         document.getElementById('employeeEmergencyContact').value = emp.emergency_contact || '';
         document.getElementById('employeeEmergencyPhone').value = emp.emergency_phone || '';
         document.getElementById('employeeRemark').value = emp.remarks || '';
+        document.getElementById('employeeBaseSalary').value = emp.base_salary || '';
+        document.getElementById('employeePositionSalary').value = emp.position_salary || '';
+        document.getElementById('employeeSocialDeduction').value = emp.social_insurance_deduction || '';
+        document.getElementById('employeeHousingDeduction').value = emp.housing_fund_deduction || '';
+        document.getElementById('employeeMealAllowance').value = emp.meal_allowance || '';
+        document.getElementById('employeeTransportAllowance').value = emp.transport_allowance || '';
+        document.getElementById('employeeCommAllowance').value = emp.communication_allowance || '';
+        document.getElementById('employeeLeaveDedPerDay').value = emp.leave_deduction_per_day || '';
+        document.getElementById('employeeLateDedPerTime').value = emp.late_deduction_per_time || '';
     } else {
         document.getElementById('employeeModalTitle').innerHTML = '<i class="bi bi-person me-2"></i>新建员工';
         document.getElementById('employeeId').value = '';
@@ -463,6 +512,16 @@ async function saveEmployee() {
     if (emergency_contact) payload.emergency_contact = emergency_contact;
     if (emergency_phone) payload.emergency_phone = emergency_phone;
     if (remark) payload.remarks = remark;
+    const parseNum = id => { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? null : v; };
+    const bs = parseNum('employeeBaseSalary'); if (bs !== null) payload.base_salary = bs;
+    const ps = parseNum('employeePositionSalary'); if (ps !== null) payload.position_salary = ps;
+    const sd = parseNum('employeeSocialDeduction'); if (sd !== null) payload.social_insurance_deduction = sd;
+    const hd = parseNum('employeeHousingDeduction'); if (hd !== null) payload.housing_fund_deduction = hd;
+    const ma = parseNum('employeeMealAllowance'); if (ma !== null) payload.meal_allowance = ma;
+    const ta = parseNum('employeeTransportAllowance'); if (ta !== null) payload.transport_allowance = ta;
+    const ca = parseNum('employeeCommAllowance'); if (ca !== null) payload.communication_allowance = ca;
+    const ld = parseNum('employeeLeaveDedPerDay'); if (ld !== null) payload.leave_deduction_per_day = ld;
+    const lt = parseNum('employeeLateDedPerTime'); if (lt !== null) payload.late_deduction_per_time = lt;
 
     try {
         const url = id ? `${API_BASE}/employees/${id}/` : `${API_BASE}/employees/`;
