@@ -722,6 +722,9 @@ function showToast(msg, type, duration) {
     })();
     var toast = document.createElement('div');
     toast.className = 'toast-msg ' + type;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(100%)';
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
     var icons = {
         success: 'bi-check-circle-fill',
         error: 'bi-x-circle-fill',
@@ -730,9 +733,13 @@ function showToast(msg, type, duration) {
     };
     toast.innerHTML = '<i class="bi ' + (icons[type] || icons.info) + '"></i><span>' + msg + '</span>';
     container.appendChild(toast);
+    // 触发 reflow 然后加 show 类让它滑入
+    toast.offsetHeight;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(0)';
     setTimeout(function() {
         toast.style.opacity = '0';
-        toast.style.transition = 'opacity 0.3s';
+        toast.style.transform = 'translateX(100%)';
         setTimeout(function() { toast.remove(); }, 300);
     }, duration);
 }

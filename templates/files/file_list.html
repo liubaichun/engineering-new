@@ -629,14 +629,23 @@ async function uploadFile() {
             if (xhr.status === 201 || xhr.status === 200) {
                 showToast('文件上传成功', 'success');
                 uploadModal.hide();
+                document.getElementById('btnUpload').disabled = false;
+                document.getElementById('uploadProgress').style.display = 'none';
+                document.getElementById('uploadProgress').querySelector('.progress-bar').style.width = '0%';
                 setTimeout(function() { loadFiles(); }, 200);
             } else {
-                throw new Error('上传失败');
+                showToast('上传失败（' + xhr.status + '）', 'error');
+                document.getElementById('btnUpload').disabled = false;
+                document.getElementById('uploadProgress').style.display = 'none';
+                document.getElementById('uploadProgress').querySelector('.progress-bar').style.width = '0%';
             }
         };
 
         xhr.onerror = function() {
-            showToast('上传失败', 'error');
+            showToast('网络错误，上传失败', 'error');
+            document.getElementById('btnUpload').disabled = false;
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('uploadProgress').querySelector('.progress-bar').style.width = '0%';
         };
 
         xhr.open('POST', '/api/files/files/');
