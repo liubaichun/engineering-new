@@ -877,13 +877,10 @@ function editWage(id) {
             var label = emp.name + (co.department ? ' / ' + co.department : '') + (co.position ? ' / ' + co.position : '');
             empSelect.innerHTML += '<option value="' + emp.id + '">' + label + '</option>';
         });
-        // 选中同名员工并触发社保联动（传入工资对应的公司记录）
+        // 选中同名员工（编辑场景不触发社保联动，由后文 w.social_insurance 直接填充）
         var matched = employees.find(e => e.name === w.employee_name);
         if (matched) {
             empSelect.value = matched.id;
-            // 找到该员工在当前工资公司下的任职记录，传入社保联动
-            var matchedEC = matched.companies && matched.companies.find(c => String(c.company) === String(w.company));
-            onEmployeeSelectWithEC(matched.id, matchedEC);
         }
         document.getElementById('id_employee_name').value = w.employee_name || '';
         document.getElementById('id_bank_card').value = w.bank_card || '';

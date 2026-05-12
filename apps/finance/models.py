@@ -526,8 +526,16 @@ class WageRecord(models.Model):
         """计算应发合计、社保公积金自动扣款、累计预扣法个税、实发工资"""
         from decimal import Decimal
 
-        # Step 1: 自动计算五险一金（根据员工基数+公司配置比例）
+        # Step 1: 自动计算五险一金（但保留用户手工录入的值）
+        # 保存用户已填写的值（>0 表示用户主动填写，应保留）
+        user_social = float(self.social_insurance or 0)
+        user_housing = float(self.housing_fund or 0)
         self.auto_calculate_social_insurance()
+        # 用户录入值 > 0 时，以用户为准（系统只做辅助计算，不强制覆盖）
+        if user_social > 0:
+            self.social_insurance = Decimal(str(round(user_social, 2)))
+        if user_housing > 0:
+            self.housing_fund = Decimal(str(round(user_housing, 2)))
 
         # 自动从 employee_company 填充 employee_name（支持多公司任职）
         if self.employee_company_id and not self.employee_name:
