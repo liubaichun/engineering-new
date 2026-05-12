@@ -139,8 +139,11 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'first_name', 'last_name', 'email', 'phone',
                   'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined',
-                  'password_changed',
+                  'password', 'password_changed',
                   'role_name', 'roles', 'role_ids', 'company_roles', 'company_role_ids']
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+        }
 
     def get_role_name(self, obj):
         """返回用户角色名称 — 优先用 UserCompanyRole 的角色，否则用 User.role 字段"""
@@ -199,11 +202,15 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
     def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
         role_ids = validated_data.pop('role_ids', None)
         company_role_ids = validated_data.pop('company_role_ids', None)
         request = self.context.get('request')
         old_role_ids = set(instance.user_roles.values_list('role_id', flat=True))
         instance = super().update(instance, validated_data)
+        if password:
+            instance.set_password(password)
+            instance.save(update_fields=['password'])
         if role_ids is not None:
             new_role_ids = set(role_ids)
             added = new_role_ids - old_role_ids
