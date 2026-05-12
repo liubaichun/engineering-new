@@ -550,7 +550,7 @@
                 <i class="bi bi-bar-chart"></i><span>财务报表</span>
             </a>
             {% endif %}
-            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
+            {% if 'bank:statement:import' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/bank-import/" class="nav-link {% if '/finance/bank-import' in request.path %}active{% endif %}">
                 <i class="bi bi-bank"></i><span>银行流水</span>
             </a>
@@ -559,7 +559,7 @@
         {% endif %}
 
         <!-- 分组5：CRM（Tab切换：客户|合同|供应商|商机） -->
-        {% if 'crm:customer:read' in user_menu_codes or 'crm:contract:read' in user_menu_codes or 'crm:supplier:read' in user_menu_codes or 'crm:opportunity:read' in user_menu_codes or request.user.is_superuser %}
+        {% if 'crm:customer:read' in user_menu_codes or 'crm:contract:read' in user_menu_codes or 'crm:opportunity:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">CRM</div>
             <a href="/crm/" class="nav-link {% if '/crm' in request.path %}active{% endif %}">
@@ -599,7 +599,7 @@
         {% endif %}
 
         <!-- 分组8：系统（公司|用户|角色|权限|审计|API|参数|渠道|预警） -->
-        {% if 'system:user:read' in user_menu_codes or 'system:role:read' in user_menu_codes or 'system:permission:read' in user_menu_codes or 'finance:company:read' in user_menu_codes or request.user.is_superuser %}
+        {% if 'system:user:read' in user_menu_codes or 'system:role:manage' in user_menu_codes or 'system:setting:read' in user_menu_codes or 'system:log:read' in user_menu_codes or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">系统</div>
             <a href="/system/" class="nav-link {% if '/system' in request.path and '/roles' not in request.path and '/permissions' not in request.path %}active{% endif %}">
