@@ -52,7 +52,7 @@ class User(AbstractUser):
         return False
 
     def has_perm(self, perm_code):
-        """检查用户是否拥有指定权限码（精确匹配 + 前缀匹配）"""
+        """检查用户是否拥有指定权限码（精确匹配）"""
         if self.is_superuser:
             return True
         role_ids = list(self.user_roles.values_list('role_id', flat=True))
@@ -63,20 +63,10 @@ class User(AbstractUser):
             is_active=True
         ).exists():
             return True
-        # 前缀匹配：income.add → 匹配 finance:income:* 等新格式
-        parts = perm_code.split('.')
-        if len(parts) >= 2:
-            prefix = parts[0] + '.'
-            if Permission.objects.filter(
-                code__startswith=prefix,
-                roles__id__in=role_ids,
-                is_active=True
-            ).exists():
-                return True
         return False
 
     def get_permissions(self):
-        """获取用户所有权限码列表"""
+        """Get all permission codes for this user"""
         role_ids = list(self.user_roles.values_list('role_id', flat=True))
         return list(Permission.objects.filter(
             roles__id__in=role_ids,
