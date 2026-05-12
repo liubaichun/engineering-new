@@ -986,7 +986,7 @@ function editWage(id) {
         document.getElementById('id_other_deductions').value = w.other_deductions || 0;
         // 新增字段：迟到次数 + 7项专项附加扣除
         document.getElementById('id_late_times').value = w.late_times || 0;
-        var emp = employees.find(e => String(e.id) === String(w.employee));
+        var emp = employees.find(e => String(e.id) === String(w.employee_id));
         var lateDedEl = document.getElementById('id_late_deduction_per_time');
         if (lateDedEl) lateDedEl.value = emp ? (parseFloat(emp.late_deduction_per_time) || 0) : 0;
         document.getElementById('id_children_education').value = w.children_education || 0;
