@@ -254,14 +254,28 @@ function collectWageData() {
     var fund = parseFloat(document.getElementById('id_housing_fund').value) || 0;
     var leaveDed = parseFloat(document.getElementById('id_leave_deduction').value) || 0;
     var sickDed = parseFloat(document.getElementById('id_sick_leave_deduction').value) || 0;
+    var lateTimes = parseInt(document.getElementById('id_late_times').value) || 0;
+    var lateDedPer = parseFloat(document.getElementById('id_late_deduction_per_time').value) || 0;
+    var lateDed = lateTimes * lateDedPer;
     var loanRepay = parseFloat(document.getElementById('id_employee_loan_repayment').value) || 0;
     var otherLoan = parseFloat(document.getElementById('id_other_loan').value) || 0;
     var otherDed = parseFloat(document.getElementById('id_other_deductions').value) || 0;
 
+    // 7项专项附加扣除（税前扣除，在5000起征点之前）
+    var children = parseFloat(document.getElementById('id_children_education').value) || 0;
+    var continuing = parseFloat(document.getElementById('id_continuing_education').value) || 0;
+    var illness = parseFloat(document.getElementById('id_serious_illness').value) || 0;
+    var housingLoan = parseFloat(document.getElementById('id_housing_loan').value) || 0;
+    var housingRent = parseFloat(document.getElementById('id_housing_rent').value) || 0;
+    var elderly = parseFloat(document.getElementById('id_elderly_support').value) || 0;
+    var infant = parseFloat(document.getElementById('id_infant_care').value) || 0;
+    var specialDeduction7 = children + continuing + illness + housingLoan + housingRent + elderly + infant;
+
     var gross = base + pos + ot + bonus + comm + meal + transport + commAllowance + otherAllow;
-    var specialDed = social + fund;
-    var totalDed = specialDed + leaveDed + sickDed + loanRepay + otherLoan + otherDed;
-    var taxable = gross - specialDed - 5000;
+    var socialDed = social + fund;
+    var totalDed = socialDed + leaveDed + sickDed + lateDed + loanRepay + otherLoan + otherDed;
+    // 个税前工资 = 应发合计 - 社保公积金 - 专项附加扣除 - 5000
+    var taxable = gross - socialDed - specialDeduction7 - 5000;
     var tax = calculateTax(taxable);
     var net = gross - totalDed - tax;
 
@@ -270,7 +284,9 @@ function collectWageData() {
         totalDed: Math.round(totalDed * 100) / 100,
         taxable: Math.round(Math.max(taxable, 0) * 100) / 100,
         tax: tax,
-        net: Math.round(net * 100) / 100
+        net: Math.round(net * 100) / 100,
+        lateTimes: lateTimes,
+        specialDeduction7: specialDeduction7
     };
 }
 
@@ -297,7 +313,10 @@ function bindAutoCalc() {
                   'id_communication_allowance','id_other_allowance',
                   'id_social_insurance','id_housing_fund',
                   'id_leave_deduction','id_sick_leave_deduction',
-                  'id_employee_loan_repayment','id_other_loan','id_other_deductions'];
+                  'id_late_times',
+                  'id_employee_loan_repayment','id_other_loan','id_other_deductions',
+                  'id_children_education','id_continuing_education','id_serious_illness',
+                  'id_housing_loan','id_housing_rent','id_elderly_support','id_infant_care'];
     fields.forEach(function(f) {
         var el = document.getElementById(f);
         if (el) el.addEventListener('input', autoCalc);
@@ -719,6 +738,15 @@ function showAddWageModal() {
     document.getElementById('id_employee_loan_repayment').value = '0';
     document.getElementById('id_other_loan').value = '0';
     document.getElementById('id_other_deductions').value = '0';
+    // 新增字段重置
+    document.getElementById('id_late_times').value = '0';
+    document.getElementById('id_children_education').value = '0';
+    document.getElementById('id_continuing_education').value = '0';
+    document.getElementById('id_serious_illness').value = '0';
+    document.getElementById('id_housing_loan').value = '0';
+    document.getElementById('id_housing_rent').value = '0';
+    document.getElementById('id_elderly_support').value = '0';
+    document.getElementById('id_infant_care').value = '0';
     document.getElementById('id_remarks').value = '';
     document.getElementById('wageModalTitle').textContent = '录入工资';
     isEditingWage = false;
@@ -805,6 +833,8 @@ function onEmployeeSelect(empId) {
         ? (emp.companies.find(c => String(c.company) === String(selectedCompany)) || emp.companies[0])
         : (emp.companies && emp.companies[0]);
     document.getElementById('id_employee_company').value = matchedEC ? matchedEC.id : '';
+    // 自动填充档案里的薪资/津贴/扣款标准
+    autoFillFromEmployeeProfile(emp);
     // 自动计算社保扣款（传入任职记录对象）
     autoFillSocialInsurance(emp, co);
     autoCalc();
@@ -821,6 +851,8 @@ function onEmployeeSelectWithEC(empId, ec) {
     document.getElementById('id_department').value = co.department || '';
     document.getElementById('id_position').value = co.position || '';
     document.getElementById('id_employee_company').value = ec && ec.id ? ec.id : '';
+    // 自动填充档案里的薪资/津贴/扣款标准
+    autoFillFromEmployeeProfile(emp);
     // 自动计算社保扣款
     autoFillSocialInsurance(emp, co);
     autoCalc();
@@ -875,6 +907,23 @@ function autoFillSocialInsurance(emp, co) {
         var hfEmp = cfg ? (parseFloat(cfg.housing_fund_rate_employee) || 5) : 5;
         document.getElementById('id_housing_fund').value = (hfBase * hfEmp / 100).toFixed(2);
     }
+}
+
+// 根据员工档案自动填充薪资/津贴/扣款标准（选员工时调用）
+// 档案字段：base_salary, position_salary, meal_allowance, transport_allowance,
+//           communication_allowance, other_allowance, leave_deduction_per_day,
+//           late_deduction_per_time, employee_loan_repayment, other_fixed_deduction
+function autoFillFromEmployeeProfile(emp) {
+    var toNum = function(v) { return parseFloat(v) || 0; };
+    document.getElementById('id_base_salary').value = toNum(emp.base_salary);
+    document.getElementById('id_position_salary').value = toNum(emp.position_salary);
+    document.getElementById('id_meal_allowance').value = toNum(emp.meal_allowance);
+    document.getElementById('id_transport_allowance').value = toNum(emp.transport_allowance);
+    document.getElementById('id_communication_allowance').value = toNum(emp.communication_allowance);
+    document.getElementById('id_other_allowance').value = toNum(emp.other_allowance);
+    document.getElementById('id_employee_loan_repayment').value = toNum(emp.employee_loan_repayment);
+    // 迟到次数和专项附加扣除不自动填充，由当月录入
+    // 请假扣款标准存档案但按当月实际天数算，不在此自动填
 }
 
 function editWage(id) {
@@ -933,6 +982,15 @@ function editWage(id) {
         document.getElementById('id_employee_loan_repayment').value = w.employee_loan_repayment || 0;
         document.getElementById('id_other_loan').value = w.other_loan || 0;
         document.getElementById('id_other_deductions').value = w.other_deductions || 0;
+        // 新增字段：迟到次数 + 7项专项附加扣除
+        document.getElementById('id_late_times').value = w.late_times || 0;
+        document.getElementById('id_children_education').value = w.children_education || 0;
+        document.getElementById('id_continuing_education').value = w.continuing_education || 0;
+        document.getElementById('id_serious_illness').value = w.serious_illness || 0;
+        document.getElementById('id_housing_loan').value = w.housing_loan || 0;
+        document.getElementById('id_housing_rent').value = w.housing_rent || 0;
+        document.getElementById('id_elderly_support').value = w.elderly_support || 0;
+        document.getElementById('id_infant_care').value = w.infant_care || 0;
         document.getElementById('id_year').value = w.year;
         document.getElementById('id_month').value = w.month;
         document.getElementById('id_remarks').value = w.remarks || '';
@@ -971,6 +1029,15 @@ function saveWage() {
         employee_loan_repayment: document.getElementById('id_employee_loan_repayment').value || 0,
         other_loan: document.getElementById('id_other_loan').value || 0,
         other_deductions: document.getElementById('id_other_deductions').value || 0,
+        // 新增字段
+        late_times: parseInt(document.getElementById('id_late_times').value) || 0,
+        children_education: document.getElementById('id_children_education').value || 0,
+        continuing_education: document.getElementById('id_continuing_education').value || 0,
+        serious_illness: document.getElementById('id_serious_illness').value || 0,
+        housing_loan: document.getElementById('id_housing_loan').value || 0,
+        housing_rent: document.getElementById('id_housing_rent').value || 0,
+        elderly_support: document.getElementById('id_elderly_support').value || 0,
+        infant_care: document.getElementById('id_infant_care').value || 0,
         gross_salary: r.gross,
         total_deduction: r.totalDed,
         taxable_salary: r.taxable,
@@ -1219,11 +1286,25 @@ function exportWages(selectedFields) {
                     <div class="col-2"><label class="form-label">请假扣款</label><input type="number" class="form-control" id="id_leave_deduction" placeholder="0" value="0"></div>
                     <div class="col-2"><label class="form-label">病假天数</label><input type="number" class="form-control" id="id_sick_leave_days" placeholder="0" value="0" step="0.5"></div>
                     <div class="col-2"><label class="form-label">病假扣款</label><input type="number" class="form-control" id="id_sick_leave_deduction" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">迟到次数</label><input type="number" class="form-control" id="id_late_times" placeholder="0" value="0" min="0"></div>
                     <div class="col-2"><label class="form-label">借款还款</label><input type="number" class="form-control" id="id_employee_loan_repayment" placeholder="0" value="0"></div>
                 </div>
                 <div class="row g-3 mb-3">
                     <div class="col-3"><label class="form-label">其他借款</label><input type="number" class="form-control" id="id_other_loan" placeholder="0" value="0"></div>
                     <div class="col-3"><label class="form-label">其他扣款</label><input type="number" class="form-control" id="id_other_deductions" placeholder="0" value="0"></div>
+                </div>
+
+                <div class="section-title">个税专项附加扣除（每月如实填写）</div>
+                <div class="row g-3 mb-3">
+                    <div class="col-2"><label class="form-label">子女教育</label><input type="number" class="form-control" id="id_children_education" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">继续教育</label><input type="number" class="form-control" id="id_continuing_education" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">大病医疗</label><input type="number" class="form-control" id="id_serious_illness" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">住房贷款利息</label><input type="number" class="form-control" id="id_housing_loan" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">住房租金</label><input type="number" class="form-control" id="id_housing_rent" placeholder="0" value="0"></div>
+                    <div class="col-2"><label class="form-label">赡养老人</label><input type="number" class="form-control" id="id_elderly_support" placeholder="0" value="0"></div>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-2"><label class="form-label">3岁以下婴幼儿照护</label><input type="number" class="form-control" id="id_infant_care" placeholder="0" value="0"></div>
                 </div>
 
                 <div class="calc-result">
@@ -1234,12 +1315,12 @@ function exportWages(selectedFields) {
                     </div>
                     <div class="row">
                         <div class="col-3"><span class="label">扣款合计 =</span></div>
-                        <div class="col-6"><span class="label">社保+公积金+请假+病假+借款+其他</span></div>
+                        <div class="col-6"><span class="label">社保+公积金+请假+病假+迟到+借款+其他</span></div>
                         <div class="col-3"><span class="value text-danger" id="calc_total_ded">¥0</span></div>
                     </div>
                     <div class="row">
                         <div class="col-3"><span class="label">个税前工资 =</span></div>
-                        <div class="col-6"><span class="label">应发合计 - 社保 - 公积金 - 5000</span></div>
+                        <div class="col-6"><span class="label">应发合计 - 社保 - 公积金 - 专项附加 - 5000</span></div>
                         <div class="col-3"><span class="value" id="calc_taxable">¥0</span></div>
                     </div>
                     <div class="row tax-row">
