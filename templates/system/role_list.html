@@ -212,8 +212,9 @@ function showRoleDetail(roleId) {
     // 检查当前登录用户是否是超级管理员
     var isSuperuser = (window.currentUser && window.currentUser.is_superuser);
     var isCurrentRole = (currentRoleId && parseInt(currentRoleId) === parseInt(roleId));
+    var isSelfSuperuser = isSuperuser && isCurrentRole;
 
-    if (isSuperuser && isCurrentRole) {
+    if (isSelfSuperuser) {
         html += '<div class="alert alert-info py-2 mb-3" style="font-size:0.85rem;">';
         html += '<i class="bi bi-info-circle me-1"></i>您是超级管理员，拥有所有权限，无需为角色分配具体权限。';
         html += '</div>';
@@ -255,7 +256,6 @@ function showRoleDetail(roleId) {
             html += '<div class="row g-2">';
             perms.forEach(function(p) {
                 var has = rolePermIds.indexOf(p.id) !== -1;
-                var isSelfSuperuser = isSuperuser && isCurrentRole;
                 html += '<div class="col-md-6">';
                 html += '<div class="form-check">';
                 if (isSelfSuperuser) {
