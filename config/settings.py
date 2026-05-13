@@ -112,7 +112,7 @@ DATABASES = {
         'OPTIONS': {
             'connect_timeout': 10,
         },
-        'CONN_MAX_AGE': 600,  # 连接复用600秒，避免频繁建立TCP连接
+        'CONN_MAX_AGE': None,  # 设为None，每次请求强制新建连接，让statement_timeout生效
         'CONN_HEALTH_CHECKS': True,  # 健康检查确保复用连接有效
     }
 }
