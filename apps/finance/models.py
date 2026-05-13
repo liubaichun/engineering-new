@@ -646,6 +646,102 @@ class WageRecord(models.Model):
         self.tax = round(max(monthly_tax, 0), 2)
         self.net_salary = round(gross - total_ded - max(monthly_tax, 0), 2)
 
+
+def calculate_wage_tax(
+    gross,
+    social_insurance,
+    housing_fund,
+    children_education,
+    continuing_education,
+    serious_illness,
+    housing_loan,
+    housing_rent,
+    elderly_support,
+    infant_care,
+    leave_deduction,
+    sick_leave_deduction,
+    late_times,
+    late_deduction_per_time,
+    employee_loan_repayment,
+    other_deductions,
+    year,
+    month,
+    employee_company_id,
+    employee_id,
+    prior_cumulative_tax,
+    prior_cumulative_gross,
+    prior_cumulative_social_insurance,
+    prior_cumulative_housing_fund,
+):
+    """
+    纯函数：根据当月工资数据和累计数据，计算工资各项税额。
+    累计预扣法使用年度累计应税收入 + 7级超额累进税率。
+    返回 dict 包含所有计算结果。
+    """
+    # 应发合计
+    _gross = float(gross or 0)
+
+    # 累计应发工资
+    cum_gross = float(prior_cumulative_gross or 0) + _gross
+
+    # 累计社保/公积金
+    cum_social = float(prior_cumulative_social_insurance or 0) + float(social_insurance or 0)
+    cum_housing = float(prior_cumulative_housing_fund or 0) + float(housing_fund or 0)
+
+    # 7项专项附加扣除求和
+    special_ded = (float(children_education or 0)
+                 + float(continuing_education or 0)
+                 + float(serious_illness or 0)
+                 + float(housing_loan or 0)
+                 + float(housing_rent or 0)
+                 + float(elderly_support or 0)
+                 + float(infant_care or 0))
+
+    # 累计应纳税所得额
+    cum_taxable = cum_gross - cum_social - cum_housing - special_ded * month - 5000 * month
+    cum_taxable = max(cum_taxable, 0)
+
+    # 累计应纳税额（7级超额累进税率）
+    thresholds = [0, 36000, 144000, 252000, 324000, 648000, 960000]
+    rates = [3, 10, 20, 25, 30, 35, 45]
+    quick_deds = [0, 2520, 16920, 31920, 52920, 85920, 181920]
+
+    cum_tax = 0.0
+    for i in range(len(thresholds) - 1):
+        if cum_taxable <= thresholds[i + 1]:
+            cum_tax = cum_taxable * rates[i] / 100 - quick_deds[i]
+            break
+    else:
+        cum_tax = cum_taxable * 45 / 100 - 181920
+    cum_tax = max(cum_tax, 0)
+
+    # 本月税额 = 累计税额 - 上月累计税额
+    monthly_tax = cum_tax - float(prior_cumulative_tax or 0)
+
+    # 扣款合计
+    late_ded = int(late_times or 0) * float(late_deduction_per_time or 0)
+    total_ded = (float(social_insurance or 0)
+               + float(housing_fund or 0)
+               + float(leave_deduction or 0)
+               + float(sick_leave_deduction or 0)
+               + late_ded
+               + float(employee_loan_repayment or 0)
+               + float(other_deductions or 0))
+
+    net_salary = _gross - total_ded - max(monthly_tax, 0)
+
+    return {
+        'gross_salary': round(_gross, 2),
+        'cumulative_gross': round(cum_gross, 2),
+        'cumulative_social_insurance': round(cum_social, 2),
+        'cumulative_housing_fund': round(cum_housing, 2),
+        'cumulative_taxable_income': round(cum_taxable, 2),
+        'cumulative_tax': round(cum_tax, 2),
+        'tax': round(max(monthly_tax, 0), 2),
+        'total_deduction': round(total_ded, 2),
+        'net_salary': round(net_salary, 2),
+    }
+
     def save(self, *args, **kwargs):
         self.calculate_gross_and_tax()
         super(WageRecord, self).save(*args, **kwargs)

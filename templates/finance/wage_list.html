@@ -220,26 +220,11 @@
 
 {% block scripts %}
 <script>
-// 7级超额累进税率
-function calculateTax(taxable) {
-    if (taxable <= 0) return 0;
-    var thresholds = [0, 3000, 12000, 25000, 35000, 55000, 80000];
-    var rates = [3, 10, 20, 25, 30, 35, 45];
-    var quickDeductions = [0, 210, 1410, 2660, 4410, 7160, 15160];
-    var tax = 0;
-    for (var i = 0; i < thresholds.length - 1; i++) {
-        if (taxable <= thresholds[i + 1]) {
-            tax = taxable * rates[i] / 100 - quickDeductions[i];
-            break;
-        }
-    }
-    if (taxable > thresholds[thresholds.length - 1]) {
-        tax = taxable * 45 / 100 - 15160;
-    }
-    return Math.round(tax * 100) / 100;
-}
+// 前端不再维护旧的月度税率表计算逻辑（Bug：旧税率表 + 单月 taxable 与后端累计预扣法不一致）
+// 工资税额计算全部由后端 calculate_wage_tax() 统一负责
+// 前端 autoCalc() 通过 /api/finance/wages/calc_preview/ 调用后端 API 获取准确结果
 
-// 收集表单数据计算工资
+// 收集表单数据（供预览和保存共用）
 function collectWageData() {
     var base = parseFloat(document.getElementById('id_base_salary').value) || 0;
     var pos = parseFloat(document.getElementById('id_position_salary').value) || 0;
@@ -276,17 +261,34 @@ function collectWageData() {
     var totalDed = socialDed + leaveDed + sickDed + lateDed + loanRepay + otherLoan + otherDed;
     // 个税前工资 = 应发合计 - 社保公积金 - 专项附加扣除 - 5000
     var taxable = gross - socialDed - specialDeduction7 - 5000;
-    var tax = calculateTax(taxable);
-    var net = gross - totalDed - tax;
+    var net = gross - totalDed - 0; // tax 暂时设为0，等后端返回
 
     return {
         gross: Math.round(gross * 100) / 100,
         totalDed: Math.round(totalDed * 100) / 100,
         taxable: Math.round(Math.max(taxable, 0) * 100) / 100,
-        tax: tax,
         net: Math.round(net * 100) / 100,
         lateTimes: lateTimes,
-        specialDeduction7: specialDeduction7
+        specialDeduction7: specialDeduction7,
+        // 以下是给后端 API 的完整字段
+        _data: {
+            gross: gross,
+            social_insurance: social,
+            housing_fund: fund,
+            children_education: children,
+            continuing_education: continuing,
+            serious_illness: illness,
+            housing_loan: housingLoan,
+            housing_rent: housingRent,
+            elderly_support: elderly,
+            infant_care: infant,
+            leave_deduction: leaveDed,
+            sick_leave_deduction: sickDed,
+            late_times: lateTimes,
+            late_deduction_per_time: lateDedPer,
+            employee_loan_repayment: loanRepay,
+            other_deductions: otherDed,
+        }
     };
 }
 
@@ -518,53 +520,56 @@ function updateSummary(wages) {
     document.getElementById('totalCount').textContent = wages.length;
 }
 
-function autoCalc() {
+// 工资预览计算：调后端 calc_preview API（累计预扣法，唯一计算来源）
+async function autoCalc() {
     var r = collectWageData();
-    document.getElementById('calc_gross').textContent = '¥' + r.gross.toLocaleString();
-    document.getElementById('calc_total_ded').textContent = '¥' + r.totalDed.toLocaleString();
-    document.getElementById('calc_taxable').textContent = '¥' + r.taxable.toLocaleString();
-    document.getElementById('calc_tax').textContent = '¥' + r.tax.toLocaleString();
-    document.getElementById('calc_net').textContent = '¥' + r.net.toLocaleString();
-}
+    var year = parseInt(document.getElementByById('id_year').value) || new Date().getFullYear();
+    var month = parseInt(document.getElementById('id_month').value) || new Date().getMonth() + 1;
+    var empId = document.getElementById('id_employee') && document.getElementById('id_employee').value;
+    var ecId = document.getElementById('id_employee_company') && document.getElementById('id_employee_company').value;
 
-async function autoCalcWage() {
-    // 从表单收集数据，调用后端计算接口，填回结果
-    var data = {
-        base_salary: document.getElementById('id_base_salary').value || 0,
-        position_salary: document.getElementById('id_position_salary').value || 0,
-        overtime_pay: document.getElementById('id_overtime_pay').value || 0,
-        bonus: document.getElementById('id_bonus').value || 0,
-        commission: document.getElementById('id_commission').value || 0,
-        meal_allowance: document.getElementById('id_meal_allowance').value || 0,
-        transport_allowance: document.getElementById('id_transport_allowance').value || 0,
-        communication_allowance: document.getElementById('id_communication_allowance').value || 0,
-        other_allowance: document.getElementById('id_other_allowance').value || 0,
-        social_insurance: document.getElementById('id_social_insurance').value || 0,
-        housing_fund: document.getElementById('id_housing_fund').value || 0,
-        leave_deduction: document.getElementById('id_leave_deduction').value || 0,
-        sick_leave_deduction: document.getElementById('id_sick_leave_deduction').value || 0,
-        other_deductions: document.getElementById('id_other_deductions').value || 0,
-    };
+    // 上月累计值（从表单隐藏字段读取，录入新记录时均为0）
+    var priorCumTax = parseFloat(document.getElementById('id_prior_cumulative_tax') && document.getElementById('id_prior_cumulative_tax').value) || 0;
+    var priorCumGross = parseFloat(document.getElementById('id_prior_cumulative_gross') && document.getElementById('id_prior_cumulative_gross').value) || 0;
+    var priorCumSocial = parseFloat(document.getElementById('id_prior_cumulative_social_insurance') && document.getElementById('id_prior_cumulative_social_insurance').value) || 0;
+    var priorCumHousing = parseFloat(document.getElementById('id_prior_cumulative_housing_fund') && document.getElementById('id_prior_cumulative_housing_fund').value) || 0;
+
+    var payload = Object.assign({}, r._data, {
+        year: year,
+        month: month,
+        employee: empId || null,
+        employee_company: ecId || null,
+        prior_cumulative_tax: priorCumTax,
+        prior_cumulative_gross: priorCumGross,
+        prior_cumulative_social_insurance: priorCumSocial,
+        prior_cumulative_housing_fund: priorCumHousing,
+    });
+
     try {
-        var resp = await fetch('/api/finance/wages/calc/', {
+        var resp = await fetch('/api/finance/wages/calc_preview/', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify(data)
+            body: JSON.stringify(payload)
         });
         var result = await resp.json();
         if (resp.ok) {
-            document.getElementById('calc_gross').textContent = '¥' + (result.gross || 0).toLocaleString();
+            document.getElementById('calc_gross').textContent = '¥' + (result.gross_salary || 0).toLocaleString();
             document.getElementById('calc_total_ded').textContent = '¥' + (result.total_deduction || 0).toLocaleString();
-            document.getElementById('calc_taxable').textContent = '¥' + (result.taxable_salary || 0).toLocaleString();
+            document.getElementById('calc_taxable').textContent = '¥' + (result.cumulative_taxable_income || 0).toLocaleString();
             document.getElementById('calc_tax').textContent = '¥' + (result.tax || 0).toLocaleString();
             document.getElementById('calc_net').textContent = '¥' + (result.net_salary || 0).toLocaleString();
-            showToast('计算完成', 'success');
         } else {
-            showToast(result.error || '计算失败', 'error');
+            // 降级：显示 gross 和 totalDed（这两个字段前端可以准确计算）
+            document.getElementById('calc_gross').textContent = '¥' + r.gross.toLocaleString();
+            document.getElementById('calc_total_ded').textContent = '¥' + r.totalDed.toLocaleString();
+            document.getElementById('calc_taxable').textContent = '¥' + r.taxable.toLocaleString();
+            document.getElementById('calc_tax').textContent = '¥—（计算失败）';
+            document.getElementById('calc_net').textContent = '¥—';
         }
     } catch (e) {
-        showToast('计算请求失败', 'error');
+        document.getElementById('calc_tax').textContent = '¥—（网络错误）';
+        document.getElementById('calc_net').textContent = '¥—';
     }
 }
 
@@ -993,6 +998,11 @@ function editWage(id) {
         document.getElementById('id_infant_care').value = w.infant_care || 0;
         document.getElementById('id_year').value = w.year;
         document.getElementById('id_month').value = w.month;
+        // 累计值（用于后端预览 API，编辑时已保存的是本月累计值，不需要再往前推）
+        if (document.getElementById('id_prior_cumulative_tax')) document.getElementById('id_prior_cumulative_tax').value = w.prior_cumulative_tax || 0;
+        if (document.getElementById('id_prior_cumulative_gross')) document.getElementById('id_prior_cumulative_gross').value = w.cumulative_gross || 0;
+        if (document.getElementById('id_prior_cumulative_social_insurance')) document.getElementById('id_prior_cumulative_social_insurance').value = w.cumulative_social_insurance || 0;
+        if (document.getElementById('id_prior_cumulative_housing_fund')) document.getElementById('id_prior_cumulative_housing_fund').value = w.cumulative_housing_fund || 0;
         document.getElementById('id_remarks').value = w.remarks || '';
         autoCalc();
         wageModal.show();
@@ -1039,10 +1049,6 @@ function saveWage() {
         elderly_support: document.getElementById('id_elderly_support').value || 0,
         infant_care: document.getElementById('id_infant_care').value || 0,
         gross_salary: r.gross,
-        total_deduction: r.totalDed,
-        taxable_salary: r.taxable,
-        tax: r.tax,
-        net_salary: r.net,
         year: document.getElementById('id_year').value,
         month: document.getElementById('id_month').value,
         remarks: document.getElementById('id_remarks').value,
@@ -1232,6 +1238,10 @@ function exportWages(selectedFields) {
                             {% endfor %}
                         </select>
                     </div>
+                    <input type="hidden" id="id_prior_cumulative_tax" value="0">
+                    <input type="hidden" id="id_prior_cumulative_gross" value="0">
+                    <input type="hidden" id="id_prior_cumulative_social_insurance" value="0">
+                    <input type="hidden" id="id_prior_cumulative_housing_fund" value="0">
                     <div class="col-4">
                         <label class="form-label">员工姓名 <span class="text-danger">*</span></label>
                         <select class="form-select" id="id_employee_select" onchange="onEmployeeSelect(this.value)">

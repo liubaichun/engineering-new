@@ -653,6 +653,50 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         return Response({'status': 'success', 'message': '工资单已提交'})
 
+    @action(detail=False, methods=['post'])
+    def calc_preview(self, request):
+        """
+        工资计算预览 API。
+        输入当月工资数据 + 上月累计数据（前端传），
+        返回和保存时完全一致的后端计算结果（累计预扣法）。
+        """
+        from apps.finance.models import calculate_wage_tax
+
+        d = request.data
+        # 上月累计值（前端传）
+        prior_cum_tax = float(d.get('prior_cumulative_tax') or 0)
+        prior_cum_gross = float(d.get('prior_cumulative_gross') or 0)
+        prior_cum_social = float(d.get('prior_cumulative_social_insurance') or 0)
+        prior_cum_housing = float(d.get('prior_cumulative_housing_fund') or 0)
+
+        result = calculate_wage_tax(
+            gross=d.get('gross', 0),
+            social_insurance=d.get('social_insurance', 0),
+            housing_fund=d.get('housing_fund', 0),
+            children_education=d.get('children_education', 0),
+            continuing_education=d.get('continuing_education', 0),
+            serious_illness=d.get('serious_illness', 0),
+            housing_loan=d.get('housing_loan', 0),
+            housing_rent=d.get('housing_rent', 0),
+            elderly_support=d.get('elderly_support', 0),
+            infant_care=d.get('infant_care', 0),
+            leave_deduction=d.get('leave_deduction', 0),
+            sick_leave_deduction=d.get('sick_leave_deduction', 0),
+            late_times=d.get('late_times', 0),
+            late_deduction_per_time=d.get('late_deduction_per_time', 0),
+            employee_loan_repayment=d.get('employee_loan_repayment', 0),
+            other_deductions=d.get('other_deductions', 0),
+            year=int(d.get('year', 0)),
+            month=int(d.get('month', 0)),
+            employee_company_id=d.get('employee_company'),
+            employee_id=d.get('employee'),
+            prior_cumulative_tax=prior_cum_tax,
+            prior_cumulative_gross=prior_cum_gross,
+            prior_cumulative_social_insurance=prior_cum_social,
+            prior_cumulative_housing_fund=prior_cum_housing,
+        )
+        return Response(result)
+
     @action(detail=False, methods=['get'])
     def summary(self, request):
         """工资单汇总"""
