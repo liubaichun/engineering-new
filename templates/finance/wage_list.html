@@ -820,7 +820,7 @@ function onCompanyChange(companyId) {
 // 选中员工后自动填充信息并计算社保扣款
 var isEditingWage = false;
 
-function onEmployeeSelect(empId) {
+async function onEmployeeSelect(empId) {
     if (!empId) return;
     // 编辑状态时，切换员工下拉不覆盖已有数据（由用户手动点"自动计算"触发社保联动）
     if (isEditingWage) return;
@@ -844,7 +844,8 @@ function onEmployeeSelect(empId) {
     autoFillFromEmployeeProfile(emp);
     // 自动计算社保扣款（传入任职记录对象）
     autoFillSocialInsurance(emp, co);
-    autoCalc();
+    // autoCalc 必须在所有字段填充完毕后调用
+    await autoCalc();
 }
 
 // 选中员工后触发社保联动（编辑时直接指定任职记录，绕过公司下拉）
@@ -888,26 +889,46 @@ function autoCalcSocialFromEmployee() {
 
 // 根据员工任职信息和公司社保配置自动填充社保/公积金扣款
 // emp: 员工对象, co: 任职记录对象（来自 companies 数组）
-// 逻辑：直接使用员工档案中的 social_insurance_deduction 和 housing_fund_deduction
+// 逻辑：优先用员工档案中的 deduction 金额（精确到人）；无则按公司配置自动计算
 // 注意：Employee 模型只有 *_deduction（直接金额），没有 *_base（基数）字段
 function autoFillSocialInsurance(emp, co) {
     var companyId = (co && co.company) ? co.company : emp.company;
     var cfg = socialConfigs[companyId];
 
-    // 社保：直接用员工档案中填写的 deduction 金额（用户录入的就是扣款金额）
+    // 社保：优先用员工档案 deduction，非零则直接使用
     var siDeduction = parseFloat(emp.social_insurance_deduction) || 0;
-    if (!emp.has_social_insurance || siDeduction <= 0) {
+    if (!emp.has_social_insurance) {
         document.getElementById('id_social_insurance').value = '0';
-    } else {
+    } else if (siDeduction > 0) {
+        // 员工档案有精确值，直接用
         document.getElementById('id_social_insurance').value = siDeduction.toFixed(2);
+    } else if (cfg) {
+        // 无档案值，按公司配置计算：社保基数 × (养老+医疗+失业个人比例)
+        var socialBase = parseFloat(cfg.social_base) || 0;
+        var pensionEmp = parseFloat(cfg.pension_rate_employee) || 0;
+        var medicalEmp = parseFloat(cfg.medical_rate_employee) || 0;
+        var unemploymentEmp = parseFloat(cfg.unemployment_rate_employee) || 0;
+        var calculated = socialBase * (pensionEmp + medicalEmp + unemploymentEmp);
+        document.getElementById('id_social_insurance').value = calculated > 0 ? calculated.toFixed(2) : '0';
+    } else {
+        document.getElementById('id_social_insurance').value = '0';
     }
 
-    // 公积金：直接用员工档案中填写的 deduction 金额
+    // 公积金：优先用员工档案 deduction，非零则直接使用
     var hfDeduction = parseFloat(emp.housing_fund_deduction) || 0;
-    if (!emp.has_housing_fund || hfDeduction <= 0) {
+    if (!emp.has_housing_fund) {
         document.getElementById('id_housing_fund').value = '0';
-    } else {
+    } else if (hfDeduction > 0) {
+        // 员工档案有精确值，直接用
         document.getElementById('id_housing_fund').value = hfDeduction.toFixed(2);
+    } else if (cfg) {
+        // 无档案值，按公司配置计算：公积金基数 × 公积金个人比例
+        var fundBase = parseFloat(cfg.housing_fund_base) || 0;
+        var fundRateEmp = parseFloat(cfg.housing_fund_rate_employee) || 0;
+        var calculated = fundBase * fundRateEmp;
+        document.getElementById('id_housing_fund').value = calculated > 0 ? calculated.toFixed(2) : '0';
+    } else {
+        document.getElementById('id_housing_fund').value = '0';
     }
 }
 
