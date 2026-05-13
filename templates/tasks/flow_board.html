@@ -921,7 +921,7 @@ async function loadTaskData(taskId) {
         document.getElementById('taskCode').value = task.code;
         document.getElementById('taskCode').readOnly = true;
         document.getElementById('taskProject').value = task.project != null ? String(task.project) : '';
-        document.getElementById('taskAssignee').value = task.assignee || '';
+        document.getElementById('taskAssignee').value = task.assignee != null ? String(task.assignee) : '';
         document.getElementById('taskPriority').value = task.priority;
         document.getElementById('taskDueDate').value = task.due_date ? task.due_date.slice(0, 16) : '';
         document.getElementById('taskDescription').value = task.description || '';

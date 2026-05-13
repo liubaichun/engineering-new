@@ -117,6 +117,12 @@
                         <label class="form-label">手机</label>
                         <input type="text" class="form-control" id="phone" placeholder="手机号码">
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">所属公司</label>
+                        <select class="form-select" id="userCompany">
+                            <option value="">— 暂无 —</option>
+                        </select>
+                    </div>
                     <div class="col-md-6" id="passwordField">
                         <label class="form-label">密码 <span class="text-danger">*</span></label>
                         <input type="password" class="form-control" id="password" placeholder="初始密码">
@@ -157,7 +163,23 @@ document.addEventListener('DOMContentLoaded', function() {
     userModal = new bootstrap.Modal(document.getElementById('userModal'));
     loadRoles();
     loadUsers();
+    loadCompanies();
 });
+
+async function loadCompanies() {
+    try {
+        var response = await fetch('/api/finance/companies/', { credentials: 'include' });
+        var data = await response.json();
+        var companies = data.results || data || [];
+        var select = document.getElementById('userCompany');
+        select.innerHTML = '<option value="">— 暂无 —</option>';
+        companies.forEach(function(c) {
+            select.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
+}
 
 async function loadRoles() {
     try {
@@ -258,10 +280,10 @@ function renderUsers() {
         var roleDisplay;
         if (user.is_superuser) {
             roleDisplay = '<span class="badge bg-danger"><i class="bi bi-shield-fill me-1"></i>管理员</span>';
-        } else if (user.role_display) {
-            roleDisplay = '<span class="badge bg-info">' + escapeHtml(user.role_name || '-') + '</span>';
+        } else if (user.role_name) {
+            roleDisplay = '<span class="badge bg-info">' + escapeHtml(user.role_name) + '</span>';
         } else {
-            roleDisplay = '-';
+            roleDisplay = '<span class="text-muted">-</span>';
         }
 
         var statusClass, statusText, statusIcon;
@@ -373,6 +395,14 @@ async function editUser(userId) {
     document.getElementById('isActive').checked = user.is_active;
     document.getElementById('password').value = '';
     document.getElementById('passwordField').style.display = 'none';
+    // 回填公司
+    var firstCR = (user.company_roles && user.company_roles.length > 0) ? user.company_roles[0] : null;
+    var companySelect = document.getElementById('userCompany');
+    if (firstCR && firstCR.company) {
+        companySelect.value = firstCR.company;
+    } else {
+        companySelect.value = '';
+    }
     userModal.show();
 }
 
@@ -399,6 +429,12 @@ async function saveUser() {
         is_active: isActive,
         role_ids: roleIds.length ? roleIds : []
     };
+
+    // 所属公司
+    var companyId = document.getElementById('userCompany').value;
+    if (companyId) {
+        payload.company_role_ids = [{ company_id: parseInt(companyId), role: 'staff' }];
+    }
 
     if (password) {
         payload.password = password;

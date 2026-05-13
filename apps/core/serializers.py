@@ -159,8 +159,7 @@ class UserSerializer(serializers.ModelSerializer):
             'manager': '经理',
             'staff': '员工',
         }
-        return role_map.get(obj.role, obj.role) if obj.role else ''
-        read_only_fields = ['id', 'is_staff', 'is_superuser', 'last_login', 'date_joined']
+        return role_map.get(obj.role, obj.role) if obj.role else '-'
 
     def get_roles(self, obj):
         """返回用户通过UserRole关联的所有角色"""

@@ -407,7 +407,12 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
-        queryset = User.objects.all()
+        from django.db.models import Prefetch
+        from apps.finance.models import Company
+        queryset = User.objects.all().prefetch_related(
+            'company_roles__company',
+            'user_roles__role',
+        )
         role = self.request.query_params.get('role')
         is_active = self.request.query_params.get('is_active')
         last_login_since = self.request.query_params.get('last_login_since')  # 分钟内登录过

@@ -125,18 +125,23 @@ class TaskSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'code', 'description', 'project', 'project_name',
             'priority', 'priority_display', 'status', 'status_display',
-            'assignee', 'assignee_name', 'reporter', 'reporter_name',
+            'assignee', 'assignee_name', 'assignee_username',
+            'reporter', 'reporter_name',
             'due_date', 'completed_at', 'created_at', 'updated_at',
             'flow_instance', 'company_id'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at', 'assignee']
 
-    assignee = serializers.SlugRelatedField(
-        queryset=User.objects.all(),
-        slug_field='username',
-        required=False,
-        allow_null=True
-    )
+    assignee = serializers.PrimaryKeyRelatedField(read_only=True)
+    assignee_username = serializers.CharField(write_only=True, required=False, allow_null=True, allow_blank=True)
+
+    def validate_assignee_username(self, value):
+        if not value:
+            return None
+        try:
+            return User.objects.get(username=value)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("用户不存在: %s" % value)
 
     def get_flow_instance(self, obj):
         if not hasattr(obj, 'flow_instance') or obj.flow_instance is None:
