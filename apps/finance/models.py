@@ -697,9 +697,13 @@ def calculate_wage_tax(
                  + float(elderly_support or 0)
                  + float(infant_care or 0))
 
-    # 累计应纳税所得额
-    cum_taxable = cum_gross - cum_social - cum_housing - special_ded * month - 5000 * month
-    cum_taxable = max(cum_taxable, 0)
+    # 累计专项附加扣除 = 上月累计专项附加 + 当月专项附加
+    prior_cum_special = 0.0  # 暂无上月累计，从前端传入时可扩展
+    cum_special = prior_cum_special + special_ded
+
+    # 累计应纳税所得额（不小于0）
+    cum_taxable = max(0.0,
+        cum_gross - cum_social - cum_housing - cum_special - 5000 * month)
 
     # 累计应纳税额（7级超额累进税率）
     thresholds = [0, 36000, 144000, 252000, 324000, 648000, 960000]
