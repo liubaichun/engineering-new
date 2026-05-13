@@ -320,7 +320,7 @@ function bindAutoCalc() {
                   'id_children_education','id_continuing_education','id_serious_illness',
                   'id_housing_loan','id_housing_rent','id_elderly_support','id_infant_care'];
     fields.forEach(function(f) {
-        var el = document.getElementById(f);
+        var el = window.document.getElementById(f);
         if (el) el.addEventListener('input', autoCalc);
     });
 }
