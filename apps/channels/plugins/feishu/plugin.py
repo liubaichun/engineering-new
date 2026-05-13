@@ -15,6 +15,8 @@ class FeishuPlugin(BaseChannelPlugin):
         self.app_id = config.get('app_id', '')
         self.app_secret = config.get('app_secret', '')
         self.bot_name = config.get('bot_name', '企业助手')
+        self.webhook_url = config.get('webhook_url', '')
+        self.webhook_secret = config.get('webhook_secret', '')
         self._token = None
     
     @classmethod
@@ -28,6 +30,8 @@ class FeishuPlugin(BaseChannelPlugin):
     def get_optional_config_fields(cls) -> list:
         return [
             {'name': 'bot_name', 'label': '机器人名称', 'type': 'text'},
+            {'name': 'webhook_url', 'label': '机器人 Webhook URL（群播模式）', 'type': 'text'},
+            {'name': 'webhook_secret', 'label': '签名密钥（群播模式）', 'type': 'password'},
         ]
     
     def _get_tenant_access_token(self) -> tuple[bool, str]:
@@ -110,17 +114,28 @@ class FeishuPlugin(BaseChannelPlugin):
             return False, {'error': f"回调处理异常: {str(e)}"}
     
     def send_message(self, open_id: str, title: str, content: str, extra: dict = None) -> tuple[bool, str]:
-        """发送飞书消息"""
+        """发送飞书消息
+
+        - open_id 有值 → IM 应用消息（需要用户已绑定）
+        - open_id 为空 + webhook_url 有值 → Webhook 群播（兼容旧系统）
+        """
+        # 群播模式：open_id 为空且配置了 webhook_url
+        if not open_id and self.webhook_url:
+            return self._send_webhook_message(title, content)
+
+        # IM 模式：必须有 open_id
+        if not open_id:
+            return False, 'open_id 不能为空（请使用群播模式或先绑定用户）'
+
         if not self._token:
             self._get_tenant_access_token()
-        
+
         url = 'https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id'
         headers = {
             'Authorization': f'Bearer {self._token}',
             'Content-Type': 'application/json',
         }
-        
-        # 构造消息卡片
+
         msg_content = {
             'msg_type': 'interactive',
             'content': {
@@ -139,26 +154,71 @@ class FeishuPlugin(BaseChannelPlugin):
                 }
             }
         }
-        
+
         try:
             resp = requests.post(url, json=msg_content, headers=headers, timeout=15)
             result = resp.json()
-            
+
             if result.get('code') == 0:
                 return True, '发送成功'
-            
-            # token失效重试
-            if result.get('code') in [99991663, 99991664]:
+
+            if result.get('code') in (99991663, 99991664):
                 self._get_tenant_access_token()
                 headers['Authorization'] = f'Bearer {self._token}'
                 resp = requests.post(url, json=msg_content, headers=headers, timeout=15)
                 result = resp.json()
                 if result.get('code') == 0:
                     return True, '发送成功'
-            
+
             return False, f"发送失败: {result.get('msg', '未知错误')}"
         except Exception as e:
             return False, f"发送异常: {str(e)}"
+
+    def _send_webhook_message(self, title: str, content: str) -> tuple[bool, str]:
+        """飞书 Webhook 群播（兼容旧系统）"""
+        import time
+        import hmac
+        import hashlib
+
+        webhook_url = self.webhook_url
+        secret = self.webhook_secret
+
+        if secret:
+            timestamp = str(int(time.time() * 1000))
+            sign_str = f"{timestamp}\n{secret}"
+            sign = hmac.new(
+                sign_str.encode('utf-8'), sign_str.encode('utf-8'),
+                digestmod=hashlib.sha256
+            ).hexdigest()
+            separator = '&' if '?' in webhook_url else '?'
+            webhook_url = f"{webhook_url}{separator}timestamp={timestamp}&sign={sign}"
+
+        payload = {
+            "msg_type": "interactive",
+            "card": {
+                "config": {"wide_screen_mode": True},
+                "header": {
+                    "title": {"tag": "plain_text", "content": title},
+                    "template": "blue"
+                },
+                "elements": [
+                    {"tag": "div", "text": {"tag": "lark_md", "content": content}},
+                    {"tag": "hr"},
+                    {"tag": "note", "elements": [
+                        {"tag": "plain_text", "content": "工程管理系统 · 自动化通知"}
+                    ]},
+                ]
+            }
+        }
+
+        try:
+            resp = requests.post(webhook_url, json=payload, timeout=15)
+            result = resp.json()
+            if result.get('code') == 0 or result.get('StatusCode') == 0:
+                return True, 'Webhook 群播成功'
+            return False, f"Webhook 发送失败: {result.get('msg', result.get('errmsg', '未知错误'))}"
+        except Exception as e:
+            return False, f"Webhook 请求异常: {str(e)}"
     
     def get_status(self) -> dict:
         """获取飞书插件状态"""

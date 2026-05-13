@@ -36,6 +36,10 @@ class Project(models.Model):
         'finance.Company', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='projects', verbose_name='所属公司'
     )
+    viewers = models.ManyToManyField(
+        User, related_name='viewable_projects', verbose_name='关联查看人员',
+        blank=True, help_text='可查看项目进度的关联人员'
+    )
     approval_flow = models.ForeignKey(
         'approvals.ApprovalFlow', on_delete=models.SET_NULL,
         null=True, blank=True, related_name='projects',

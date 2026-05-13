@@ -224,3 +224,124 @@ class ChannelNotificationService:
             return ucr.company_id
 
         return None
+
+
+# ================================================================
+# 统一广播接口 — 旧系统 send_notification() 的替代入口
+# 其他业务模块调用此函数，由 ChannelNotificationService 统一路由
+# ================================================================
+
+def send_channel_broadcast(
+    company_id: int,
+    title: str,
+    content: str,
+    notification_type: str = 'broadcast',
+) -> dict:
+    """
+    向公司所有已绑定渠道的用户发送广播通知（群聊模式）。
+
+    兼容旧 apps/notifications/services.py 的 send_notification() 语义：
+    - channel config['webhook_url'] 对应原 webhook_url
+    - channel config['secret'] 对应原 secret
+    - channel plugin 负责实际发送
+
+    Params:
+        company_id: 公司ID
+        title: 通知标题
+        content: 通知内容（支持 Markdown）
+        notification_type: 通知类型标识
+
+    Returns:
+        {'total': N, 'sent': M, 'failed': K, 'details': [...]}
+    """
+    if not company_id:
+        return {'total': 0, 'sent': 0, 'failed': 0, 'details': []}
+
+    channels = ChannelPlugin.objects.filter(
+        company_id=company_id,
+        is_active=True,
+    )
+
+    total_sent = 0
+    total_failed = 0
+    all_details = []
+
+    for channel in channels:
+        result = _broadcast_via_channel(channel, title, content, notification_type)
+        if result['status'] == 'sent':
+            total_sent += 1
+        else:
+            total_failed += 1
+        all_details.append(result)
+
+    return {
+        'total': len(all_details),
+        'sent': total_sent,
+        'failed': total_failed,
+        'details': all_details,
+    }
+
+
+def send_channel_message(
+    company_id: int,
+    channel_type: str,
+    title: str,
+    content: str,
+    notification_type: str = 'direct',
+) -> dict:
+    """
+    向公司指定渠道类型的第一个已激活插件发送通知（群聊模式）。
+    不需要用户绑定，直接发到 webhook URL。
+
+    对应旧系统 send_notification(channel_type, webhook_url, secret, title, content)
+    差异：不需要传 webhook_url 和 secret，由系统根据 channel_type 查找已有插件配置。
+
+    Returns:
+        {'sent': bool, 'message': str}
+    """
+    if not company_id:
+        return {'sent': False, 'message': 'company_id 不能为空'}
+
+    channel = ChannelPlugin.objects.filter(
+        company_id=company_id,
+        channel_type=channel_type,
+        is_active=True,
+    ).first()
+
+    if not channel:
+        return {'sent': False, 'message': f'未找到已启用的 {channel_type} 渠道'}
+
+    result = _broadcast_via_channel(channel, title, content, notification_type)
+    return {
+        'sent': result['status'] == 'sent',
+        'message': result.get('message', result.get('error', '')),
+    }
+
+
+def _broadcast_via_channel(channel, title: str, content: str, notification_type: str) -> dict:
+    """通过单个 ChannelPlugin 广播（群聊模式，不依赖用户绑定）"""
+    from apps.channels.base import ChannelRegistry
+
+    plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
+    if not plugin:
+        return {
+            'channel_id': channel.id,
+            'channel_type': channel.channel_type,
+            'status': 'failed',
+            'error': f'插件 {channel.channel_type} 未找到',
+        }
+
+    try:
+        # 广播模式：plugin.send_message(open_id='', ...) 内部 plugin 判断 open_id 为空时发群
+        success, msg = plugin.send_message('', title, content)
+    except Exception as e:
+        success = False
+        msg = str(e)
+
+    return {
+        'channel_id': channel.id,
+        'channel_type': channel.channel_type,
+        'channel_name': channel.get_channel_type_display(),
+        'status': 'sent' if success else 'failed',
+        'message': msg,
+    }

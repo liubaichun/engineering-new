@@ -301,6 +301,14 @@
                         </select>
                     </div>
                 </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-12">
+                        <label class="form-label">关联查看人员</label>
+                        <select class="form-select" id="projectViewers" multiple size="3" style="height:auto;">
+                        </select>
+                        <small class="text-muted">按住 Ctrl/Cmd 可多选</small>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
@@ -348,7 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 async function loadCompanies() {
     try {
-        var response = await fetch('/api/companies/', { credentials: 'include' });
+        var response = await fetch('/api/finance/companies/', { credentials: 'include' });
         var data = await response.json();
         var select = document.getElementById('projectCompany');
         select.innerHTML = '<option value="">选择公司</option>';
@@ -481,11 +489,14 @@ async function loadUsers() {
         var data = await response.json();
         var select = document.getElementById('projectOwner');
         select.innerHTML = '<option value="">选择负责人</option>';
+        var viewersSelect = document.getElementById('projectViewers');
+        viewersSelect.innerHTML = '';
         (data.results || data).forEach(function(user) {
             var displayName = (user.first_name || user.last_name)
                 ? (user.first_name + (user.last_name || ''))
                 : user.username;
             select.innerHTML += '<option value="' + escapeHtml(user.username) + '">' + escapeHtml(displayName) + '</option>';
+            viewersSelect.innerHTML += '<option value="' + user.id + '">' + escapeHtml(displayName) + '</option>';
         });
     } catch (error) {
         console.error('加载用户失败:', error);
@@ -510,6 +521,9 @@ function showProjectModal(projectId) {
         document.getElementById('projectStartDate').value = '';
         document.getElementById('projectEndDate').value = '';
         document.getElementById('projectProgress').value = '0';
+        // 清空关联人员
+        var viewersSelect = document.getElementById('projectViewers');
+        Array.from(viewersSelect.options).forEach(function(opt) { opt.selected = false; });
     }
     projectModal.show();
 }
@@ -530,6 +544,12 @@ async function loadProjectData(projectId) {
         document.getElementById('projectStartDate').value = project.start_date || '';
         document.getElementById('projectEndDate').value = project.end_date || '';
         document.getElementById('projectProgress').value = project.progress || 0;
+        // 填充关联人员
+        var viewerNames = project.viewer_names || [];
+        var viewersSelect = document.getElementById('projectViewers');
+        Array.from(viewersSelect.options).forEach(function(opt) {
+            opt.selected = viewerNames.includes(opt.textContent);
+        });
     } catch (error) {
         console.error('加载项目数据失败:', error);
         showToast('加载项目数据失败', 'error');
@@ -566,7 +586,8 @@ async function saveProject() {
         status: status,
         start_date: startDate || null,
         end_date: endDate || null,
-        progress: progress
+        progress: progress,
+        viewer_ids: Array.from(document.getElementById('projectViewers').selectedOptions).map(function(opt) { return parseInt(opt.value); })
     };
     
     var url = '/api/tasks/projects/';

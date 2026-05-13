@@ -289,6 +289,9 @@ def api_auth_status(request):
 def notification_channels_page(request):
     return TemplateView.as_view(template_name='system/notification_channels.html')(request)
 
+def channels_page(request):
+    return TemplateView.as_view(template_name='channels.html')(request)
+
 def serve_media(request, path):
     """生产环境 media 文件服务 — 支持 /media/ 和 /company_files/ 两种路径格式"""
     import os, mimetypes
@@ -344,6 +347,7 @@ urlpatterns = [
     path('system/companies/', system_companies_page, name='system_companies'),
     path('system/settings/', system_settings_page, name='system_settings'),
     path('system/notification-channels/', notification_channels_page, name='notification_channels'),
+    path('channels/', channels_page, name='channels'),
     path('approvals/', approval_list_page, name='approval_list'),
     path('approvals/templates/', approval_template_list_page, name='approval_template_list'),
     path('approvals/flow-designer/', flow_designer_page, name='flow_designer'),
@@ -371,6 +375,7 @@ urlpatterns = [
     path('api/finance/', include('apps.finance.urls')),
     path('api/approvals/', include('apps.approvals.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
+    path('api/channels/', include('apps.channels.urls')),
     path('api/crm/', include('apps.crm.urls')),
     path('api/purchasing/', include('apps.purchasing.urls')),
     path('api/files/', include('apps.files.urls')),

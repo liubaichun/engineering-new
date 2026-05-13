@@ -156,6 +156,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script>
 // ================================================================
 // 状态
@@ -586,18 +587,17 @@ function doManualBind(channelId) {
         body: JSON.stringify({ channel_id: channelId, open_id: token.value.replace(/^\s+|\s+$/g, '') }),
         credentials: 'include'
     })
-    .then(function(r) { return r.json(); })
+    .then(function(r) {
+        if (!r.ok) { throw { detail: '绑定失败' }; }
+        return r.json();
+    })
     .then(function(data) {
-        if (r.ok) {
-            bootstrap.Modal.getInstance(document.getElementById('qrcodeModal')).hide();
-            showToast('绑定成功', 'success');
-            loadBindings();
-        } else {
-            showToast('绑定失败: ' + (data.error || '未知错误'), 'error');
-        }
+        bootstrap.Modal.getInstance(document.getElementById('qrcodeModal')).hide();
+        showToast('绑定成功', 'success');
+        loadBindings();
     })
     .catch(function(e) {
-        showToast('绑定失败: ' + e.message, 'error');
+        showToast('绑定失败: ' + (e.detail || e.error || '未知错误'), 'error');
     });
 }
 
@@ -612,14 +612,13 @@ function unbind(bindingId) {
         body: JSON.stringify({ binding_id: bindingId }),
         credentials: 'include'
     })
-    .then(function(r) { return r.json().catch(function() { return {}; }); })
+    .then(function(r) {
+        if (!r.ok) { throw { detail: '解除绑定失败' }; }
+        return r.json().catch(function() { return {}; });
+    })
     .then(function(data) {
-        if (r.ok) {
-            showToast('已解除绑定', 'success');
-            loadBindings();
-        } else {
-            showToast('解除绑定失败: ' + (data.error || data.detail || '未知错误'), 'error');
-        }
+        showToast('已解除绑定', 'success');
+        loadBindings();
     })
     .catch(function(e) {
         showToast('解除绑定失败: ' + e.message, 'error');
@@ -642,44 +641,5 @@ function getChannelIcon(type) {
 }
 
 // ================================================================
-// QRCode 占位实现（生产环境应替换为真实库）
-// ================================================================
-(function() {
-    window.QRCode = function(canvas, options) {
-        var ctx = canvas.getContext('2d');
-        var size = options.width;
-        canvas.width = size;
-        canvas.height = size;
-        ctx.fillStyle = '#fff';
-        ctx.fillRect(0, 0, size, size);
-        ctx.fillStyle = '#000';
-        function drawFinder(x, y) {
-            ctx.fillRect(x, y, 7, 7);
-            ctx.fillStyle = '#fff';
-            ctx.fillRect(x+1, y+1, 5, 5);
-            ctx.fillStyle = '#000';
-            ctx.fillRect(x+2, y+2, 3, 3);
-        }
-        drawFinder(0, 0);
-        drawFinder(size - 7, 0);
-        drawFinder(0, size - 7);
-        var cell = Math.floor((size - 20) / 10);
-        var startX = 10 + (size - 20 - cell * 10) / 2;
-        var startY = 10 + (size - 20 - cell * 10) / 2;
-        var text = options.text || '';
-        var hash = 0;
-        for (var i = 0; i < text.length; i++) {
-            hash = ((hash << 5) - hash) + text.charCodeAt(i);
-            hash = hash & hash;
-        }
-        for (var row = 0; row < 10; row++) {
-            for (var col = 0; col < 10; col++) {
-                if ((hash * (row + 1) * (col + 1)) % 3 === 0) {
-                    ctx.fillRect(startX + col * cell, startY + row * cell, cell, cell);
-                }
-            }
-        }
-    };
-})();
-</script>
+
 {% endblock %}

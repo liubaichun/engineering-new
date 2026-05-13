@@ -46,6 +46,7 @@ INSTALLED_APPS = [
     'apps.tasks',
     'apps.approvals',
     'apps.notifications',
+    'apps.channels',
     'apps.finance',
     'apps.crm',
     'apps.files',

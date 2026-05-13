@@ -920,7 +920,7 @@ async function loadTaskData(taskId) {
         document.getElementById('taskTitle').value = task.title;
         document.getElementById('taskCode').value = task.code;
         document.getElementById('taskCode').readOnly = true;
-        document.getElementById('taskProject').value = task.project;
+        document.getElementById('taskProject').value = task.project_id || '';
         document.getElementById('taskAssignee').value = task.assignee || '';
         document.getElementById('taskPriority').value = task.priority;
         document.getElementById('taskDueDate').value = task.due_date || '';

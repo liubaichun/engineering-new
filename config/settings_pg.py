@@ -29,6 +29,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions', 'django.contrib.messages', 'django.contrib.staticfiles',
     'rest_framework', 'corsheaders', 'django_filters', 'drf_spectacular',
     'apps.core', 'apps.tasks', 'apps.approvals', 'apps.notifications',
+    'apps.channels',
     'apps.finance', 'apps.crm', 'apps.files', 'apps.material', 'apps.equipment',
     'apps.purchasing', 'apps.repair',
 ]

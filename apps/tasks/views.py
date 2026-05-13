@@ -35,6 +35,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         queryset=Company.objects.all(), slug_field='name',
         required=False, allow_null=True
     )
+    viewer_names = serializers.SerializerMethodField()
+    viewer_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False, default=list
+    )
 
     def get_owner_name(self, obj):
         if not obj.owner:
@@ -59,6 +63,9 @@ class ProjectSerializer(serializers.ModelSerializer):
         completed = tasks.filter(status='completed').count()
         return round(completed / total * 100, 1)
 
+    def get_viewer_names(self, obj):
+        return [u.get_full_name() or u.username for u in obj.viewers.all()]
+
     class Meta:
         model = Project
         fields = [
@@ -66,9 +73,24 @@ class ProjectSerializer(serializers.ModelSerializer):
             'owner', 'owner_name', 'start_date', 'end_date', 'progress',
             'budget', 'company', 'company_name', 'company_id',
             'approval_flow', 'approval_status',
-            'created_at', 'updated_at', 'is_owner', 'computed_progress'
+            'created_at', 'updated_at', 'is_owner', 'computed_progress',
+            'viewer_names', 'viewer_ids'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
+
+    def create(self, validated_data):
+        viewer_ids = validated_data.pop('viewer_ids', [])
+        instance = super().create(validated_data)
+        if viewer_ids:
+            instance.viewers.set(viewer_ids)
+        return instance
+
+    def update(self, validated_data):
+        viewer_ids = validated_data.pop('viewer_ids', None)
+        instance = super().update(validated_data)
+        if viewer_ids is not None:
+            instance.viewers.set(viewer_ids)
+        return instance
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -357,12 +379,16 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # 多租户隔离：普通用户只看本公司项目（通过owner或company过滤）
+        # 多租户隔离：普通用户看本公司项目、自己是负责人、或自己是关联查看人员
         if user.is_authenticated and not user.is_superuser:
             if hasattr(user, 'company') and user.company_id:
                 queryset = queryset.filter(company_id=user.company_id)
             else:
-                queryset = queryset.filter(owner=user)
+                from django.db.models import Q
+                queryset = queryset.filter(
+                    Q(owner=user) | Q(viewers=user)
+                )
+        queryset = queryset.prefetch_related('viewers')
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
