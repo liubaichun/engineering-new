@@ -697,9 +697,8 @@ def calculate_wage_tax(
                  + float(elderly_support or 0)
                  + float(infant_care or 0))
 
-    # 累计专项附加扣除 = 上月累计专项附加 + 当月专项附加
-    prior_cum_special = 0.0  # 暂无上月累计，从前端传入时可扩展
-    cum_special = prior_cum_special + special_ded
+    # 累计专项附加扣除 = 月专项附加 × 月份数（与 calculate_gross_and_tax 一致）
+    cum_special = special_ded * month
 
     # 累计应纳税所得额（不小于0）
     cum_taxable = max(0.0,
