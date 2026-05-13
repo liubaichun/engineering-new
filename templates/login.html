@@ -284,6 +284,14 @@ function getCsrfToken() {
     return document.cookie.split(';').find(row => row.trim().startsWith('csrftoken='))?.split('=')[1];
 }
 
+// 带超时的fetch（10秒超时），超时视为网络失败而非服务器错误
+function fetchWithTimeout(url, options, timeoutMs) {
+    var controller = new AbortController();
+    var timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs);
+    return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+        .finally(function() { clearTimeout(timeoutId); });
+}
+
 document.getElementById('loginForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
@@ -313,8 +321,8 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     btnText.textContent = '登录中...';
     btnSpinner.classList.remove('d-none');
     
-    // 发送登录请求到后端
-    fetch('/api/core/auth/login/', {
+    // 发送登录请求到后端（10秒超时，防止服务器慢时fetch永久挂起）
+    fetchWithTimeout('/api/core/auth/login/', {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -322,7 +330,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
             'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({ username, password, remember })
-    })
+    }, 10000)
     .then(function(response) {
         if (response.ok) {
             return response.json();
@@ -350,7 +358,11 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
         }, 500);
     })
     .catch(function(error) {
-        errorAlert.textContent = error.message || '登录失败，请重试';
+        var msg = error.message || '登录失败，请重试';
+        if (error.name === 'AbortError') {
+            msg = '登录超时，请检查网络后重试';
+        }
+        errorAlert.textContent = msg;
         errorAlert.classList.remove('d-none');
         loginBtn.disabled = false;
         btnText.textContent = '登 录';
