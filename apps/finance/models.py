@@ -647,6 +647,10 @@ class WageRecord(models.Model):
         self.net_salary = round(gross - total_ded - max(monthly_tax, 0), 2)
 
 
+    def save(self, *args, **kwargs):
+        self.calculate_gross_and_tax()
+        super(WageRecord, self).save(*args, **kwargs)
+
 def calculate_wage_tax(
     gross,
     social_insurance,
