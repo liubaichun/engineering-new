@@ -656,25 +656,177 @@ ALL_ADAPTERS = [
 ]
 
 
-def detect_and_parse(file_content: bytes):
-    """自动识别格式并解析，返回 (bank_code, transactions)"""
-    import io, openpyxl
-    wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
-    ws = wb.active
+class XlrdSheetWrapper:
+    """将 xlrd sheet 适配为类似 openpyxl 的工作表接口，供各银行适配器使用。"""
+    def __init__(self, sheet):
+        self.sheet = sheet
+        self.max_row = sheet.nrows
+        self.max_column = sheet.ncols
+
+    def cell(self, row: int, col: int):
+        """openpyxl 风格：row/col 从 1 开始"""
+        return XlrdCell(self.sheet.cell_value(row - 1, col - 1))
+
+
+class XlrdCell:
+    def __init__(self, value):
+        self.value = value
+
+
+def detect_and_parse(file_content):
+    """自动识别格式并解析，返回 (bank_code, transactions)
+    支持 .xlsx (openpyxl) 和 .xls (xlrd) 两种格式。
+    file_content 可以是 bytes（文件路径读取结果）或 BytesIO（ Django InMemoryUploadedFile.read() 返回值）。
+    """
+    # 如果已经是文件对象（BytesIO / BufferedReader），直接用；否则包装为 BytesIO
+    import io
+    if isinstance(file_content, (io.IOBase,)):
+        file_obj = file_content
+    else:
+        file_obj = io.BytesIO(file_content)
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        ws = wb.active
+    except Exception:
+        # .xls 格式（xlrd）
+        import xlrd
+        # xlrd 需要 bytes；如果是 BytesIO 已读出位置，重置到开头
+        if hasattr(file_obj, 'seek'):
+            file_obj.seek(0)
+        xlrd_content = file_obj.read()
+        wb = xlrd.open_workbook(file_contents=xlrd_content)
+        ws = XlrdSheetWrapper(wb.sheet_by_index(0))
 
     for adapter_cls in ALL_ADAPTERS:
         adapter = adapter_cls()
         if adapter.detect(ws):
             return adapter_cls.bank_code, adapter.parse(ws)
 
-    raise ValueError("无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行")
+    raise ValueError("无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行、平安银行")
 
 
-def parse_with_adapter(file_content: bytes, bank_code: str):
-    """用指定银行适配器解析"""
+def parse_with_adapter(file_content, bank_code: str):
+    """用指定银行适配器解析，支持 .xlsx / .xls"""
     adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
     if bank_code not in adapters:
         raise ValueError(f"不支持的银行: {bank_code}，支持的银行：{', '.join(adapters.keys())}")
-    import io, openpyxl
-    wb = openpyxl.load_workbook(io.BytesIO(file_content), data_only=True)
-    return adapters[bank_code].parse(wb.active)
+
+    import io
+    if isinstance(file_content, (io.IOBase,)):
+        file_obj = file_content
+    else:
+        file_obj = io.BytesIO(file_content)
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        ws = wb.active
+    except Exception:
+        import xlrd
+        if hasattr(file_obj, 'seek'):
+            file_obj.seek(0)
+        xlrd_content = file_obj.read()
+        wb = xlrd.open_workbook(file_contents=xlrd_content)
+        ws = XlrdSheetWrapper(wb.sheet_by_index(0))
+
+    return adapters[bank_code].parse(ws)
+
+# ─── 平安银行 ───────────────────────────────────────────────────────────
+class PingAnAdapter(BankStatementAdapter):
+    """
+    平安银行对账单格式（2026-05实测）：
+    Row1 (A1): ''（空行，sheet名=账号）
+    Row2: 表头行，含11列：
+      交易日期 | 账号 | 借 | 贷 | 账户余额 | 对方账户 | 对方账户名称 | 交易流水号 | 单位结算卡号 | 摘要 | 用途
+    Row3+: 数据行
+
+    特点：
+    - 借贷分列：借/贷两列互斥（有借无贷，有贷无借）
+    - 我方账号在Row1的sheet名，或第2列
+    - 流水号（交易流水号）唯一性高，适合去重
+    - 摘要是交易渠道（网银/跨行转账等），用途是业务内容（货款/运费等）
+    """
+    bank_code = 'PINGAN'
+    bank_name = '平安银行'
+
+    def detect(self, ws) -> bool:
+        try:
+            # 检测Row2（表头行）是否匹配平安银行11列格式
+            headers = [str(ws.cell(2, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+            required = ['交易日期', '账号', '借', '贷', '账户余额', '对方账户', '对方账户名称']
+            return all(any(h == req for h in headers) for req in required)
+        except Exception:
+            return False
+
+    def parse(self, ws) -> list[ParsedTransaction]:
+        header_row = 2
+        headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+        col_idx = {h: c for c, h in enumerate(headers, start=1)}
+
+        def get_col(row, *names):
+            for name in names:
+                c = col_idx.get(name)
+                if c:
+                    val = ws.cell(row, c).value
+                    if val is not None:
+                        return val
+            return None
+
+        records = []
+        for row_idx in range(header_row + 1, ws.max_row + 1):
+            try:
+                debit_raw  = get_col(row_idx, '借')
+                credit_raw = get_col(row_idx, '贷')
+
+                debit  = self._decimal(debit_raw)
+                credit = self._decimal(credit_raw)
+
+                if debit is not None and debit > 0:
+                    amount, direction = debit, 'expense'
+                elif credit is not None and credit > 0:
+                    amount, direction = credit, 'income'
+                else:
+                    continue
+
+                txn_date = self._parse_date(get_col(row_idx, '交易日期'))
+                if not txn_date:
+                    continue
+
+                cp_name    = str(get_col(row_idx, '对方账户名称') or '').strip()
+                cp_account = str(get_col(row_idx, '对方账户') or '').strip()
+                cp_bank    = ''
+                summary    = str(get_col(row_idx, '摘要') or '').strip()
+                usage      = str(get_col(row_idx, '用途') or '').strip()
+
+                records.append(ParsedTransaction(
+                    transaction_date=txn_date,
+                    transaction_time=None,
+                    amount=amount,
+                    direction=direction,
+                    balance=self._decimal(get_col(row_idx, '账户余额')),
+                    bank_serial=str(get_col(row_idx, '交易流水号') or '').strip(),
+                    counterparty_name=cp_name,
+                    counterparty_account=cp_account,
+                    counterparty_bank=cp_bank,
+                    summary=summary,
+                    transaction_type='',
+                ))
+            except Exception:
+                continue
+
+        return records
+
+
+# ─── 适配器注册表 ────────────────────────────────────────────────────────
+ALL_ADAPTERS = [
+    CMBAdapter,     # 招商银行（最具体，优先）
+    ICBCAdapter,    # 工商银行
+    CCBAdapter,     # 建设银行
+    BOCAdapter,     # 中国银行
+    ABCAdapter,     # 农业银行
+    COMMAdapter,    # 交通银行
+    PSBCAdapter,    # 邮储银行
+    PingAnAdapter,  # 平安银行
+]
