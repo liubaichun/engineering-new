@@ -361,7 +361,7 @@ async function loadCompanies() {
         var select = document.getElementById('projectCompany');
         select.innerHTML = '<option value="">选择公司</option>';
         (data.results || data).forEach(function(company) {
-            select.innerHTML += '<option value="' + escapeHtml(company.name) + '">' + escapeHtml(company.name) + '</option>';
+            select.innerHTML += '<option value="' + company.id + '">' + escapeHtml(company.name) + '</option>';
         });
     } catch (error) {
         console.error('加载公司失败:', error);
@@ -539,7 +539,7 @@ async function loadProjectData(projectId) {
         document.getElementById('projectCode').readOnly = true;
         document.getElementById('projectDescription').value = project.description || '';
         document.getElementById('projectOwner').value = project.owner || '';
-        document.getElementById('projectCompany').value = project.company_name || '';
+        document.getElementById('projectCompany').value = project.company_id || '';
         document.getElementById('projectStatus').value = project.status;
         document.getElementById('projectStartDate').value = project.start_date || '';
         document.getElementById('projectEndDate').value = project.end_date || '';
@@ -562,7 +562,7 @@ async function saveProject() {
     var code = document.getElementById('projectCode').value.trim();
     var description = document.getElementById('projectDescription').value.trim();
     var owner = document.getElementById('projectOwner').value;
-    var company = document.getElementById('projectCompany').value;
+    var companyId = document.getElementById('projectCompany').value;
     var status = document.getElementById('projectStatus').value;
     var startDate = document.getElementById('projectStartDate').value;
     var endDate = document.getElementById('projectEndDate').value;
@@ -582,7 +582,7 @@ async function saveProject() {
         code: code,
         description: description,
         owner: owner || null,
-        company: company || null,
+        company_id: companyId ? parseInt(companyId) : null,
         status: status,
         start_date: startDate || null,
         end_date: endDate || null,
