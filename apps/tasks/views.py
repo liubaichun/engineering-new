@@ -88,10 +88,10 @@ class ProjectSerializer(serializers.ModelSerializer):
             instance.viewers.set(viewer_ids)
         return instance
 
-    def update(self, validated_data):
+    def update(self, instance, validated_data):
         viewer_ids = validated_data.pop('viewer_ids', None)
         company_id = validated_data.pop('company_id', None)
-        instance = super().update(validated_data)
+        instance = super().update(instance, validated_data)
         if viewer_ids is not None:
             instance.viewers.set(viewer_ids)
         if company_id is not None:
