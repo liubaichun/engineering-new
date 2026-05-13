@@ -176,35 +176,26 @@
         </div>
     </div>
     <div class="card-body p-0">
-        <div class="table-responsive">
+        <div class="table-responsive" style="max-height:70vh; overflow-y:auto;">
             <table class="table wage-table mb-0">
                 <thead>
                     <tr>
-                        <th style="width: 50px;"><input class="form-check-input" type="checkbox"></th>
-                        <th>员工信息</th>
-                        <th>公司</th>
+                        <th style="width:50px;"><input class="form-check-input" type="checkbox" id="checkAll"></th>
+                        <th>员工</th>
                         <th>部门/职位</th>
                         <th>基本工资</th>
                         <th>岗位工资</th>
-                        <th>加班费</th>
-                        <th>奖金</th>
-                        <th>提成</th>
-                        <th>补贴合计</th>
                         <th>应发合计</th>
                         <th>社保/公积金</th>
-                        <th>请假扣款</th>
-                        <th>其他扣款</th>
-                        <th>扣款合计</th>
-                        <th>个税前工资</th>
+                        <th>请假/其他</th>
                         <th>个税</th>
-                        <th>累计税额</th>
                         <th>实发工资</th>
                         <th>状态</th>
-                        <th style="width: 80px;">操作</th>
+                        <th style="width:80px;">操作</th>
                     </tr>
                 </thead>
                 <tbody id="wageTableBody">
-                    <tr><td colspan="20" class="text-center text-muted py-4">加载中...</td></tr>
+                    <tr><td colspan="12" class="text-center text-muted py-4">加载中...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -445,41 +436,34 @@ function renderWages(wages) {
         var initials = w.employee_name ? w.employee_name.charAt(0) : '?';
         var statusClass = w.status || 'draft';
         var statusText = {'draft':'草稿','pending':'待审核','approved':'已批准','paid':'已发放'}[statusClass] || statusClass;
-        var allowances = (parseFloat(w.meal_allowance||0) + parseFloat(w.transport_allowance||0) + parseFloat(w.communication_allowance||0) + parseFloat(w.other_allowance||0)).toLocaleString();
-        var sickInfo = (parseFloat(w.sick_leave_days||0) > 0) ? '<br><small class="text-danger">病假'+w.sick_leave_days+'天</small>' : '';
+        var leaveOtherDed = (parseFloat(w.leave_deduction||0) + parseFloat(w.sick_leave_deduction||0) + parseFloat(w.employee_loan_repayment||0) + parseFloat(w.other_loan||0) + parseFloat(w.other_deductions||0));
         return '<tr>' +
-            '<td><input class="form-check-input" type="checkbox" value="' + w.id + '"></td>' +
-            '<td><div class="worker-info"><div class="worker-avatar">' + initials + '</div>' +
-            '<div><div class="worker-name">' + (w.employee_name || '') + '</div>' +
-            '<div style="font-size:0.75rem; color:var(--text-muted);">' + (w.bank_card || '') + '</div></div></div></td>' +
-            '<td>' + (w.company_name || w.company || '') + '</td>' +
-            '<td>' + (w.department || '') + '<br><small class="text-muted">' + (w.position || '') + '</small></td>' +
-            '<td>¥' + parseFloat(w.base_salary||0).toLocaleString() + '</td>' +
-            '<td>¥' + parseFloat(w.position_salary||0).toLocaleString() + '</td>' +
-            '<td>¥' + parseFloat(w.overtime_pay||0).toLocaleString() + '</td>' +
-            '<td>¥' + parseFloat(w.bonus||0).toLocaleString() + '</td>' +
-            '<td>¥' + parseFloat(w.commission||0).toLocaleString() + '</td>' +
-            '<td>¥' + allowances + '</td>' +
-            '<td class="fw-bold">¥' + parseFloat(w.gross_salary||0).toLocaleString() + '</td>' +
-            '<td class="text-danger">-¥' + (parseFloat(w.social_insurance||0)+parseFloat(w.housing_fund||0)).toLocaleString() + '</td>' +
-            '<td class="text-danger">-¥' + (parseFloat(w.leave_deduction||0)+parseFloat(w.sick_leave_deduction||0)).toLocaleString() + sickInfo + '</td>' +
-            '<td class="text-danger">-¥' + (parseFloat(w.employee_loan_repayment||0)+parseFloat(w.other_loan||0)+parseFloat(w.other_deductions||0)).toLocaleString() + '</td>' +
-            '<td class="text-danger">-¥' + parseFloat(w.total_deduction||0).toLocaleString() + '</td>' +
-            '<td>¥' + parseFloat(w.taxable_salary||0).toLocaleString() + '</td>' +
-            '<td class="text-warning">¥' + parseFloat(w.tax||0).toLocaleString() + '</td>' +
-            '<td>¥' + parseFloat(w.cumulative_tax||0).toLocaleString() + '</td>' +
-            '<td class="fw-bold text-success">¥' + parseFloat(w.net_salary||0).toLocaleString() + '</td>' +
-            '<td><span class="status-badge ' + statusClass + '">' + statusText + '</span></td>' +
+            '<td><input class="form-check-input wage-check" type="checkbox" value="' + w.id + '"></td>' +
+            '<td><div class="d-flex align-items-center gap-2"><div class="worker-avatar" style="width:28px;height:28px;background:var(--primary);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.7rem;">' + initials + '</div>' +
+            '<div><div class="fw-medium" style="font-size:0.85rem;">' + (w.employee_name || '') + '</div>' +
+            '<div style="font-size:0.7rem;color:var(--text-muted);">' + (w.company_name || '') + '</div></div></div></td>' +
+            '<td><div style="font-size:0.8rem;">' + (w.department || '') + '</div><div style="font-size:0.7rem;color:var(--text-muted);">' + (w.position || '') + '</div></td>' +
+            '<td style="text-align:right;font-size:0.82rem;">¥' + parseFloat(w.base_salary||0).toLocaleString() + '</td>' +
+            '<td style="text-align:right;font-size:0.82rem;">¥' + parseFloat(w.position_salary||0).toLocaleString() + '</td>' +
+            '<td style="text-align:right;font-weight:600;font-size:0.82rem;">¥' + parseFloat(w.gross_salary||0).toLocaleString() + '</td>' +
+            '<td style="text-align:right;color:#dc3545;font-size:0.82rem;">-¥' + (parseFloat(w.social_insurance||0)+parseFloat(w.housing_fund||0)).toLocaleString() + '</td>' +
+            '<td style="text-align:right;color:#dc3545;font-size:0.82rem;">' + (leaveOtherDed > 0 ? '-¥'+leaveOtherDed.toLocaleString() : '-') + '</td>' +
+            '<td style="text-align:right;color:#e67e22;font-size:0.82rem;">¥' + parseFloat(w.tax||0).toLocaleString() + '</td>' +
+            '<td style="text-align:right;font-weight:700;color:#198754;font-size:0.85rem;">¥' + parseFloat(w.net_salary||0).toLocaleString() + '</td>' +
+            '<td><span class="status-badge ' + statusClass + '" style="font-size:0.7rem;">' + statusText + '</span></td>' +
             '<td>' +
-            (w.status === 'draft' ? '<button class="btn btn-sm btn-primary me-1" onclick="submitWage(' + w.id + ')" title="提交审核"><i class="bi bi-send"></i></button>' : '') +
-            (w.status === 'pending' ? '<button class="btn btn-sm btn-success me-1" onclick="approveWage(' + w.id + ')" title="批准"><i class="bi bi-check-lg"></i></button>' : '') +
-            (w.status === 'approved' ? '<button class="btn btn-sm btn-warning me-1" onclick="payWage(' + w.id + ')" title="发放"><i class="bi bi-currency-yen"></i></button>' : '') +
-            '<button class="btn btn-sm btn-outline-secondary me-1" onclick="editWage(' + w.id + ')" title="编辑"><i class="bi bi-pencil"></i></button>' +
-            '<button class="btn btn-sm btn-outline-info me-1" onclick="downloadPdf(' + w.id + ')" title="下载PDF"><i class="bi bi-file-earmark-pdf"></i></button>' +
-            (w.status === 'draft' ? '<button class="btn btn-sm btn-outline-danger" onclick="deleteWage(' + w.id + ')" title="删除" data-perm="wage.delete"><i class="bi bi-trash"></i></button>' : '') +
+            (w.status === 'draft' ? '<button class="btn btn-sm btn-primary py-0 px-1" onclick="submitWage(' + w.id + ')" title="提交"><i class="bi bi-send"></i></button>' : '') +
+            (w.status === 'pending' ? '<button class="btn btn-sm btn-success py-0 px-1" onclick="approveWage(' + w.id + ')" title="批准"><i class="bi bi-check-lg"></i></button>' : '') +
+            (w.status === 'approved' ? '<button class="btn btn-sm btn-warning py-0 px-1" onclick="payWage(' + w.id + ')" title="发放"><i class="bi bi-currency-yen"></i></button>' : '') +
+            '<button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="editWage(' + w.id + ')" title="编辑"><i class="bi bi-pencil"></i></button>' +
+            (w.status === 'draft' ? '<button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteWage(' + w.id + ')" title="删除"><i class="bi bi-trash"></i></button>' : '') +
             '</td></tr>';
     }).join('');
     document.getElementById('recordCount').textContent = wages.length;
+    // 全选功能
+    document.getElementById('checkAll').addEventListener('change', function() {
+        document.querySelectorAll('.wage-check').forEach(cb => cb.checked = this.checked);
+    });
 }
 
 function renderPagination(data) {
