@@ -949,10 +949,10 @@ async function saveTask() {
     var payload = {
         title: title,
         code: code,
-        project: project || null,
+        project: project ? parseInt(project) : null,
         priority: priority,
         status: currentTaskStatus,
-        assignee: assignee || null,
+        assignee: assignee && assignee.trim() ? assignee : null,
         due_date: dueDate || null,
         description: description
     };
