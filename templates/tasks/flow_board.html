@@ -920,10 +920,10 @@ async function loadTaskData(taskId) {
         document.getElementById('taskTitle').value = task.title;
         document.getElementById('taskCode').value = task.code;
         document.getElementById('taskCode').readOnly = true;
-        document.getElementById('taskProject').value = task.project_id || '';
+        document.getElementById('taskProject').value = task.project != null ? String(task.project) : '';
         document.getElementById('taskAssignee').value = task.assignee || '';
         document.getElementById('taskPriority').value = task.priority;
-        document.getElementById('taskDueDate').value = task.due_date || '';
+        document.getElementById('taskDueDate').value = task.due_date ? task.due_date.slice(0, 16) : '';
         document.getElementById('taskDescription').value = task.description || '';
         currentTaskStatus = task.status;
         
@@ -1302,9 +1302,19 @@ function editCurrentTask() {
         document.body.classList.remove('modal-open');
         document.body.style.paddingRight = '';
         document.body.style.overflow = '';
-        loadTaskData(currentTaskId);
-        document.getElementById('taskModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑任务';
-        taskModal.show();
+        // 先清空表单再加载，避免旧数据残留
+        document.getElementById('taskId').value = '';
+        document.getElementById('taskTitle').value = '';
+        document.getElementById('taskCode').value = '';
+        document.getElementById('taskProject').value = '';
+        document.getElementById('taskAssignee').value = '';
+        document.getElementById('taskPriority').value = 'medium';
+        document.getElementById('taskDueDate').value = '';
+        document.getElementById('taskDescription').value = '';
+        loadTaskData(currentTaskId).then(function() {
+            document.getElementById('taskModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑任务';
+            taskModal.show();
+        });
     }, 150);
 }
 
