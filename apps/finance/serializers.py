@@ -160,9 +160,9 @@ class WageRecordSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     month_display = serializers.SerializerMethodField()
     approval_flow_id = serializers.SerializerMethodField()
-    # employee_company: 员工在公司任职的记录（新增）
+    # employee_company: 员工在公司任职的记录（可写，前端传来ID）
     employee_company = serializers.PrimaryKeyRelatedField(
-        required=False, allow_null=True, read_only=True
+        required=False, allow_null=True, queryset=EmployeeCompany.objects.all()
     )
     employee_company_display = serializers.SerializerMethodField()
 
