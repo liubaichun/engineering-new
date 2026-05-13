@@ -883,31 +883,26 @@ function autoCalcSocialFromEmployee() {
 
 // 根据员工任职信息和公司社保配置自动填充社保/公积金扣款
 // emp: 员工对象, co: 任职记录对象（来自 companies 数组）
-// 逻辑：has_social_insurance=False → 社保=0；has_housing_fund=False → 公积金=0；各自独立判断
+// 逻辑：直接使用员工档案中的 social_insurance_deduction 和 housing_fund_deduction
+// 注意：Employee 模型只有 *_deduction（直接金额），没有 *_base（基数）字段
 function autoFillSocialInsurance(emp, co) {
     var companyId = (co && co.company) ? co.company : emp.company;
     var cfg = socialConfigs[companyId];
 
-    // 社保：按 has_social_insurance 独立判断，不再和公积金混在一起
-    var siBase = parseFloat(emp.social_insurance_base) || 0;
-    if (cfg && siBase <= 0) siBase = parseFloat(cfg.social_base) || 0;
-    if (!emp.has_social_insurance || siBase <= 0) {
+    // 社保：直接用员工档案中填写的 deduction 金额（用户录入的就是扣款金额）
+    var siDeduction = parseFloat(emp.social_insurance_deduction) || 0;
+    if (!emp.has_social_insurance || siDeduction <= 0) {
         document.getElementById('id_social_insurance').value = '0';
     } else {
-        var pensionEmp = cfg ? (parseFloat(cfg.pension_rate_employee) || 8) : 8;
-        var medicalEmp = cfg ? (parseFloat(cfg.medical_rate_employee) || 2) : 2;
-        var unempEmp = cfg ? (parseFloat(cfg.unemployment_rate_employee) || 0.3) : 0.3;
-        document.getElementById('id_social_insurance').value = (siBase * (pensionEmp + medicalEmp + unempEmp) / 100).toFixed(2);
+        document.getElementById('id_social_insurance').value = siDeduction.toFixed(2);
     }
 
-    // 公积金：按 has_housing_fund 独立判断
-    var hfBase = parseFloat(emp.housing_fund_base) || 0;
-    if (cfg && hfBase <= 0) hfBase = parseFloat(cfg.housing_fund_base) || 0;
-    if (!emp.has_housing_fund || hfBase <= 0) {
+    // 公积金：直接用员工档案中填写的 deduction 金额
+    var hfDeduction = parseFloat(emp.housing_fund_deduction) || 0;
+    if (!emp.has_housing_fund || hfDeduction <= 0) {
         document.getElementById('id_housing_fund').value = '0';
     } else {
-        var hfEmp = cfg ? (parseFloat(cfg.housing_fund_rate_employee) || 5) : 5;
-        document.getElementById('id_housing_fund').value = (hfBase * hfEmp / 100).toFixed(2);
+        document.getElementById('id_housing_fund').value = hfDeduction.toFixed(2);
     }
 }
 
