@@ -603,7 +603,7 @@ class WageRecord(models.Model):
         cum_special = special_ded
 
         month_count = self.month
-        cum_taxable = cum_gross - cum_social - cum_housing - cum_special - 5000 * month_count
+        cum_taxable = cum_gross - cum_social - cum_housing - cum_special - 5000
         cum_taxable = max(cum_taxable, 0)
 
         prior_cum_tax = float(self.prior_cumulative_tax or 0)
@@ -700,9 +700,9 @@ def calculate_wage_tax(
     # 累计专项附加扣除 = 月专项附加（无需乘月份数，已是全年累计值）
     cum_special = special_ded
 
-    # 累计应纳税所得额（不小于0）
+    # 累计应纳税所得额（不小于0）：每月扣5000，不乘月份
     cum_taxable = max(0.0,
-        cum_gross - cum_social - cum_housing - cum_special - 5000 * month)
+        cum_gross - cum_social - cum_housing - cum_special - 5000)
 
     # 累计应纳税额（7级超额累进税率）
     thresholds = [0, 36000, 144000, 252000, 324000, 648000, 960000]
