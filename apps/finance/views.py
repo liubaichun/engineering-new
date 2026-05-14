@@ -613,7 +613,13 @@ class WageRecordViewSet(viewsets.ModelViewSet):
     def years(self, request):
         """返回有工资数据的年份列表"""
         qs = self.get_queryset()
-        years = sorted(qs.values_list('year', flat=True).distinct(), reverse=True)
+        # Bugfix: distinct() on values() with JOINed queryset 会导致 PostgreSQL
+        # 把所有列加入DISTINCT考量（每行都不同）。必须显式 order_by('year')
+        # 强制只对year字段DISTINCT。同时用values()先收窄列。
+        years = sorted(
+            qs.order_by('year').values_list('year', flat=True).distinct(),
+            reverse=True
+        )
         return Response({'years': list(years)})
 
     @action(detail=True, methods=['post'])
