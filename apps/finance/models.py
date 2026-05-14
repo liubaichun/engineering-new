@@ -484,60 +484,6 @@ class WageRecord(models.Model):
     def __str__(self):
         return f"{self.employee_name} - {self.year}-{self.month:02d}"
 
-    def auto_calculate_social_insurance(self):
-        """根据员工社保基数和公司配置比例，自动计算五险一金个人部分"""
-        try:
-            # 优先从 employee_company 获取社保基数（多公司任职场景）
-            ec = None
-            employee_obj = None
-            if self.employee_company_id:
-                ec = self.employee_company
-                if ec and ec.employee_id:
-                    employee_obj = ec.employee
-            elif self.employee_id:
-                employee_obj = self.employee
-
-            if not employee_obj:
-                return
-
-            # 员工的社保基数和公积金基数（优先用员工表中的配置基数，0表示使用公司默认基数）
-            social_base = float(employee_obj.social_insurance_base or 0)
-            housing_base = float(employee_obj.housing_fund_base or 0)
-
-            # 获取公司社保配置
-            company = self.company
-            if not company:
-                return
-            config = getattr(company, 'social_config', None)
-            if not config:
-                return
-
-            # 分别处理社保和公积金：各自用 has_* 判断是否参保，各自用各自的基数
-            self.social_insurance = 0
-            self.housing_fund = 0
-
-            # --- 社保（五险）计算 ---
-            if employee_obj.has_social_insurance:
-                si_base = float(employee_obj.social_insurance_base or 0)
-                if si_base <= 0:
-                    si_base = float(config.social_base or 0)
-                if si_base > 0:
-                    pension_employee = si_base * float(config.pension_rate_employee or 8) / 100
-                    medical_employee = si_base * float(config.medical_rate_employee or 2) / 100
-                    unemployment_employee = si_base * float(config.unemployment_rate_employee or 0.3) / 100
-                    self.social_insurance = round(pension_employee + medical_employee + unemployment_employee, 2)
-
-            # --- 公积金计算 ---
-            if employee_obj.has_housing_fund:
-                hf_base = float(employee_obj.housing_fund_base or 0)
-                if hf_base <= 0:
-                    hf_base = float(config.housing_fund_base or 0)
-                if hf_base > 0:
-                    housing_employee = hf_base * float(config.housing_fund_rate_employee or 5) / 100
-                    self.housing_fund = round(housing_employee, 2)
-        except Exception:
-            pass  # 出错时保持原值不变
-
     def calculate_gross_and_tax(self):
         """计算应发合计、社保公积金、个税（专项附加扣除7项）、实发工资"""
         from decimal import Decimal
@@ -608,6 +554,7 @@ class WageRecord(models.Model):
 
         # 从上月记录取累计税额，避免 prior_cumulative_tax 字段未更新的问题
         prior_cum_tax = float(prior_records[-1].cumulative_tax) if prior_records else 0.0
+        self.prior_cumulative_tax = round(prior_cum_tax, 2)
 
         # 7级超额累进税率
         thresholds = [0, 36000, 144000, 252000, 324000, 648000, 960000]
