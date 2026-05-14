@@ -48,6 +48,9 @@ urlpatterns = [
     path('auth/password-reset/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('auth/user/', CurrentUserView.as_view(), name='current-user'),
     
+    # 健康检查
+    path('health/', health_check, name='health'),
+
     # API路由
     path('', include(router.urls)),
 ]
