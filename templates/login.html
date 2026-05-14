@@ -321,7 +321,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
     btnText.textContent = '登录中...';
     btnSpinner.classList.remove('d-none');
     
-    // 发送登录请求到后端（10秒超时，防止服务器慢时fetch永久挂起）
+    // 发送登录请求到后端（30秒超时，服务器资源紧张时需要更多时间处理）
     fetchWithTimeout('/api/core/auth/login/', {
         method: 'POST',
         credentials: 'include',
@@ -330,7 +330,7 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
             'X-CSRFToken': getCsrfToken()
         },
         body: JSON.stringify({ username, password, remember })
-    }, 10000)
+    }, 30000)
     .then(function(response) {
         if (response.ok) {
             return response.json();
@@ -340,7 +340,9 @@ document.getElementById('loginForm').addEventListener('submit', function(e) {
                 var msg = errData?.message || errData?.errors?.non_field_errors?.[0] || '用户名或密码错误';
                 throw new Error(msg);
             }).catch(function() {
-                throw new Error('登录失败，请检查网络后重试');
+                // response.json()解析失败时，也显示有意义的错误，而不是笼统的网络错误
+                var msg = '请求处理失败，请稍后重试';
+                throw new Error(msg);
             });
         }
     })
