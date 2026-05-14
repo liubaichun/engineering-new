@@ -651,6 +651,7 @@ def list_banks(request):
 def preview_bank_statement(request):
     """预览银行流水（不写库），返回11个核心字段。"""
     import base64
+    import os
 
     content_type = request.content_type or ''
     if 'application/json' in content_type or (
@@ -661,8 +662,14 @@ def preview_bank_statement(request):
         company_id = body.get('company_id')
         bank_code  = body.get('bank_code', '')
         try:
-            content = base64.b64decode(body.get('file_base64', ''))
+            raw_b64 = body.get('file_base64', '')
+            content = base64.b64decode(raw_b64)
+            # 调试日志
+            with open('/tmp/bank_debug.log', 'a') as f:
+                f.write(f'raw_b64_len={len(raw_b64)} first10={raw_b64[:10]} decoded_len={len(content)} first_bytes={content[:20].hex()}\n')
         except Exception as e:
+            with open('/tmp/bank_debug.log', 'a') as f:
+                f.write(f'decode_error: {e}\n')
             return Response({'error': f'文件解码失败: {e}'}, status=400)
     else:
         if 'file' not in request.FILES:

@@ -368,6 +368,7 @@ async function doPreview() {
         const data = await resp.json();
         if (!resp.ok) throw new Error(data.error || '预览失败');
 
+        console.log('API response:', JSON.stringify({bank_code: data.bank_code, total_count: data.total_count, total_income: data.total_income, total_expense: data.total_expense, rows: data.preview_rows?.length}));
         previewData = data;
         renderPreview(data);
         goStep(2);
