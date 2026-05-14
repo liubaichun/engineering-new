@@ -53,6 +53,8 @@ class BankStatementAdapter(ABC):
         if isinstance(value, datetime.date):
             return value
         s = str(value).strip().replace('/', '-').replace('年', '-').replace('月', '-').replace('日', '')
+        # 去掉时间部分，只保留日期
+        s = s.split(' ')[0].split('T')[0]
         for fmt in ('%Y-%m-%d', '%Y%m%d', '%m-%d-%Y', '%d-%m-%Y', '%Y年%m月%d日', '%Y.%m.%d'):
             try:
                 return datetime.datetime.strptime(s, fmt).date()
@@ -149,9 +151,8 @@ class ICBCAdapter(BankStatementAdapter):
                     counterparty_account=str(col(2) or '').strip(),  # B列
                     counterparty_bank=str(col(6) or '').strip(),  # F列
                     summary=str(col(8) or '').strip() or str(col(9) or '').strip(),  # H/I列
-                    usage=str(col(7) or '').strip(),  # G列
                     bank_serial='',
-                    raw_data={'凭证号': col(1), '借贷标志': direction_flag}
+                    raw_data={'凭证号': col(1), '借贷标志': direction_flag, '用途': str(col(7) or '').strip()}
                 ))
 
                 if balance is not None:
@@ -329,7 +330,6 @@ class CCBAdapter(BankStatementAdapter):
                     counterparty_account=str(get_col(row_idx, '对方账号', '收款账号', '付款账号') or '').strip(),
                     counterparty_bank=str(get_col(row_idx, '对方银行', '开户行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
-                    usage='',
                     bank_serial=str(get_col(row_idx, '流水号', '交易流水') or '').strip(),
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
@@ -406,7 +406,6 @@ class BOCAdapter(BankStatementAdapter):
                     counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
                     counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    usage='',
                     bank_serial=str(get_col(row_idx, '流水号', '交易流水号', '参考号') or '').strip(),
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
@@ -482,7 +481,6 @@ class ABCAdapter(BankStatementAdapter):
                     counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
                     counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    usage='',
                     bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
@@ -558,7 +556,6 @@ class COMMAdapter(BankStatementAdapter):
                     counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
                     counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    usage='',
                     bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
@@ -634,7 +631,6 @@ class PSBCAdapter(BankStatementAdapter):
                     counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
                     counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    usage='',
                     bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
