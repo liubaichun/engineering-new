@@ -593,6 +593,7 @@ class WageRecord(models.Model):
         self.cumulative_tax = round(cum_tax, 2)
         self.tax = round(max(monthly_tax, 0), 2)
         self.net_salary = round(gross - total_ded - max(monthly_tax, 0), 2)
+        self.special_deduction = round(special_ded, 2)  # 修复: 写回字段，之前只有局部变量用了，字段本身未赋值
 
 
     def save(self, *args, **kwargs):
