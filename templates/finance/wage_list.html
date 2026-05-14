@@ -882,14 +882,17 @@ function autoFillSocialInsurance(emp, co) {
     var companyId = (co && co.company) ? co.company : emp.company;
     var cfg = socialConfigs[companyId];
 
-    // 社保：优先用员工档案 deduction 值（非零），忽略 has_social_insurance 标志
-    // 原因：布尔标志和实际数值可能不一致，应以 deduction 实际值优先
+    // 社保：has_social_insurance=False 时强制填0（Deduction值可能有误）
+    //         has_social_insurance=True 时：有Deduction值则用，否则按公司配置计算
     var siDeduction = parseFloat(emp.social_insurance_deduction) || 0;
-    if (siDeduction > 0) {
-        // 员工档案有精确 deduction 值，直接用
+    if (!emp.has_social_insurance) {
+        // 明确不购买社保 → 填0
+        document.getElementById('id_social_insurance').value = '0';
+    } else if (siDeduction > 0) {
+        // 有档案精确Deduction值，直接用
         document.getElementById('id_social_insurance').value = siDeduction.toFixed(2);
-    } else if (emp.has_social_insurance && cfg) {
-        // 无档案值但标志为 true，按公司配置计算：社保基数 × (养老+医疗+失业个人比例)
+    } else if (cfg) {
+        // 无档案值，按公司配置计算：社保基数 × (养老+医疗+失业个人比例)
         var socialBase = parseFloat(cfg.social_base) || 0;
         var pensionEmp = parseFloat(cfg.pension_rate_employee) || 0;
         var medicalEmp = parseFloat(cfg.medical_rate_employee) || 0;
@@ -900,14 +903,17 @@ function autoFillSocialInsurance(emp, co) {
         document.getElementById('id_social_insurance').value = '0';
     }
 
-    // 公积金：优先用员工档案 deduction 值（非零），忽略 has_housing_fund 标志
-    // 原因：布尔标志和实际数值可能不一致（如边鸿洋 has_housing_fund=False 但 deduction=521.58）
+    // 公积金：has_housing_fund=False 时强制填0（Deduction值可能是社保数据错填进来）
+    //         has_housing_fund=True 时：有Deduction值则用，否则按公司配置计算
     var hfDeduction = parseFloat(emp.housing_fund_deduction) || 0;
-    if (hfDeduction > 0) {
-        // 员工档案有精确 deduction 值，直接用
+    if (!emp.has_housing_fund) {
+        // 明确不购买公积金 → 填0，不使用Deduction值（可能是社保数据错填）
+        document.getElementById('id_housing_fund').value = '0';
+    } else if (hfDeduction > 0) {
+        // 有档案精确Deduction值，直接用
         document.getElementById('id_housing_fund').value = hfDeduction.toFixed(2);
-    } else if (emp.has_housing_fund && cfg) {
-        // 无档案值但标志为 true，按公司配置计算：公积金基数 × 公积金个人比例
+    } else if (cfg) {
+        // 无档案值，按公司配置计算
         var fundBase = parseFloat(cfg.housing_fund_base) || 0;
         var fundRateEmp = parseFloat(cfg.housing_fund_rate_employee) || 0;
         var calculated = fundBase * fundRateEmp;
