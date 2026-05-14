@@ -16,7 +16,7 @@
         <p class="text-muted mb-0" style="font-size: 0.9rem;">管理供应商信息和代理品牌</p>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="showSupplierModal()" data-perm="supplier.add">
+        <button class="btn btn-primary btn-sm" onclick="showSupplierModal()" data-perm="crm:supplier:create">
             <i class="bi bi-plus-lg me-1"></i>新建供应商
         </button>
     </div>
@@ -227,7 +227,7 @@ function renderSuppliers() {
             html += '<td>' + createdAt + '</td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(' + s.id + ')"><i class="bi bi-pencil"></i></button>';
-            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteSupplier(' + s.id + ')" data-perm="supplier.delete"><i class="bi bi-trash"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteSupplier(' + s.id + ')" data-perm="crm:supplier:delete"><i class="bi bi-trash"></i></button>';
             html += '</td></tr>';
         });
         tbody.innerHTML = html;

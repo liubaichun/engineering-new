@@ -16,7 +16,7 @@
         <p class="text-muted mb-0" style="font-size: 0.9rem;">管理客户信息和联系人</p>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="showClientModal()" data-perm="client.add">
+        <button class="btn btn-primary btn-sm" onclick="showClientModal()" data-perm="crm:customer:create">
             <i class="bi bi-plus-lg me-1"></i>新建客户
         </button>
     </div>
@@ -247,7 +247,7 @@ function renderClients() {
             html += '<td>' + createdAt + '</td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editClient(' + client.id + ')"><i class="bi bi-pencil"></i></button>';
-            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteClient(' + client.id + ')" data-perm="client.delete"><i class="bi bi-trash"></i></button>';
+            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteClient(' + client.id + ')" data-perm="crm:customer:delete"><i class="bi bi-trash"></i></button>';
             html += '</td></tr>';
         });
         tbody.innerHTML = html;

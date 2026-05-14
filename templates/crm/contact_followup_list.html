@@ -20,10 +20,10 @@
         <p class="text-muted mb-0" style="font-size: 0.9rem;">管理客户联系人和跟进记录</p>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="showContactModal()" data-perm="contact.add">
+        <button class="btn btn-primary btn-sm" onclick="showContactModal()" data-perm="crm:contact:create">
             <i class="bi bi-plus-lg me-1"></i>新建联系人
         </button>
-        <button class="btn btn-outline-primary btn-sm" onclick="showFollowupModal()" data-perm="followup.add">
+        <button class="btn btn-outline-primary btn-sm" onclick="showFollowupModal()" data-perm="crm:followup:create">
             <i class="bi bi-journal-text me-1"></i>新建跟进
         </button>
     </div>
@@ -339,7 +339,7 @@ function renderContacts() {
         html += '<td>' + (c.created_at ? formatDate(c.created_at) : '-') + '</td>';
         html += '<td>';
         html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editContact(' + c.id + ')"><i class="bi bi-pencil"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteContact(' + c.id + ')" data-perm="contact.delete"><i class="bi bi-trash"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteContact(' + c.id + ')" data-perm="crm:contact:delete"><i class="bi bi-trash"></i></button>';
         html += '</td></tr>';
     });
 
@@ -510,7 +510,7 @@ function renderFollowups() {
         html += '<td>' + (f.created_at ? formatDate(f.created_at) : '-') + '</td>';
         html += '<td>';
         html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="viewFollowup(' + f.id + ')"><i class="bi bi-eye"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteFollowup(' + f.id + ')" data-perm="followup.delete"><i class="bi bi-trash"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteFollowup(' + f.id + ')" data-perm="crm:followup:delete"><i class="bi bi-trash"></i></button>';
         html += '</td></tr>';
     });
 
