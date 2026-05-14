@@ -882,15 +882,14 @@ function autoFillSocialInsurance(emp, co) {
     var companyId = (co && co.company) ? co.company : emp.company;
     var cfg = socialConfigs[companyId];
 
-    // 社保：优先用员工档案 deduction，非零则直接使用
+    // 社保：优先用员工档案 deduction 值（非零），忽略 has_social_insurance 标志
+    // 原因：布尔标志和实际数值可能不一致，应以 deduction 实际值优先
     var siDeduction = parseFloat(emp.social_insurance_deduction) || 0;
-    if (!emp.has_social_insurance) {
-        document.getElementById('id_social_insurance').value = '0';
-    } else if (siDeduction > 0) {
-        // 员工档案有精确值，直接用
+    if (siDeduction > 0) {
+        // 员工档案有精确 deduction 值，直接用
         document.getElementById('id_social_insurance').value = siDeduction.toFixed(2);
-    } else if (cfg) {
-        // 无档案值，按公司配置计算：社保基数 × (养老+医疗+失业个人比例)
+    } else if (emp.has_social_insurance && cfg) {
+        // 无档案值但标志为 true，按公司配置计算：社保基数 × (养老+医疗+失业个人比例)
         var socialBase = parseFloat(cfg.social_base) || 0;
         var pensionEmp = parseFloat(cfg.pension_rate_employee) || 0;
         var medicalEmp = parseFloat(cfg.medical_rate_employee) || 0;
@@ -901,15 +900,14 @@ function autoFillSocialInsurance(emp, co) {
         document.getElementById('id_social_insurance').value = '0';
     }
 
-    // 公积金：优先用员工档案 deduction，非零则直接使用
+    // 公积金：优先用员工档案 deduction 值（非零），忽略 has_housing_fund 标志
+    // 原因：布尔标志和实际数值可能不一致（如边鸿洋 has_housing_fund=False 但 deduction=521.58）
     var hfDeduction = parseFloat(emp.housing_fund_deduction) || 0;
-    if (!emp.has_housing_fund) {
-        document.getElementById('id_housing_fund').value = '0';
-    } else if (hfDeduction > 0) {
-        // 员工档案有精确值，直接用
+    if (hfDeduction > 0) {
+        // 员工档案有精确 deduction 值，直接用
         document.getElementById('id_housing_fund').value = hfDeduction.toFixed(2);
-    } else if (cfg) {
-        // 无档案值，按公司配置计算：公积金基数 × 公积金个人比例
+    } else if (emp.has_housing_fund && cfg) {
+        // 无档案值但标志为 true，按公司配置计算：公积金基数 × 公积金个人比例
         var fundBase = parseFloat(cfg.housing_fund_base) || 0;
         var fundRateEmp = parseFloat(cfg.housing_fund_rate_employee) || 0;
         var calculated = fundBase * fundRateEmp;
