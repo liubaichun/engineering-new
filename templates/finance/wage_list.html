@@ -108,7 +108,7 @@
             <option value="">全部公司</option>
         </select>
         <select class="form-select form-select-sm" style="width: auto;" id="yearFilter" onchange="loadWages()">
-            <option value="">加载中...</option>
+            <option value="">全部年份</option>
         </select>
         <select class="form-select form-select-sm" style="width: auto;" id="monthFilter" onchange="loadWages()">
             <option value="">全部月份</option>
@@ -422,14 +422,14 @@ function loadWages(page) {
         updateSummary(data.results || data);
     })
     .catch(err => {
-        document.getElementById('wageTableBody').innerHTML = '<tr><td colspan="20" class="text-center text-danger py-4">加载失败</td></tr>';
+        document.getElementById('wageTableBody').innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">加载失败，请重试</td></tr>';
     });
 }
 
 function renderWages(wages) {
     var tbody = document.getElementById('wageTableBody');
     if (!wages || wages.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="20" class="text-center text-muted py-4">暂无数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">暂无数据</td></tr>';
         return;
     }
     tbody.innerHTML = wages.map(w => {
