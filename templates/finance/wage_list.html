@@ -370,8 +370,8 @@ function loadEmployees() {
     .then(r => r.json())
     .then(data => {
         if (!data) { console.error('加载员工失败: 空数据'); return; }
-        employees = Array.isArray(data) ? data : (data.results || data.data || []);
-        if (!Array.isArray(employees)) { console.error('加载员工失败: 数据格式错误', data); }
+        window.employees = Array.isArray(data) ? data : (data.results || data.data || []);
+        if (!Array.isArray(window.employees)) { console.error('加载员工失败: 数据格式错误', data); }
     })
     .catch(err => console.error('加载员工失败:', err));
 }
@@ -388,18 +388,7 @@ function loadSocialConfigs() {
         configs.forEach(cfg => {
             socialConfigs[cfg.company] = cfg;
         });
-        // configs 加载完成后，重新触发当前已选员工和公司的社保联动（解决竞态）
-        var companySelect = document.getElementById('id_company');
-        var empSelect = document.getElementById('id_employee_select');
-        if (companySelect && empSelect && companySelect.value && empSelect.value) {
-            var emp = employees.find(e => e.id == empSelect.value);
-            if (emp) {
-                var primary = emp.companies && emp.companies.find(c => c.is_primary);
-                var first = emp.companies && emp.companies[0];
-                var co = primary || first || {};
-                autoFillSocialInsurance(emp, co);
-            }
-        }
+        // 不再盲目触发 autofill：用户已在编辑时手动触发 autofill，不应被覆盖
     })
     .catch(err => console.error('加载社保配置失败:', err));
 }
@@ -752,7 +741,7 @@ function showAddWageModal() {
     // 填充员工下拉
     var empSelect = document.getElementById('id_employee_select');
     empSelect.innerHTML = '<option value="">选择员工（可选）</option>';
-    employees.forEach(emp => {
+    (window.employees || []).forEach(emp => {
         var label = emp.name + (emp.department ? ' / ' + emp.department : '') + (emp.position ? ' / ' + emp.position : '');
         empSelect.innerHTML += '<option value="' + emp.id + '">' + label + '</option>';
     });
@@ -761,7 +750,15 @@ function showAddWageModal() {
     document.getElementById('id_year').value = now.getFullYear();
     document.getElementById('id_month').value = now.getMonth() + 1;
     resetCalcResult();
-    wageModal.show();
+    if (wageModal) {
+        wageModal.show();
+    } else {
+        console.error('wageModal 未初始化，延迟显示');
+        setTimeout(function() {
+            wageModal = new bootstrap.Modal(document.getElementById('wageModal'));
+            wageModal.show();
+        }, 100);
+    }
 }
 
 function resetCalcResult() {
@@ -776,8 +773,12 @@ function resetCalcResult() {
 function onCompanyChange(companyId) {
     var empSelect = document.getElementById('id_employee_select');
     empSelect.innerHTML = '<option value="">选择员工（可选）</option>';
+    // employees 还未加载或 companyId 无效时直接返回
+    if (!companyId || !window.employees || window.employees.length === 0) {
+        return;
+    }
     // 优先按主公司匹配，其次按任一公司匹配（支持多公司任职）
-    var filtered = companyId ? employees.filter(e => {
+    var filtered = companyId ? window.employees.filter(e => {
         if (!e.companies || e.companies.length === 0) return false;
         // 优先找主公司匹配
         var primaryMatch = e.companies.find(c => String(c.company) === String(companyId) && c.is_primary);
@@ -811,7 +812,11 @@ async function onEmployeeSelect(empId) {
     if (!empId) return;
     // 编辑状态时，切换员工下拉不覆盖已有数据（由用户手动点"自动计算"触发社保联动）
     if (isEditingWage) return;
-    var emp = employees.find(e => e.id == empId);
+    if (!window.employees || window.employees.length === 0) {
+        console.warn('员工列表还未加载，跳过 autofill');
+        return;
+    }
+    var emp = window.employees.find(e => e.id == empId);
     if (!emp) return;
     document.getElementById('id_employee_name').value = emp.name;
     document.getElementById('id_bank_card').value = emp.bank_card || '';
@@ -861,7 +866,7 @@ function autoCalcSocialFromEmployee() {
         showToast('请先选择员工', 'warning');
         return;
     }
-    var emp = employees.find(e => String(e.id) === String(empId));
+    var emp = (window.employees || []).find(e => String(e.id) === String(empId));
     if (!emp) return;
     var selectedCompany = document.getElementById('id_company').value;
     var co = selectedCompany
@@ -970,7 +975,7 @@ function editWage(id) {
             empSelect.innerHTML += '<option value="' + emp.id + '">' + label + '</option>';
         });
         // 选中同名员工（编辑场景不触发社保联动，由后文 w.social_insurance 直接填充）
-        var matched = employees.find(e => e.name === w.employee_name);
+        var matched = (window.employees || []).find(e => e.name === w.employee_name);
         if (matched) {
             empSelect.value = matched.id;
         }
@@ -998,7 +1003,7 @@ function editWage(id) {
         document.getElementById('id_other_deductions').value = w.other_deductions || 0;
         // 新增字段：迟到次数 + 7项专项附加扣除
         document.getElementById('id_late_times').value = w.late_times || 0;
-        var emp = employees.find(e => String(e.id) === String(w.employee_id));
+        var emp = (window.employees || []).find(e => String(e.id) === String(w.employee_id));
         var lateDedEl = document.getElementById('id_late_deduction_per_time');
         if (lateDedEl) lateDedEl.value = emp ? (parseFloat(emp.late_deduction_per_time) || 0) : 0;
         document.getElementById('id_children_education').value = w.children_education || 0;
