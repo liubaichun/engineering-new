@@ -22,6 +22,7 @@ from .views import (
     OperationAuditLogViewSet,
     SystemSettingViewSet,
     FinanceCompanyViewSet,
+    health_check,
 )
 
 router = IntegerPkRouter()
