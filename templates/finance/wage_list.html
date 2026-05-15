@@ -292,14 +292,17 @@ var companies = [];
 var employees = [];
 var socialConfigs = {};  // company_id -> config
 var wageModal;
+var loadWagesController = null;  // AbortController for loadWages
+var autoCalcController = null;    // AbortController for autoCalc
+var autoCalcTimer = null;         // 防抖定时器
 
 document.addEventListener('DOMContentLoaded', function() {
     wageModal = new bootstrap.Modal(document.getElementById('wageModal'));
     loadCompanies();
     loadYearOptionsWage();
-    loadEmployees();
+    // loadWages 必须在 loadEmployees 完成后执行，避免列表渲染时 companies/employees 还是空的
+    loadEmployees().then(function() { loadWages(); });
     loadSocialConfigs();
-    loadWages();
     bindAutoCalc();
 });
 
@@ -315,7 +318,7 @@ function bindAutoCalc() {
                   'id_housing_loan','id_housing_rent','id_elderly_support','id_infant_care'];
     fields.forEach(function(f) {
         var el = window.document.getElementById(f);
-        if (el) el.addEventListener('input', autoCalc);
+        if (el) el.addEventListener('input', scheduleAutoCalc);
     });
 }
 
@@ -413,6 +416,9 @@ function loadSocialConfigs() {
 }
 function loadWages(page) {
     if (page) currentPage = page;
+    // 如果有正在进行的请求，先中止
+    if (loadWagesController) { loadWagesController.abort(); }
+    loadWagesController = new AbortController();
     var company = document.getElementById('companyFilter').value;
     var year = document.getElementById('yearFilter').value;
     var month = document.getElementById('monthFilter').value;
@@ -424,15 +430,34 @@ function loadWages(page) {
     if (month) params.append('month', month);
     if (status) params.append('status', status);
     if (employee) params.append('employee', employee);
-    fetch('/api/finance/wages/?' + params.toString(), { credentials: 'include' })
-    .then(r => r.json())
-    .then(data => {
+
+    // 显示加载状态（但不阻塞页面）
+    var tbody = document.getElementById('wageTableBody');
+    var existingMsg = tbody.innerHTML;
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4"><span class="spinner-border spinner-border-sm me-1"></span>加载中...</td></tr>';
+
+    var timeoutId = setTimeout(function() {
+        if (loadWagesController) { loadWagesController.abort(); }
+    }, 30000);  // 30秒超时
+
+    fetch('/api/finance/wages/?' + params.toString(), {
+        credentials: 'include',
+        signal: loadWagesController.signal
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        clearTimeout(timeoutId);
+        loadWagesController = null;
         renderWages(data.results || data);
         renderPagination(data);
         updateSummary(data.results || data);
     })
-    .catch(err => {
-        document.getElementById('wageTableBody').innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">加载失败，请重试</td></tr>';
+    .catch(function(err) {
+        clearTimeout(timeoutId);
+        loadWagesController = null;
+        if (err.name === 'AbortError') return;  // 被新请求中止，不显示错误
+        console.error('loadWages 失败:', err);
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">加载失败，请刷新页面重试</td></tr>';
     });
 }
 
@@ -515,9 +540,8 @@ function updateSummary(wages) {
 }
 
 // 工资预览计算：调后端 calc_preview API（累计预扣法，唯一计算来源）
+// 加防抖（300ms）+ AbortController 取消旧请求，防止并发覆盖
 async function autoCalc() {
-    // 事件处理器中 this 指向 DOM 元素，会遮蔽全局 document
-    // 必须用 window.document 明确引用
     var _doc = window.document;
     var r = collectWageData();
     var year = parseInt(_doc.getElementById('id_year').value) || new Date().getFullYear();
@@ -525,7 +549,6 @@ async function autoCalc() {
     var empId = _doc.getElementById('id_employee') && _doc.getElementById('id_employee').value;
     var ecId = _doc.getElementById('id_employee_company') && _doc.getElementById('id_employee_company').value;
 
-    // 上月累计值（从表单隐藏字段读取，录入新记录时均为0）
     var priorCumTax = parseFloat(_doc.getElementById('id_prior_cumulative_tax') && _doc.getElementById('id_prior_cumulative_tax').value) || 0;
     var priorCumGross = parseFloat(_doc.getElementById('id_prior_cumulative_gross') && _doc.getElementById('id_prior_cumulative_gross').value) || 0;
     var priorCumSocial = parseFloat(_doc.getElementById('id_prior_cumulative_social_insurance') && _doc.getElementById('id_prior_cumulative_social_insurance').value) || 0;
@@ -542,12 +565,17 @@ async function autoCalc() {
         prior_cumulative_housing_fund: priorCumHousing,
     });
 
+    // 中止旧请求
+    if (autoCalcController) { autoCalcController.abort(); }
+    autoCalcController = new AbortController();
+
     try {
         var resp = await fetch('/api/finance/wages/calc_preview/', {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify(payload)
+            body: JSON.stringify(payload),
+            signal: autoCalcController.signal
         });
         var result = await resp.json();
         if (resp.ok) {
@@ -557,7 +585,6 @@ async function autoCalc() {
             _doc.getElementById('calc_tax').textContent = '¥' + (result.tax || 0).toLocaleString();
             _doc.getElementById('calc_net').textContent = '¥' + (result.net_salary || 0).toLocaleString();
         } else {
-            // 降级：显示 gross 和 totalDed（这两个字段前端可以准确计算）
             _doc.getElementById('calc_gross').textContent = '¥' + r.gross.toLocaleString();
             _doc.getElementById('calc_total_ded').textContent = '¥' + r.totalDed.toLocaleString();
             _doc.getElementById('calc_taxable').textContent = '¥' + r.taxable.toLocaleString();
@@ -565,9 +592,20 @@ async function autoCalc() {
             _doc.getElementById('calc_net').textContent = '¥—';
         }
     } catch (e) {
+        if (e.name === 'AbortError') return;
         _doc.getElementById('calc_tax').textContent = '¥—（网络错误）';
         _doc.getElementById('calc_net').textContent = '¥—';
+    } finally {
+        autoCalcController = null;
     }
+}
+
+// 带防抖的 autoCalc（用于 input 事件，每 300ms 最多触发一次）
+function scheduleAutoCalc() {
+    if (autoCalcTimer) { clearTimeout(autoCalcTimer); }
+    autoCalcTimer = setTimeout(function() {
+        autoCalc().catch(function(e) { if (e.name !== 'AbortError') console.error('autoCalc失败:', e); });
+    }, 300);
 }
 
 async function submitWage(id) {
@@ -1042,7 +1080,7 @@ function editWage(id) {
         if (document.getElementById('id_prior_cumulative_social_insurance')) document.getElementById('id_prior_cumulative_social_insurance').value = w.cumulative_social_insurance || 0;
         if (document.getElementById('id_prior_cumulative_housing_fund')) document.getElementById('id_prior_cumulative_housing_fund').value = w.cumulative_housing_fund || 0;
         document.getElementById('id_remarks').value = w.remarks || '';
-        autoCalc();
+        autoCalc().catch(function(e) { console.error('autoCalc失败:', e); });
         wageModal.show();
     });
 }
