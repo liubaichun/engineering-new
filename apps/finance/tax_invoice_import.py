@@ -442,6 +442,23 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
 # ─── API 视图 ───────────────────────────────────────────────
 
 
+# ─── 工具函数 ───────────────────────────────────────────────
+
+
+def _validate_xlsx(file_obj: io.BytesIO) -> bool:
+    """
+    校验文件是否为真实的 xlsx 文件（魔数校验）。
+    xlsx 本质是 ZIP 压缩包，魔数为 PK (0x50 0x4B)。
+    读取后 seek(0) 恢复指针，不影响后续 load_workbook 处理。
+    """
+    header = file_obj.read(4)
+    file_obj.seek(0)
+    return len(header) == 4 and header[0] == 0x50 and header[1] == 0x4B
+
+
+# ─── API 视图 ───────────────────────────────────────────────
+
+
 @api_view(['POST'])
 @permission_classes([permissions.IsAuthenticated])
 def import_tax_invoices(request):
@@ -456,6 +473,15 @@ def import_tax_invoices(request):
     if 'file' not in request.FILES:
         return Response({'error': '请上传 .xlsx 文件'}, status=400)
 
+    raw = request.FILES['file']
+    # 扩展名校验
+    if not raw.name.lower().endswith(('.xlsx', '.xls')):
+        return Response({'error': '请上传 .xlsx 文件'}, status=400)
+    # 魔数校验
+    file_obj = io.BytesIO(raw.read())
+    if not _validate_xlsx(file_obj):
+        return Response({'error': '文件格式无效，请上传真实的 Excel 文件'}, status=400)
+
     invoice_type = request.POST.get('invoice_type', 'expense')
     if invoice_type not in ('expense', 'income'):
         return Response({'error': "invoice_type 必须是 'expense'（进项）或 'income'（销项）"}, status=400)
@@ -469,7 +495,7 @@ def import_tax_invoices(request):
     except Company.DoesNotExist:
         return Response({'error': f'公司ID {company_id} 不存在'}, status=404)
 
-    wb = load_workbook(io.BytesIO(request.FILES['file'].read()), data_only=True)
+    wb = load_workbook(file_obj, data_only=True)
     ws = wb.active
 
     # 找"信息汇总表" Sheet
@@ -501,6 +527,15 @@ def import_tax_invoices_auto(request):
     if 'file' not in request.FILES:
         return Response({'error': '请上传 .xlsx 文件'}, status=400)
 
+    raw = request.FILES['file']
+    # 扩展名校验
+    if not raw.name.lower().endswith(('.xlsx', '.xls')):
+        return Response({'error': '请上传 .xlsx 文件'}, status=400)
+    # 魔数校验
+    file_obj = io.BytesIO(raw.read())
+    if not _validate_xlsx(file_obj):
+        return Response({'error': '文件格式无效，请上传真实的 Excel 文件'}, status=400)
+
     company_id = request.POST.get('company_id')
     if not company_id:
         return Response({'error': '缺少 company_id 参数'}, status=400)
@@ -510,7 +545,7 @@ def import_tax_invoices_auto(request):
     except Company.DoesNotExist:
         return Response({'error': f'公司ID {company_id} 不存在'}, status=404)
 
-    wb = load_workbook(io.BytesIO(request.FILES['file'].read()), data_only=True)
+    wb = load_workbook(file_obj, data_only=True)
 
     # 按 Sheet 分离进项/销项
     # 通常进项票 Sheet 名含"取得"，销项票含"开具"
