@@ -1,4 +1,5 @@
-from django.db import models
+import logging
+from django.db import models, transaction
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -9,6 +10,8 @@ from .models import Material, MaterialUsageLog, MaterialBOM, MaterialBOMNode, Ma
 from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialBOMSerializer
 from .serializers import MaterialBOMDetailSerializer, MaterialBOMNodeSerializer, MaterialBOMTreeSerializer
 from .serializers import MaterialBOMNodeSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class MaterialFilter(FilterSet):
@@ -93,33 +96,44 @@ class MaterialViewSet(viewsets.ModelViewSet):
         remark = request.data.get('remark', '')
 
         try:
-            material = Material.objects.get(pk=material_id)
+            with transaction.atomic():
+                material = (Material.objects
+                            .select_for_update()
+                            .get(pk=material_id))
+
+                if material.stock < quantity:
+                    return Response({'error': '库存不足'}, status=400)
+
+                before_stock = material.stock
+                material.stock -= quantity
+                material.save(update_fields=['stock', 'updated_at'])
+
+                logger.info(
+                    "[物料出库] material_id=%s, quantity=%s, before_stock=%s, "
+                    "after_stock=%s, user=%s, project=%s",
+                    material_id, quantity, before_stock, material.stock,
+                    request.user, project_id
+                )
+
+                serializer = MaterialUsageLogSerializer(data={
+                    'material': material_id,
+                    'project': project_id,
+                    'quantity': quantity,
+                    'remark': remark,
+                })
+                if not serializer.is_valid():
+                    return Response(serializer.errors, status=400)
+
+                company_id = getattr(request.user, 'company_id', None)
+                save_kwargs = {
+                    'used_by': request.user if request.user.is_authenticated else None,
+                }
+                if company_id:
+                    save_kwargs['company_id'] = company_id
+                serializer.save(**save_kwargs)
+                return Response(serializer.data, status=201)
         except Material.DoesNotExist:
             return Response({'error': '物料不存在'}, status=404)
-
-        if material.stock < quantity:
-            return Response({'error': '库存不足'}, status=400)
-
-        # 扣减库存
-        material.stock -= quantity
-        material.save()
-
-        serializer = MaterialUsageLogSerializer(data={
-            'material': material_id,
-            'project': project_id,
-            'quantity': quantity,
-            'remark': remark,
-        })
-        if serializer.is_valid():
-            company_id = getattr(request.user, 'company_id', None)
-            save_kwargs = {
-                'used_by': request.user if request.user.is_authenticated else None,
-            }
-            if company_id:
-                save_kwargs['company_id'] = company_id
-            serializer.save(**save_kwargs)
-            return Response(serializer.data, status=201)
-        return Response(serializer.errors, status=400)
 
 
 class MaterialBOMViewSet(viewsets.ModelViewSet):
