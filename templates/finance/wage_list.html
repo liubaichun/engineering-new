@@ -327,7 +327,7 @@ function getCsrfToken() {
 }
 
 function loadCompanies() {
-    fetch('/api/finance/companies/', { credentials: 'include' })
+    return fetch('/api/finance/companies/', { credentials: 'include' })
     .then(r => r.json())
     .then(data => {
         if (!data) { console.error('加载公司失败: 空数据'); return; }
@@ -372,7 +372,7 @@ function loadYearOptionsWage() {
 
 // 加载员工列表
 function loadEmployees() {
-    fetch('/api/finance/employees/', { credentials: 'include' })
+    return fetch('/api/finance/employees/', { credentials: 'include' })
     .then(r => r.json())
     .then(data => {
         if (!data) { console.error('加载员工失败: 空数据'); return; }
@@ -400,7 +400,7 @@ function renderEmployeeFilter() {
 
 // 加载社保配置
 function loadSocialConfigs() {
-    fetch('/api/finance/social-configs/', { credentials: 'include' })
+    return fetch('/api/finance/social-configs/', { credentials: 'include' })
     .then(r => r.json())
     .then(data => {
         if (!data) { console.error('加载社保配置失败: 空数据'); return; }
