@@ -298,16 +298,20 @@ def serve_media(request, path):
     from django.http import Http404, HttpResponse
     from django.conf import settings
     from django.utils.encoding import force_bytes
+
+    # 防止路径遍历：禁止 .. 出现在路径中
+    if '..' in path:
+        raise Http404("Invalid path")
+
     if request.path.startswith('/company_files/'):
-        # /company_files/2026/04/xxx.pdf → BASE_DIR/company_files/2026/04/xxx.pdf
-        # path 正则捕获的是 2026/04/xxx.pdf（无 company_files/ 前缀），需拼接完整路径
-        full_path = os.path.join(settings.BASE_DIR, 'company_files', path)
+        base_dir = os.path.join(settings.BASE_DIR, 'company_files')
     else:
-        # /media/company_files/2026/04/xxx.pdf → MEDIA_ROOT/2026/04/xxx.pdf
-        # path 正则捕获的是 company_files/2026/04/xxx.pdf，需去掉前缀
-        if path.startswith('company_files/'):
-            path = path[len('company_files/'):]
-        full_path = os.path.join(settings.MEDIA_ROOT, path)
+        base_dir = settings.MEDIA_ROOT
+
+    full_path = os.path.normpath(os.path.join(base_dir, path))
+    # 确保解析后的路径在 base_dir 内，防止 .. 逃逸
+    if not full_path.startswith(os.path.normpath(base_dir) + os.sep) and full_path != os.path.normpath(base_dir):
+        raise Http404("Invalid path")
     if not os.path.exists(full_path):
         raise Http404("File not found")
     with open(full_path, 'rb') as f:
