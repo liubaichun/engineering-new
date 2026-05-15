@@ -872,7 +872,7 @@ def confirm_bank_import(request):
                     tx_time = None
     
             # ── 去重（在事务外，避免锁） ──────────────────────────────────
-            dedup = serial or f"{tx_date}_{cp_account}_{amount}"
+            dedup = f"{tx_date}_{serial}_{amount}" if serial else f"{tx_date}_{cp_account}_{amount}"
             if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
                 with open(LOG_PATH, 'a') as _lf:
                     _lf.write(f"  >> SKIP dedup: serial={serial!r} dedup={dedup!r}\n")
