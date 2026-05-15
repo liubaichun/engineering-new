@@ -249,9 +249,6 @@ class ChangePasswordView(APIView):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def post(self, request):
-        # DEBUG
-        import sys
-        print(f"DEBUG request.data = {dict(request.data)}", flush=True)
         old_password = request.data.get('old_password')
         new_password = request.data.get('new_password') or request.data.get('new_password1')
         confirm_password = request.data.get('new_password2')
