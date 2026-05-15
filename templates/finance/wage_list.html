@@ -123,6 +123,9 @@
             <option value="approved">已批准</option>
             <option value="paid">已发放</option>
         </select>
+        <select class="form-select form-select-sm" style="width: 140px;" id="employeeFilter" onchange="loadWages()">
+            <option value="">全部员工</option>
+        </select>
         <button class="btn btn-outline-secondary btn-sm" onclick="showExportOptions()">
             <i class="bi bi-download me-1"></i>导出
         </button>
@@ -372,8 +375,24 @@ function loadEmployees() {
         if (!data) { console.error('加载员工失败: 空数据'); return; }
         window.employees = Array.isArray(data) ? data : (data.results || data.data || []);
         if (!Array.isArray(window.employees)) { console.error('加载员工失败: 数据格式错误', data); }
+        renderEmployeeFilter();
     })
     .catch(err => console.error('加载员工失败:', err));
+}
+
+// 渲染员工过滤下拉框
+function renderEmployeeFilter() {
+    var select = document.getElementById('employeeFilter');
+    if (!select) return;
+    // 保留"全部员工"占位选项，清除其他
+    select.innerHTML = '<option value="">全部员工</option>';
+    if (!Array.isArray(window.employees)) return;
+    window.employees.forEach(function(emp) {
+        var opt = document.createElement('option');
+        opt.value = emp.id;
+        opt.textContent = emp.name || emp.id;
+        select.appendChild(opt);
+    });
 }
 
 // 加载社保配置
@@ -398,11 +417,13 @@ function loadWages(page) {
     var year = document.getElementById('yearFilter').value;
     var month = document.getElementById('monthFilter').value;
     var status = document.getElementById('statusFilter').value;
+    var employee = document.getElementById('employeeFilter').value;
     var params = new URLSearchParams({ page: currentPage, page_size: pageSize });
     if (company) params.append('company_id', company);
     if (year) params.append('year', year);
     if (month) params.append('month', month);
     if (status) params.append('status', status);
+    if (employee) params.append('employee', employee);
     fetch('/api/finance/wages/?' + params.toString(), { credentials: 'include' })
     .then(r => r.json())
     .then(data => {
