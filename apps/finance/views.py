@@ -1566,11 +1566,17 @@ class ReportViewSet(viewsets.ViewSet):
             }
         })
 
+    # 深圳2026社保费率常量（写死，不从CompanySocialConfig读取）
+    _EMP_SI_RATE = 10.3   # 个人：养老8% + 医疗2% + 失业0.3%
+    _COM_SI_RATE = 23.0   # 公司：养老16% + 医疗6% + 失业0.6% + 工伤0.4%
+    _HF_RATE = 5.0        # 公积金：公司5% + 个人5% = 对半
+
     @action(detail=False, methods=['get'])
     def wage_summary(self, request):
         """
-        工资汇总报表 - 从 Expense 表读取工资相关支出（description 含'工资'/'年终奖'/'离职补偿'）。
-        不依赖 WageRecord 表（该表暂无数据）。
+        工资汇总报表 - 从 WageRecord 表读取数据。
+        社保公司部分 = 每人社保基数 × 23%（基数从个人扣款反推：扣款 / 10.3%）
+        公积金公司部分 = 每人公积金基数 × 5%（基数从个人扣款反推：扣款 / 5%）
         """
         year = request.query_params.get('year')
         month = request.query_params.get('month')
@@ -1583,46 +1589,45 @@ class ReportViewSet(viewsets.ViewSet):
         if company_id:
             companies = companies.filter(id=company_id)
 
-        # 工资相关关键字（只用 description 匹配，不过滤 expense_type）
-        wage_keywords = ['工资', '年终奖', '离职补偿', '月奖', '奖金', '绩效', '补发工资']
-
         results = []
         for company in companies:
-            base_q = Q(company=company)
+            wr_q = WageRecord.objects.filter(company=company)
             if year:
-                base_q &= Q(expense_date__year=year)
+                wr_q = wr_q.filter(year=year)
             if month:
-                base_q &= Q(expense_date__month=month)
+                wr_q = wr_q.filter(month=month)
 
-            # 工资类：description 含工资关键字
-            wage_q = Q()
-            for kw in wage_keywords:
-                wage_q |= Q(description__icontains=kw)
-            wage_qs = Expense.objects.filter(base_q & wage_q)
-            wage_total = wage_qs.aggregate(t=Sum('amount'))['t'] or 0
-            wage_count = wage_qs.count()
+            total_gross = wr_q.aggregate(t=Sum('gross_salary'))['t'] or 0
+            total_net = wr_q.aggregate(t=Sum('net_salary'))['t'] or 0
+            total_tax = wr_q.aggregate(t=Sum('tax'))['t'] or 0
+            total_emp_si = wr_q.aggregate(t=Sum('social_insurance'))['t'] or 0  # 个人社保扣款合计
+            total_hf = wr_q.aggregate(t=Sum('housing_fund'))['t'] or 0          # 个人公积金扣款合计
+            record_count = wr_q.count()
 
-            # 社保公积金：description 含"托收"（单位托收YYYYMM月）
-            social_qs = Expense.objects.filter(base_q & Q(description__icontains='托收'))
-            social_total = social_qs.aggregate(t=Sum('amount'))['t'] or 0
-
-            # 个税：description 含"实时缴税"
-            tax_qs = Expense.objects.filter(base_q & Q(description__icontains='实时缴税'))
-            tax_total = tax_qs.aggregate(t=Sum('amount'))['t'] or 0
+            # 公司社保 = Σ(个人扣款 / 10.3% × 23%)，逐人反推基数后乘公司费率
+            com_si = sum(
+                (float(wr.social_insurance) / self._EMP_SI_RATE * 100) * (self._COM_SI_RATE / 100)
+                for wr in wr_q.select_related('employee')
+                if wr.social_insurance > 0
+            )
+            # 公司公积金 = Σ(个人扣款 / 5% × 5%) = Σ个人扣款（对半）
+            com_hf = total_hf  # 公积金公司出和个人出一样多
 
             results.append({
                 'company_id': company.id,
                 'company_name': company.name,
                 'year': int(year) if year else None,
                 'month': int(month) if month else None,
-                'record_count': wage_count,
-                'employee_count': wage_count,
-                'total_wage': float(wage_total),
-                'total_gross': float(wage_total),
-                'total_tax': float(tax_total),
-                'total_net': float(wage_total),  # net = gross - tax，实际应扣税后工资，此处粗略用总额代替
-                'total_social_insurance': float(social_total),
-                'total_housing_fund': 0,
+                'record_count': record_count,
+                'employee_count': len({wr.employee_id for wr in wr_q}),
+                'total_wage': float(total_gross),
+                'total_gross': float(total_gross),
+                'total_tax': float(total_tax),
+                'total_net': float(total_net),
+                'total_social_insurance_emp': float(total_emp_si),  # 个人社保扣款
+                'total_social_insurance_com': round(com_si, 2),      # 公司社保
+                'total_housing_fund_emp': float(total_hf),           # 个人公积金扣款
+                'total_housing_fund_com': round(com_hf, 2),           # 公司公积金
             })
 
         return Response({
@@ -1636,8 +1641,10 @@ class ReportViewSet(viewsets.ViewSet):
                 'total_gross': sum(r['total_gross'] for r in results),
                 'total_tax': sum(r['total_tax'] for r in results),
                 'total_net': sum(r['total_net'] for r in results),
-                'total_social_insurance': sum(r['total_social_insurance'] for r in results),
-                'total_housing_fund': sum(r['total_housing_fund'] for r in results),
+                'total_social_insurance_emp': sum(r['total_social_insurance_emp'] for r in results),
+                'total_social_insurance_com': round(sum(r['total_social_insurance_com'] for r in results), 2),
+                'total_housing_fund_emp': sum(r['total_housing_fund_emp'] for r in results),
+                'total_housing_fund_com': round(sum(r['total_housing_fund_com'] for r in results), 2),
             }
         })
 

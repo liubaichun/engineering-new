@@ -491,6 +491,10 @@ def budget_execution_report(request):
     if company_id:
         companies = companies.filter(id=company_id)
 
+    # 深圳2026社保费率常量（写死，不从CompanySocialConfig读取）
+    _EMP_SI_RATE = 10.3   # 个人：养老8% + 医疗2% + 失业0.3%
+    _COM_SI_RATE = 23.0   # 公司：养老16% + 医疗6% + 失业0.6% + 工伤0.4%
+
     results = []
     grand_actual = 0
 
@@ -500,7 +504,13 @@ def budget_execution_report(request):
             if exp_type == 'salary':
                 total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_salary')
             elif exp_type == 'social':
-                total = agg(WageRecord.objects.filter(company=company, year=year), 'social_insurance')
+                # 公司社保成本：逐人从个人扣款反推基数，再乘公司费率23%
+                wr_q = WageRecord.objects.filter(company=company, year=year)
+                total = sum(
+                    (float(wr.social_insurance) / _EMP_SI_RATE * 100) * (_COM_SI_RATE / 100)
+                    for wr in wr_q
+                    if wr.social_insurance > 0
+                )
             else:
                 total = agg(Expense.objects.filter(
                     company=company, expense_date__year=year, expense_type=exp_type), 'amount')
