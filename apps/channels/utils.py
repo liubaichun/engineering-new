@@ -7,6 +7,7 @@ import os
 import base64
 import hashlib
 import json
+import logging
 from typing import Dict, Any, List
 
 from django.conf import settings
@@ -27,6 +28,8 @@ SENSITIVE_FIELDS: List[str] = [
 # 加密字段标记前缀
 ENC_PREFIX = '__enc__:'
 
+logger = logging.getLogger(__name__)
+
 
 def _get_fernet_key() -> bytes:
     """
@@ -39,7 +42,14 @@ def _get_fernet_key() -> bytes:
         key_source = env_key
     else:
         # SECRET_KEY 长度足够，用 HKDF-SHA256 派生出稳定的 32 字节 key
-        key_source = getattr(settings, 'SECRET_KEY', 'engineering-fallback-key')
+        key_source = getattr(settings, 'SECRET_KEY', None)
+        if not key_source:
+            logger.error(
+                "[安全警告] CHANNEL_CREDENTIAL_KEY 环境变量未设置，且 SECRET_KEY 缺失。"
+                "凭证加密将使用临时随机密钥，重启服务后已加密数据将无法解密。"
+                "请在生产环境设置 CHANNEL_CREDENTIAL_KEY 环境变量。"
+            )
+            key_source = 'engineering-unsafe-temp-key'
 
     # HKDF 派生：SHA256 → 32 字节 → URL-safe base64（Fernet 格式）
     derived = hashlib.sha256(key_source.encode('utf-8')).digest()
@@ -139,7 +149,15 @@ def _get_state_key() -> str:
     env_key = os.environ.get('CHANNEL_STATE_KEY')
     if env_key:
         return env_key
-    return getattr(settings, 'SECRET_KEY', 'engineering-state-fallback')
+    key = getattr(settings, 'SECRET_KEY', None)
+    if not key:
+        logger.error(
+            "[安全警告] CHANNEL_STATE_KEY 环境变量未设置，且 SECRET_KEY 缺失。"
+            "OAuth state 签名将使用临时密钥，存在会话固定攻击风险。"
+            "请在生产环境设置 CHANNEL_STATE_KEY 环境变量。"
+        )
+        return 'engineering-unsafe-temp-state-key'
+    return key
 
 
 def make_oauth_state(user_id: int) -> str:

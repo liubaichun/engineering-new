@@ -1,3 +1,4 @@
+import logging
 from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -22,6 +23,9 @@ from django.conf import settings
 from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting
 from .permissions import RoleRequired
 from apps.finance.models import Company as FinanceCompany
+
+logger = logging.getLogger(__name__)
+
 from .serializers import (
     UserRegisterSerializer,
     UserLoginSerializer,
@@ -550,6 +554,13 @@ class UserViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         username = user.username
+        logger.warning(
+            "[账号删除] action=reject_register, user_id=%s, username=%s, "
+            "operator=%s, ip=%s",
+            user.id, username,
+            getattr(request.user, 'username', 'anonymous'),
+            get_client_ip(request)
+        )
         user.delete()
         return Response({
             'status': 'success',
