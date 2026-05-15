@@ -96,7 +96,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
     def get_usage_logs(self, request, pk=None):
         """获取某物料的使用记录"""
         material = self.get_object()
-        logs = material.usage_logs.all()
+        logs = material.usage_logs.select_related('project', 'used_by').all()
         serializer = MaterialUsageLogSerializer(logs, many=True)
         return Response(serializer.data)
 
