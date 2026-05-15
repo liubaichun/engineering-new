@@ -1,8 +1,9 @@
 # repair/views.py
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+from apps.core.permissions import RoleRequired
 from .models import RepairRequest, RepairImage, RepairSparePart
 from .serializers import (
     RepairRequestListSerializer, RepairRequestDetailSerializer, RepairRequestCreateSerializer,
@@ -12,6 +13,22 @@ from .serializers import (
 
 class RepairRequestViewSet(viewsets.ModelViewSet):
     queryset = RepairRequest.objects.all()
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'repair:repair_request:read',
+        'list': 'repair:repair_request:read',
+        'retrieve': 'repair:repair_request:read',
+        'create': 'repair:repair_request:update',
+        'update': 'repair:repair_request:update',
+        'partial_update': 'repair:repair_request:update',
+        'destroy': 'repair:repair_request:update',
+        'assign': 'repair:repair_request:update',
+        'start_repair': 'repair:repair_request:update',
+        'complete': 'repair:repair_request:update',
+        'accept': 'repair:repair_request:update',
+        'reject_acceptance': 'repair:repair_request:update',
+        'cancel': 'repair:repair_request:update',
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -129,6 +146,16 @@ class RepairImageViewSet(viewsets.ModelViewSet):
     """报修图片"""
     queryset = RepairImage.objects.all()
     serializer_class = RepairImageSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'repair:repair_request:read',
+        'list': 'repair:repair_request:read',
+        'retrieve': 'repair:repair_request:read',
+        'create': 'repair:repair_request:update',
+        'update': 'repair:repair_request:update',
+        'partial_update': 'repair:repair_request:update',
+        'destroy': 'repair:repair_request:update',
+    }
 
     def get_queryset(self):
         qs = RepairImage.objects.all()
@@ -149,6 +176,16 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
     """维修配件"""
     queryset = RepairSparePart.objects.all()
     serializer_class = RepairSparePartSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'repair:repair_request:read',
+        'list': 'repair:repair_request:read',
+        'retrieve': 'repair:repair_request:read',
+        'create': 'repair:repair_request:update',
+        'update': 'repair:repair_request:update',
+        'partial_update': 'repair:repair_request:update',
+        'destroy': 'repair:repair_request:update',
+    }
 
     def get_queryset(self):
         qs = RepairSparePart.objects.select_related('material', 'request', 'request__company')

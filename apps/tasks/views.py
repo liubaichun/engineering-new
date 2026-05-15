@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.permissions import RoleRequired
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -386,7 +387,21 @@ class ProjectViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['status', 'owner']
     ordering_fields = ['created_at', 'updated_at', 'start_date', 'end_date']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:project:read',
+        'list': 'task:project:read',
+        'retrieve': 'task:project:read',
+        'create': 'task:project:update',
+        'update': 'task:project:update',
+        'partial_update': 'task:project:update',
+        'destroy': 'task:project:update',
+        'export': 'task:project:read',
+        'submit_approval': 'task:project:update',
+        'activate': 'task:project:update',
+        'gantt_data': 'task:project:read',
+        'gantt_all': 'task:project:read',
+    }
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -572,7 +587,21 @@ class TaskViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['status', 'priority', 'project', 'assignee']
     ordering_fields = ['created_at', 'updated_at', 'due_date']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:task:read',
+        'list': 'task:task:read',
+        'retrieve': 'task:task:read',
+        'create': 'task:task:update',
+        'update': 'task:task:update',
+        'partial_update': 'task:task:update',
+        'destroy': 'task:task:update',
+        'export': 'task:task:read',
+        'start': 'task:task:update',
+        'complete': 'task:task:update',
+        'start_flow': 'task:task:update',
+        'flow_info': 'task:task:read',
+    }
     
     def get_serializer_class(self):
         if self.action == 'create':
@@ -733,7 +762,17 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['type', 'is_active']
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:flow_template:read',
+        'list': 'task:flow_template:read',
+        'retrieve': 'task:flow_template:read',
+        'create': 'task:flow_template:update',
+        'update': 'task:flow_template:update',
+        'partial_update': 'task:flow_template:update',
+        'destroy': 'task:flow_template:update',
+        'nodes': 'task:flow_template:read',
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -762,7 +801,16 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['template', 'node_type']
     ordering_fields = ['template', 'order']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:flow_node:read',
+        'list': 'task:flow_node:read',
+        'retrieve': 'task:flow_node:read',
+        'create': 'task:flow_node:update',
+        'update': 'task:flow_node:update',
+        'partial_update': 'task:flow_node:update',
+        'destroy': 'task:flow_node:update',
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -781,8 +829,20 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     serializer_class = TaskStageInstanceSerializer
     list_filter_fields = ['status', 'task', 'node_template', 'assignee']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     ordering_fields = ['created_at']
+    action_perms = {
+        None: 'task:stage_instance:read',
+        'list': 'task:stage_instance:read',
+        'retrieve': 'task:stage_instance:read',
+        'create': 'task:stage_instance:update',
+        'update': 'task:stage_instance:update',
+        'partial_update': 'task:stage_instance:update',
+        'destroy': 'task:stage_instance:update',
+        'start': 'task:stage_instance:update',
+        'approve': 'task:stage_instance:update',
+        'reject': 'task:stage_instance:update',
+    }
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -886,7 +946,16 @@ class StageActivityViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['action', 'stage_instance', 'actor']
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:activity:read',
+        'list': 'task:activity:read',
+        'retrieve': 'task:activity:read',
+        'create': 'task:activity:update',
+        'update': 'task:activity:update',
+        'partial_update': 'task:activity:update',
+        'destroy': 'task:activity:update',
+    }
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -906,7 +975,16 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['task', 'action']
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:transition:read',
+        'list': 'task:transition:read',
+        'retrieve': 'task:transition:read',
+        'create': 'task:transition:update',
+        'update': 'task:transition:update',
+        'partial_update': 'task:transition:update',
+        'destroy': 'task:transition:update',
+    }
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -934,7 +1012,20 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
     list_filter_fields = ['status', 'task', 'template']
     ordering_fields = ['created_at', 'started_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:flow_instance:read',
+        'list': 'task:flow_instance:read',
+        'retrieve': 'task:flow_instance:read',
+        'create': 'task:flow_instance:update',
+        'update': 'task:flow_instance:update',
+        'partial_update': 'task:flow_instance:update',
+        'destroy': 'task:flow_instance:update',
+        'start_flow': 'task:flow_instance:update',
+        'approve_node': 'task:flow_instance:update',
+        'reject_node': 'task:flow_instance:update',
+        'progress': 'task:flow_instance:read',
+    }
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -1051,7 +1142,16 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     queryset = TaskComment.objects.all()
     serializer_class = TaskCommentSerializer
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:comment:read',
+        'list': 'task:comment:read',
+        'retrieve': 'task:comment:read',
+        'create': 'task:comment:update',
+        'update': 'task:comment:update',
+        'partial_update': 'task:comment:update',
+        'destroy': 'task:comment:update',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1069,8 +1169,17 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
     queryset = TaskAttachment.objects.all()
     serializer_class = TaskAttachmentSerializer
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     parser_classes = [JSONParser, MultiPartParser, FormParser]
+    action_perms = {
+        None: 'task:attachment:read',
+        'list': 'task:attachment:read',
+        'retrieve': 'task:attachment:read',
+        'create': 'task:attachment:update',
+        'update': 'task:attachment:update',
+        'partial_update': 'task:attachment:update',
+        'destroy': 'task:attachment:update',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1088,7 +1197,16 @@ class TaskDependencyViewSet(viewsets.ModelViewSet):
     queryset = TaskDependency.objects.all()
     serializer_class = TaskDependencySerializer
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'task:dependency:read',
+        'list': 'task:dependency:read',
+        'retrieve': 'task:dependency:read',
+        'create': 'task:dependency:update',
+        'update': 'task:dependency:update',
+        'partial_update': 'task:dependency:update',
+        'destroy': 'task:dependency:update',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()

@@ -2,6 +2,7 @@ from rest_framework import viewsets, filters, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.permissions import RoleRequired
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
@@ -90,7 +91,26 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'description']
     ordering_fields = ['created_at', 'status']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'approval:flow:read',
+        'list': 'approval:flow:read',
+        'retrieve': 'approval:flow:read',
+        'create': 'approval:flow:update',
+        'update': 'approval:flow:update',
+        'partial_update': 'approval:flow:update',
+        'destroy': 'approval:flow:update',
+        'submit': 'approval:flow:update',
+        'approve': 'approval:flow:update',
+        'reject': 'approval:flow:update',
+        'cancel': 'approval:flow:update',
+        'reject_to_requester': 'approval:flow:update',
+        'transfer': 'approval:flow:update',
+        'delegate': 'approval:flow:update',
+        'urge': 'approval:flow:update',
+        'withdraw': 'approval:flow:update',
+        'export': 'approval:flow:read',
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -438,7 +458,16 @@ class ApprovalNodeViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.OrderingFilter]
     ordering_fields = ['node_order', 'assigned_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'approval:node:read',
+        'list': 'approval:node:read',
+        'retrieve': 'approval:node:read',
+        'create': 'approval:node:update',
+        'update': 'approval:node:update',
+        'partial_update': 'approval:node:update',
+        'destroy': 'approval:node:update',
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -463,7 +492,16 @@ class ApprovalTemplateViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'description']
     ordering_fields = ['created_at', 'name']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'approval:template:read',
+        'list': 'approval:template:read',
+        'retrieve': 'approval:template:read',
+        'create': 'approval:template:update',
+        'update': 'approval:template:update',
+        'partial_update': 'approval:template:update',
+        'destroy': 'approval:template:update',
+    }
 
     def get_queryset(self):
         queryset = super().get_queryset()

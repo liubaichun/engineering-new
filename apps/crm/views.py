@@ -10,12 +10,22 @@ from .serializers import (
     OpportunitySerializer, OpportunityStageStatsSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
+from apps.core.permissions import RoleRequired
 
 class ClientSourceViewSet(viewsets.ModelViewSet):
     """客户来源管理"""
     queryset = ClientSource.objects.all()
     serializer_class = ClientSourceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:client_source:read',
+        'list': 'crm:client_source:read',
+        'retrieve': 'crm:client_source:read',
+        'create': 'crm:client_source:update',
+        'update': 'crm:client_source:update',
+        'partial_update': 'crm:client_source:update',
+        'destroy': 'crm:client_source:update',
+    }
     search_fields = ['name']
 
     def get_queryset(self):
@@ -31,7 +41,17 @@ class SupplierViewSet(viewsets.ModelViewSet):
     """供应商管理"""
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:supplier:read',
+        'list': 'crm:supplier:read',
+        'retrieve': 'crm:supplier:read',
+        'create': 'crm:supplier:update',
+        'update': 'crm:supplier:update',
+        'partial_update': 'crm:supplier:update',
+        'destroy': 'crm:supplier:update',
+        'export': 'crm:supplier:read',
+    }
     search_fields = ['name', 'contact_person', 'contact_phone', 'brands']
     filterset_fields = ['status']
 
@@ -64,7 +84,17 @@ class ClientViewSet(viewsets.ModelViewSet):
     """客户管理"""
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:client:read',
+        'list': 'crm:client:read',
+        'retrieve': 'crm:client:read',
+        'create': 'crm:client:update',
+        'update': 'crm:client:update',
+        'partial_update': 'crm:client:update',
+        'destroy': 'crm:client:update',
+        'export': 'crm:client:read',
+    }
     search_fields = ['name', 'contact_person', 'contact_phone', 'code']
     filterset_fields = ['category', 'is_active']
 
@@ -97,7 +127,26 @@ class ContractViewSet(viewsets.ModelViewSet):
     """合同管理"""
     queryset = Contract.objects.all()
     serializer_class = ContractSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:contract:read',
+        'list': 'crm:contract:read',
+        'retrieve': 'crm:contract:read',
+        'create': 'crm:contract:update',
+        'update': 'crm:contract:update',
+        'partial_update': 'crm:contract:update',
+        'destroy': 'crm:contract:update',
+        'export': 'crm:contract:read',
+        'approve': 'crm:contract:approve',
+        'reject': 'crm:contract:approve',
+        'activate': 'crm:contract:approve',
+        'complete': 'crm:contract:approve',
+        'terminate': 'crm:contract:approve',
+        'payment_plans': 'crm:contract:read',
+        'add_payment_plan': 'crm:contract:update',
+        'change_logs': 'crm:contract:read',
+        'add_change_log': 'crm:contract:update',
+    }
     search_fields = ['name', 'contract_no']
     filterset_fields = ['counterparty_type', 'client', 'supplier', 'project', 'status']
 
@@ -226,7 +275,18 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
     """付款计划管理"""
     queryset = PaymentPlan.objects.all()
     serializer_class = PaymentPlanSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:payment_plan:read',
+        'list': 'crm:payment_plan:read',
+        'retrieve': 'crm:payment_plan:read',
+        'create': 'crm:payment_plan:update',
+        'update': 'crm:payment_plan:update',
+        'partial_update': 'crm:payment_plan:update',
+        'destroy': 'crm:payment_plan:update',
+        'mark_paid': 'crm:payment_plan:update',
+        'update_paid': 'crm:payment_plan:update',
+    }
     filterset_fields = ['contract', 'status']
 
     def get_queryset(self):
@@ -299,7 +359,16 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
     """合同变更记录"""
     queryset = ContractChangeLog.objects.all()
     serializer_class = ContractChangeLogSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:contract_change_log:read',
+        'list': 'crm:contract_change_log:read',
+        'retrieve': 'crm:contract_change_log:read',
+        'create': 'crm:contract_change_log:update',
+        'update': 'crm:contract_change_log:update',
+        'partial_update': 'crm:contract_change_log:update',
+        'destroy': 'crm:contract_change_log:update',
+    }
     filterset_fields = ['contract', 'change_type']
 
     def get_queryset(self):
@@ -330,7 +399,16 @@ class ContactViewSet(viewsets.ModelViewSet):
     """联系人管理"""
     queryset = Contact.objects.all()
     serializer_class = ContactSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:contact:read',
+        'list': 'crm:contact:read',
+        'retrieve': 'crm:contact:read',
+        'create': 'crm:contact:update',
+        'update': 'crm:contact:update',
+        'partial_update': 'crm:contact:update',
+        'destroy': 'crm:contact:update',
+    }
     search_fields = ['name', 'phone', 'email']
     filterset_fields = ['client', 'is_primary']
 
@@ -357,7 +435,16 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
     """跟进记录管理"""
     queryset = FollowUpRecord.objects.all()
     serializer_class = FollowUpRecordSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:follow_up_record:read',
+        'list': 'crm:follow_up_record:read',
+        'retrieve': 'crm:follow_up_record:read',
+        'create': 'crm:follow_up_record:update',
+        'update': 'crm:follow_up_record:update',
+        'partial_update': 'crm:follow_up_record:update',
+        'destroy': 'crm:follow_up_record:update',
+    }
     search_fields = ['content', 'next_plan']
     filterset_fields = ['contact', 'client', 'follow_type']
 
@@ -384,7 +471,20 @@ class OpportunityViewSet(viewsets.ModelViewSet):
     """CRM商机视图集 — 销售漏斗管理"""
     queryset = Opportunity.objects.all()
     serializer_class = OpportunitySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'crm:opportunity:read',
+        'list': 'crm:opportunity:read',
+        'retrieve': 'crm:opportunity:read',
+        'create': 'crm:opportunity:update',
+        'update': 'crm:opportunity:update',
+        'partial_update': 'crm:opportunity:update',
+        'destroy': 'crm:opportunity:update',
+        'pipeline': 'crm:opportunity:read',
+        'advance_stage': 'crm:opportunity:approve',
+        'win': 'crm:opportunity:approve',
+        'lose': 'crm:opportunity:approve',
+    }
     filter_fields = ['stage', 'priority', 'client', 'is_active']
     search_fields = ['name', 'client__name', 'product_lines', 'competitor']
     ordering_fields = ['expected_amount', 'probability', 'created_at', 'estimated_close_date']

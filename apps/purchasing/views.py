@@ -1,10 +1,11 @@
 # purchasing/views.py
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum, Count, F
 from datetime import datetime
+from apps.core.permissions import RoleRequired
 from .models import PurchaseRequest, PurchaseRequestItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceive, PurchaseReceiveItem
 from .serializers import (
     PurchaseRequestListSerializer, PurchaseRequestDetailSerializer, PurchaseRequestItemSerializer,
@@ -16,6 +17,21 @@ from .serializers import (
 class PurchaseRequestViewSet(viewsets.ModelViewSet):
     """采购申请 CRUD"""
     queryset = PurchaseRequest.objects.all()
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'purchasing:purchase_request:read',
+        'list': 'purchasing:purchase_request:read',
+        'retrieve': 'purchasing:purchase_request:read',
+        'create': 'purchasing:purchase_request:update',
+        'update': 'purchasing:purchase_request:update',
+        'partial_update': 'purchasing:purchase_request:update',
+        'destroy': 'purchasing:purchase_request:update',
+        'submit': 'purchasing:purchase_request:update',
+        'approve': 'purchasing:purchase_request:update',
+        'reject': 'purchasing:purchase_request:update',
+        'close': 'purchasing:purchase_request:update',
+        'summary': 'purchasing:purchase_request:read',
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -108,6 +124,16 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     """采购申请明细"""
     queryset = PurchaseRequestItem.objects.all()
     serializer_class = PurchaseRequestItemSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'purchasing:purchase_request:read',
+        'list': 'purchasing:purchase_request:read',
+        'retrieve': 'purchasing:purchase_request:read',
+        'create': 'purchasing:purchase_request:update',
+        'update': 'purchasing:purchase_request:update',
+        'partial_update': 'purchasing:purchase_request:update',
+        'destroy': 'purchasing:purchase_request:update',
+    }
 
     def get_queryset(self):
         qs = PurchaseRequestItem.objects.select_related('material', 'request__company')
@@ -150,6 +176,21 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     """采购订单 CRUD"""
     queryset = PurchaseOrder.objects.all()
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'purchasing:purchase_order:read',
+        'list': 'purchasing:purchase_order:read',
+        'retrieve': 'purchasing:purchase_order:read',
+        'create': 'purchasing:purchase_order:update',
+        'update': 'purchasing:purchase_order:update',
+        'partial_update': 'purchasing:purchase_order:update',
+        'destroy': 'purchasing:purchase_order:update',
+        'confirm': 'purchasing:purchase_order:update',
+        'ship': 'purchasing:purchase_order:update',
+        'cancel': 'purchasing:purchase_order:update',
+        'complete': 'purchasing:purchase_order:update',
+        'summary': 'purchasing:purchase_order:read',
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -240,6 +281,16 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     """采购订单明细"""
     queryset = PurchaseOrderItem.objects.all()
     serializer_class = PurchaseOrderItemSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'purchasing:purchase_order:read',
+        'list': 'purchasing:purchase_order:read',
+        'retrieve': 'purchasing:purchase_order:read',
+        'create': 'purchasing:purchase_order:update',
+        'update': 'purchasing:purchase_order:update',
+        'partial_update': 'purchasing:purchase_order:update',
+        'destroy': 'purchasing:purchase_order:update',
+    }
 
     def get_queryset(self):
         qs = PurchaseOrderItem.objects.select_related('material', 'order__company')
@@ -286,6 +337,17 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
 class PurchaseReceiveViewSet(viewsets.ModelViewSet):
     """采购入库 CRUD"""
     queryset = PurchaseReceive.objects.all()
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'purchasing:purchase_receive:read',
+        'list': 'purchasing:purchase_receive:read',
+        'retrieve': 'purchasing:purchase_receive:read',
+        'create': 'purchasing:purchase_receive:update',
+        'update': 'purchasing:purchase_receive:update',
+        'partial_update': 'purchasing:purchase_receive:update',
+        'destroy': 'purchasing:purchase_receive:update',
+        'complete': 'purchasing:purchase_receive:update',
+    }
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -329,6 +391,16 @@ class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
     """采购入库明细"""
     queryset = PurchaseReceiveItem.objects.all()
     serializer_class = PurchaseReceiveItemSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'purchasing:purchase_receive:read',
+        'list': 'purchasing:purchase_receive:read',
+        'retrieve': 'purchasing:purchase_receive:read',
+        'create': 'purchasing:purchase_receive:update',
+        'update': 'purchasing:purchase_receive:update',
+        'partial_update': 'purchasing:purchase_receive:update',
+        'destroy': 'purchasing:purchase_receive:update',
+    }
 
     def get_queryset(self):
         qs = PurchaseReceiveItem.objects.select_related('material', 'receive__company')
