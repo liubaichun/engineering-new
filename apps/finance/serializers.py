@@ -453,7 +453,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
                 try:
                     num = int(code.split('-')[-1])
                     max_num = max(max_num, num)
-                except:
+                except (ValueError, IndexError):
                     pass
             validated_data['code'] = f'YG-{(max_num+1):04d}'
         return super().create(validated_data)

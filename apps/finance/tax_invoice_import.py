@@ -307,7 +307,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         if isinstance(tax_rate_raw, str) and '%' in tax_rate_raw:
             try:
                 tax_rate = Decimal(tax_rate_raw.replace('%', '').strip())
-            except:
+            except (ValueError, Decimal.InvalidOperation):
                 tax_rate = Decimal('0')
 
         # 解析日期

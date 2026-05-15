@@ -38,7 +38,7 @@ class Supplier(models.Model):
             if last and last.code:
                 try:
                     seq = int(last.code.split('-')[-1]) + 1
-                except:
+                except (ValueError, IndexError):
                     seq = 1
             else:
                 seq = 1

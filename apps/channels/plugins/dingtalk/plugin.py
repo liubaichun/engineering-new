@@ -112,7 +112,7 @@ class DingtalkPlugin(BaseChannelPlugin):
                 url = f'https://api.dingtalk.com/v1.0/contact/users/{{userid}}'
                 headers = {'x-acs-dingtalk-access-token': self._token}
                 # 钉钉新版API
-            except:
+            except Exception:
                 pass
         
         return True, {

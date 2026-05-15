@@ -117,7 +117,7 @@ class WecomPlugin(BaseChannelPlugin):
                         'avatar': info.get('avatar', ''),
                         'department': info.get('department', []),
                     }
-            except:
+            except Exception:
                 pass
         
         return True, {
