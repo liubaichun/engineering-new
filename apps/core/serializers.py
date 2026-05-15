@@ -163,9 +163,15 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_roles(self, obj):
         """返回用户通过UserRole关联的所有角色"""
-        return list(obj.user_roles.all().values(
-            'role_id', 'role__name', 'role__code', 'assigned_at'
-        ))
+        roles = []
+        for ur in obj.user_roles.all():
+            roles.append({
+                'role_id': ur.role_id,
+                'role__name': ur.role.name,
+                'role__code': ur.role.code,
+                'assigned_at': ur.assigned_at.isoformat() if ur.assigned_at else None,
+            })
+        return roles
 
     def create(self, validated_data):
         """创建用户 — 提取并正确处理 write_only 字段"""
