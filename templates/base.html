@@ -694,14 +694,31 @@ function getCsrfToken() {
     return getCookie('csrftoken') || '';
 }
 
-// 全局fetch超时保护：所有页面自动获得，8秒超时防止worker被慢请求卡死
+// 全局fetch超时保护：所有页面自动获得，3秒超时（超过则跳转登录，不让用户长时间等待）
+// 重要：所有需要全局取消的fetch必须用 _sharedControllers 数组注册
+var _sharedControllers = [];  // 共享AbortController列表，用于页面导航时批量中止
 function fetchWithTimeout(url, options, timeoutMs) {
-    if (typeof timeoutMs === 'object') { options = timeoutMs; timeoutMs = 8000; }
+    if (typeof timeoutMs === 'object') { options = timeoutMs; timeoutMs = 3000; }
     var controller = new AbortController();
-    var timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs || 8000);
+    _sharedControllers.push(controller);  // 注册，以便导航时能中止
+    var timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs || 3000);
     return fetch(url, Object.assign({}, options, { signal: controller.signal }))
-        .finally(function() { clearTimeout(timeoutId); });
+        .finally(function() {
+            clearTimeout(timeoutId);
+            var idx = _sharedControllers.indexOf(controller);
+            if (idx !== -1) _sharedControllers.splice(idx, 1);
+        });
 }
+
+// 页面导航时，中止所有进行中的fetch（防止旧请求的403把当前正在加载的页面拽到登录页）
+function abortAllFetches() {
+    _sharedControllers.forEach(function(c) { c.abort(); });
+    _sharedControllers = [];
+}
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') { abortAllFetches(); }
+});
+window.addEventListener('beforeunload', function() { abortAllFetches(); });
 
 </script>
 <script>
@@ -763,7 +780,7 @@ var USER_PERMS = { codes: [], menu_codes: [], is_superuser: false };
 function loadPermissions() {
     fetchWithTimeout('/api/core/auth/user/my-permissions/', {
         credentials: 'include'
-    }, 8000)
+    }, 3000)
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.status === 'success') {
@@ -845,7 +862,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 检查是否已登录（通过session cookie），同时获取is_superuser状态
     fetchWithTimeout('/api/core/auth/user/', {
         credentials: 'include'
-    }, 8000)
+    }, 3000)
     .then(function(response) {
         if (!response.ok) {
             window.location.href = '/login/';
@@ -866,7 +883,8 @@ document.addEventListener('DOMContentLoaded', function() {
             loadPermissions();
         }
     })
-    .catch(function() {
+    .catch(function(err) {
+        if (err.name === 'AbortError') return;  // 页面导航时中止，不跳登录
         window.location.href = '/login/';
     });
 });
