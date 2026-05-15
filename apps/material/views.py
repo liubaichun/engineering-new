@@ -4,7 +4,7 @@ from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
-from rest_framework.permissions import AllowAny
+from apps.core.permissions import RoleRequired
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
 from .models import Material, MaterialUsageLog, MaterialBOM, MaterialBOMNode, MaterialBOMNode
 from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialBOMSerializer
@@ -39,7 +39,20 @@ class MaterialViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name', 'spec']
     ordering_fields = ['code', 'name', 'created_at', 'stock']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'material:stock:read',
+        'list': 'material:stock:read',
+        'retrieve': 'material:stock:read',
+        'create': 'material:stock:update',
+        'update': 'material:stock:update',
+        'partial_update': 'material:stock:update',
+        'destroy': 'material:stock:update',
+        'stock_alerts': 'material:stock:read',
+        'export': 'material:stock:read',
+        'get_usage_logs': 'material:usage:read',
+        'record_usage': 'material:usage:create',
+    }
 
     def get_queryset(self):
         qs = Material.objects.select_related('supplier', 'project', 'project__company')
@@ -145,7 +158,23 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'material__name']
     ordering_fields = ['created_at', 'updated_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'material:stock:read',
+        'list': 'material:stock:read',
+        'retrieve': 'material:stock:read',
+        'create': 'material:stock:update',
+        'update': 'material:stock:update',
+        'partial_update': 'material:stock:update',
+        'destroy': 'material:stock:update',
+        'tree': 'material:stock:read',
+        'add_node': 'material:stock:update',
+        'remove_node': 'material:stock:update',
+        'update_node': 'material:stock:update',
+        'add_item': 'material:stock:update',
+        'remove_item': 'material:stock:update',
+        'update_item': 'material:stock:update',
+    }
 
     def get_queryset(self):
         qs = MaterialBOM.objects.select_related('material', 'material__project')

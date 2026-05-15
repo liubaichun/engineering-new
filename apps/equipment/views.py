@@ -38,6 +38,22 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     ordering_fields = ['code', 'name', 'created_at', 'purchase_date']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    # action_perms: action 名精确匹配，未声明的 action 走 None 兜底
+    # action 名对应 DRF ViewSet action 属性（标准 CRUD + 自定义 @action）
+    action_perms = {
+        None: 'equipment:equipment:read',          # 默认：查看设备
+        'list': 'equipment:equipment:read',
+        'retrieve': 'equipment:equipment:read',
+        'create': 'equipment:equipment:update',
+        'update': 'equipment:equipment:update',
+        'partial_update': 'equipment:equipment:update',
+        'destroy': 'equipment:equipment:update',
+        'record_usage': 'equipment:equipment:use',   # 领用设备
+        'record_return': 'equipment:equipment:return',  # 归还设备
+        'get_usage_logs': 'equipment:equipment:read',
+        'get_repair_logs': 'equipment:equipment:read',
+        'linked_boms': 'equipment:equipment:read',
+    }
 
     def get_queryset(self):
         qs = Equipment.objects.select_related('project', 'project__company')
@@ -172,6 +188,15 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'equipment:equipment:read',
+        'list': 'equipment:equipment:read',
+        'retrieve': 'equipment:equipment:read',
+        'create': 'equipment:equipment:update',
+        'update': 'equipment:equipment:update',
+        'partial_update': 'equipment:equipment:update',
+        'destroy': 'equipment:equipment:update',
+    }
 
     def get_queryset(self):
         qs = EquipmentBOMRelation.objects.select_related('equipment', 'equipment__project', 'material_bom', 'material_bom__material')
