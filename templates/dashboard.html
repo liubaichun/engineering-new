@@ -354,7 +354,7 @@ async function loadDashboardStats() {
         fetchWithTimeout('/api/tasks/tasks/?status=pending&page_size=1'),
         fetchWithTimeout('/api/tasks/tasks/?status=in_progress&page_size=1'),
         fetchWithTimeout(`/api/tasks/tasks/?status=completed&created_date=${today}&page_size=1`),
-        fetchWithTimeout(`/api/finance/reports/wage_summary/?year=${year}&page_size=1`),
+        fetchWithTimeout(`/api/finance/reports/wage_summary/?year=${year}&month=${month}&page_size=1`),
     ]);
 
     if (empRes) {
