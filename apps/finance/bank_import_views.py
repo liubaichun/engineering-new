@@ -681,7 +681,7 @@ def preview_bank_statement(request):
         company_id = request.data.get('company_id') or request.data.get('company')
         bank_code   = request.data.get('bank_code', '')
         content     = request.FILES['file'].read()
-        expect_bank_code = ''  # 文件上传模式不传 expect_bank_code
+        expect_bank_code = request.data.get('expect_bank_code', '')
 
     if not company_id:
         return Response({'error': '缺少 company_id'}, status=400)

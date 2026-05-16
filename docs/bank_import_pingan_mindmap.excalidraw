@@ -1,0 +1,188 @@
+{
+  "type": "excalidraw",
+  "version": 2,
+  "source": "hermes-agent",
+  "elements": [
+    {"type": "text", "id": "t_title", "x": 400, "y": 20, "text": "银行流水导入系统修复记录", "fontSize": 28, "fontFamily": 1, "strokeColor": "#1e1e1e", "originalText": "银行流水导入系统修复记录", "autoResize": true},
+    {"type": "text", "id": "t_subtitle", "x": 340, "y": 60, "text": "（平安银行适配器 + 校验流程 + 去重逻辑）", "fontSize": 16, "fontFamily": 1, "strokeColor": "#757575", "originalText": "（平安银行适配器 + 校验流程 + 去重逻辑）", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_root1", "x": 60, "y": 100, "width": 880, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#e3f2fd", "fillStyle": "solid"},
+    {"type": "text", "id": "t_root1", "x": 65, "y": 110, "width": 870, "height": 20, "text": "一、银行流水导入页面校验流程", "fontSize": 18, "fontFamily": 1, "strokeColor": "#1565c0", "containerId": "r_root1", "originalText": "一、银行流水导入页面校验流程", "textAlign": "left", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_flow1", "x": 80, "y": 155, "width": 200, "height": 50, "roundness": {"type": 3}, "backgroundColor": "#a5d8ff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_flow1", "x": 85, "y": 165, "width": 190, "height": 30, "text": "用户选择账户\n(前端传 bank_account_id)", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_flow1", "originalText": "用户选择账户\n(前端传 bank_account_id)", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_flow1", "x": 280, "y": 180, "width": 80, "height": 0, "points": [[0,0],[80,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "rectangle", "id": "r_flow2", "x": 360, "y": 155, "width": 220, "height": 50, "roundness": {"type": 3}, "backgroundColor": "#fff3bf", "fillStyle": "solid"},
+    {"type": "text", "id": "t_flow2", "x": 365, "y": 165, "width": 210, "height": 30, "text": "后端查 bank_account\n取 expect_bank_code\n(银行类型)", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_flow2", "originalText": "后端查 bank_account\n取 expect_bank_code\n(银行类型)", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_flow2", "x": 580, "y": 180, "width": 60, "height": 0, "points": [[0,0],[60,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "rectangle", "id": "r_flow3", "x": 640, "y": 155, "width": 250, "height": 50, "roundness": {"type": 3}, "backgroundColor": "#d0bfff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_flow3", "x": 645, "y": 165, "width": 240, "height": 30, "text": "detect_with_adapter()\n用 expect_bank_code 调用\n对应 Adapter.detect()", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_flow3", "originalText": "detect_with_adapter()\n用 expect_bank_code 调用\n对应 Adapter.detect()", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_flow3", "x": 890, "y": 180, "width": 50, "height": 0, "points": [[0,0],[50,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "diamond", "id": "d_flow1", "x": 940, "y": 145, "width": 120, "height": 70, "backgroundColor": "#ffc9c9", "fillStyle": "solid"},
+    {"type": "text", "id": "t_d_flow1", "x": 945, "y": 165, "width": 110, "height": 30, "text": "detect\n返回bool?", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "d_flow1", "originalText": "detect\n返回bool?", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_flow4", "x": 1060, "y": 180, "width": 60, "height": 0, "points": [[0,0],[60,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "rectangle", "id": "r_flow5", "x": 1120, "y": 155, "width": 160, "height": 50, "roundness": {"type": 3}, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_flow5", "x": 1125, "y": 165, "width": 150, "height": 30, "text": "检测通过\n进入预览", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_flow5", "originalText": "检测通过\n进入预览", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_flow5", "x": 1280, "y": 180, "width": 80, "height": 0, "points": [[0,0],[80,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "rectangle", "id": "r_flow6", "x": 1360, "y": 155, "width": 180, "height": 50, "roundness": {"type": 3}, "backgroundColor": "#a5d8ff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_flow6", "x": 1365, "y": 165, "width": 170, "height": 30, "text": "preview_bank_statement\n预览接口", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_flow6", "originalText": "preview_bank_statement\n预览接口", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "text", "id": "t_err_label", "x": 960, "y": 230, "text": "False时→400错误弹窗：", "fontSize": 13, "fontFamily": 1, "strokeColor": "#d32f2f", "originalText": "False时→400错误弹窗：", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_err_box", "x": 940, "y": 250, "width": 320, "height": 45, "roundness": {"type": 3}, "backgroundColor": "#ffc9c9", "fillStyle": "solid"},
+    {"type": "text", "id": "t_err_box", "x": 945, "y": 258, "width": 310, "height": 30, "text": "\"文件格式与所选银行类型不匹配\\n实际为: {检测到的银行类型}\"", "fontSize": 13, "fontFamily": 1, "strokeColor": "#c62828", "containerId": "r_err_box", "originalText": "\"文件格式与所选银行类型不匹配\\n实际为: {检测到的银行类型}\"", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_err_arrow", "x": 1000, "y": 220, "width": 0, "height": 30, "points": [[0,0],[0,30]], "endArrowhead": "arrow", "strokeColor": "#d32f2f", "startBinding": {"elementId": "d_flow1", "fixedPoint": [0.5, 1]}},
+
+    {"type": "text", "id": "t_key_note", "x": 80, "y": 220, "text": "核心逻辑：bank_account → expect_bank_code → 直接路由到对应Adapter.detect()，不再自动遍历", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "originalText": "核心逻辑：bank_account → expect_bank_code → 直接路由到对应Adapter.detect()，不再自动遍历", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_root2", "x": 60, "y": 310, "width": 1480, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#e8f5e9", "fillStyle": "solid"},
+    {"type": "text", "id": "t_root2", "x": 65, "y": 320, "width": 1470, "height": 20, "text": "二、平安银行字段映射（PingAnAdapter）", "fontSize": 18, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_root2", "originalText": "二、平安银行字段映射（PingAnAdapter）", "textAlign": "left", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_pa_header1", "x": 80, "y": 365, "width": 280, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#a5d8ff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_pa_header1", "x": 85, "y": 375, "width": 270, "height": 20, "text": "平安银行Excel原始列名", "fontSize": 16, "fontFamily": 1, "strokeColor": "#1565c0", "containerId": "r_pa_header1", "originalText": "平安银行Excel原始列名", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_pa1", "x": 360, "y": 385, "width": 160, "height": 0, "points": [[0,0],[160,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "rectangle", "id": "r_pa_header2", "x": 520, "y": 365, "width": 280, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_pa_header2", "x": 525, "y": 375, "width": 270, "height": 20, "text": "系统 ParsedTransaction 字段", "fontSize": 16, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_pa_header2", "originalText": "系统 ParsedTransaction 字段", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_pa2", "x": 800, "y": 385, "width": 160, "height": 0, "points": [[0,0],[160,0]], "endArrowhead": "arrow", "strokeColor": "#1e1e1e"},
+
+    {"type": "rectangle", "id": "r_pa_header3", "x": 960, "y": 365, "width": 280, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#ffd8a8", "fillStyle": "solid"},
+    {"type": "text", "id": "t_pa_header3", "x": 965, "y": 375, "width": 270, "height": 20, "text": "最终写入位置", "fontSize": 16, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_pa_header3", "originalText": "最终写入位置", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_pa_note", "x": 1240, "y": 365, "width": 280, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#fff3bf", "fillStyle": "solid"},
+    {"type": "text", "id": "t_pa_note", "x": 1245, "y": 375, "width": 270, "height": 20, "text": "备注", "fontSize": 16, "fontFamily": 1, "strokeColor": "#f57f17", "containerId": "r_pa_note", "originalText": "备注", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row1", "x": 80, "y": 415, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row1a", "x": 85, "y": 423, "width": 270, "height": 20, "text": "交易日期", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row1", "originalText": "交易日期", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row1b", "x": 520, "y": 415, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row1b", "x": 525, "y": 423, "width": 270, "height": 20, "text": "transaction_date", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row1b", "originalText": "transaction_date", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row1c", "x": 960, "y": 415, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row1c", "x": 965, "y": 423, "width": 270, "height": 20, "text": "BankStatement.date", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row1c", "originalText": "BankStatement.date", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row1d", "x": 1240, "y": 415, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row1d", "x": 1245, "y": 423, "width": 270, "height": 20, "text": "OK", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row1d", "originalText": "OK", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row2", "x": 80, "y": 451, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row2a", "x": 85, "y": 459, "width": 270, "height": 20, "text": "（无此列）", "fontSize": 14, "fontFamily": 1, "strokeColor": "#9e9e9e", "containerId": "r_row2", "originalText": "（无此列）", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row2b", "x": 520, "y": 451, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row2b", "x": 525, "y": 459, "width": 270, "height": 20, "text": "transaction_time = None", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row2b", "originalText": "transaction_time = None", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row2c", "x": 960, "y": 451, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row2c", "x": 965, "y": 459, "width": 270, "height": 20, "text": "BankStatement.transaction_time", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row2c", "originalText": "BankStatement.transaction_time", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row2d", "x": 1240, "y": 451, "width": 280, "height": 36, "backgroundColor": "#ffd8a8", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row2d", "x": 1245, "y": 459, "width": 270, "height": 20, "text": "无交易时间，留空", "fontSize": 14, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_row2d", "originalText": "无交易时间，留空", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row3", "x": 80, "y": 487, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row3a", "x": 85, "y": 495, "width": 270, "height": 20, "text": "交易金额", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row3", "originalText": "交易金额", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row3b", "x": 520, "y": 487, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row3b", "x": 525, "y": 495, "width": 270, "height": 20, "text": "amount", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row3b", "originalText": "amount", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row3c", "x": 960, "y": 487, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row3c", "x": 965, "y": 495, "width": 270, "height": 20, "text": "Income.amount / Expense.amount", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row3c", "originalText": "Income.amount / Expense.amount", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row3d", "x": 1240, "y": 487, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row3d", "x": 1245, "y": 495, "width": 270, "height": 20, "text": "OK", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row3d", "originalText": "OK", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row4", "x": 80, "y": 523, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row4a", "x": 85, "y": 531, "width": 270, "height": 20, "text": "收支标识（收入/支出）", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row4", "originalText": "收支标识（收入/支出）", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row4b", "x": 520, "y": 523, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row4b", "x": 525, "y": 531, "width": 270, "height": 20, "text": "direction", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row4b", "originalText": "direction", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row4c", "x": 960, "y": 523, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row4c", "x": 965, "y": 531, "width": 270, "height": 20, "text": "区分写Income/Expense", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row4c", "originalText": "区分写Income/Expense", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row4d", "x": 1240, "y": 523, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row4d", "x": 1245, "y": 531, "width": 270, "height": 20, "text": "OK", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row4d", "originalText": "OK", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row5", "x": 80, "y": 559, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row5a", "x": 85, "y": 567, "width": 270, "height": 20, "text": "账户余额", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row5", "originalText": "账户余额", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row5b", "x": 520, "y": 559, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row5b", "x": 525, "y": 567, "width": 270, "height": 20, "text": "balance", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row5b", "originalText": "balance", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row5c", "x": 960, "y": 559, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row5c", "x": 965, "y": 567, "width": 270, "height": 20, "text": "BankStatement.balance", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row5c", "originalText": "BankStatement.balance", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row5d", "x": 1240, "y": 559, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row5d", "x": 1245, "y": 567, "width": 270, "height": 20, "text": "OK", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row5d", "originalText": "OK", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row6", "x": 80, "y": 595, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row6a", "x": 85, "y": 603, "width": 270, "height": 20, "text": "交易流水号", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row6", "originalText": "交易流水号", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row6b", "x": 520, "y": 595, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row6b", "x": 525, "y": 603, "width": 270, "height": 20, "text": "bank_serial", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row6b", "originalText": "bank_serial", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row6c", "x": 960, "y": 595, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row6c", "x": 965, "y": 603, "width": 270, "height": 20, "text": "BankStatement.bank_serial", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row6c", "originalText": "BankStatement.bank_serial", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row6d", "x": 1240, "y": 595, "width": 280, "height": 36, "backgroundColor": "#ffd8a8", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row6d", "x": 1245, "y": 603, "width": 270, "height": 20, "text": "不再用于去重key", "fontSize": 14, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_row6d", "originalText": "不再用于去重key", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row7", "x": 80, "y": 631, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row7a", "x": 85, "y": 639, "width": 270, "height": 20, "text": "对方账户名称", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row7", "originalText": "对方账户名称", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row7b", "x": 520, "y": 631, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row7b", "x": 525, "y": 639, "width": 270, "height": 20, "text": "counterparty_name", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row7b", "originalText": "counterparty_name", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row7c", "x": 960, "y": 631, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row7c", "x": 965, "y": 639, "width": 270, "height": 20, "text": "Income.customer / Expense.supplier", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row7c", "originalText": "Income.customer / Expense.supplier", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row7d", "x": 1240, "y": 631, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row7d", "x": 1245, "y": 639, "width": 270, "height": 20, "text": "OK，参与去重", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row7d", "originalText": "OK，参与去重", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row8", "x": 80, "y": 667, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row8a", "x": 85, "y": 675, "width": 270, "height": 20, "text": "对方账户", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row8", "originalText": "对方账户", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row8b", "x": 520, "y": 667, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row8b", "x": 525, "y": 675, "width": 270, "height": 20, "text": "counterparty_account", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row8b", "originalText": "counterparty_account", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row8c", "x": 960, "y": 667, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row8c", "x": 965, "y": 675, "width": 270, "height": 20, "text": "BankStatement.counterparty_account", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row8c", "originalText": "BankStatement.counterparty_account", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row8d", "x": 1240, "y": 667, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row8d", "x": 1245, "y": 675, "width": 270, "height": 20, "text": "OK，参与去重", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row8d", "originalText": "OK，参与去重", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row9", "x": 80, "y": 703, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row9a", "x": 85, "y": 711, "width": 270, "height": 20, "text": "摘要", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row9", "originalText": "摘要", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row9b", "x": 520, "y": 703, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row9b", "x": 525, "y": 711, "width": 270, "height": 20, "text": "summary", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row9b", "originalText": "summary", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row9c", "x": 960, "y": 703, "width": 280, "height": 36, "backgroundColor": "#ffffff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row9c", "x": 965, "y": 711, "width": 270, "height": 20, "text": "Income.description / Expense.description", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row9c", "originalText": "Income.description / Expense.description", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row9d", "x": 1240, "y": 703, "width": 280, "height": 36, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row9d", "x": 1245, "y": 711, "width": 270, "height": 20, "text": "OK", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_row9d", "originalText": "OK", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row10", "x": 80, "y": 739, "width": 280, "height": 36, "backgroundColor": "#fff3bf", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row10a", "x": 85, "y": 747, "width": 270, "height": 20, "text": "用途", "fontSize": 14, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_row10", "originalText": "用途", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row10b", "x": 520, "y": 739, "width": 280, "height": 36, "backgroundColor": "#fff3bf", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row10b", "x": 525, "y": 747, "width": 270, "height": 20, "text": "transaction_type（修复前写死空）", "fontSize": 14, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_row10b", "originalText": "transaction_type（修复前写死空）", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row10c", "x": 960, "y": 739, "width": 280, "height": 36, "backgroundColor": "#fff3bf", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row10c", "x": 965, "y": 747, "width": 270, "height": 20, "text": "Income.transaction_type / Expense.transaction_type", "fontSize": 14, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_row10c", "originalText": "Income.transaction_type / Expense.transaction_type", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row10d", "x": 1240, "y": 739, "width": 280, "height": 36, "backgroundColor": "#ffc9c9", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row10d", "x": 1245, "y": 747, "width": 270, "height": 20, "text": "BUG: 修复前写死空串", "fontSize": 14, "fontFamily": 1, "strokeColor": "#c62828", "containerId": "r_row10d", "originalText": "BUG: 修复前写死空串", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_row11", "x": 80, "y": 775, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row11a", "x": 85, "y": 783, "width": 270, "height": 20, "text": "（无来源列）", "fontSize": 14, "fontFamily": 1, "strokeColor": "#9e9e9e", "containerId": "r_row11", "originalText": "（无来源列）", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row11b", "x": 520, "y": 775, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row11b", "x": 525, "y": 783, "width": 270, "height": 20, "text": "source 固定写 '网银'", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row11b", "originalText": "source 固定写 '网银'", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row11c", "x": 960, "y": 775, "width": 280, "height": 36, "backgroundColor": "#f5f5f5", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row11c", "x": 965, "y": 783, "width": 270, "height": 20, "text": "Income.source / Expense.source", "fontSize": 14, "fontFamily": 1, "strokeColor": "#1e1e1e", "containerId": "r_row11c", "originalText": "Income.source / Expense.source", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+    {"type": "rectangle", "id": "r_row11d", "x": 1240, "y": 775, "width": 280, "height": 36, "backgroundColor": "#ffd8a8", "fillStyle": "solid"},
+    {"type": "text", "id": "t_row11d", "x": 1245, "y": 783, "width": 270, "height": 20, "text": "无来源列，固定填网银", "fontSize": 14, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_row11d", "originalText": "无来源列，固定填网银", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_root3", "x": 60, "y": 825, "width": 1480, "height": 40, "roundness": {"type": 3}, "backgroundColor": "#fff3e0", "fillStyle": "solid"},
+    {"type": "text", "id": "t_root3", "x": 65, "y": 835, "width": 1470, "height": 20, "text": "三、去重逻辑修复", "fontSize": 18, "fontFamily": 1, "strokeColor": "#e65100", "containerId": "r_root3", "originalText": "三、去重逻辑修复", "textAlign": "left", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "rectangle", "id": "r_dedup_old", "x": 80, "y": 880, "width": 400, "height": 80, "roundness": {"type": 3}, "backgroundColor": "#ffc9c9", "fillStyle": "solid"},
+    {"type": "text", "id": "t_dedup_old", "x": 85, "y": 888, "width": 390, "height": 65, "text": "旧去重key:\n有流水号: 日期_流水号_金额\n无流水号: 日期_对方账号_金额\n\n问题: 流水号本身有重复，导致漏判", "fontSize": 14, "fontFamily": 1, "strokeColor": "#c62828", "containerId": "r_dedup_old", "originalText": "旧去重key:\n有流水号: 日期_流水号_金额\n无流水号: 日期_对方账号_金额\n\n问题: 流水号本身有重复，导致漏判", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_dedup", "x": 480, "y": 920, "width": 60, "height": 0, "points": [[0,0],[60,0]], "endArrowhead": "arrow", "strokeColor": "#e65100"},
+
+    {"type": "rectangle", "id": "r_dedup_new", "x": 540, "y": 880, "width": 440, "height": 80, "roundness": {"type": 3}, "backgroundColor": "#b2f2bb", "fillStyle": "solid"},
+    {"type": "text", "id": "t_dedup_new", "x": 545, "y": 888, "width": 430, "height": 65, "text": "新去重key（平安银行专用）:\n日期 _ 交易金额 _ 余额 _ 对方账户\n\n4个条件全相同=重复，不依赖流水号", "fontSize": 14, "fontFamily": 1, "strokeColor": "#2e7d32", "containerId": "r_dedup_new", "originalText": "新去重key（平安银行专用）:\n日期 _ 交易金额 _ 余额 _ 对方账户\n\n4个条件全相同=重复，不依赖流水号", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "arrow", "id": "a_dedup2", "x": 980, "y": 920, "width": 60, "height": 0, "points": [[0,0],[60,0]], "endArrowhead": "arrow", "strokeColor": "#2e7d32"},
+
+    {"type": "rectangle", "id": "r_dedup_why", "x": 1040, "y": 880, "width": 460, "height": 80, "roundness": {"type": 3}, "backgroundColor": "#d0bfff", "fillStyle": "solid"},
+    {"type": "text", "id": "t_dedup_why", "x": 1045, "y": 888, "width": 450, "height": 65, "text": "为什么这样设计？\n平安银行无交易时间，流水号有重复\n同日期+同金额+同余额+同对手 →\n只能是真的同一条流水", "fontSize": 14, "fontFamily": 1, "strokeColor": "#4a148c", "containerId": "r_dedup_why", "originalText": "为什么这样设计？\n平安银行无交易时间，流水号有重复\n同日期+同金额+同余额+同对手 →\n只能是真的同一条流水", "textAlign": "center", "verticalAlign": "middle", "autoResize": true},
+
+    {"type": "text", "id": "t_commits", "x": 80, "y": 975, "text": "Git commits: 66c219c(银行类型强校验) → 71154e2(PingAn字段映射+去重规则)", "fontSize": 14, "fontFamily": 1, "strokeColor": "#757575", "originalText": "Git commits: 66c219c(银行类型强校验) → 71154e2(PingAn字段映射+去重规则)", "autoResize": true}
+  ],
+  "appState": {
+    "viewBackgroundColor": "#ffffff"
+  }
+}
