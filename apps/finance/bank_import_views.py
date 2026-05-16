@@ -693,10 +693,13 @@ def preview_bank_statement(request):
 
     # ── 银行账户归属校验（两层）────────────────────────────────────────
     # 用 bank_account_id 查账户，获取其所属公司和银行类型
-    bank_account_id = request.data.get('bank_account_id') or (request.data.get('bank_account_id') if isinstance(request.data, dict) else None)
-    if bank_account_id and str(bank_account_id).isdigit():
+    bank_account_id_raw = request.data.get('bank_account_id')
+    # bank_account_id 可以是 None（未传）、''（清空） 或具体数字
+    # 只有传了具体数字才做账户归属校验
+    if bank_account_id_raw is not None and bank_account_id_raw != '' and str(bank_account_id_raw).isdigit():
+        bank_account_id = int(bank_account_id_raw)
         try:
-            bank_account = BankAccount.objects.select_related('company').get(id=int(bank_account_id))
+            bank_account = BankAccount.objects.select_related('company').get(id=bank_account_id)
         except BankAccount.DoesNotExist:
             return Response({'error': '银行账户不存在'}, status=400)
 
