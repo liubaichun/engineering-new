@@ -152,7 +152,10 @@ class ContractSerializer(serializers.ModelSerializer):
 
 
 class ContactSerializer(serializers.ModelSerializer):
-    client_name = serializers.CharField(source='client.name', read_only=True)
+    client_name = serializers.SerializerMethodField()
+
+    def get_client_name(self, obj):
+        return obj.client.name if obj.client else ''
 
     class Meta:
         model = Contact

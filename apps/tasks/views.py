@@ -582,7 +582,6 @@ class ProjectViewSet(viewsets.ModelViewSet):
 class TaskViewSet(viewsets.ModelViewSet):
     """任务视图集"""
     queryset = Task.objects.all()
-    pagination_class = None  # 禁用分页，任务看板需要一次性加载所有任务数量
     search_fields = ['code', 'title', 'description']
     list_filter_fields = ['status', 'priority', 'project', 'assignee']
     ordering_fields = ['created_at', 'updated_at', 'due_date']
