@@ -691,6 +691,43 @@ def preview_bank_statement(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
+    # ── 银行账户归属校验（两层）────────────────────────────────────────
+    # 用 bank_account_id 查账户，获取其所属公司和银行类型
+    bank_account_id = request.data.get('bank_account_id') or (request.data.get('bank_account_id') if isinstance(request.data, dict) else None)
+    if bank_account_id and str(bank_account_id).isdigit():
+        try:
+            bank_account = BankAccount.objects.select_related('company').get(id=int(bank_account_id))
+        except BankAccount.DoesNotExist:
+            return Response({'error': '银行账户不存在'}, status=400)
+
+        # 校验1：账户所属公司 ≠ 当前选的公司
+        if bank_account.company_id != int(company_id):
+            return Response({
+                'error': f'您选择的是 [{bank_account.company.name}] 的账户 [{bank_account.account_no}]，'
+                         f'但当前选的公司是 [{company.name}]，请重新选择公司或账户'
+            }, status=400)
+
+        # 校验2：账户银行类型 ≠ 文件实际格式（用 detect_with_adapter 识别文件格式）
+        detected_bank = None
+        for cls in ALL_ADAPTERS:
+            try:
+                if cls().detect(XlrdSheetWrapper(xlrd.open_workbook(file_contents=content).sheet_by_index(0))):
+                    detected_bank = cls.bank_code
+                    break
+            except Exception:
+                pass
+        if detected_bank and detected_bank != bank_account.bank_code:
+            bank_display_map = {
+                'CMB': '招商银行', 'ICBC': '工商银行', 'CCB': '建设银行',
+                'BOC': '中国银行', 'ABC': '农业银行', 'COMM': '交通银行',
+                'PSBC': '邮储银行', 'PINGAN': '平安银行', 'PA': '平安银行',
+            }
+            file_name = bank_display_map.get(detected_bank, detected_bank)
+            account_name = bank_display_map.get(bank_account.bank_code, bank_account.bank_code)
+            return Response({
+                'error': f'您选择的账户是 [{account_name}]，但上传的文件是 [{file_name}] 格式，请重新选择正确的银行账户'
+            }, status=400)
+
     # ── 银行格式强校验（两层合并）────────────────────────────────────────
     # 场景1：选了已有账户 → expect_bank_code = 账户银行类型
     # 场景2：新建账户+明确选银行 → bank_code = 用户所选银行
@@ -708,9 +745,12 @@ def preview_bank_statement(request):
             # 自动识别实际格式，给用户明确提示
             detected_bank = None
             for cls in ALL_ADAPTERS:
-                if cls().detect(XlrdSheetWrapper(xlrd.open_workbook(file_contents=content).sheet_by_index(0))):
-                    detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
-                    break
+                try:
+                    if cls().detect(XlrdSheetWrapper(xlrd.open_workbook(file_contents=content).sheet_by_index(0))):
+                        detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
+                        break
+                except Exception:
+                    pass
             if detected_bank:
                 hint = f'您选择的是 [{expected_name}]，但上传的文件似乎是 [{detected_bank}] 格式，请重新选择正确的银行对账单'
             else:
