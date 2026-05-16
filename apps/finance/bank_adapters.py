@@ -803,6 +803,8 @@ def detect_and_parse(file_content):
 
 def parse_with_adapter(file_content, bank_code: str):
     """用指定银行适配器解析，支持 .xlsx / .xls"""
+    # 数据库中平安银行用 PA，前端模板用 PINGAN，统一标准化
+    bank_code = 'PINGAN' if bank_code == 'PA' else bank_code
     adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
     if bank_code not in adapters:
         raise ValueError(f"不支持的银行: {bank_code}，支持的银行：{', '.join(adapters.keys())}")
