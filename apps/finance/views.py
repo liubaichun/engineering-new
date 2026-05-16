@@ -144,7 +144,18 @@ class CompanyViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'contact_person', 'contact_phone']
     ordering_fields = ['name', 'code', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:company:read',
+        'list': 'finance:company:read',
+        'retrieve': 'finance:company:read',
+        'create': 'finance:company:update',
+        'update': 'finance:company:update',
+        'partial_update': 'finance:company:update',
+        'destroy': 'finance:company:update',
+        'bank_accounts': 'finance:company:read',
+        'export': 'finance:company:read',
+    }
 
     @action(detail=True, methods=['get'])
     def bank_accounts(self, request, pk=None):
@@ -194,7 +205,21 @@ class IncomeViewSet(viewsets.ModelViewSet):
     search_fields = ['description', 'customer', 'source']
     ordering_fields = ['date', 'amount', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:income:read',
+        'list': 'finance:income:read',
+        'retrieve': 'finance:income:read',
+        'create': 'finance:income:create',
+        'update': 'finance:income:update',
+        'partial_update': 'finance:income:update',
+        'destroy': 'finance:income:delete',
+        'confirm': 'finance:income:update',
+        'unconfirm': 'finance:income:update',
+        'summary': 'finance:income:read',
+        'export': 'finance:income:read',
+        'import_records': 'finance:income:create',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -228,7 +253,7 @@ class IncomeViewSet(viewsets.ModelViewSet):
         if flow:
             income.approval_flow = flow
             income.save(update_fields=['approval_flow'])
-    @_require_perms('finance:income:update')
+
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
         """确认收入"""
@@ -377,7 +402,19 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     search_fields = ['description', 'supplier', 'expense_category']
     ordering_fields = ['date', 'expense_date', 'amount', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:expense:read',
+        'list': 'finance:expense:read',
+        'retrieve': 'finance:expense:read',
+        'create': 'finance:expense:create',
+        'update': 'finance:expense:update',
+        'partial_update': 'finance:expense:update',
+        'destroy': 'finance:expense:delete',
+        'summary': 'finance:expense:read',
+        'export': 'finance:expense:read',
+        'import_records': 'finance:expense:create',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -540,13 +577,32 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 class WageRecordViewSet(viewsets.ModelViewSet):
     """工资单视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
     queryset = WageRecord.objects.all()
     serializer_class = WageRecordSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = WageRecordFilter
     search_fields = ['employee_name', 'employee__name', 'employee__code', 'department', 'position']
     ordering_fields = ['year', 'month', 'company__name', 'employee_name', 'net_salary']
+    action_perms = {
+        None: 'finance:wage:read',
+        'list': 'finance:wage:read',
+        'retrieve': 'finance:wage:read',
+        'create': 'finance:wage:create',
+        'update': 'finance:wage:update',
+        'partial_update': 'finance:wage:update',
+        'destroy': 'finance:wage:update',
+        'approve': 'finance:wage:approve',
+        'pay': 'finance:wage:pay',
+        'submit': 'finance:wage:submit',
+        'years': 'finance:wage:read',
+        'calc_preview': 'finance:wage:read',
+        'export': 'finance:wage:read',
+        'pdf': 'finance:wage:read',
+        'pdf_batch': 'finance:wage:read',
+        'bank_export': 'finance:wage:read',
+        'wage_slips': 'finance:wage:read',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -583,7 +639,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         serializer.save(employee_company_id=ec_id)
 
     @action(detail=True, methods=['post'])
-    @_require_perms('finance:wage:approve')
     def approve(self, request, pk=None):
         """批准工资单"""
         wage_record = self.get_object()
@@ -597,7 +652,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return Response({'status': 'success', 'message': '工资单已批准'})
 
     @action(detail=True, methods=['post'])
-    @_require_perms('finance:wage:pay')
     def pay(self, request, pk=None):
         """发放工资"""
         wage_record = self.get_object()
@@ -623,7 +677,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return Response({'years': list(years)})
 
     @action(detail=True, methods=['post'])
-    @_require_perms('finance:wage:submit')
     def submit(self, request, pk=None):
         """提交工资单进行审核"""
         wage_record = self.get_object()
@@ -819,7 +872,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
     @action(detail=True, methods=['get'])
-    @_require_perms('finance:wage:view')
     def pdf(self, request, pk=None):
         """生成单张工资条 PDF"""
         wage_record = self.get_object()
@@ -831,7 +883,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
-    @_require_perms('finance:wage:view')
     @action(detail=False, methods=['get'])
     def pdf_batch(self, request):
         """批量生成工资条 PDF（支持指定 year/month/company）"""
@@ -877,7 +928,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         return response
 
     @action(detail=False, methods=['get'])
-    @_require_perms('finance:wage:view')
     def bank_export(self, request):
         """导出银行代发文件（支持工行/建行格式）
         GET ?year=&month=&company_id=&bank_type=ICBC|CCB|GENERIC
@@ -921,7 +971,6 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         return response
 
-    @_require_perms('finance:wage:view')
     @action(detail=False, methods=['get'])
     def wage_slips(self, request):
         """获取工资条页面所需数据（发送给前端渲染）"""
@@ -1235,7 +1284,19 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     search_fields = ['invoice_no', 'remarks']
     ordering_fields = ['issue_date', 'due_date', 'amount', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:invoice:read',
+        'list': 'finance:invoice:read',
+        'retrieve': 'finance:invoice:read',
+        'create': 'finance:invoice:create',
+        'update': 'finance:invoice:update',
+        'partial_update': 'finance:invoice:update',
+        'destroy': 'finance:invoice:update',
+        'cancel': 'finance:invoice:update',
+        'mark_paid': 'finance:invoice:update',
+        'issue': 'finance:invoice:update',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -1406,7 +1467,17 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 class ReportViewSet(viewsets.ViewSet):
     """财务报表视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:report:read',
+        'list': 'finance:report:read',
+        'years': 'finance:report:read',
+        'monthly': 'finance:report:read',
+        'yearly': 'finance:report:read',
+        'wage_summary': 'finance:report:read',
+        'invoice_summary': 'finance:report:read',
+        'balance_sheet': 'finance:report:read',
+    }
 
     def list(self, request):
         """财务报表首页 - 返回支持的报表类型"""
@@ -1784,7 +1855,20 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name', 'id_card', 'phone', 'email']
     ordering_fields = ['code', 'name', 'hire_date', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:company:read',
+        'list': 'finance:company:read',
+        'retrieve': 'finance:company:read',
+        'create': 'finance:company:update',
+        'update': 'finance:company:update',
+        'partial_update': 'finance:company:update',
+        'destroy': 'finance:company:update',
+        'export': 'finance:company:read',
+        'promote': 'finance:company:update',
+        'resign': 'finance:company:update',
+        'activate': 'finance:company:update',
+    }
 
     def get_queryset(self):
         # 多租户隔离：普通用户只看本公司员工
@@ -1869,7 +1953,16 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['company']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:company:read',
+        'list': 'finance:company:read',
+        'retrieve': 'finance:company:read',
+        'create': 'finance:company:update',
+        'update': 'finance:company:update',
+        'partial_update': 'finance:company:update',
+        'destroy': 'finance:company:update',
+    }
 
     def get_queryset(self):
         # 多租户隔离：普通用户只看本公司社保配置
@@ -1885,7 +1978,11 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
 class ARAPViewSet(viewsets.ViewSet):
     """应收应付台账视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:report:read',
+        'list': 'finance:report:read',
+    }
 
     def paginate_queryset(self, queryset, request=None):
         paginator = PageNumberPagination()
@@ -1983,7 +2080,16 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
     search_fields = ['employee__name', 'company__name', 'department', 'position']
     ordering_fields = ['company__name', 'is_primary', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:company:read',
+        'list': 'finance:company:read',
+        'retrieve': 'finance:company:read',
+        'create': 'finance:company:update',
+        'update': 'finance:company:update',
+        'partial_update': 'finance:company:update',
+        'destroy': 'finance:company:update',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -2011,7 +2117,16 @@ class BankAccountViewSet(viewsets.ModelViewSet):
     search_fields = ['account_no', 'account_name', 'bank_name']
     ordering_fields = ['company__name', 'created_at', 'account_no']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:company:read',
+        'list': 'finance:company:read',
+        'retrieve': 'finance:company:read',
+        'create': 'finance:company:update',
+        'update': 'finance:company:update',
+        'partial_update': 'finance:company:update',
+        'destroy': 'finance:company:update',
+    }
 
     def get_queryset(self):
         qs = super().get_queryset()
