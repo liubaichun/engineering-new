@@ -888,7 +888,12 @@ def confirm_bank_import(request):
             summary    = row.get('summary', '')[:500]
             serial     = row.get('bank_serial', '')
             tx_type    = row.get('transaction_type', '')[:100]
-    
+            # 余额（去重用）
+            try:
+                bal = Decimal(str(row.get('balance', '0')))
+            except Exception:
+                bal = Decimal('0')
+
             # 日期解析
             if isinstance(t_date, str) and t_date:
                 tx_date = datetime.datetime.strptime(
@@ -905,8 +910,8 @@ def confirm_bank_import(request):
                 except ValueError:
                     tx_time = None
     
-            # ── 去重（在事务外，避免锁） ──────────────────────────────────
-            dedup = f"{tx_date}_{serial}_{amount}" if serial else f"{tx_date}_{cp_account}_{amount}"
+            # ── 去重（平安银行：无交易时间，靠 日期+金额+余额+对方账户 4条件判断重复） ──
+            dedup = f"{tx_date}_{amount}_{bal}_{cp_account}"
             if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
                 with open(LOG_PATH, 'a') as _lf:
                     _lf.write(f"  >> SKIP dedup: serial={serial!r} dedup={dedup!r}\n")
@@ -939,7 +944,7 @@ def confirm_bank_import(request):
                 with transaction.atomic():
                     if direction == 'income':
                         inc = Income.objects.create(
-                            company=company, customer=写进流水的主营对手方, source=tx_type,
+                            company=company, customer=写进流水的主营对手方, source='网银',
                             amount=amount, date=tx_date, description=summary,
                             transaction_time=tx_time,
                             balance=Decimal(row['balance']) if row.get('balance') else None,

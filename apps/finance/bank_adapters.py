@@ -761,7 +761,7 @@ class PingAnAdapter(BankStatementAdapter):
                     counterparty_account=cp_account,
                     counterparty_bank=cp_bank,
                     summary=summary,
-                    transaction_type='',
+                    transaction_type=str(get_col(row_idx, '用途') or '').strip(),
                 ))
             except Exception:
                 continue
