@@ -830,6 +830,41 @@ def parse_with_adapter(file_content, bank_code: str):
     return adapters[bank_code].parse(ws)
 
 
+def detect_with_adapter(file_content, bank_code: str) -> bool:
+    """
+    用指定银行的适配器检测文件格式是否匹配。
+    返回 True=匹配，False=不匹配。
+    不会抛出异常。
+    """
+    bank_code = 'PINGAN' if bank_code == 'PA' else bank_code
+    adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
+    if bank_code not in adapters:
+        return False
+
+    import io
+    if isinstance(file_content, (io.IOBase,)):
+        file_obj = file_content
+    else:
+        file_obj = io.BytesIO(file_content)
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        ws = wb.active
+    except Exception:
+        try:
+            import xlrd
+            if hasattr(file_obj, 'seek'):
+                file_obj.seek(0)
+            xlrd_content = file_obj.read()
+            wb = xlrd.open_workbook(file_contents=xlrd_content)
+            ws = XlrdSheetWrapper(wb.sheet_by_index(0))
+        except Exception:
+            return False
+
+    return adapters[bank_code].detect(ws)
+
+
 # ─── 适配器注册表（CMB在前，更具体优先检测）─────────────────────────────
 ALL_ADAPTERS = [
     CMBAdapter,     # 招商银行（最具体，优先）

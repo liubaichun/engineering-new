@@ -256,6 +256,7 @@ let previewData = null;
 let selectedRows = new Set();
 let currentCompany = null;
 let currentBankAccount = null;
+let currentBankCode = null;  // 所选账户的银行类型（精确匹配用）
 let currentFile = null;
 
 // 初始化
@@ -265,6 +266,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     await onCompanyChange();
     document.getElementById('selCompany').addEventListener('change', onCompanyChange);
     document.getElementById('selBankAccount').addEventListener('change', onBankAccountChange);
+    document.getElementById('selBank').addEventListener('change', onBankChange);
     document.getElementById('chkAll').addEventListener('change', toggleAll);
     setupDropZone();
 });
@@ -309,11 +311,19 @@ function onBankAccountChange() {
         const selected = document.querySelector(`#selBankAccount option[value="${val}"]`);
         const bankCode = selected ? (selected.dataset.bankCode || '') : '';
         document.getElementById('selBank').value = bankCode;
+        currentBankCode = bankCode;  // 记住所选账户的银行类型
     } else {
         newFields.style.display = '';
         newAccountFields.style.display = '';
         currentBankAccount = null;
+        currentBankCode = null;
     }
+}
+
+// 用户手动选择银行类型时（新建账户场景）
+function onBankChange() {
+    const bankCode = document.getElementById('selBank').value;
+    currentBankCode = bankCode || null;
 }
 
 function setupDropZone() {
@@ -359,8 +369,9 @@ async function doPreview() {
 
     const payload = {
         company_id: companyId,
-        bank_code: document.getElementById('selBank').value || '',
+        bank_code: currentBankCode || document.getElementById('selBank').value || '',
         bank_account_id: currentBankAccount || '',
+        expect_bank_code: currentBankCode || '',  // 用户所选账户的银行类型，用于校验
         file_base64: fileBase64
     };
 

@@ -18,8 +18,10 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
 from apps.finance.bank_adapters import (
-    ALL_ADAPTERS, detect_and_parse, parse_with_adapter, ParsedTransaction
+    ALL_ADAPTERS, detect_and_parse, parse_with_adapter, detect_with_adapter, ParsedTransaction,
+    XlrdSheetWrapper,
 )
+import xlrd
 from apps.finance.models import Company, Income, Expense, Invoice
 from apps.finance.models_bank import BankAccount, BankStatement
 from apps.crm.models import Client, Supplier
@@ -662,6 +664,7 @@ def preview_bank_statement(request):
         body       = request.data
         company_id = body.get('company_id')
         bank_code  = body.get('bank_code', '')
+        expect_bank_code = body.get('expect_bank_code', '')  # 用户所选账户的银行类型
         try:
             raw_b64 = body.get('file_base64', '')
             content = base64.b64decode(raw_b64)
@@ -678,6 +681,7 @@ def preview_bank_statement(request):
         company_id = request.data.get('company_id') or request.data.get('company')
         bank_code   = request.data.get('bank_code', '')
         content     = request.FILES['file'].read()
+        expect_bank_code = ''  # 文件上传模式不传 expect_bank_code
 
     if not company_id:
         return Response({'error': '缺少 company_id'}, status=400)
@@ -687,10 +691,37 @@ def preview_bank_statement(request):
     except Company.DoesNotExist:
         return Response({'error': '公司不存在'}, status=400)
 
+    # ── 银行格式强校验（两层合并）────────────────────────────────────────
+    # 场景1：选了已有账户 → expect_bank_code = 账户银行类型
+    # 场景2：新建账户+明确选银行 → bank_code = 用户所选银行
+    # 两种情况都用 detect_with_adapter() 校验文件格式，不匹配则拒绝预览
+    validate_bank_code = expect_bank_code or (bank_code if bank_code not in ('', 'OTHER') else '')
+    if validate_bank_code:
+        matched = detect_with_adapter(content, validate_bank_code)
+        if not matched:
+            bank_display_map = {
+                'CMB': '招商银行', 'ICBC': '工商银行', 'CCB': '建设银行',
+                'BOC': '中国银行', 'ABC': '农业银行', 'COMM': '交通银行',
+                'PSBC': '邮储银行', 'PINGAN': '平安银行', 'PA': '平安银行',
+            }
+            expected_name = bank_display_map.get(validate_bank_code, validate_bank_code)
+            # 自动识别实际格式，给用户明确提示
+            detected_bank = None
+            for cls in ALL_ADAPTERS:
+                if cls().detect(XlrdSheetWrapper(xlrd.open_workbook(file_contents=content).sheet_by_index(0))):
+                    detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
+                    break
+            if detected_bank:
+                hint = f'您选择的是 [{expected_name}]，但上传的文件似乎是 [{detected_bank}] 格式，请重新选择正确的银行对账单'
+            else:
+                hint = f'您选择的是 [{expected_name}]，但上传的文件无法识别，请确认文件是银行对账单格式'
+            return Response({'error': hint}, status=400)
+
+    # ── 解析（已通过格式校验）───────────────────────────────────────────
     try:
-        if bank_code:
-            transactions = parse_with_adapter(content, bank_code)
-            used_bank = bank_code
+        if validate_bank_code:
+            transactions = parse_with_adapter(content, validate_bank_code)
+            used_bank = validate_bank_code
         else:
             used_bank, transactions = detect_and_parse(content)
     except ValueError as e:
