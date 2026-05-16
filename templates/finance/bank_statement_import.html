@@ -294,7 +294,7 @@ async function onCompanyChange() {
     sel.innerHTML = '<option value="">— 新建账户 —</option>' +
         accounts.map(b =>
             `<option value="${b.id}" data-bank-code="${b.bank_code || ''}">${b.bank_name || b.bank_code} ${b.account_no} (${b.account_name})</option>`
-        ).join(''));
+        ).join('');
 }
 
 function onBankAccountChange() {
