@@ -102,6 +102,7 @@
                 <div class="col-md-4" id="newBankFields" style="display:none">
                     <label class="form-label">银行</label>
                     <select class="form-select" id="selBank">
+                        <option value="">— 自动识别 —</option>
                         <option value="CMB">招商银行</option>
                         <option value="ICBC">工商银行</option>
                         <option value="CCB">建设银行</option>
@@ -109,6 +110,7 @@
                         <option value="ABC">农业银行</option>
                         <option value="COMM">交通银行</option>
                         <option value="PSBC">邮储银行</option>
+                        <option value="PINGAN">平安银行</option>
                         <option value="OTHER">其他</option>
                     </select>
                 </div>
@@ -291,8 +293,8 @@ async function onCompanyChange() {
     const accounts = accountsByCompany[companyId] || [];
     sel.innerHTML = '<option value="">— 新建账户 —</option>' +
         accounts.map(b =>
-            `<option value="${b.id}">${b.bank_name || b.bank_code} ${b.account_no} (${b.account_name})</option>`
-        ).join('');
+            `<option value="${b.id}" data-bank-code="${b.bank_code || ''}">${b.bank_name || b.bank_code} ${b.account_no} (${b.account_name})</option>`
+        ).join(''));
 }
 
 function onBankAccountChange() {
@@ -303,6 +305,10 @@ function onBankAccountChange() {
         newFields.style.display = 'none';
         newAccountFields.style.display = 'none';
         currentBankAccount = val;
+        // 从选中账户的 data-bank-code 属性读取银行类型
+        const selected = document.querySelector(`#selBankAccount option[value="${val}"]`);
+        const bankCode = selected ? (selected.dataset.bankCode || '') : '';
+        document.getElementById('selBank').value = bankCode;
     } else {
         newFields.style.display = '';
         newAccountFields.style.display = '';
