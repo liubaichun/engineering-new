@@ -414,7 +414,7 @@ class ContactViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        base_qs = Contact.objects.select_related('client', 'created_by', 'company')
+        base_qs = Contact.objects.select_related('client', 'company')
         if user.is_superuser:
             return base_qs
         if hasattr(user, 'company') and user.company_id:
