@@ -679,11 +679,14 @@ class PingAnAdapter(BankStatementAdapter):
         平安银行专属标志：账号列以 '1500' 开头。
         检测前10行数据行，只要有一行账号符合即匹配。
         """
+        # openpyxl cell() requires 1-indexed rows (row >= 1), but ws.max_row is 1-indexed
+        # so r in range must be offset by +1 when calling ws.cell()
         try:
             # 先确认表头存在（任意行）
             header_found = False
             for r in range(min(5, ws.max_row)):
-                headers = [str(ws.cell(r, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+                # r is 0-indexed here; ws.cell() needs 1-indexed row
+                headers = [str(ws.cell(r + 1, c).value or '').strip() for c in range(1, ws.max_column + 1)]
                 if any(h == '账号' for h in headers):
                     header_found = True
                     break
@@ -692,7 +695,7 @@ class PingAnAdapter(BankStatementAdapter):
             # 用账号列的值（以1500开头）作为专属标志
             for r in range(min(10, ws.max_row)):
                 for c in range(1, ws.max_column + 1):
-                    val = str(ws.cell(r, c).value or '').strip()
+                    val = str(ws.cell(r + 1, c).value or '').strip()
                     if val.startswith('1500') and len(val) >= 8:
                         return True
             return False
@@ -701,22 +704,23 @@ class PingAnAdapter(BankStatementAdapter):
 
     def parse(self, ws) -> list[ParsedTransaction]:
         # 动态查找表头行（平安银行文件表头在任意行）
+        # 注意：ws.cell() requires 1-indexed rows; range indices are 0-indexed
         header_row = None
         for r in range(min(10, ws.max_row)):
-            headers = [str(ws.cell(r, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+            headers = [str(ws.cell(r + 1, c).value or '').strip() for c in range(1, ws.max_column + 1)]
             if any(h in headers for h in ['交易日期', '账号', '借', '贷', '账户余额']):
-                header_row = r
+                header_row = r  # 0-indexed
                 break
         if header_row is None:
             return []
-        headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+        headers = [str(ws.cell(header_row + 1, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
         def get_col(row, *names):
             for name in names:
                 c = col_idx.get(name)
                 if c:
-                    val = ws.cell(row, c).value
+                    val = ws.cell(row + 1, c).value  # row is 0-indexed, +1 for ws.cell()
                     if val is not None:
                         return val
             return None
