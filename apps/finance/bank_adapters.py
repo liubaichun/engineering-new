@@ -640,18 +640,6 @@ class PSBCAdapter(BankStatementAdapter):
         return records
 
 
-# ─── 适配器注册表（CMB在前，更具体优先检测）─────────────────────────────
-ALL_ADAPTERS = [
-    CMBAdapter,     # 招商银行（最具体，优先）
-    ICBCAdapter,    # 工商银行
-    CCBAdapter,     # 建设银行
-    BOCAdapter,     # 中国银行
-    ABCAdapter,     # 农业银行
-    COMMAdapter,    # 交通银行
-    PSBCAdapter,    # 邮储银行
-]
-
-
 class XlrdSheetWrapper:
     """将 xlrd sheet 适配为类似 openpyxl 的工作表接口，供各银行适配器使用。"""
     def __init__(self, sheet):
@@ -667,67 +655,6 @@ class XlrdSheetWrapper:
 class XlrdCell:
     def __init__(self, value):
         self.value = value
-
-
-def detect_and_parse(file_content):
-    """自动识别格式并解析，返回 (bank_code, transactions)
-    支持 .xlsx (openpyxl) 和 .xls (xlrd) 两种格式。
-    file_content 可以是 bytes（文件路径读取结果）或 BytesIO（ Django InMemoryUploadedFile.read() 返回值）。
-    """
-    # 如果已经是文件对象（BytesIO / BufferedReader），直接用；否则包装为 BytesIO
-    import io
-    if isinstance(file_content, (io.IOBase,)):
-        file_obj = file_content
-    else:
-        file_obj = io.BytesIO(file_content)
-
-    import openpyxl
-    try:
-        wb = openpyxl.load_workbook(file_obj, data_only=True)
-        ws = wb.active
-    except Exception:
-        # .xls 格式（xlrd）
-        import xlrd
-        # xlrd 需要 bytes；如果是 BytesIO 已读出位置，重置到开头
-        if hasattr(file_obj, 'seek'):
-            file_obj.seek(0)
-        xlrd_content = file_obj.read()
-        wb = xlrd.open_workbook(file_contents=xlrd_content)
-        ws = XlrdSheetWrapper(wb.sheet_by_index(0))
-
-    for adapter_cls in ALL_ADAPTERS:
-        adapter = adapter_cls()
-        if adapter.detect(ws):
-            return adapter_cls.bank_code, adapter.parse(ws)
-
-    raise ValueError("无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行、平安银行")
-
-
-def parse_with_adapter(file_content, bank_code: str):
-    """用指定银行适配器解析，支持 .xlsx / .xls"""
-    adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
-    if bank_code not in adapters:
-        raise ValueError(f"不支持的银行: {bank_code}，支持的银行：{', '.join(adapters.keys())}")
-
-    import io
-    if isinstance(file_content, (io.IOBase,)):
-        file_obj = file_content
-    else:
-        file_obj = io.BytesIO(file_content)
-
-    import openpyxl
-    try:
-        wb = openpyxl.load_workbook(file_obj, data_only=True)
-        ws = wb.active
-    except Exception:
-        import xlrd
-        if hasattr(file_obj, 'seek'):
-            file_obj.seek(0)
-        xlrd_content = file_obj.read()
-        wb = xlrd.open_workbook(file_contents=xlrd_content)
-        ws = XlrdSheetWrapper(wb.sheet_by_index(0))
-
-    return adapters[bank_code].parse(ws)
 
 # ─── 平安银行 ───────────────────────────────────────────────────────────
 class PingAnAdapter(BankStatementAdapter):
@@ -818,7 +745,6 @@ class PingAnAdapter(BankStatementAdapter):
                 cp_account = str(get_col(row_idx, '对方账户') or '').strip()
                 cp_bank    = ''
                 summary    = str(get_col(row_idx, '摘要') or '').strip()
-                usage      = str(get_col(row_idx, '用途') or '').strip()
 
                 records.append(ParsedTransaction(
                     transaction_date=txn_date,
@@ -839,7 +765,66 @@ class PingAnAdapter(BankStatementAdapter):
         return records
 
 
-# ─── 适配器注册表 ────────────────────────────────────────────────────────
+# ─── 自动识别解析 ───────────────────────────────────────────────────────
+def detect_and_parse(file_content):
+    """自动识别格式并解析，返回 (bank_code, transactions)
+    支持 .xlsx (openpyxl) 和 .xls (xlrd) 两种格式。
+    file_content 可以是 bytes（文件路径读取结果）或 BytesIO（Django InMemoryUploadedFile.read() 返回值）。
+    """
+    import io
+    if isinstance(file_content, (io.IOBase,)):
+        file_obj = file_content
+    else:
+        file_obj = io.BytesIO(file_content)
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        ws = wb.active
+    except Exception:
+        import xlrd
+        if hasattr(file_obj, 'seek'):
+            file_obj.seek(0)
+        xlrd_content = file_obj.read()
+        wb = xlrd.open_workbook(file_contents=xlrd_content)
+        ws = XlrdSheetWrapper(wb.sheet_by_index(0))
+
+    for adapter_cls in ALL_ADAPTERS:
+        adapter = adapter_cls()
+        if adapter.detect(ws):
+            return adapter_cls.bank_code, adapter.parse(ws)
+
+    raise ValueError("无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行、平安银行")
+
+
+def parse_with_adapter(file_content, bank_code: str):
+    """用指定银行适配器解析，支持 .xlsx / .xls"""
+    adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
+    if bank_code not in adapters:
+        raise ValueError(f"不支持的银行: {bank_code}，支持的银行：{', '.join(adapters.keys())}")
+
+    import io
+    if isinstance(file_content, (io.IOBase,)):
+        file_obj = file_content
+    else:
+        file_obj = io.BytesIO(file_content)
+
+    import openpyxl
+    try:
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        ws = wb.active
+    except Exception:
+        import xlrd
+        if hasattr(file_obj, 'seek'):
+            file_obj.seek(0)
+        xlrd_content = file_obj.read()
+        wb = xlrd.open_workbook(file_contents=xlrd_content)
+        ws = XlrdSheetWrapper(wb.sheet_by_index(0))
+
+    return adapters[bank_code].parse(ws)
+
+
+# ─── 适配器注册表（CMB在前，更具体优先检测）─────────────────────────────
 ALL_ADAPTERS = [
     CMBAdapter,     # 招商银行（最具体，优先）
     ICBCAdapter,    # 工商银行
