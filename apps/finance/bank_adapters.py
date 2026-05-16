@@ -11,7 +11,7 @@ from typing import Optional
 
 @dataclass
 class ParsedTransaction:
-    """只保留银行流水中实际有数据的11个字段"""
+    """只保留银行流水中实际有数据的12个字段"""
     transaction_date: Optional[datetime.date] = None
     transaction_time: Optional[datetime.time] = None
     amount: Decimal = Decimal('0')
@@ -23,6 +23,7 @@ class ParsedTransaction:
     counterparty_bank: str = ''  # 收(付)方开户行名
     summary: str = ''           # 摘要
     transaction_type: str = ''  # 交易类型（原始文本，不分类）
+    account_no: str = ''        # 我方账号（从文件"账号"列提取，用于与账户归属校验）
 
     def get_dedup_key(self) -> str:
         if self.bank_serial:
@@ -726,6 +727,20 @@ class PingAnAdapter(BankStatementAdapter):
             return None
 
         records = []
+        # 提取我方账号（从第一个有效数据行的"账号"列）
+        file_account_no = ''
+        for row_idx in range(header_row + 1, ws.max_row + 1):
+            try:
+                debit_raw  = get_col(row_idx, '借')
+                credit_raw = get_col(row_idx, '贷')
+                debit  = self._decimal(debit_raw)
+                credit = self._decimal(credit_raw)
+                if (debit is not None and debit > 0) or (credit is not None and credit > 0):
+                    file_account_no = str(get_col(row_idx, '账号') or '').strip()
+                    break
+            except Exception:
+                continue
+
         for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
                 debit_raw  = get_col(row_idx, '借')
@@ -762,6 +777,7 @@ class PingAnAdapter(BankStatementAdapter):
                     counterparty_bank=cp_bank,
                     summary=summary,
                     transaction_type=str(get_col(row_idx, '用途') or '').strip(),
+                    account_no=file_account_no,
                 ))
             except Exception:
                 continue

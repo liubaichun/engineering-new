@@ -772,6 +772,15 @@ def preview_bank_statement(request):
     except Exception as e:
         return Response({'error': f'解析失败: {type(e).__name__}: {e}'}, status=500)
 
+    # ── 公司账号精确匹配校验（选了已有账户时）────────────────────────────────
+    if bank_account_id_raw is not None and str(bank_account_id_raw).isdigit() and transactions:
+        file_account_no = getattr(transactions[0], 'account_no', '') if transactions else ''
+        if file_account_no and file_account_no != bank_account.account_no:
+            return Response({
+                'error': f'上传的文件属于账号 [{file_account_no}]，'
+                         f'但您选择的是 [{bank_account.account_no}]，两者不匹配，请重新选择账户或上传正确的文件'
+            }, status=400)
+
     preview_rows  = []
     total_income  = Decimal('0')
     total_expense = Decimal('0')
