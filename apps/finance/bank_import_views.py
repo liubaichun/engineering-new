@@ -821,7 +821,9 @@ def confirm_bank_import(request):
             type='expense', status='pending', company=company,
         ).exclude(payment_date__isnull=False).order_by('issue_date', 'id'))
     
-        LOG_PATH = '/root/engineering-new/logs/bank_import_skip.log'
+        LOG_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'logs')
+        os.makedirs(LOG_DIR, exist_ok=True)
+        LOG_PATH = os.path.join(LOG_DIR, 'bank_import_skip.log')
         batch_id = uuid.uuid4().hex[:12].upper()
     
         with open(LOG_PATH, 'w') as _lf:
