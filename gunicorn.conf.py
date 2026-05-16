@@ -1,3 +1,4 @@
+import os
 import resource
 
 # Workers
@@ -22,9 +23,12 @@ def post_fork(server, worker):
 def worker_abort(worker):
     print(f'Worker {worker.pid} abort (memory/exit)', file=__import__('sys').stderr)
 
-bind = '0.0.0.0:8001'
+bind = '127.0.0.1:8001'
 daemon = False
 preload_app = True
-errorlog = '/root/engineering-new/logs/error.log'
-accesslog = '/root/engineering-new/logs/access.log'
+
+_log_dir = os.environ.get('GUNICORN_LOG_DIR', os.path.join(os.path.dirname(__file__), 'logs'))
+os.makedirs(_log_dir, exist_ok=True)
+errorlog = os.path.join(_log_dir, 'error.log')
+accesslog = os.path.join(_log_dir, 'access.log')
 loglevel = 'info'
