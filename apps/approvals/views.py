@@ -332,7 +332,14 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         
         flow.current_node_order = next_order
         flow.save()
-        
+
+        # 发送转交通知
+        try:
+            from apps.core.email_service import notify_transfer
+            notify_transfer(flow, request.user, target_user, comment)
+        except Exception:
+            pass
+
         return Response({'status': f'已转交给 {target_user.username}'})
 
     @action(detail=True, methods=['post'])
@@ -383,7 +390,14 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         
         flow.current_node_order = next_order
         flow.save()
-        
+
+        # 发送委托通知
+        try:
+            from apps.core.email_service import notify_delegate
+            notify_delegate(flow, request.user, delegate_user, comment)
+        except Exception:
+            pass
+
         return Response({'status': f'已委托给 {delegate_user.username}'})
 
     @action(detail=True, methods=['post'])

@@ -83,6 +83,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.assigned_at = timezone.now()
         obj.status = 'assigned'
         obj.save(update_fields=['assigned_to', 'assigned_at', 'status'])
+        try:
+            from apps.tasks.notification_service import notify_repair_action
+            notify_repair_action(obj, 'assigned', request.user)
+        except Exception:
+            pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
     @action(detail=True, methods=['post'])
@@ -93,6 +98,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': '只有已派工状态可以开始维修'}, status=status.HTTP_400_BAD_REQUEST)
         obj.status = 'in_progress'
         obj.save(update_fields=['status'])
+        try:
+            from apps.tasks.notification_service import notify_repair_action
+            notify_repair_action(obj, 'started', request.user)
+        except Exception:
+            pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
     @action(detail=True, methods=['post'])
@@ -107,6 +117,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.repair_cost = request.data.get('repair_cost', 0)
         obj.repair_company = request.data.get('repair_company', '')
         obj.save(update_fields=['status', 'completed_at', 'solution', 'repair_cost', 'repair_company'])
+        try:
+            from apps.tasks.notification_service import notify_repair_action
+            notify_repair_action(obj, 'completed', request.user)
+        except Exception:
+            pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
     @action(detail=True, methods=['post'])
@@ -119,6 +134,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.accepted_at = timezone.now()
         obj.acceptance_result = 'pass'
         obj.save(update_fields=['status', 'accepted_at', 'acceptance_result'])
+        try:
+            from apps.tasks.notification_service import notify_repair_action
+            notify_repair_action(obj, 'accepted', request.user)
+        except Exception:
+            pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
     @action(detail=True, methods=['post'])
@@ -129,6 +149,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': '当前状态不允许此操作'}, status=status.HTTP_400_BAD_REQUEST)
         obj.status = 'in_progress'
         obj.save(update_fields=['status'])
+        try:
+            from apps.tasks.notification_service import notify_repair_action
+            notify_repair_action(obj, 'rejected', request.user)
+        except Exception:
+            pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
     @action(detail=True, methods=['post'])
@@ -139,6 +164,11 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             return Response({'error': '当前状态不允许取消'}, status=status.HTTP_400_BAD_REQUEST)
         obj.status = 'cancelled'
         obj.save(update_fields=['status'])
+        try:
+            from apps.tasks.notification_service import notify_repair_action
+            notify_repair_action(obj, 'cancelled', request.user)
+        except Exception:
+            pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
 

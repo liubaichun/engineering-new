@@ -8,4 +8,7 @@ router.register(r'bindings', views.NotifyBindingViewSet, basename='notify-bindin
 
 urlpatterns = [
     path('', include(router.urls)),
+    # 用户通知偏好
+    path('preferences/', lambda r: views.UserNotificationPreferenceView.list(r), name='user-preferences-list'),
+    path('preferences/update/', lambda r: views.UserNotificationPreferenceView.update(r), name='user-preferences-update'),
 ]

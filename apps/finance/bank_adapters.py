@@ -153,7 +153,6 @@ class ICBCAdapter(BankStatementAdapter):
                     counterparty_bank=str(col(6) or '').strip(),  # F列
                     summary=str(col(8) or '').strip() or str(col(9) or '').strip(),  # H/I列
                     bank_serial='',
-                    raw_data={'凭证号': col(1), '借贷标志': direction_flag, '用途': str(col(7) or '').strip()}
                 ))
 
                 if balance is not None:
@@ -853,6 +852,8 @@ def parse_with_adapter(file_content, bank_code: str):
     import io
     if isinstance(file_content, (io.IOBase,)):
         file_obj = file_content
+        if hasattr(file_obj, 'seek'):
+            file_obj.seek(0)
     else:
         file_obj = io.BytesIO(file_content)
 

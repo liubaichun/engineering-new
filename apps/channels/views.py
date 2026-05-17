@@ -387,6 +387,10 @@ class ChannelListView(APIView):
                 'pairing_mode': ch.pairing_mode,
                 'is_active': ch.is_active,
                 'status': status_info,
+                'config_schema': {
+                    'required_fields': plugin.get_required_config_fields() if plugin else [],
+                    'optional_fields': plugin.get_optional_config_fields() if plugin else [],
+                } if plugin else {},
             })
         
         return Response(data)
@@ -454,6 +458,28 @@ class ChannelListView(APIView):
 class ChannelDetailView(APIView):
     """渠道详情（更新/删除）"""
     permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        """获取渠道详情（含配置字段定义）"""
+        channel = get_object_or_404(ChannelPlugin, id=pk, is_deleted=False)
+
+        plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
+        schema = {
+            'required_fields': plugin.get_required_config_fields() if plugin else [],
+            'optional_fields': plugin.get_optional_config_fields() if plugin else [],
+            'current_config_keys': list(channel.config.keys()) if channel.config else [],
+        }
+
+        return Response({
+            'id': channel.id,
+            'channel_type': channel.channel_type,
+            'channel_name': channel.get_channel_type_display(),
+            'app_name': channel.app_name,
+            'connection_mode': channel.connection_mode,
+            'pairing_mode': channel.pairing_mode,
+            'is_active': channel.is_active,
+            'config_schema': schema,
+        })
 
     def patch(self, request, pk):
         channel = get_object_or_404(ChannelPlugin, id=pk, is_deleted=False)
@@ -900,3 +926,62 @@ def send_notification(user, channel, title, content, notification_type='system')
     )
 
     return success, msg
+
+
+class NotificationLogView(APIView):
+    """通知日志列表+导出"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        company_id = getattr(request, 'company_id', None)
+        if not company_id and not (request.user.is_superuser or request.user.is_staff):
+            return Response({'error': '无权访问'}, status=status.HTTP_403_FORBIDDEN)
+
+        notification_type = request.GET.get('notification_type', '')
+        status_filter = request.GET.get('status', '')
+        date_from = request.GET.get('date_from', '')
+        date_to = request.GET.get('date_to', '')
+
+        queryset = NotificationLog.objects.select_related('channel', 'user', 'binding').order_by('-created_at')
+
+        if company_id:
+            queryset = queryset.filter(channel__company_id=company_id)
+        if notification_type:
+            queryset = queryset.filter(notification_type=notification_type)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if date_from:
+            queryset = queryset.filter(created_at__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__lte=date_to)
+
+        # 分页
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 50))
+        start = (page - 1) * page_size
+        end = start + page_size
+
+        total = queryset.count()
+        logs = queryset[start:end]
+
+        data = []
+        for log in logs:
+            data.append({
+                'id': log.id,
+                'channel_type': log.channel.channel_type if log.channel else None,
+                'channel_name': log.channel.get_channel_type_display() if log.channel else None,
+                'username': log.user.username if log.user else None,
+                'title': log.title,
+                'notification_type': log.notification_type,
+                'status': log.status,
+                'error_message': log.error_message or '',
+                'sent_at': log.sent_at.isoformat() if log.sent_at else None,
+                'created_at': log.created_at.isoformat() if log.created_at else None,
+            })
+
+        return Response({
+            'total': total,
+            'page': page,
+            'page_size': page_size,
+            'logs': data,
+        })

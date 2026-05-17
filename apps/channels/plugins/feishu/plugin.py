@@ -205,7 +205,7 @@ class FeishuPlugin(BaseChannelPlugin):
                     {"tag": "div", "text": {"tag": "lark_md", "content": content}},
                     {"tag": "hr"},
                     {"tag": "note", "elements": [
-                        {"tag": "plain_text", "content": "工程管理系统 · 自动化通知"}
+                        {"tag": "plain_text", "content": "企业信息化管理系统 · 自动化通知"}
                     ]},
                 ]
             }

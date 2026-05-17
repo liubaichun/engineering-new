@@ -129,3 +129,10 @@ from apps.channels.plugins.feishu.plugin import FeishuPlugin
 from apps.channels.plugins.wecom.plugin import WecomPlugin
 from apps.channels.plugins.wechat.plugin import WechatPlugin
 from apps.channels.plugins.dingtalk.plugin import DingtalkPlugin
+from apps.channels.plugins.email.plugin import EmailPlugin
+
+ChannelRegistry.register(FeishuPlugin)
+ChannelRegistry.register(WecomPlugin)
+ChannelRegistry.register(WechatPlugin)
+ChannelRegistry.register(DingtalkPlugin)
+ChannelRegistry.register(EmailPlugin)

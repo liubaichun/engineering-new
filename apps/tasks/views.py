@@ -429,6 +429,14 @@ class ProjectViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(created_at__date=created_date)
         return queryset
 
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        try:
+            from apps.tasks.notification_service import notify_project_created
+            notify_project_created(instance, self.request.user)
+        except Exception:
+            pass
+
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         if instance.owner_id != request.user.id and not request.user.is_superuser:
@@ -483,6 +491,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
         project.approval_flow = flow
         project.approval_status = 'pending'
         project.save(update_fields=['approval_flow', 'approval_status'])
+
+        # 通知审批人（有新的项目立项审批）
+        try:
+            from apps.core.email_service import notify_approval_created
+            notify_approval_created(flow)
+        except Exception:
+            pass
 
         return Response({
             'message': '立项审批已提交',
@@ -606,6 +621,17 @@ class TaskViewSet(viewsets.ModelViewSet):
         if self.action == 'create':
             return TaskCreateSerializer
         return TaskSerializer
+
+    def perform_create(self, serializer):
+        instance = serializer.save()
+        # 发送任务创建通知
+        try:
+            from apps.tasks.notification_service import notify_task_created
+            notify_task_created(instance, created_by=self.request.user)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_created failed: {e}')
+        return instance
     
     def get_queryset(self):
         queryset = super().get_queryset()
@@ -645,6 +671,13 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
         task.status = 'in_progress'
         task.save()
+        # 发送任务开始通知
+        try:
+            from apps.tasks.notification_service import notify_task_started
+            notify_task_started(task, started_by=request.user)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_started failed: {e}')
         serializer = self.get_serializer(task)
         return Response(serializer.data)
     
@@ -660,6 +693,13 @@ class TaskViewSet(viewsets.ModelViewSet):
         task.status = 'completed'
         task.completed_at = timezone.now()
         task.save()
+        # 发送任务完成通知
+        try:
+            from apps.tasks.notification_service import notify_task_completed
+            notify_task_completed(task, completed_by=request.user)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_completed failed: {e}')
         serializer = self.get_serializer(task)
         return Response(serializer.data)
     

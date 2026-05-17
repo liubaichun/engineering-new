@@ -67,7 +67,7 @@ def send_feishu(webhook_url: str, secret: str, title: str, content: str) -> dict
                 {
                     "tag": "note",
                     "elements": [
-                        {"tag": "plain_text", "content": "工程管理系统 · 自动化通知"}
+                        {"tag": "plain_text", "content": "企业信息化管理系统 · 自动化通知"}
                     ]
                 }
             ]
@@ -88,7 +88,7 @@ def send_wecom(webhook_url: str, secret: str, title: str, content: str) -> dict:
     payload = {
         "msgtype": "markdown",
         "markdown": {
-            "content": f"**{title}**\n>{content}\n\n_工程管理系统通知_"
+            "content": f"**{title}**\n>{content}\n\n_企业信息化管理系统通知_"
         }
     }
     return _http_post(webhook_url, payload)
@@ -118,7 +118,7 @@ def send_dingtalk(webhook_url: str, secret: str, title: str, content: str) -> di
         "msgtype": "markdown",
         "markdown": {
             "title": title,
-            "text": f"### {title}\n\n{content}\n\n---\n> 工程管理系统"
+            "text": f"### {title}\n\n{content}\n\n---\n> 企业信息化管理系统"
         }
     }
     return _http_post(webhook_url, payload)
@@ -203,7 +203,7 @@ def test_connection(channel) -> dict:
     secret = channel.secret if hasattr(channel, 'secret') else channel.get('secret', '')
 
     test_title = "🔔 连通性测试"
-    test_content = "这是一条来自**工程管理系统**的连通性测试消息。如果你能看到此消息，说明通知渠道配置正确。"
+    test_content = "这是一条来自**企业信息化管理系统**的连通性测试消息。如果你能看到此消息，说明通知渠道配置正确。"
 
     try:
         result = send_notification(channel_type, webhook_url, secret, test_title, test_content)

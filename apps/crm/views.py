@@ -161,7 +161,12 @@ class ContractViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         if self.request.user.is_authenticated:
-            serializer.save(created_by=self.request.user)
+            instance = serializer.save(created_by=self.request.user)
+            try:
+                from apps.tasks.notification_service import notify_contract_created
+                notify_contract_created(instance)
+            except Exception:
+                pass
         else:
             serializer.save()
 
@@ -191,6 +196,11 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response({'detail': f'当前状态不允许驳回（当前状态：{contract.status}）'}, status=400)
         contract.status = 'terminated'
         contract.save()
+        try:
+            from apps.tasks.notification_service import notify_contract_rejected
+            notify_contract_rejected(contract)
+        except Exception:
+            pass
         return Response({'detail': '已驳回', 'comment': comment, 'status': contract.status})
 
     @action(detail=True, methods=['post'])
@@ -201,6 +211,11 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response({'detail': '只有草稿状态可以生效'}, status=400)
         contract.status = 'active'
         contract.save()
+        try:
+            from apps.tasks.notification_service import notify_contract_approved
+            notify_contract_approved(contract)
+        except Exception:
+            pass
         return Response({'detail': '合同已生效', 'status': contract.status})
 
     @action(detail=True, methods=['post'])

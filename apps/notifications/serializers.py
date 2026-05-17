@@ -68,8 +68,9 @@ class NotifyBindingSerializer(serializers.ModelSerializer):
             'platform_open_id', 'is_active', 'receive_all',
             'bound_at', 'updated_at',
         ]
-        read_only_fields = ['id', 'bound_at', 'updated_at']
+        read_only_fields = ['id', 'user', 'bound_at', 'updated_at']
 
     def create(self, validated_data):
+        # user 字段是 read_only，但通过 save(user=...) 传入
         validated_data['user'] = self.context['request'].user
         return super().create(validated_data)

@@ -32,4 +32,7 @@ urlpatterns = [
 
     # 发送通知
     path('notify/', views.SendNotificationView.as_view(), name='notify'),
+
+    # 通知日志
+    path('logs/', views.NotificationLogView.as_view(), name='notification-logs'),
 ]

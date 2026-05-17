@@ -105,6 +105,11 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             # 更新设备状态
             equipment.status = 'in_use'
             equipment.save()
+            try:
+                from apps.tasks.notification_service import notify_equipment_action
+                notify_equipment_action(equipment, 'borrow', request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
@@ -118,6 +123,11 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             # 更新设备状态为闲置
             equipment.status = 'idle'
             equipment.save()
+            try:
+                from apps.tasks.notification_service import notify_equipment_action
+                notify_equipment_action(equipment, 'return', request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
@@ -155,6 +165,11 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             # 更新设备状态为维修中
             equipment.status = 'repair'
             equipment.save()
+            try:
+                from apps.tasks.notification_service import notify_equipment_action
+                notify_equipment_action(equipment, 'repair', request.user)
+            except Exception:
+                pass
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 

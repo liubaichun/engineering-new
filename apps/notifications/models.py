@@ -146,7 +146,8 @@ class NotifyBinding(models.Model):
         NotifyApp,
         on_delete=models.CASCADE,
         related_name='bindings',
-        verbose_name='通知应用'
+        verbose_name='通知应用',
+        null=True, blank=True,
     )
     channel = models.ForeignKey(
         NotificationChannel,
@@ -218,6 +219,10 @@ class NotificationLog(models.Model):
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default='pending', verbose_name='发送状态'
     )
+    priority = models.CharField(
+        max_length=10, default='normal', verbose_name='优先级',
+        help_text='low / normal / important / critical'
+    )
     error_message = models.TextField(blank=True, verbose_name='错误信息')
     sent_at = models.DateTimeField(null=True, blank=True, verbose_name='发送时间')
     created_at = models.DateTimeField(auto_now_add=True)
@@ -232,3 +237,66 @@ class NotificationLog(models.Model):
 
     def __str__(self):
         return f"{self.title} ({self.get_status_display()})"
+
+
+class NotificationRouter(models.Model):
+    """通知路由规则：定义某类事件默认走哪个外部渠道发给哪些人"""
+
+    PRIORITY_CHOICES = [
+        ('low', '低'),
+        ('normal', '普通'),
+        ('important', '重要'),
+        ('critical', '紧急'),
+    ]
+    RECIPIENT_SCOPE_CHOICES = [
+        ('owner', '负责人'),
+        ('requester', '申请人'),
+        ('all', '全部相关人'),
+        ('custom', '自定义用户'),
+    ]
+
+    event_type = models.CharField(max_length=50, db_index=True, help_text='事件类型，如 task_created')
+    priority = models.CharField(max_length=10, default='normal', choices=PRIORITY_CHOICES)
+    channel_type = models.CharField(max_length=20, db_index=True, help_text='feishu/wecom/dingtalk/email')
+    recipient_scope = models.CharField(max_length=20, default='owner', choices=RECIPIENT_SCOPE_CHOICES)
+    custom_user_ids = models.TextField(blank=True, default='', help_text='custom时用户ID列表，逗号分隔')
+    company_id = models.BigIntegerField(null=True, blank=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    remarks = models.TextField(blank=True, default='')
+
+    class Meta:
+        db_table = 'notification_router'
+        ordering = ['event_type', 'priority', 'channel_type']
+        verbose_name = '通知路由'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f'{self.event_type} → {self.channel_type}({self.recipient_scope})'
+
+
+class UserNotificationPreference(models.Model):
+    """用户通知偏好：控制某用户对某类事件是否接收、从哪个渠道接收"""
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='notification_preferences',
+    )
+    event_type = models.CharField(max_length=50, db_index=True)
+    is_enabled = models.BooleanField(default=True, verbose_name='是否启用')
+    # null = 跟随路由表；非空 = 只用这些渠道
+    allowed_channels = models.JSONField(default=list, blank=True, verbose_name='允许的渠道列表')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'user_notification_preference'
+        unique_together = [['user', 'event_type']]
+        verbose_name = '用户通知偏好'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        state = '启用' if self.is_enabled else '禁用'
+        return f'{self.user.username} / {self.event_type} / {state}'

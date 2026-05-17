@@ -69,6 +69,14 @@ class FlowEngine:
             company_id=self.task.company_id,
         )
 
+        # 通知第一个阶段的处理人
+        try:
+            from apps.tasks.notification_service import notify_flow_started
+            notify_flow_started(self.task, stage_instance, started_by)
+        except Exception as e:
+            import logging
+            logging.getLogger(__name__).warning(f'[FlowEngine] notify_flow_started failed: {e}')
+
         return instance
 
     def _resolve_assignee(self, node):
@@ -159,6 +167,14 @@ class FlowEngine:
                 company_id=self.task.company_id,
             )
 
+            # 通知下一阶段处理人
+            try:
+                from apps.tasks.notification_service import notify_stage_completed
+                notify_stage_completed(self.task, current, next_instance, action, actor)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f'[FlowEngine] notify_stage_completed failed: {e}')
+
             return {
                 'success': True,
                 'message': f'已流转到: {next_node.name}',
@@ -173,6 +189,14 @@ class FlowEngine:
                 self.instance.current_node = None
                 self.instance.completed_at = timezone.now()
                 self.instance.save()
+
+            # 通知流程完成
+            try:
+                from apps.tasks.notification_service import notify_flow_completed
+                notify_flow_completed(self.task, actor)
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).warning(f'[FlowEngine] notify_flow_completed failed: {e}')
 
             return {
                 'success': True,

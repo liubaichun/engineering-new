@@ -47,7 +47,7 @@ def already_notified(user, n_type, related_id, hours=24):
 
 
 def notify(user, title, content, n_type, level='warning', related_id=None, related_type=''):
-    """发送通知（带去重）"""
+    """发送通知：写入数据库 + 外部渠道同步推送"""
     if related_id and already_notified(user, n_type, related_id, hours=24):
         return
     Notification.objects.create(
@@ -60,6 +60,15 @@ def notify(user, title, content, n_type, level='warning', related_id=None, relat
         related_type=related_type,
     )
     logger.info(f'[通知] {user.username} <- {title}')
+
+    # 同步发外部渠道（飞书/企微等），静默失败不影响主流程
+    try:
+        from apps.core.email_service import notify_user as ext_notify
+        content_lines = [content] if isinstance(content, str) else content
+        priority = 'important' if level in ('critical', 'error') else 'normal'
+        ext_notify(user, title, content_lines, priority=priority)
+    except Exception as e:
+        logger.warning(f'[notify] 外部渠道通知失败 for {user.username}: {e}')
 
 
 class Command(BaseCommand):
