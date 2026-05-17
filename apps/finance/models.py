@@ -304,8 +304,7 @@ class Expense(models.Model):
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     source = models.CharField(verbose_name='来源', max_length=200, blank=True, default='')
     expense_type = models.CharField(
-        verbose_name='支出类型', max_length=20,
-        choices=EXPENSE_TYPE_CHOICES, default='other'
+        verbose_name='支出类型', max_length=50, blank=True, default=''
     )
     expense_date = models.DateField(verbose_name='日期', help_text='支出日期', default=date.today)
     date = models.DateField(verbose_name='日期', help_text='兼容性别名', blank=True, null=True)

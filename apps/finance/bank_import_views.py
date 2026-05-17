@@ -1008,16 +1008,15 @@ def confirm_bank_import(request):
             # ── 档案匹配：导入时不做，由后置步骤从收支记录中提取创建 ─────────────
     
             # ── 原子事务：每行独立事务，互不污染 ─────────────────────────
-            # Income/Expense 的 customer/supplier：1:1 还原银行流水原始对手方，不做替换
-            # BankStatement 的 counterparty_name：排除词命中时写空（见下方 BankStatement 创建逻辑）
-            # Client/Supplier 档案：仍有排除词过滤，不符合条件的不建档
-            写进流水的主营对手方 = cp_name if cp_name else '未知对手方'
+            # 1:1 还原银行流水原始对手方，不做任何替换或转换
+            # cp_name 为空就写空，不写"未知对手方"
+            写进流水的主营对手方 = cp_name
             inc_obj, exp_obj, bs = None, None, None
             try:
                 with transaction.atomic():
                     if direction == 'income':
                         inc = Income.objects.create(
-                            company=company, customer=写进流水的主营对手方, source='网银',
+                            company=company, customer=写进流水的主营对手方, source=tx_type or '网银',
                             amount=amount, date=tx_date, description=summary,
                             transaction_time=tx_time,
                             balance=Decimal(row['balance']) if row.get('balance') else None,
@@ -1030,9 +1029,9 @@ def confirm_bank_import(request):
                     else:
                         exp = Expense.objects.create(
                             company=company, supplier=写进流水的主营对手方,
-                            expense_type='other', expense_category=tx_type,
+                            expense_type=tx_type or '转账', expense_category='',
                             amount=amount, expense_date=tx_date, description=summary,
-                            note=f"流水号:{serial}" if serial else '',
+                            note=serial or '',
                             transaction_time=tx_time,
                             balance=Decimal(row['balance']) if row.get('balance') else None,
                             counterparty_account=cp_account, counterparty_bank=cp_bank,
