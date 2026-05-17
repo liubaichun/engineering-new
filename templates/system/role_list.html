@@ -184,7 +184,7 @@ function renderRoleList() {
         html += '<a href="#" class="list-group-item list-group-item-action ' + (isActive ? 'active' : '') + '" '
               + 'onclick="showRoleDetail(' + role.id + '); return false;">'
               + '<i class="bi bi-shield me-2"></i>' + escapeHtml(role.name)
-              + '<small class="text-muted ms-2">' + escapeHtml(role.code) + '</small>'
+              + '<small class="text-muted ms-2" style="font-size:0.7rem;">' + escapeHtml(role.code) + '</small>'
               + '</a>';
     });
     container.innerHTML = html;

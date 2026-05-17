@@ -23,7 +23,7 @@ def post_fork(server, worker):
 def worker_abort(worker):
     print(f'Worker {worker.pid} abort (memory/exit)', file=__import__('sys').stderr)
 
-bind = '127.0.0.1:8001'
+bind = '0.0.0.0:8001'
 daemon = False
 preload_app = True
 

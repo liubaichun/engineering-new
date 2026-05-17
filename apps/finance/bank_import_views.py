@@ -710,16 +710,30 @@ def preview_bank_statement(request):
                          f'但当前选的公司是 [{company.name}]，请重新选择公司或账户'
             }, status=400)
 
-        # 校验2：账户银行类型 ≠ 文件实际格式（用 detect_with_adapter 识别文件格式）
+        # 校验2：账户银行类型 ≠ 文件实际格式（支持 xlsx 和 xls）
         detected_bank = None
-        for cls in ALL_ADAPTERS:
-            try:
-                if cls().detect(XlrdSheetWrapper(xlrd.open_workbook(file_contents=content).sheet_by_index(0))):
+        import io
+        try:
+            # 先尝试 openpyxl（xlsx 格式）
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+            ws = wb.active
+            for cls in ALL_ADAPTERS:
+                if cls().detect(ws):
                     detected_bank = cls.bank_code
                     break
+        except Exception:
+            try:
+                # 降级到 xlrd（xls 格式）
+                xlrd_wb = xlrd.open_workbook(file_contents=content)
+                xlrd_ws = XlrdSheetWrapper(xlrd_wb.sheet_by_index(0))
+                for cls in ALL_ADAPTERS:
+                    if cls().detect(xlrd_ws):
+                        detected_bank = cls.bank_code
+                        break
             except Exception:
                 pass
-        if detected_bank and detected_bank != bank_account.bank_code:
+        if detected_bank and detected_bank != bank_account.bank_code and detected_bank != ('PINGAN' if bank_account.bank_code == 'PA' else bank_account.bank_code):
             bank_display_map = {
                 'CMB': '招商银行', 'ICBC': '工商银行', 'CCB': '建设银行',
                 'BOC': '中国银行', 'ABC': '农业银行', 'COMM': '交通银行',
@@ -735,7 +749,14 @@ def preview_bank_statement(request):
     # 场景1：选了已有账户 → expect_bank_code = 账户银行类型
     # 场景2：新建账户+明确选银行 → bank_code = 用户所选银行
     # 两种情况都用 detect_with_adapter() 校验文件格式，不匹配则拒绝预览
-    validate_bank_code = expect_bank_code or (bank_code if bank_code not in ('', 'OTHER') else '')
+    # ── 银行格式校验 ─────────────────────────────────────────────────
+    # bank_account_id 传入时，validate_bank_code 必须取自账户银行类型（防止前端传空）
+    _account_bank_code = ''
+    if bank_account_id_raw is not None and str(bank_account_id_raw).isdigit() and bank_account:
+        _account_bank_code = bank_account.bank_code
+
+    validate_bank_code = expect_bank_code or _account_bank_code or (bank_code if bank_code not in ('', 'OTHER') else '')
+
     if validate_bank_code:
         matched = detect_with_adapter(content, validate_bank_code)
         if not matched:
@@ -747,11 +768,22 @@ def preview_bank_statement(request):
             expected_name = bank_display_map.get(validate_bank_code, validate_bank_code)
             # 自动识别实际格式，给用户明确提示
             detected_bank = None
-            for cls in ALL_ADAPTERS:
-                try:
-                    if cls().detect(XlrdSheetWrapper(xlrd.open_workbook(file_contents=content).sheet_by_index(0))):
+            try:
+                import openpyxl
+                wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+                ws = wb.active
+                for cls in ALL_ADAPTERS:
+                    if cls().detect(ws):
                         detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
                         break
+            except Exception:
+                try:
+                    xlrd_wb = xlrd.open_workbook(file_contents=content)
+                    xlrd_ws = XlrdSheetWrapper(xlrd_wb.sheet_by_index(0))
+                    for cls in ALL_ADAPTERS:
+                        if cls().detect(xlrd_ws):
+                            detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
+                            break
                 except Exception:
                     pass
             if detected_bank:
@@ -964,33 +996,22 @@ def confirm_bank_import(request):
     
             # ── 去重（平安银行：无交易时间，靠 日期+金额+余额+对方账户 4条件判断重复） ──
             dedup = f"{tx_date}_{amount}_{bal}_{cp_account}"
-            if BankStatement.objects.filter(company=company, bank_serial=dedup).exists():
+            if BankStatement.objects.filter(
+                company=company, transaction_date=tx_date, amount=amount,
+                balance=bal, counterparty_account=cp_account
+            ).exists():
                 with open(LOG_PATH, 'a') as _lf:
                     _lf.write(f"  >> SKIP dedup: serial={serial!r} dedup={dedup!r}\n")
                 skipped += 1
                 continue
     
-            # ── 档案匹配（排除词命中则不建档，档案名为空）────────────────────
-            档案名 = ''
-            if cp_name and not _is_excluded_counterparty(cp_name):
-                c = Client.objects.filter(name=cp_name).first()
-                if c:
-                    档案名 = c.name
-                else:
-                    s = Supplier.objects.filter(name=cp_name).first()
-                    if s:
-                        档案名 = s.name
-                    else:
-                        cp_type = 'income' if direction == 'income' else 'expense'
-                        档案对象 = _upsert_counterparty(
-                            company, cp_name, cp_account, cp_bank, cp_type, direction)
-                        if 档案对象:
-                            档案名 = 档案对象.name
+            # ── 档案匹配：导入时不做，由后置步骤从收支记录中提取创建 ─────────────
     
             # ── 原子事务：每行独立事务，互不污染 ─────────────────────────
-            # 排除词命中的对手方不进 Finance 表（customer/supplier/counterparty_name 为空）
-            # BankStatement 原始对手方仍记录在 counterparty_account / counterparty_bank 中
-            写进流水的主营对手方 = 档案名 or '未知对手方'
+            # Income/Expense 的 customer/supplier：1:1 还原银行流水原始对手方，不做替换
+            # BankStatement 的 counterparty_name：排除词命中时写空（见下方 BankStatement 创建逻辑）
+            # Client/Supplier 档案：仍有排除词过滤，不符合条件的不建档
+            写进流水的主营对手方 = cp_name if cp_name else '未知对手方'
             inc_obj, exp_obj, bs = None, None, None
             try:
                 with transaction.atomic():
@@ -1021,14 +1042,15 @@ def confirm_bank_import(request):
                         expense_sum += amount
                         exp_obj = exp
     
-                    # BankStatement 对手方名称：排除词命中时写空，不写原始cp_name
+                    # BankStatement.counterparty_name：直接用原始对手方，1:1还原
+                    bs_cp_name = cp_name
                     bs = BankStatement.objects.create(
                         company=company, bank_account=bank_account,
-                        bank_serial=dedup, transaction_date=tx_date,
+                        bank_serial=serial, transaction_date=tx_date,
                         transaction_time=tx_time, direction=direction,
                         amount=amount,
                         balance=Decimal(row['balance']) if row.get('balance') else None,
-                        counterparty_name=档案名, counterparty_account=cp_account,
+                        counterparty_name=bs_cp_name, counterparty_account=cp_account,
                         counterparty_bank=cp_bank, summary=summary,
                         import_batch=batch_id, transaction_type=tx_type,
                         matched_income=inc_obj, matched_expense=exp_obj,

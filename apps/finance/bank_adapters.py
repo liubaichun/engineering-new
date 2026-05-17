@@ -220,6 +220,14 @@ class CMBAdapter(BankStatementAdapter):
                         return val
             return None
 
+        # 提前提取文件中的账号（第1列"账号"），用于与账户归属校验
+        file_account_no = ''
+        for r in range(header_row + 1, min(header_row + 10, ws.max_row + 1)):
+            acc = str(get_col(r, '账号') or '').strip()
+            if acc:
+                file_account_no = acc
+                break
+
         records = []
         for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
@@ -249,6 +257,7 @@ class CMBAdapter(BankStatementAdapter):
                     counterparty_bank=str(get_col(row_idx, '收(付)方开户行名') or '').strip(),
                     summary=str(get_col(row_idx, '摘要') or '').strip(),
                     transaction_type=str(get_col(row_idx, '交易类型') or '').strip(),
+                    account_no=file_account_no,
                 ))
             except Exception:
                 continue
@@ -812,7 +821,23 @@ def detect_and_parse(file_content):
     for adapter_cls in ALL_ADAPTERS:
         adapter = adapter_cls()
         if adapter.detect(ws):
-            return adapter_cls.bank_code, adapter.parse(ws)
+            txns = adapter.parse(ws)
+            # 统一补 account_no：若所有 txn.account_no 为空，尝试从第1列账号提取
+            if txns and all(not t.account_no for t in txns):
+                import re as _re
+                _acc = ''
+                for r in range(1, min(ws.max_row + 1, 50)):
+                    for c in range(1, ws.max_column + 1):
+                        v = str(ws.cell(r, c).value or '').strip()
+                        if _re.fullmatch(r'\d{6,20}', v):
+                            _acc = v
+                            break
+                    if _acc:
+                        break
+                if _acc:
+                    for t in txns:
+                        t.account_no = _acc
+            return adapter_cls.bank_code, txns
 
     raise ValueError("无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行、平安银行")
 

@@ -7,6 +7,11 @@ from rest_framework.pagination import PageNumberPagination
 
 class SafePageNumberPagination(PageNumberPagination):
     """解决 get_next_link() build_absolute_uri DisallowedHost 问题"""
+    page_size = 20
+    page_query_param = 'page'
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+
     def get_next_link(self):
         try:
             return super().get_next_link()
@@ -18,6 +23,31 @@ class SafePageNumberPagination(PageNumberPagination):
             return super().get_previous_link()
         except Exception:
             return None
+
+    def get_paginated_response(self, data):
+        return Response({
+            'count': self.page.paginator.count,
+            'total_pages': self.page.paginator.num_pages,
+            'page_size': self.get_page_size(self.request),
+            'current_page': self.page.number,
+            'next': self.get_next_link(),
+            'previous': self.get_previous_link(),
+            'results': data
+        })
+
+    def get_paginated_response_schema(self, schema):
+        return {
+            'type': 'object',
+            'properties': {
+                'count': {'type': 'integer'},
+                'total_pages': {'type': 'integer'},
+                'page_size': {'type': 'integer'},
+                'current_page': {'type': 'integer'},
+                'next': {'type': 'string', 'nullable': True, 'format': 'uri'},
+                'previous': {'type': 'string', 'nullable': True, 'format': 'uri'},
+                'results': schema,
+            },
+        }
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 from django.shortcuts import render
@@ -200,6 +230,7 @@ class IncomeViewSet(viewsets.ModelViewSet):
     """收入视图集"""
     queryset = Income.objects.all()
     serializer_class = IncomeSerializer
+    pagination_class = SafePageNumberPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = IncomeFilter
     search_fields = ['description', 'customer', 'source']
@@ -397,6 +428,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     """支出视图集"""
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
+    pagination_class = SafePageNumberPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ExpenseFilter
     search_fields = ['description', 'supplier', 'expense_category']
