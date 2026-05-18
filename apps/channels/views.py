@@ -962,6 +962,7 @@ class NotificationLogView(APIView):
             return Response({'error': '无权访问'}, status=status.HTTP_403_FORBIDDEN)
 
         notification_type = request.GET.get('notification_type', '')
+        channel_type = request.GET.get('channel_type', '')
         status_filter = request.GET.get('status', '')
         date_from = request.GET.get('date_from', '')
         date_to = request.GET.get('date_to', '')
@@ -972,12 +973,22 @@ class NotificationLogView(APIView):
             queryset = queryset.filter(channel__company_id=company_id)
         if notification_type:
             queryset = queryset.filter(notification_type=notification_type)
+        if channel_type:
+            queryset = queryset.filter(channel__channel_type=channel_type)
         if status_filter:
             queryset = queryset.filter(status=status_filter)
         if date_from:
             queryset = queryset.filter(created_at__gte=date_from)
         if date_to:
             queryset = queryset.filter(created_at__lte=date_to)
+
+        # 统计
+        total_qs = NotificationLog.objects.filter(channel__company_id=company_id) if company_id else NotificationLog.objects.all()
+        stats = {
+            'sent': total_qs.filter(status='sent').count(),
+            'failed': total_qs.filter(status='failed').count(),
+            'pending': total_qs.filter(status='pending').count(),
+        }
 
         # 分页
         page = int(request.GET.get('page', 1))
@@ -1008,4 +1019,5 @@ class NotificationLogView(APIView):
             'page': page,
             'page_size': page_size,
             'logs': data,
+            'stats': stats,
         })

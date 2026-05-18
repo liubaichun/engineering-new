@@ -148,8 +148,8 @@ async function loadLogs(page = 1) {
         const resp = await fetch('/api/channels/logs/?' + params.toString(), { credentials: 'include' });
         if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">加载失败 (' + resp.status + ')</td></tr>'; return; }
         const result = await resp.json();
-        const logs = result.results || result || [];
-        const total = result.count || logs.length;
+        const logs = result.results || result.logs || [];
+        const total = result.count || result.total || logs.length || 0;
 
         // 更新统计
         document.getElementById('stat-total').textContent = total;

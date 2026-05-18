@@ -24,6 +24,15 @@
                     <span class="badge bg-primary">{{ request.user.is_staff|yesno:"管理员,普通用户" }}</span>
                 </div>
             </div>
+
+            <div class="card mt-3">
+                <div class="card-body">
+                    <a href="/system/notification-preferences/" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-sliders me-2"></i>通知偏好设置
+                    </a>
+                    <p class="text-muted mb-0 mt-2" style="font-size:0.8rem;">控制您接收哪些事件的通知，以及通过哪些渠道接收</p>
+                </div>
+            </div>
         </div>
         
         <div class="col-md-8">
@@ -54,7 +63,9 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 function updatePassword(e) {
     e.preventDefault();
