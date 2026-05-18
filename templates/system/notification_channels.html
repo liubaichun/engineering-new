@@ -202,7 +202,7 @@ async function loadChannels() {
     const tbody = document.getElementById('channelTableBody');
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>';
     try {
-        const resp = await fetch('/api/notifications/channels/', { credentials: 'include' });
+        const resp = await fetch('/api/channels/', { credentials: 'include' });
         if (!resp.ok) throw new Error('加载失败 (' + resp.status + ')');
         let raw = await resp.json();
         channelList = Array.isArray(raw) ? raw : (raw.results || []);
@@ -212,10 +212,10 @@ async function loadChannels() {
         }
         tbody.innerHTML = channelList.map(c => `
             <tr>
-                <td><strong>${escapeHtml(c.name || '-')}</strong></td>
-                <td><span class="badge bg-secondary">${c.channel_type_display || c.channel_type}</span></td>
-                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.webhook_url || '')}">${escapeHtml(c.webhook_url || '-')}</td>
-                <td><span class="badge ${c.status === 'active' ? 'bg-success' : 'bg-secondary'}">${c.status === 'active' ? '启用' : '停用'}</span></td>
+                <td><strong>${escapeHtml(c.app_name || c.channel_name || '-')}</strong></td>
+                <td><span class="badge bg-secondary">${c.channel_name || c.channel_type}</span></td>
+                <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHtml(c.config?.webhook_url || '')}">${escapeHtml(c.config?.webhook_url || '-')}</td>
+                <td><span class="badge ${c.is_active ? 'bg-success' : 'bg-secondary'}">${c.is_active ? '启用' : '停用'}</span></td>
                 <td>${c.created_at ? new Date(c.created_at).toLocaleDateString('zh-CN') : '-'}</td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="testChannel(${c.id})" title="测试"><i class="bi bi-lightning-charge"></i></button>
@@ -242,17 +242,17 @@ function showAddChannelModal() {
 
 async function editChannel(id) {
     try {
-        const resp = await fetch('/api/notifications/channels/' + id + '/', { credentials: 'include' });
+        const resp = await fetch('/api/channels/' + id + '/', { credentials: 'include' });
         if (!resp.ok) { showToast('获取渠道信息失败', 'danger'); return; }
         const c = await resp.json();
         document.getElementById('channelModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑通知渠道';
         document.getElementById('channelId').value = c.id;
-        document.getElementById('channelName').value = c.name || '';
+        document.getElementById('channelName').value = c.app_name || c.channel_name || '';
         document.getElementById('channelType').value = c.channel_type || 'feishu';
-        document.getElementById('webhookUrl').value = c.webhook_url || '';
-        document.getElementById('channelSecret').value = c.secret || '';
-        document.getElementById('channelStatus').value = c.status || 'active';
-        document.getElementById('channelRemark').value = c.remark || '';
+        document.getElementById('webhookUrl').value = c.config?.webhook_url || '';
+        document.getElementById('channelSecret').value = c.config?.webhook_secret || '';
+        document.getElementById('channelStatus').value = c.is_active ? 'active' : 'inactive';
+        document.getElementById('channelRemark').value = '';
         channelModal.show();
     } catch(e) { showToast('获取渠道信息失败：' + e.message, 'danger'); }
 }
@@ -265,14 +265,24 @@ async function saveChannel() {
     const secret = document.getElementById('channelSecret').value.trim();
     const status = document.getElementById('channelStatus').value;
     const remark = document.getElementById('channelRemark').value.trim();
-    if (!name || !webhook_url) { showToast('请填写必填项', 'warning'); return; }
+    if (!name) { showToast('请填写渠道名称', 'warning'); return; }
     const method = id ? 'PUT' : 'POST';
-    const url = id ? '/api/notifications/channels/' + id + '/' : '/api/notifications/channels/';
+    const payload = {
+        app_name: name,
+        channel_type: channel_type,
+        is_active: status === 'active',
+        config: {
+            webhook_url: webhook_url,
+            webhook_secret: secret,
+        }
+    };
+    const url = id ? '/api/channels/' + id + '/' : '/api/channels/';
     try {
         const resp = await fetch(url, {
-            method, credentials: 'include',
+            method,
+            credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify({ name, channel_type, webhook_url, secret, status, remark })
+            body: JSON.stringify(payload)
         });
         if (!resp.ok) { const d = await resp.json(); showToast(d.detail || '保存失败', 'danger'); return; }
         channelModal.hide();
@@ -300,12 +310,12 @@ async function testChannel(id) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     try {
-        const resp = await fetch('/api/notifications/channels/' + id + '/test_connection/', {
+        const resp = await fetch('/api/channels/' + id + '/send-test/', {
             method: 'POST', credentials: 'include',
             headers: { 'X-CSRFToken': getCsrfToken() }
         });
         const d = await resp.json();
-        showToast(d.status === 'ok' ? '✅ ' + d.message : '❌ ' + d.message, d.status === 'ok' ? 'success' : 'danger');
+        showToast(d.status === 'ok' || d.sent ? '✅ 发送成功' : '❌ ' + (d.message || d.error || '发送失败'), (d.sent || d.status === 'ok') ? 'success' : 'danger');
     } catch(e) {
         showToast('❌ 测试失败：' + e.message, 'danger');
     } finally {
@@ -320,7 +330,7 @@ async function loadBindings() {
     const tbody = document.getElementById('bindingTableBody');
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>';
     try {
-        const resp = await fetch('/api/notifications/bindings/', { credentials: 'include' });
+        const resp = await fetch('/api/channels/bindings/', { credentials: 'include' });
         if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">加载失败</td></tr>'; return; }
         const data = await resp.json();
         const bindings = data.results || data || [];
@@ -396,13 +406,13 @@ async function testBinding(id) {
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
     try {
-        const resp = await fetch('/api/notifications/bindings/test/', {
+        const resp = await fetch('/api/channels/bindings/', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ binding_id: id })
         });
         const d = await resp.json();
-        showToast(d.status === 'ok' ? '✅ ' + d.message : '❌ ' + d.message, d.status === 'ok' ? 'success' : 'danger');
+        showToast(d.status === 'ok' || d.sent ? '✅ 发送成功' : '❌ ' + (d.message || d.error || '发送失败'), (d.sent || d.status === 'ok') ? 'success' : 'danger');
     } catch(e) {
         showToast('❌ 测试失败：' + e.message, 'danger');
     } finally {
