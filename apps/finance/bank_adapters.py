@@ -95,10 +95,11 @@ class ICBCAdapter(BankStatementAdapter):
     """
     格式：
     Row 1 (A1): [HISTORYDETAIL]
-    Row 2 (A2): 凭证号|B|交易时间|C|借贷标志|D|对方单位|E|对方行号|F|用途|G|摘要|H|附言|I|个性化信息|J|余额|K
-    Row 3+: 数据
-    列A=凭证号, B=对方账号, C=交易时间, D=借贷标志, E=对方单位, F=对方行号,
-          G=用途, H=摘要, I=附言, J=个性化信息, K=余额
+    Row 2: 表头行
+    Row 3+: 数据行
+    表头列名：凭证号、交易时间、借贷标志、对方单位、对方账号、对方行号、用途、摘要、附言、个性化信息、余额
+    借贷标志：贷=收入，借=支出
+    余额列存在时直接使用，不依赖余额变化推导金额
     """
     bank_code = 'ICBC'
     bank_name = '工商银行'
@@ -110,59 +111,77 @@ class ICBCAdapter(BankStatementAdapter):
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
+        # 动态查找表头行
+        header_row = None
+        for r in range(1, min(10, ws.max_row + 1)):
+            row_vals = [str(ws.cell(r, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+            if any('借贷' in v or '借/贷' in v for v in row_vals):
+                header_row = r
+                break
+        if header_row is None:
+            return []
+
+        headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
+        col_idx = {h: c for c, h in enumerate(headers, start=1)}
+
+        def get_col(row, *names):
+            for name in names:
+                c = col_idx.get(name)
+                if c:
+                    val = ws.cell(row, c).value
+                    if val is not None:
+                        return val
+                # 模糊匹配
+                for h, ci in col_idx.items():
+                    if name in h:
+                        v = ws.cell(row, ci).value
+                        if v is not None:
+                            return v
+            return None
+
+        # 直接读文件已有字段，1:1记录，不推算
         records = []
-        prev_balance = None
-
-        for row_idx in range(3, ws.max_row + 1):
+        for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
-                col = lambda c: ws.cell(row_idx, c).value
-
-                direction_flag = str(col(4) or '').strip()  # D列
-                balance_raw = col(11)  # K列
-                balance = self._decimal(balance_raw)
-
-                # 借贷方向
+                direction_flag = str(get_col(row_idx, '借贷标志', '借贷', '借/贷') or '').strip()
+                # 借贷标志直接决定方向，不推算
                 if direction_flag == '贷':
                     direction = 'income'
                 elif direction_flag == '借':
                     direction = 'expense'
                 else:
-                    direction = 'expense'
+                    continue  # 无借贷标志的行跳过
 
-                # 金额：从余额变化推导
-                amount = None
-                if balance is not None and prev_balance is not None:
-                    diff = prev_balance - balance
-                    if diff > 0:
-                        amount, direction = diff, 'expense'
-                    elif diff < 0:
-                        amount, direction = -diff, 'income'
+                txn_date = self._parse_date(get_col(row_idx, '交易时间', '交易日期', '记账日期', '日期'))
+                if not txn_date:
+                    continue
 
-                txn_datetime = col(3)  # C列 交易时间
-                txn_date = self._parse_date(txn_datetime)
-                txn_time = self._parse_time(txn_datetime)
+                # 金额：直接读金额列（如果文件有的话），没有金额列则跳过
+                amount_raw = get_col(row_idx, '金额', '交易金额', '发生额')
+                amount = self._decimal(amount_raw) if amount_raw else None
+
+                # 余额：直接读余额列
+                balance_raw = get_col(row_idx, '余额', '账户余额', '可用余额')
+                balance = self._decimal(balance_raw) if balance_raw else None
 
                 records.append(ParsedTransaction(
-                    transaction_date=txn_date or datetime.date.today(),
-                    transaction_time=txn_time,
-                    amount=amount or Decimal('0'),
+                    transaction_date=txn_date,
+                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                    amount=amount,
                     direction=direction,
                     balance=balance,
-                    counterparty_name=str(col(5) or '').strip(),  # E列
-                    counterparty_account=str(col(2) or '').strip(),  # B列
-                    counterparty_bank=str(col(6) or '').strip(),  # F列
-                    summary=str(col(8) or '').strip() or str(col(9) or '').strip(),  # H/I列
-                    bank_serial='',
+                    counterparty_name=str(get_col(row_idx, '对方单位', '对方名称', '对方户名', '收(付)方名称') or '').strip(),
+                    counterparty_account=str(get_col(row_idx, '对方账号', '对方账户', '账号') or '').strip(),
+                    counterparty_bank=str(get_col(row_idx, '对方行号', '对方银行', '开户行') or '').strip(),
+                    summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
+                    bank_serial=str(get_col(row_idx, '凭证号', '流水号', '交易流水') or '').strip(),
+                    # ICBC HISTORYDETAIL 文件无本公司账号列，account_no 留空
+                    account_no='',
                 ))
-
-                if balance is not None:
-                    prev_balance = balance
-
             except Exception:
                 continue
 
         return records
-
 
 # ─── 招商银行 ACCOUNT v2.0 ──────────────────────────────────────────────
 class CMBAdapter(BankStatementAdapter):
