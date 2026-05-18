@@ -626,21 +626,8 @@
 
         <!-- 分组10：通知（所有登录用户可见） -->
         <div class="sidebar-section">
-            <div class="sidebar-section-title">通知</div>
             <a href="/notifications/" class="nav-link {% if '/notifications' in request.path %}active{% endif %}">
                 <i class="bi bi-inbox"></i><span>我的通知</span>
-            </a>
-            <a href="/system/notification-channels/" class="nav-link {% if '/notification-channels' in request.path %}active{% endif %}">
-                <i class="bi bi-broadcast"></i><span>渠道配置</span>
-            </a>
-            <a href="/system/notification-router/" class="nav-link {% if '/notification-router' in request.path %}active{% endif %}">
-                <i class="bi bi-router"></i><span>路由规则</span>
-            </a>
-            <a href="/system/notification-logs/" class="nav-link {% if '/notification-logs' in request.path %}active{% endif %}">
-                <i class="bi bi-journal-text"></i><span>通知日志</span>
-            </a>
-            <a href="/system/notification-preferences/" class="nav-link {% if '/notification-preferences' in request.path %}active{% endif %}">
-                <i class="bi bi-sliders"></i><span>通知偏好</span>
             </a>
         </div>
         {% endblock %}

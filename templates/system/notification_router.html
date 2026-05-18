@@ -259,7 +259,7 @@ async function loadRules() {
         }
         tbody.innerHTML = rules.map(r => `
             <tr class="${r.is_active ? '' : 'text-muted'}">
-                <td><code>${escapeHtml(r.event_type)}</code><br><small class="text-muted">${eventLabel(r.event_type)}</small></td>
+                <td><small class="text-muted">${eventLabel(r.event_type)}</small></td>
                 <td><span class="badge ${priorityBadge(r.priority)}">${r.priority_display || r.priority}</span></td>
                 <td><span class="badge bg-secondary">${channelLabel(r.channel_type)}</span></td>
                 <td><small>${r.recipient_scope_display || r.recipient_scope}</small></td>

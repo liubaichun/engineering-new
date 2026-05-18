@@ -202,19 +202,10 @@ async function loadChannels() {
     const tbody = document.getElementById('channelTableBody');
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>';
     try {
-        // 并行获取：渠道列表 + config_schema
-        const [resp, schemaResp] = await Promise.all([
-            fetch('/api/notifications/channels/', { credentials: 'include' }),
-            fetch('/api/channels/', { credentials: 'include' }),
-        ]);
-        const data = resp.ok ? (resp.json().then(d => d.results || d || [])) : [];
-        const schemaData = schemaResp.ok ? (schemaResp.json().then(d => d || [])) : [];
-        const [channelData, schemaDataResolved] = await Promise.all([data, schemaResp.ok ? schemaResp.json() : []]);
-        channelList = channelData;
-        const schemaMap = {};
-        (Array.isArray(schemaDataResolved) ? schemaDataResolved : []).forEach(ch => {
-            schemaMap[ch.channel_type] = ch.config_schema || {};
-        });
+        const resp = await fetch('/api/notifications/channels/', { credentials: 'include' });
+        if (!resp.ok) throw new Error('加载失败 (' + resp.status + ')');
+        let raw = await resp.json();
+        channelList = Array.isArray(raw) ? raw : (raw.results || []);
         if (!channelList.length) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">暂无通知渠道，请点击右上角「添加渠道」</td></tr>';
             return;
