@@ -268,29 +268,51 @@ class BindingListCreateView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        """获取当前用户的绑定列表"""
-        bindings = ChannelBinding.objects.filter(
-            user=request.user,
-            is_active=True
-        ).select_related('channel').order_by('-bound_at')
-        
+        """获取绑定列表
+        staff 可查看所有绑定；普通用户只能查看自己的
+        """
+        if request.user.is_staff and request.query_params.get('all') == '1':
+            bindings = ChannelBinding.objects.filter(is_active=True).select_related('user', 'channel').order_by('-bound_at')
+        else:
+            bindings = ChannelBinding.objects.filter(user=request.user, is_active=True).select_related('user', 'channel').order_by('-bound_at')
+
         data = [{
             'id': b.id,
+            'user_id': b.user.id,
+            'user_name': b.user.username,
             'channel_id': b.channel.id,
-            'channel_type': b.channel.channel_type,
-            'channel_name': b.channel.get_channel_type_display(),
+            'channel': {
+                'id': b.channel.id,
+                'app_name': b.channel.app_name,
+                'channel_type': b.channel.channel_type,
+                'channel_name': b.channel.get_channel_type_display(),
+            },
             'platform_open_id': b.platform_open_id,
             'platform_user_info': b.platform_user_info,
             'status': b.status,
             'bound_at': b.bound_at,
         } for b in bindings]
-        
+
         return Response(data)
     
     def post(self, request):
-        """手动绑定（适用于微信PushPlus等不需要OAuth的渠道）"""
+        """手动绑定（适用于微信PushPlus等不需要OAuth的渠道）
+        
+        admin 可为任意用户创建绑定；普通用户只能绑定自己。
+        """
         channel_id = request.data.get('channel_id')
         open_id = request.data.get('open_id', '').strip()
+
+        # 判断目标用户：admin 可指定任意用户，否则只能绑定自己
+        if request.user.is_staff and request.data.get('user_id'):
+            target_user_id = int(request.data['user_id'])
+            User = get_user_model()
+            try:
+                target_user = User.objects.get(id=target_user_id)
+            except User.DoesNotExist:
+                return Response({'error': f'用户不存在: target_user_id={target_user_id}'}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            target_user = request.user
 
         if not channel_id or not open_id:
             return Response({'error': '缺少channel_id或open_id'}, status=status.HTTP_400_BAD_REQUEST)
@@ -298,11 +320,11 @@ class BindingListCreateView(APIView):
         channel = get_object_or_404(ChannelPlugin, id=channel_id, is_active=True, is_deleted=False)
 
         binding, created = ChannelBinding.objects.update_or_create(
-            user=request.user,
+            user=target_user,
             channel=channel,
             defaults={
                 'platform_open_id': open_id,
-                'platform_user_info': {'bind_mode': 'manual'},
+                'platform_user_info': {'bind_mode': 'manual', 'created_by': request.user.username},
                 'status': 'active',
                 'is_active': True,
             }
@@ -386,6 +408,7 @@ class ChannelListView(APIView):
                 'connection_mode': ch.connection_mode,
                 'pairing_mode': ch.pairing_mode,
                 'is_active': ch.is_active,
+                'config': ch.config or {},
                 'status': status_info,
                 'config_schema': {
                     'required_fields': plugin.get_required_config_fields() if plugin else [],
@@ -478,6 +501,7 @@ class ChannelDetailView(APIView):
             'connection_mode': channel.connection_mode,
             'pairing_mode': channel.pairing_mode,
             'is_active': channel.is_active,
+            'config': channel.config or {},
             'config_schema': schema,
         })
 
