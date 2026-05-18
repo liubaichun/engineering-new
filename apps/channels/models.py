@@ -55,12 +55,12 @@ class ChannelPlugin(models.Model):
 
     class Meta:
         db_table = 'channels_plugin'
-        unique_together = ['company', 'channel_type', 'plugin_name']
+        unique_together = ['company', 'app_name']
         verbose_name = '渠道插件'
         verbose_name_plural = verbose_name
 
     def __str__(self):
-        return f"{self.company.name} - {self.get_channel_type_display()} - {self.plugin_name}"
+        return f"{self.company.name} - {self.get_channel_type_display()} - {self.app_name}"
 
 
 class ChannelBinding(models.Model):
