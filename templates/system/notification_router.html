@@ -115,8 +115,54 @@
                 <input type="hidden" id="ruleId">
                 <div class="mb-3">
                     <label class="form-label">事件类型 <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="ruleEventType" placeholder="如 task_created">
-                    <div class="form-text">系统事件标识，如 task_created / approval_result / contract_expire_soon</div>
+                    <select class="form-select" id="ruleEventType">
+                        <option value="">-- 选择事件类型 --</option>
+                        <optgroup label="审批">
+                            <option value="approval_created">approval_created — 审批创建</option>
+                            <option value="approval_delegated">approval_delegated — 审批委托</option>
+                            <option value="approval_result">approval_result — 审批结果</option>
+                            <option value="approval_timeout">approval_timeout — 审批超时</option>
+                            <option value="approval_transferred">approval_transferred — 审批转移</option>
+                        </optgroup>
+                        <optgroup label="合同">
+                            <option value="contract_approved">contract_approved — 合同通过</option>
+                            <option value="contract_created">contract_created — 合同创建</option>
+                            <option value="contract_expire_soon">contract_expire_soon — 合同即将到期</option>
+                            <option value="contract_rejected">contract_rejected — 合同驳回</option>
+                        </optgroup>
+                        <optgroup label="设备">
+                            <option value="equipment_borrowed">equipment_borrowed — 设备借出</option>
+                            <option value="equipment_repair">equipment_repair — 设备报修</option>
+                            <option value="equipment_returned">equipment_returned — 设备归还</option>
+                        </optgroup>
+                        <optgroup label="项目">
+                            <option value="project_approval_result">project_approval_result — 项目审批结果</option>
+                            <option value="project_approval_submitted">project_approval_submitted — 项目审批提交</option>
+                            <option value="project_created">project_created — 项目创建</option>
+                            <option value="project_progress_changed">project_progress_changed — 项目进度变化</option>
+                        </optgroup>
+                        <optgroup label="维修">
+                            <option value="repair_accepted">repair_accepted — 维修已接单</option>
+                            <option value="repair_assigned">repair_assigned — 维修已派单</option>
+                            <option value="repair_completed">repair_completed — 维修完成</option>
+                            <option value="repair_rejected">repair_rejected — 维修驳回</option>
+                            <option value="repair_started">repair_started — 维修开始</option>
+                        </optgroup>
+                        <optgroup label="流程">
+                            <option value="flow_completed">flow_completed — 流程完成</option>
+                            <option value="flow_started">flow_started — 流程启动</option>
+                        </optgroup>
+                        <optgroup label="阶段">
+                            <option value="stage_completed">stage_completed — 阶段完成</option>
+                            <option value="stage_started">stage_started — 阶段开始</option>
+                            <option value="stage_timeout">stage_timeout — 阶段超时</option>
+                        </optgroup>
+                        <optgroup label="任务">
+                            <option value="task_completed">task_completed — 任务完成</option>
+                            <option value="task_created">task_created — 任务创建</option>
+                            <option value="task_started">task_started — 任务开始</option>
+                        </optgroup>
+                    </select>
                 </div>
                 <div class="row mb-3">
                     <div class="col">
@@ -201,7 +247,10 @@ async function loadRules() {
         const eventFilter = document.getElementById('filterEvent').value.toLowerCase();
         const showActiveOnly = document.getElementById('filterActive').checked;
         if (channelFilter) data = data.filter(r => r.channel_type === channelFilter);
-        if (eventFilter) data = data.filter(r => r.event_type.toLowerCase().includes(eventFilter));
+        if (eventFilter) data = data.filter(r =>
+            r.event_type.toLowerCase().includes(eventFilter) ||
+            (EVENT_TYPE_MAP[r.event_type] || '').toLowerCase().includes(eventFilter)
+        );
         if (showActiveOnly) data = data.filter(r => r.is_active);
         rules = data;
         if (!rules.length) {
@@ -210,7 +259,7 @@ async function loadRules() {
         }
         tbody.innerHTML = rules.map(r => `
             <tr class="${r.is_active ? '' : 'text-muted'}">
-                <td><code>${escapeHtml(r.event_type)}</code></td>
+                <td><code>${escapeHtml(r.event_type)}</code><br><small class="text-muted">${eventLabel(r.event_type)}</small></td>
                 <td><span class="badge ${priorityBadge(r.priority)}">${r.priority_display || r.priority}</span></td>
                 <td><span class="badge bg-secondary">${channelLabel(r.channel_type)}</span></td>
                 <td><small>${r.recipient_scope_display || r.recipient_scope}</small></td>
@@ -234,6 +283,40 @@ async function loadRules() {
 function priorityBadge(p) {
     return {low:'bg-secondary',normal:'bg-primary',important:'bg-warning text-dark',critical:'bg-danger'}[p] || 'bg-secondary';
 }
+
+const EVENT_TYPE_MAP = {
+    'approval_created':'审批创建',
+    'approval_delegated':'审批委托',
+    'approval_result':'审批结果',
+    'approval_timeout':'审批超时',
+    'approval_transferred':'审批转移',
+    'contract_approved':'合同通过',
+    'contract_created':'合同创建',
+    'contract_expire_soon':'合同即将到期',
+    'contract_rejected':'合同驳回',
+    'equipment_borrowed':'设备借出',
+    'equipment_repair':'设备报修',
+    'equipment_returned':'设备归还',
+    'flow_completed':'流程完成',
+    'flow_started':'流程启动',
+    'project_approval_result':'项目审批结果',
+    'project_approval_submitted':'项目审批提交',
+    'project_created':'项目创建',
+    'project_progress_changed':'项目进度变化',
+    'repair_accepted':'维修已接单',
+    'repair_assigned':'维修已派单',
+    'repair_completed':'维修完成',
+    'repair_rejected':'维修驳回',
+    'repair_started':'维修开始',
+    'stage_completed':'阶段完成',
+    'stage_started':'阶段开始',
+    'stage_timeout':'阶段超时',
+    'task_completed':'任务完成',
+    'task_created':'任务创建',
+    'task_started':'任务开始',
+};
+
+function eventLabel(key) { return EVENT_TYPE_MAP[key] || key; }
 
 function channelLabel(c) {
     return {feishu:'飞书',wecom:'企微',dingtalk:'钉钉',email:'邮件'}[c] || c;
