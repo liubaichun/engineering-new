@@ -1,8 +1,8 @@
 # 通知系统升级需求文档
 
-> **版本：** v1.0
-> **日期：** 2026-05-17
-> **状态：** 待处理
+> **版本：** v2.0
+> **日期：** 2026-05-17~18
+> **状态：** ✅ 已实施完成
 > **来源：** 需求讨论记录（飞书群聊）
 
 ---
@@ -321,7 +321,34 @@ check_approval_timeout：
 
 ---
 
-## 九、参考文件
+## 九、已实施功能（v2.0）
+
+### 9.1 路由引擎 NotificationRouter
+- 表：`notification_router`，字段：event_type / priority / channel_type / recipient_scope / custom_user_ids / company_id / is_active
+- 路由逻辑：按 event_type 查找，优先公司级 fallback 全局，按 priority 排序
+- 文件：`apps/notifications/models/router.py`
+
+### 9.2 用户偏好过滤 UserNotificationPreference
+- 表：`user_notification_preference`，字段：user / event_type / is_enabled / allowed_channels
+- 发送前检查：若用户禁用该事件类型通知，直接跳过
+- 文件：`apps/notifications/models.py`
+
+### 9.3 动态表单 config_schema
+- `ChannelListView` GET 增加 `config_schema`（required_fields + optional_fields）
+- `ChannelDetailView` GET 新增（之前只有 PATCH），返回完整渠道详情含配置字段定义
+- 前端可根据 channel_type 动态渲染表单
+
+### 9.4 通知日志 API
+- `GET /api/channels/logs/`：支持按 notification_type / status / start_date / end_date 过滤，分页
+- `NotificationLogView`（`apps/channels/views.py`）
+
+### 9.5 dispatch_notify 入口
+- 文件：`apps/tasks/notification_service.py`
+- 各业务模块调用 `dispatch_notify(event_type, context, title, content_lines)` 即可触发路由+发送
+
+---
+
+## 十、参考文件
 
 - 知识库：`knowledge-base/01-requirements/NOTIFICATION-SYSTEM.md`
 - 通知服务：`apps/notifications/services.py`

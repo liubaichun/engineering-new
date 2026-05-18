@@ -3,10 +3,18 @@
 {% block content %}
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
-        <h4><i class="bi bi-speedometer me-2"></i>通知渠道配置</h4>
+        <h4><i class="bi bi-broadcast me-2"></i>通知渠道</h4>
         <p class="text-muted mb-0" style="font-size:0.9rem;">配置飞书、企业微信、钉钉等通知渠道，绑定后可接收个人消息推送</p>
     </div>
 </div>
+
+<!-- 标签切换 -->
+<ul class="nav nav-tabs mb-4" id="notifTab" role="tablist">
+    <li class="nav-item"><a class="nav-link active" href="/system/notification-channels/" id="tab-channels"><i class="bi bi-broadcast me-1"></i>渠道配置</a></li>
+    <li class="nav-item"><a class="nav-link" href="/system/notification-router/" id="tab-router"><i class="bi bi-router me-1"></i>路由规则</a></li>
+    <li class="nav-item"><a class="nav-link" href="/system/notification-logs/" id="tab-logs"><i class="bi bi-journal-text me-1"></i>通知日志</a></li>
+    <li class="nav-item"><a class="nav-link" href="/system/notification-preferences/" id="tab-prefs"><i class="bi bi-sliders me-1"></i>通知偏好</a></li>
+</ul>
 
 <!-- 渠道配置卡片 -->
 <div class="card mb-4">
@@ -194,10 +202,19 @@ async function loadChannels() {
     const tbody = document.getElementById('channelTableBody');
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>';
     try {
-        const resp = await fetch('/api/notifications/channels/', { credentials: 'include' });
-        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">加载失败 (' + resp.status + ')</td></tr>'; return; }
-        const data = await resp.json();
-        channelList = data.results || data || [];
+        // 并行获取：渠道列表 + config_schema
+        const [resp, schemaResp] = await Promise.all([
+            fetch('/api/notifications/channels/', { credentials: 'include' }),
+            fetch('/api/channels/', { credentials: 'include' }),
+        ]);
+        const data = resp.ok ? (resp.json().then(d => d.results || d || [])) : [];
+        const schemaData = schemaResp.ok ? (schemaResp.json().then(d => d || [])) : [];
+        const [channelData, schemaDataResolved] = await Promise.all([data, schemaResp.ok ? schemaResp.json() : []]);
+        channelList = channelData;
+        const schemaMap = {};
+        (Array.isArray(schemaDataResolved) ? schemaDataResolved : []).forEach(ch => {
+            schemaMap[ch.channel_type] = ch.config_schema || {};
+        });
         if (!channelList.length) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">暂无通知渠道，请点击右上角「添加渠道」</td></tr>';
             return;

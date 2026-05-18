@@ -288,6 +288,15 @@ def api_auth_status(request):
 
 def notification_channels_page(request):
     return TemplateView.as_view(template_name='system/notification_channels.html')(request)
+def notification_router_page(request):
+    return TemplateView.as_view(template_name='system/notification_router.html')(request)
+
+def notification_logs_page(request):
+    return TemplateView.as_view(template_name='system/notification_logs.html')(request)
+
+def notification_preferences_page(request):
+    return TemplateView.as_view(template_name='system/notification_preferences.html')(request)
+
 
 def channels_page(request):
     return TemplateView.as_view(template_name='channels.html')(request)
@@ -351,6 +360,9 @@ urlpatterns = [
     path('system/companies/', system_companies_page, name='system_companies'),
     path('system/settings/', system_settings_page, name='system_settings'),
     path('system/notification-channels/', notification_channels_page, name='notification_channels'),
+    path('system/notification-router/', notification_router_page, name='notification_router'),
+    path('system/notification-logs/', notification_logs_page, name='notification_logs'),
+    path('system/notification-preferences/', notification_preferences_page, name='notification_preferences'),
     path('channels/', channels_page, name='channels'),
     path('approvals/', approval_list_page, name='approval_list'),
     path('approvals/templates/', approval_template_list_page, name='approval_template_list'),

@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Q
 
-from .models import NotificationChannel, NotifyBinding
+from .models import NotificationChannel, NotifyBinding, NotificationRouter
 from .serializers import NotificationChannelSerializer, NotifyBindingSerializer
 from . import services
 
@@ -183,3 +183,79 @@ class UserNotificationPreferenceView:
                 }
             )
         return Response({'status': 'ok'})
+
+
+class NotificationRouterViewSet(viewsets.ModelViewSet):
+    """通知路由规则 API"""
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return NotificationRouter.objects.all().order_by('event_type', 'priority')
+
+    def list(self, request):
+        queryset = self.get_queryset()
+        data = [{
+            'id': r.id,
+            'event_type': r.event_type,
+            'priority': r.priority,
+            'priority_display': r.get_priority_display(),
+            'channel_type': r.channel_type,
+            'recipient_scope': r.recipient_scope,
+            'recipient_scope_display': r.get_recipient_scope_display(),
+            'custom_user_ids': r.custom_user_ids or '',
+            'is_active': r.is_active,
+            'remarks': r.remarks,
+        } for r in queryset]
+        return Response(data)
+
+    def create(self, request):
+        from .models import NotificationRouter
+        event_type = request.data.get('event_type')
+        channel_type = request.data.get('channel_type')
+        if not event_type or not channel_type:
+            return Response({'error': 'event_type 和 channel_type 必填'}, status=status.HTTP_400_BAD_REQUEST)
+        obj = NotificationRouter.objects.create(
+            event_type=event_type,
+            priority=request.data.get('priority', 'normal'),
+            channel_type=channel_type,
+            recipient_scope=request.data.get('recipient_scope', 'owner'),
+            custom_user_ids=request.data.get('custom_user_ids', ''),
+            is_active=request.data.get('is_active', True),
+            remarks=request.data.get('remarks', ''),
+        )
+        return Response({
+            'id': obj.id,
+            'event_type': obj.event_type,
+            'priority': obj.priority,
+            'channel_type': obj.channel_type,
+            'recipient_scope': obj.recipient_scope,
+            'is_active': obj.is_active,
+        }, status=status.HTTP_201_CREATED)
+
+    def partial_update(self, request, pk=None):
+        from .models import NotificationRouter
+        try:
+            obj = NotificationRouter.objects.get(id=pk)
+        except NotificationRouter.DoesNotExist:
+            return Response({'error': '规则不存在'}, status=status.HTTP_404_NOT_FOUND)
+        for field in ['priority', 'channel_type', 'recipient_scope', 'custom_user_ids', 'is_active', 'remarks']:
+            if field in request.data:
+                setattr(obj, field, request.data[field])
+        obj.save()
+        return Response({
+            'id': obj.id,
+            'event_type': obj.event_type,
+            'priority': obj.priority,
+            'channel_type': obj.channel_type,
+            'recipient_scope': obj.recipient_scope,
+            'is_active': obj.is_active,
+        })
+
+    def destroy(self, request, pk=None):
+        from .models import NotificationRouter
+        try:
+            obj = NotificationRouter.objects.get(id=pk)
+        except NotificationRouter.DoesNotExist:
+            return Response({'error': '规则不存在'}, status=status.HTTP_404_NOT_FOUND)
+        obj.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
