@@ -100,9 +100,18 @@
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Webhook地址 <span class="text-danger">*</span></label>
+                    <label class="form-label">Webhook地址</label>
                     <input type="url" class="form-control" id="webhookUrl" placeholder="https://open.feishu.cn/open-apis/bot/v2/hook/xxx">
-                    <div class="form-text">飞书/企微/钉钉的机器人Webhook地址，邮件渠道填收件邮箱</div>
+                    <div class="form-text">机器人模式填Webhook地址；使用飞书应用发个人消息可不填</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">App ID（飞书应用个人消息用）</label>
+                    <input type="text" class="form-control" id="appId" placeholder="cli_xxx（飞书自建应用的 App ID）">
+                    <div class="form-text">创建飞书自建应用后，在「凭证与基础信息」中获取 App ID 和 App Secret</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">App Secret（飞书应用个人消息用）</label>
+                    <input type="password" class="form-control" id="appSecret" placeholder="App Secret">
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Secret密钥（可选）</label>
@@ -234,6 +243,8 @@ function showAddChannelModal() {
     document.getElementById('channelName').value = '';
     document.getElementById('channelType').value = 'feishu';
     document.getElementById('webhookUrl').value = '';
+    document.getElementById('appId').value = '';
+    document.getElementById('appSecret').value = '';
     document.getElementById('channelSecret').value = '';
     document.getElementById('channelStatus').value = 'active';
     document.getElementById('channelRemark').value = '';
@@ -250,6 +261,8 @@ async function editChannel(id) {
         document.getElementById('channelName').value = c.app_name || c.channel_name || '';
         document.getElementById('channelType').value = c.channel_type || 'feishu';
         document.getElementById('webhookUrl').value = c.config?.webhook_url || '';
+        document.getElementById('appId').value = c.config?.app_id || '';
+        document.getElementById('appSecret').value = c.config?.app_secret || '';
         document.getElementById('channelSecret').value = c.config?.webhook_secret || '';
         document.getElementById('channelStatus').value = c.is_active ? 'active' : 'inactive';
         document.getElementById('channelRemark').value = '';
@@ -262,6 +275,8 @@ async function saveChannel() {
     const name = document.getElementById('channelName').value.trim();
     const channel_type = document.getElementById('channelType').value;
     const webhook_url = document.getElementById('webhookUrl').value.trim();
+    const app_id = document.getElementById('appId').value.trim();
+    const app_secret = document.getElementById('appSecret').value.trim();
     const secret = document.getElementById('channelSecret').value.trim();
     const status = document.getElementById('channelStatus').value;
     const remark = document.getElementById('channelRemark').value.trim();
@@ -273,6 +288,8 @@ async function saveChannel() {
         is_active: status === 'active',
         config: {
             webhook_url: webhook_url,
+            app_id: app_id,
+            app_secret: app_secret,
             webhook_secret: secret,
         }
     };
