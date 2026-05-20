@@ -86,14 +86,14 @@ class ClientViewSet(viewsets.ModelViewSet):
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'crm:client:read',
-        'list': 'crm:client:read',
-        'retrieve': 'crm:client:read',
-        'create': 'crm:client:update',
-        'update': 'crm:client:update',
-        'partial_update': 'crm:client:update',
-        'destroy': 'crm:client:update',
-        'export': 'crm:client:read',
+        None: 'crm:customer:read',
+        'list': 'crm:customer:read',
+        'retrieve': 'crm:customer:read',
+        'create': 'crm:customer:update',
+        'update': 'crm:customer:update',
+        'partial_update': 'crm:customer:update',
+        'destroy': 'crm:customer:update',
+        'export': 'crm:customer:read',
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'code']
     filterset_fields = ['category', 'is_active']
@@ -137,11 +137,11 @@ class ContractViewSet(viewsets.ModelViewSet):
         'partial_update': 'crm:contract:update',
         'destroy': 'crm:contract:update',
         'export': 'crm:contract:read',
-        'approve': 'crm:contract:approve',
-        'reject': 'crm:contract:approve',
-        'activate': 'crm:contract:approve',
-        'complete': 'crm:contract:approve',
-        'terminate': 'crm:contract:approve',
+        'approve': 'crm:client_source:update',
+        'reject': 'crm:client_source:update',
+        'activate': 'crm:client_source:update',
+        'complete': 'crm:client_source:update',
+        'terminate': 'crm:client_source:update',
         'payment_plans': 'crm:contract:read',
         'add_payment_plan': 'crm:contract:update',
         'change_logs': 'crm:contract:read',

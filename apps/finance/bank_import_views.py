@@ -1022,6 +1022,7 @@ def confirm_bank_import(request):
                             balance=Decimal(row['balance']) if row.get('balance') else None,
                             counterparty_account=cp_account, counterparty_bank=cp_bank,
                             transaction_type=tx_type, summary=summary,
+                            status='received',  # 银行流水导入，已到账无需审批
                         )
                         income_count += 1
                         income_sum += amount
@@ -1036,6 +1037,7 @@ def confirm_bank_import(request):
                             balance=Decimal(row['balance']) if row.get('balance') else None,
                             counterparty_account=cp_account, counterparty_bank=cp_bank,
                             transaction_type=tx_type, summary=summary,
+                            status='confirmed',  # 银行流水导入，已确认无需审批
                         )
                         expense_count += 1
                         expense_sum += amount

@@ -39,4 +39,6 @@ urlpatterns = [
     path('reports/supplier-expense/', reports_v2.supplier_expense_report, name='report-supplier-expense'),
     path('reports/tax-summary/', reports_v2.tax_summary_report, name='report-tax-summary'),
     path('reports/budget-execution/', reports_v2.budget_execution_report, name='report-budget-execution'),
+    path('reports/balance-sheet/', ReportViewSet.as_view({'get': 'balance_sheet'}), name='report-balance-sheet'),
+    path('reports/invoice-summary/', ReportViewSet.as_view({'get': 'invoice_summary'}), name='report-invoice-summary'),
 ]

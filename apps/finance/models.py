@@ -151,9 +151,10 @@ class EmployeeCompany(models.Model):
 class Income(models.Model):
     """收入模型"""
     STATUS_CHOICES = [
-        ('pending', '待审批'),
-        ('approved', '已批准'),
-        ('rejected', '已拒绝'),
+        ('pending', '待审批'),        # 手工录入，待审批
+        ('approved', '已批准'),      # 手工录入，审批通过
+        ('rejected', '已拒绝'),      # 手工录入，审批拒绝
+        ('received', '已到账'),      # 银行流水导入，已到账无需审批
     ]
 
     company = models.ForeignKey(
@@ -256,10 +257,10 @@ class Expense(models.Model):
     ]
 
     EXPENSE_STATUS_CHOICES = [
-        ('draft', '草稿'),
-        ('pending', '待审批'),
-        ('approved', '已批准'),
-        ('rejected', '已拒绝'),
+        ('pending', '待审批'),        # 手工录入，待审批
+        ('approved', '已批准'),      # 手工录入，审批通过
+        ('rejected', '已拒绝'),      # 手工录入，审批拒绝
+        ('confirmed', '已确认支出'), # 银行流水导入，已确认无需审批
     ]
 
     company = models.ForeignKey(
@@ -339,7 +340,7 @@ class Expense(models.Model):
     )
     status = models.CharField(
         verbose_name='状态', max_length=20,
-        choices=EXPENSE_STATUS_CHOICES, default='draft'
+        choices=EXPENSE_STATUS_CHOICES, default='pending'
     )
     created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)

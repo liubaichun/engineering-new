@@ -982,16 +982,13 @@ async function saveTask() {
         }
         
         showToast(taskId ? '任务已更新' : '任务已创建', 'success');
-        taskModal.hide();
         document.getElementById('taskCode').readOnly = false;
-        // 等待modal完全关闭后再刷新
-        document.getElementById('taskModal').addEventListener('hidden.bs.modal', function handler() {
-            document.getElementById('taskModal').removeEventListener('hidden.bs.modal', handler);
-            loadTasks();
-        });
+        loadTasks();
+        taskModal.hide();
     } catch (error) {
         console.error('保存任务失败:', error);
         showToast(error.message || '保存失败', 'error');
+        taskModal.hide();
     }
 }
 

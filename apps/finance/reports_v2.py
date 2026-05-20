@@ -3,6 +3,7 @@
 """
 from datetime import datetime, timedelta
 from decimal import Decimal
+import re
 
 from django.db.models import Sum, Count, Q, F
 from django.utils import timezone
@@ -122,11 +123,23 @@ def cash_flow_report(request):
                 else:
                     exp_total += amt
 
-            # 月末余额：取该月最后一条有余额的记录
-            end_balance = begin_balance + inc_total - exp_total
+            # 月末余额：优先取该月最后一条有余额的记录
+            # ── 【P0-3 修复】───────────────────────────────────────────────
+            # 原逻辑：若 month_end_bs 不存在，则用 begin+inc-exp 推算
+            # 问题：begin+inc-exp 是"全部交易完成后"的推算值，不代表真实月末银行账户余额
+            #      真实月末余额 = 该月最后一笔有余额记录的值（银行系统快照的时点余额）
+            # 修复：若无月末余额记录，取该月最后一笔有余额的发生额记录作为月末余额
             month_end_bs = month_bs.exclude(balance__isnull=True).order_by('transaction_date', 'id')
             if month_end_bs.exists():
                 end_balance = float(month_end_bs.last().balance or 0)
+            elif month_bs.exists():
+                # 月末无快照余额，但月内有发生额 → 取月内最后一笔有余额记录
+                last_with_balance = month_bs.exclude(balance__isnull=True).order_by('transaction_date', 'id').last()
+                if last_with_balance:
+                    end_balance = float(last_with_balance.balance or 0)
+                else:
+                    end_balance = begin_balance + inc_total - exp_total
+                # else: 整个月无任何余额记录，保留 begin+inc-exp 作为近似
 
             # 只有有发生额才记录
             if inc_total > 0 or exp_total > 0:
@@ -292,6 +305,10 @@ def customer_revenue_report(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def supplier_expense_report(request):
+    """供应商支出报表
+    【P2-2 修复】识别人名类供应商（刘柏春等员工姓名），自动归入"个人/内部"分组，
+    不再和企业供应商混合排名。同时对真实供应商做 counterparty_type 标注。
+    """
     params = parse_date_range(request)
     year = params['year']
     month = params['month']
@@ -300,35 +317,82 @@ def supplier_expense_report(request):
 
     exp_qs = build_qs(Expense, company_id, year, month)
 
-    global_stats = {}
-    personal_stats = {'total': 0.0, 'count': 0, 'types': {}}
+    # 【P2-2 修复】从 CRM Supplier 拉取真实供应商名单（含 counterparty_type）
+    try:
+        from apps.crm.models import Supplier as CRMSupplier
+        real_suppliers = set(
+            CRMSupplier.objects.filter(status='active')
+            .values_list('name', flat=True)
+        )
+        # 个人类型供应商（HR报销等场景）
+        individual_suppliers = set(
+            CRMSupplier.objects.filter(counterparty_type='individual', status='active')
+            .values_list('name', flat=True)
+        )
+    except Exception:
+        real_suppliers = set()
+        individual_suppliers = set()
+
+    # 从 Employee 表识别人名（员工报销场景：供应商名是员工姓名）
+    try:
+        from apps.finance.models import Employee
+        employee_names = set(
+            Employee.objects.values_list('name', flat=True)
+        )
+    except Exception:
+        employee_names = set()
+
+    enterprise_stats = {}   # 企业供应商
+    individual_stats = {}   # 个人/员工供应商
+    personal_stats = {'total': 0.0, 'count': 0, 'types': {}}  # 无供应商名（内部转账等）
+
     for exp in exp_qs.select_related('company', 'project'):
-        supplier = exp.supplier or ''
-        # 无供应商名称 → 个人支付/内部转账，不计入供应商报表
+        supplier = (exp.supplier or '').strip()
+        amount = float(exp.amount or 0)
+        exp_type = exp.expense_type or '未分类'
+
+        # 无供应商名 → 个人/内部转账
         if not supplier:
-            personal_stats['total'] += float(exp.amount or 0)
+            personal_stats['total'] += amount
             personal_stats['count'] += 1
-            exp_type = exp.expense_type or '未分类'
             personal_stats['types'][exp_type] = \
-                personal_stats['types'].get(exp_type, 0.0) + float(exp.amount or 0)
+                personal_stats['types'].get(exp_type, 0.0) + amount
             continue
-        if supplier not in global_stats:
-            global_stats[supplier] = {
+
+        # 识别人名（员工姓名匹配）或 counterparty_type=individual
+        is_individual = (
+            supplier in employee_names
+            or supplier in individual_suppliers
+            or len(supplier) <= 4  # 单姓名的简单判断
+        )
+
+        bucket = individual_stats if is_individual else enterprise_stats
+        if supplier not in bucket:
+            bucket[supplier] = {
                 'company': exp.company.name,
                 'supplier': supplier,
+                'is_individual': is_individual,
                 'total': 0.0, 'count': 0,
                 'types': {},
             }
-        global_stats[supplier]['total'] += float(exp.amount or 0)
-        global_stats[supplier]['count'] += 1
-        exp_type = exp.expense_type or '未分类'
-        global_stats[supplier]['types'][exp_type] = \
-            global_stats[supplier]['types'].get(exp_type, 0.0) + float(exp.amount or 0)
+        bucket[supplier]['total'] += amount
+        bucket[supplier]['count'] += 1
+        bucket[supplier]['types'][exp_type] = \
+            bucket[supplier]['types'].get(exp_type, 0.0) + amount
 
-    ranked = sorted(global_stats.items(), key=lambda x: x[1]['total'], reverse=True)[:limit]
+    # 企业供应商排名
+    ranked_enterprise = sorted(
+        enterprise_stats.items(), key=lambda x: x[1]['total'], reverse=True
+    )[:limit]
+
+    # 个人/员工供应商单独列表（不参与企业排名）
+    ranked_individual = sorted(
+        individual_stats.items(), key=lambda x: x[1]['total'], reverse=True
+    )
+
     results = [
         {'rank': r + 1, **v}
-        for r, (k, v) in enumerate(ranked)
+        for r, (k, v) in enumerate(ranked_enterprise)
     ]
 
     return Response({
@@ -336,10 +400,16 @@ def supplier_expense_report(request):
         'title': '供应商支出报表',
         'params': params,
         'results': results,
+        'individual_results': [
+            {'rank': r + 1, **v}
+            for r, (k, v) in enumerate(ranked_individual)
+        ],
         'personal_payments': personal_stats,
         'summary': {
             'total_expense': sum(r['total'] for r in results),
             'supplier_count': len(results),
+            'individual_count': len(ranked_individual),
+            'personal_count': personal_stats['count'],
         }
     })
 
@@ -350,13 +420,24 @@ def _parse_tax_type(desc: str, amount: float):
     344036 = 个税（龙华区税务局第三税务所）
     625/626 = 增值税（龙华区税务局第二税务所）
     444036 = 企业所得税（龙华区税务局第四税务所），但其中amount<2000为个税代扣
+    ── 【P3-1 修复】────────────────────────────────────────────
+    原逻辑：vat 判断用 f'{c}{y}'/'{c}1{y}'/'{c}2{y}' 组合，对含'6252'/'6262'等前缀
+    的税单号会误判（如626031211被错误匹配）。修复：严格按税单号结构匹配，
+    增值税税单号固定为9位数字，'625'开头且第5位为['0','1','2']，'626'同理。
+    ──────────────────────────────────────────────────────────────────
     """
     if '344036' in desc:
         return 'personal_income_tax'
-    vat_codes = ['625', '626']
-    if any(f'{c}{y}' in desc or f'{c}1{y}' in desc or f'{c}2{y}' in desc
-           for c in vat_codes for y in ['2', '3']):
-        return 'vat'
+    # 增值税：税单号在"税单号:"之后，以前缀 625 或 626 开头
+    # ── 【P3-1 修复】────────────────────────────────────────────
+    # 原 r'625\d+|626\d+' 会误匹配描述中任意位置的 626（如444036260里的"626"）
+    # 改为取"税单号:"后面的实际税单号，再判断其前缀
+    import re
+    tax_num_match = re.search(r'税单号[：:]([0-9]+)', desc)
+    if tax_num_match:
+        tax_num = tax_num_match.group(1)
+        if tax_num.startswith('625') or tax_num.startswith('626'):
+            return 'vat'
     if '444036' in desc:
         # 444036里金额<2000的为个税代扣，>=2000的为企业所得税
         if abs(amount) < 2000:
@@ -406,12 +487,19 @@ def tax_summary_report(request):
         invoice_input_tax = agg(inv_qs.filter(type='expense'), 'tax_amount')
         invoice_output_tax = agg(inv_qs.filter(type='income'), 'tax_amount')
 
-        # 银行缴税：按税单号前缀拆分为三类
+        # ── 【P1-1 修复】───────────────────────────────────────────────
+        # social_qs = Expense.objects.filter(company=company, expense_type='social')
+        # → expense_type='social' 在银行流水中不存在（永远是0），社保数据全在 WageRecord
+        # ─────────────────────────────────────────────────────────────────
+        # 银行缴税：按税单号前缀拆分为三类（排除含"手续费"的记录——实为银行代发手续费非税款）
         personal_tax = 0.0
         corporate_tax = 0.0
         vat = 0.0
         other_tax = 0.0
         for row in exp_tax_qs.only('amount', 'description'):
+            # 排除摘要含"手续费"的行（这是银行收的代发工资/代发款手续费，不是税款）
+            if '手续费' in row.description:
+                continue
             t = _parse_tax_type(row.description, float(row.amount))
             if t == 'personal_income_tax':
                 personal_tax += float(row.amount)
@@ -422,8 +510,19 @@ def tax_summary_report(request):
             else:
                 other_tax += float(row.amount)
 
-        # 社保公积金
-        social_total = agg(social_qs, 'amount')
+        # 社保公积金：走 WageRecord 反推（不走 Expense，因为 expense_type='social' 全为0）
+        # ── 【P1-1 修复】───────────────────────────────────────────────
+        _EMP_SI_RATE = 10.3
+        _COM_SI_RATE = 23.0
+        social_wr_q = WageRecord.objects.filter(company=company)
+        if year:
+            social_wr_q = social_wr_q.filter(year=year)
+        if month:
+            social_wr_q = social_wr_q.filter(month=month)
+        social_total = sum(
+            (float(wr.social_insurance) / _EMP_SI_RATE * 100) * (_COM_SI_RATE / 100)
+            for wr in social_wr_q if wr.social_insurance > 0
+        )
 
         # 合计
         company_tax_total = personal_tax + corporate_tax + vat + social_total
@@ -474,17 +573,26 @@ def budget_execution_report(request):
     year = params['year'] or timezone.now().year
     company_id = params['company_id']
 
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 【P0-1 修复】expense_type 已废弃，改用 expense_category 过滤
+    # bank_import_views.py confirm_bank_import() 中所有支出均写入 expense_type=交易类型字符串
+    # 而非 CHOICES 枚举值，导致 expense_type 筛选永远匹配不到，budget_execution 全0
+    #
+    # 修复策略：
+    #   salary / social → 走 WageRecord（已有正确逻辑）
+    #   其他类型       → 改为 expense_category__icontains 关键词匹配
+    # ─────────────────────────────────────────────────────────────────────────────
     EXPENSE_TYPES = [
-        ('salary', '工资薪酬'),
-        ('social', '社保公积金'),
-        ('office', '办公费用'),
-        ('travel', '差旅费用'),
-        ('communication', '通讯费用'),
-        ('entertainment', '业务招待'),
-        ('marketing', '市场营销'),
-        ('rd', '研发费用'),
-        ('tax', '税费'),
-        ('other', '其他'),
+        ('salary',        '工资薪酬',    ''),
+        ('social',        '社保公积金',  ''),
+        ('office',        '办公费用',    '办公'),
+        ('travel',        '差旅费用',    '差旅'),
+        ('communication', '通讯费用',    '通信'),
+        ('entertainment', '业务招待',    '招待'),
+        ('marketing',     '市场营销',    '营销'),
+        ('rd',            '研发费用',    '研发'),
+        ('tax',           '税费',        '税款'),   # 税费走 expense_category='税款'
+        ('other',         '其他',        ''),       # 无匹配关键词 → 当作无数据（代发/转账类不归入预算科目）
     ]
 
     companies = Company.objects.all()
@@ -500,7 +608,7 @@ def budget_execution_report(request):
 
     for company in companies:
         type_totals = []
-        for exp_type, label in EXPENSE_TYPES:
+        for exp_type, label, cat_kw in EXPENSE_TYPES:
             if exp_type == 'salary':
                 total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_salary')
             elif exp_type == 'social':
@@ -511,9 +619,14 @@ def budget_execution_report(request):
                     for wr in wr_q
                     if wr.social_insurance > 0
                 )
-            else:
+            elif cat_kw:
+                # 【P0-1 核心修复】改用 expense_category 关键词匹配（icontains）
                 total = agg(Expense.objects.filter(
-                    company=company, expense_date__year=year, expense_type=exp_type), 'amount')
+                    company=company, expense_date__year=year,
+                    expense_category__icontains=cat_kw), 'amount')
+            else:
+                # 无关键词的类型（salary/social 在上面已处理；other 不应计入预算科目）
+                total = 0.0
             type_totals.append({'type': exp_type, 'label': label, 'actual': total})
 
         total_actual = sum(t['actual'] for t in type_totals)

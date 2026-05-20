@@ -19,18 +19,18 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     queryset = PurchaseRequest.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:purchase_request:read',
-        'list': 'purchasing:purchase_request:read',
-        'retrieve': 'purchasing:purchase_request:read',
-        'create': 'purchasing:purchase_request:update',
-        'update': 'purchasing:purchase_request:update',
-        'partial_update': 'purchasing:purchase_request:update',
-        'destroy': 'purchasing:purchase_request:update',
-        'submit': 'purchasing:purchase_request:update',
-        'approve': 'purchasing:purchase_request:update',
-        'reject': 'purchasing:purchase_request:update',
-        'close': 'purchasing:purchase_request:update',
-        'summary': 'purchasing:purchase_request:read',
+        None: 'purchasing:request:read',
+        'list': 'purchasing:request:read',
+        'retrieve': 'purchasing:request:read',
+        'create': 'purchasing:request:update',
+        'update': 'purchasing:request:update',
+        'partial_update': 'purchasing:request:update',
+        'destroy': 'purchasing:request:update',
+        'submit': 'purchasing:request:update',
+        'approve': 'purchasing:request:update',
+        'reject': 'purchasing:request:update',
+        'close': 'purchasing:request:update',
+        'summary': 'purchasing:request:read',
     }
 
     def get_serializer_class(self):
@@ -126,13 +126,13 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseRequestItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:purchase_request:read',
-        'list': 'purchasing:purchase_request:read',
-        'retrieve': 'purchasing:purchase_request:read',
-        'create': 'purchasing:purchase_request:update',
-        'update': 'purchasing:purchase_request:update',
-        'partial_update': 'purchasing:purchase_request:update',
-        'destroy': 'purchasing:purchase_request:update',
+        None: 'purchasing:request:read',
+        'list': 'purchasing:request:read',
+        'retrieve': 'purchasing:request:read',
+        'create': 'purchasing:request:update',
+        'update': 'purchasing:request:update',
+        'partial_update': 'purchasing:request:update',
+        'destroy': 'purchasing:request:update',
     }
 
     def get_queryset(self):
@@ -178,18 +178,18 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     queryset = PurchaseOrder.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:purchase_order:read',
-        'list': 'purchasing:purchase_order:read',
-        'retrieve': 'purchasing:purchase_order:read',
-        'create': 'purchasing:purchase_order:update',
-        'update': 'purchasing:purchase_order:update',
-        'partial_update': 'purchasing:purchase_order:update',
-        'destroy': 'purchasing:purchase_order:update',
-        'confirm': 'purchasing:purchase_order:update',
-        'ship': 'purchasing:purchase_order:update',
-        'cancel': 'purchasing:purchase_order:update',
-        'complete': 'purchasing:purchase_order:update',
-        'summary': 'purchasing:purchase_order:read',
+        None: 'purchasing:order:read',
+        'list': 'purchasing:order:read',
+        'retrieve': 'purchasing:order:read',
+        'create': 'purchasing:order:update',
+        'update': 'purchasing:order:update',
+        'partial_update': 'purchasing:order:update',
+        'destroy': 'purchasing:order:update',
+        'confirm': 'purchasing:order:update',
+        'ship': 'purchasing:order:update',
+        'cancel': 'purchasing:order:update',
+        'complete': 'purchasing:order:update',
+        'summary': 'purchasing:order:read',
     }
 
     def get_serializer_class(self):
@@ -283,13 +283,13 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:purchase_order:read',
-        'list': 'purchasing:purchase_order:read',
-        'retrieve': 'purchasing:purchase_order:read',
-        'create': 'purchasing:purchase_order:update',
-        'update': 'purchasing:purchase_order:update',
-        'partial_update': 'purchasing:purchase_order:update',
-        'destroy': 'purchasing:purchase_order:update',
+        None: 'purchasing:order:read',
+        'list': 'purchasing:order:read',
+        'retrieve': 'purchasing:order:read',
+        'create': 'purchasing:order:update',
+        'update': 'purchasing:order:update',
+        'partial_update': 'purchasing:order:update',
+        'destroy': 'purchasing:order:update',
     }
 
     def get_queryset(self):

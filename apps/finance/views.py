@@ -1,4 +1,5 @@
 import functools
+from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -6,7 +7,7 @@ from rest_framework.pagination import PageNumberPagination
 
 
 class SafePageNumberPagination(PageNumberPagination):
-    """解决 get_next_link() build_absolute_uri DisallowedHost 问题"""
+    """解决 get_next_link() build_absolute_uri DisallowedHost 问题，返回相对URL"""
     page_size = 20
     page_query_param = 'page'
     page_size_query_param = 'page_size'
@@ -14,15 +15,24 @@ class SafePageNumberPagination(PageNumberPagination):
 
     def get_next_link(self):
         try:
-            return super().get_next_link()
+            link = super().get_next_link()
         except Exception:
             return None
+        if not link:
+            return None
+        # 转换为相对URL，避免浏览器跨域问题
+        parsed = urlparse(link)
+        return parsed.path + ('?' + parsed.query if parsed.query else '')
 
     def get_previous_link(self):
         try:
-            return super().get_previous_link()
+            link = super().get_previous_link()
         except Exception:
             return None
+        if not link:
+            return None
+        parsed = urlparse(link)
+        return parsed.path + ('?' + parsed.query if parsed.query else '')
 
     def get_paginated_response(self, data):
         return Response({
@@ -287,11 +297,11 @@ class IncomeViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
-        """确认收入"""
+        """确认收入（手工录入审批通过）"""
         income = self.get_object()
-        if income.status == 'confirmed':
-            return Response({'status': 'error', 'message': '收入已确认'}, status=400)
-        income.status = 'confirmed'
+        if income.status not in ('pending',):
+            return Response({'status': 'error', 'message': f'当前状态不允许确认（状态：{income.status}）'}, status=400)
+        income.status = 'approved'
         income.save()
         return Response({'status': 'success', 'message': '收入已确认'})
 
@@ -299,8 +309,8 @@ class IncomeViewSet(viewsets.ModelViewSet):
     def unconfirm(self, request, pk=None):
         """取消确认收入"""
         income = self.get_object()
-        if income.status == 'pending':
-            return Response({'status': 'error', 'message': '收入已是待确认状态'}, status=400)
+        if income.status != 'approved':
+            return Response({'status': 'error', 'message': f'当前状态不允许取消确认（状态：{income.status}）'}, status=400)
         income.status = 'pending'
         income.save()
         return Response({'status': 'success', 'message': '收入已取消确认'})
@@ -314,12 +324,12 @@ class IncomeViewSet(viewsets.ModelViewSet):
         pending_total = queryset.filter(status='pending').aggregate(
             total=Sum('amount')
         )['total'] or 0
-        confirmed_total = queryset.filter(status='approved').aggregate(
+        confirmed_total = queryset.filter(status__in=('approved', 'received')).aggregate(
             total=Sum('amount')
         )['total'] or 0
         total_count = queryset.count()
         pending_count = queryset.filter(status='pending').count()
-        confirmed_count = queryset.filter(status='approved').count()
+        confirmed_count = queryset.filter(status__in=('approved', 'received')).count()
 
         # 按月份统计
         monthly_stats = queryset.annotate(

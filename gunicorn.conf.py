@@ -25,7 +25,7 @@ def worker_abort(worker):
 
 bind = '0.0.0.0:8001'
 daemon = False
-preload_app = True
+preload_app = False
 
 _log_dir = os.environ.get('GUNICORN_LOG_DIR', os.path.join(os.path.dirname(__file__), 'logs'))
 os.makedirs(_log_dir, exist_ok=True)

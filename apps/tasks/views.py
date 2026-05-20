@@ -178,6 +178,10 @@ class TaskSerializer(serializers.ModelSerializer):
 
 class TaskCreateSerializer(serializers.ModelSerializer):
     company_id = serializers.IntegerField(read_only=True)
+    assignee = serializers.SlugRelatedField(
+        queryset=User.objects.all(), slug_field='username',
+        required=False, allow_null=True
+    )
 
     class Meta:
         model = Task
@@ -389,18 +393,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'task:project:read',
-        'list': 'task:project:read',
-        'retrieve': 'task:project:read',
-        'create': 'task:project:update',
-        'update': 'task:project:update',
-        'partial_update': 'task:project:update',
-        'destroy': 'task:project:update',
-        'export': 'task:project:read',
-        'submit_approval': 'task:project:update',
-        'activate': 'task:project:update',
-        'gantt_data': 'task:project:read',
-        'gantt_all': 'task:project:read',
+        None: 'project:project:read',
+        'list': 'project:project:read',
+        'retrieve': 'project:project:read',
+        'create': 'project:project:update',
+        'update': 'project:project:update',
+        'partial_update': 'project:project:update',
+        'destroy': 'project:project:update',
+        'export': 'project:project:read',
+        'submit_approval': 'project:project:update',
+        'activate': 'project:project:update',
+        'gantt_data': 'project:project:read',
+        'gantt_all': 'project:project:read',
     }
     
     def get_queryset(self):
@@ -603,18 +607,18 @@ class TaskViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'task:task:read',
-        'list': 'task:task:read',
-        'retrieve': 'task:task:read',
-        'create': 'task:task:update',
-        'update': 'task:task:update',
-        'partial_update': 'task:task:update',
-        'destroy': 'task:task:update',
-        'export': 'task:task:read',
-        'start': 'task:task:update',
-        'complete': 'task:task:update',
-        'start_flow': 'task:task:update',
-        'flow_info': 'task:task:read',
+        None: 'project:task:read',
+        'list': 'project:task:read',
+        'retrieve': 'project:task:read',
+        'create': 'project:task:update',
+        'update': 'project:task:update',
+        'partial_update': 'project:task:update',
+        'destroy': 'project:task:update',
+        'export': 'project:task:read',
+        'start': 'project:task:update',
+        'complete': 'project:task:update',
+        'start_flow': 'project:task:update',
+        'flow_info': 'project:task:read',
     }
     
     def get_serializer_class(self):

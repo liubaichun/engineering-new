@@ -62,15 +62,53 @@ Backend: bank_import_views.confirm_bank_import
 
 ---
 
-## 2. 供应商导入
+## 2. 任务创建 Bug 修复
 
-### 2.1 接口
+### 2.1 Bug 1: 新建任务 400 错误（2026-05-19）
+
+**问题现象**：
+- 任务看板 → 新建任务 → 填写信息 → 点击保存 → 返回 `400 Bad Request`
+- 控制台: `保存任务失败: Error: 保存失败`
+
+**根因**：前端传 `assignee: "admin"`（username字符串），后端 `TaskCreateSerializer` 的 assignee 是隐式 `PrimaryKeyRelatedField`，只接受 integer pk
+
+**修复**：`apps/tasks/views.py` 中 `TaskCreateSerializer.assignee` 改为 `SlugRelatedField(slug_field='username')`
+
+**验证**：43/124 服务器均已修复，3次连续浏览器UI测试全部通过
+
+### 2.2 Bug 2: Modal 对话框保存后不关闭（2026-05-19）
+
+**问题现象**：
+- 保存成功后对话框不关闭，用户需手动点 X
+- Bootstrap Modal.hide() 单独调用有效，但在真实按钮点击流程中失效
+
+**根因**：saveTask() 的 catch 分支只 showToast，**没有调用 taskModal.hide()**。当 API 返回任何错误（400/403/500）时进 catch 分支，modal 一直开着。成功分支里 hide() 本来有效，但之前测试失败率高是因为表单填写不完整导致 API 400，进入 catch 后 modal 没关
+
+**修复**：`templates/tasks/flow_board.html` 第 993-996行 catch 块中加 `taskModal.hide()`
+
+**43服务器**：`/root/engineering-new/templates/tasks/flow_board.html`
+**124服务器**：`/home/ubuntu/engineering-new/templates/tasks/flow_board.html`（已同步）
+
+**验证**：3次连续浏览器UI测试，全部通过：modal 正常关闭、新任务出现在列表、DB 正确入库
+
+### 2.3 经验教训
+
+1. **Bootstrap Modal.hide() 单独调用有效**：console 诊断证明 hide() 方法本身没问题
+2. **catch 分支漏掉清理逻辑**：成功分支和 catch 分支都要关闭 modal，不能只修一个
+3. **API 失败率高时不要误判为 hide() 不工作**：先确认请求是否真的成功了
+4. **表单必填字段要填完整**：project=null 会导致 400，后端验证失败进 catch
+
+---
+
+## 3. 供应商导入
+
+### 3.1 接口
 
 ```
 POST /api/crm/import/suppliers/
 ```
 
-### 2.2 Excel 列映射
+### 3.2 Excel 列映射
 
 | Excel 列名 | → | Supplier 字段 |
 |-----------|---|---------------|
@@ -82,14 +120,14 @@ POST /api/crm/import/suppliers/
 | 地址 | → | address |
 | 备注 | → | remark |
 
-### 2.3 逻辑特点
+### 3.3 逻辑特点
 
 - **必填**：供应商名称
 - **自动生成编码**：`GYS-{年份}-{序号}`，如 GYS-2026-0001
 - **状态默认**：`status='active'`（合作中）
 - **公司关联**：company 字段为空（未实现多公司隔离时直接留空）
 
-### 2.4 模型字段 vs 导入字段（差距分析）
+### 3.4 模型字段 vs 导入字段（差距分析）
 
 | Supplier 模型字段 | 导入支持 | 说明 |
 |-----------------|---------|------|
@@ -112,15 +150,15 @@ POST /api/crm/import/suppliers/
 
 ---
 
-## 3. 客户导入
+## 4. 客户导入
 
-### 3.1 接口
+### 4.1 接口
 
 ```
 POST /api/crm/import/clients/
 ```
 
-### 3.2 Excel 列映射
+### 4.2 Excel 列映射
 
 | Excel 列名 | → | Client 字段 |
 |-----------|---|------------|
@@ -132,14 +170,14 @@ POST /api/crm/import/clients/
 | 地址 | → | address |
 | 备注 | → | remark |
 
-### 3.3 逻辑特点
+### 4.3 逻辑特点
 
 - **必填**：客户名称
 - **自动生成编码**：`KH-{年份}-{序号}`，如 KH-2026-0001
 - **类别默认值**：`企业客户`
 - **公司关联**：company 字段为空
 
-### 3.4 模型字段 vs 导入字段（差距分析）
+### 4.4 模型字段 vs 导入字段（差距分析）
 
 | Client 模型字段 | 导入支持 | 说明 |
 |----------------|---------|------|
@@ -161,15 +199,15 @@ POST /api/crm/import/clients/
 
 ---
 
-## 4. 合同导入
+## 5. 合同导入
 
-### 4.1 接口
+### 5.1 接口
 
 ```
 POST /api/crm/import/contracts/
 ```
 
-### 4.2 Excel 列映射
+### 5.2 Excel 列映射
 
 | Excel 列名 | → | Contract 字段 |
 |-----------|---|--------------|
@@ -185,7 +223,7 @@ POST /api/crm/import/contracts/
 | 供应商名称 | → | 查找 Supplier FK |
 | 项目名称 | → | 查找 Project FK |
 
-### 4.3 逻辑特点
+### 5.3 逻辑特点
 
 - **必填**：合同编号、合同名称、金额、签订日期
 - **FK 查找**：通过名称字符串查找已存在的 Client/Supplier/Project
@@ -193,9 +231,9 @@ POST /api/crm/import/contracts/
 
 ---
 
-## 5. 核心差距总结
+## 6. 核心差距总结
 
-### 5.1 供应商/客户导入 vs 模型字段
+### 6.1 供应商/客户导入 vs 模型字段
 
 **未实现的银行字段（两者都有）：**
 - bank_account（银行账号）
@@ -209,7 +247,7 @@ POST /api/crm/import/contracts/
 **未实现的客户专属字段：**
 - source（客户来源）
 
-### 5.2 潜在改进方向
+### 6.2 潜在改进方向
 
 1. **供应商/客户导入加上银行字段**：税号、银行账号、开户行等
 2. **counterparty_type 智能化判断**：根据名称/税号自动判断企业/个人/政府
