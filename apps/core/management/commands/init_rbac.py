@@ -94,6 +94,7 @@ PERMISSIONS = [
     ('material', 'usage', 'material:usage:create', '记录物料使用'),
     # ── 设备 ─────────────────────────────────────────────────────────────────
     ('equipment', 'equipment', 'equipment:equipment:read', '查看设备'),
+    ('equipment', 'equipment', 'equipment:equipment:create', '创建设备'),
     ('equipment', 'equipment', 'equipment:equipment:update', '管理设备'),
     ('equipment', 'equipment', 'equipment:equipment:delete', '删除设备'),
     ('equipment', 'equipment', 'equipment:equipment:use', '领用设备'),
@@ -101,10 +102,14 @@ PERMISSIONS = [
     ('equipment', 'equipment', 'equipment:equipment:repair', '报修设备'),
     # ── 审批 ─────────────────────────────────────────────────────────────────
     ('approval', 'flow', 'approval:flow:read', '查看审批流'),
+    ('approval', 'flow', 'approval:flow:create', '创建审批流'),
     ('approval', 'flow', 'approval:flow:approve', '审批'),
     ('approval', 'flow', 'approval:flow:update', '编辑审批流'),
+    ('approval', 'flow', 'approval:flow:delete', '删除审批流'),
     ('approval', 'node', 'approval:node:read', '查看审批节点'),
+    ('approval', 'node', 'approval:node:create', '创建审批节点'),
     ('approval', 'node', 'approval:node:update', '编辑审批节点'),
+    ('approval', 'node', 'approval:node:delete', '删除审批节点'),
     ('approval', 'template', 'approval:template:read', '查看审批模板'),
     ('approval', 'template', 'approval:template:manage', '管理审批模板'),
     # ── 系统 ─────────────────────────────────────────────────────────────────
