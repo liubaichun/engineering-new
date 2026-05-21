@@ -184,13 +184,25 @@ class PermissionMatrixViewSet(viewsets.ViewSet):
         """
         批量更新权限。
         请求体：{"permissions": [{"company_id": 1, "module_id": 1, "can_view": true, ...}, ...]}
+        超管调用视为无操作（权限矩阵为只读，权限由系统自动授予）。
         """
         user = get_object_or_404(User, pk=user_pk)
+
+        # 超管：权限由系统自动授予，batch_update 无意义
+        if user.is_superuser:
+            return Response({'detail': '超管拥有全部权限，无需通过矩阵配置。'}, status=200)
+
         serializer = BatchPermissionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        permissions = serializer.validated_data['permissions']
+
+        # 空数组：视为无操作
+        if not permissions:
+            return Response({'detail': '没有需要保存的权限变更。'}, status=200)
+
         updated_ids = []
-        for item in serializer.validated_data['permissions']:
+        for item in permissions:
             company_id = item['company_id']
             module_id = item['module_id']
             is_primary = item.get('is_primary', False)

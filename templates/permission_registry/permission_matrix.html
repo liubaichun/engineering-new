@@ -377,15 +377,17 @@ async function saveAll() {
             }
         );
 
+        const data = await resp.json().catch(() => ({}));
+
         if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.detail || `HTTP ${resp.status}`);
+            throw new Error(data.detail || `HTTP ${resp.status}`);
         }
 
         // 成功后重新加载矩阵
         unsavedChanges.clear();
         await loadMatrix();
-        alert('保存成功');
+        // 显示后端返回的实际消息（区分超管提示 vs 普通成功）
+        alert(data.detail || '保存成功');
     } catch (e) {
         alert('保存失败: ' + e.message);
         saveBtn.disabled = false;
