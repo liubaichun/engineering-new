@@ -608,8 +608,11 @@
             <a href="/system/roles/" class="nav-link {% if '/system/roles' in request.path %}active{% endif %}">
                 <i class="bi bi-person-badge"></i><span>角色管理</span>
             </a>
-            <a href="/system/permissions/" class="nav-link {% if '/system/permissions' in request.path %}active{% endif %}">
+            <a href="/system/permissions/" class="nav-link {% if '/system/permissions' in request.path and '/permission-matrix' not in request.path %}active{% endif %}">
                 <i class="bi bi-shield-lock"></i><span>权限管理</span>
+            </a>
+            <a href="/system/permission-matrix/" class="nav-link {% if '/permission-matrix' in request.path %}active{% endif %}">
+                <i class="bi bi-grid-3x3"></i><span>权限矩阵</span>
             </a>
             <a href="/system/notification-channels/" class="nav-link {% if '/system/notification-channels' in request.path %}active{% endif %}">
                 <i class="bi bi-broadcast"></i><span>通知渠道</span>

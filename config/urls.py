@@ -112,6 +112,9 @@ def role_list_page(request):
 def permission_list_page(request):
     return TemplateView.as_view(template_name='system/permission_list.html')(request)
 
+def permission_matrix_page(request):
+    return TemplateView.as_view(template_name='permission_registry/permission_matrix.html')(request)
+
 def system_settings_page(request):
     """系统参数配置页 — 渲染页头所需的初始数据"""
     from apps.core.models import SystemSetting
@@ -389,6 +392,8 @@ urlpatterns = [
     path('api/core/', include('apps.core.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/finance/', include('apps.finance.urls')),
+    path('api/permission-registry/',
+         include('apps.permission_registry.urls')),
     path('api/approvals/', include('apps.approvals.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/channels/', include('apps.channels.urls')),
@@ -402,6 +407,7 @@ urlpatterns = [
     path('system/users/', user_list_page, name='user_list'),
     path('system/roles/', role_list_page, name='role_list'),
     path('system/permissions/', permission_list_page, name='permission_list'),
+    path('system/permission-matrix/', permission_matrix_page, name='permission_matrix'),
     path('crm/clients/', client_list_page, name='client_list'),
     path('crm/contracts/expiring/', lambda request: render(request, 'contracts/contract_expiring_list.html'), name='contract_expiring'),
     path('crm/contracts/', contract_list_page, name='contract_list'),
