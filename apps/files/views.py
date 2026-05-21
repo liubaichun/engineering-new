@@ -6,15 +6,11 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse
 from .models import FileCategory, CompanyFile
 from .serializers import FileCategorySerializer, CompanyFileSerializer
+from apps.core.permissions import RoleRequired
 
 
-class IsAdminOrFileOwner(IsAuthenticated):
+class IsAdminOrFileOwner(RoleRequired):
     """管理员或上传者可删除/下载，普通用户只能读"""
-
-    def has_permission(self, request, view):
-        if not request.user or not request.user.is_authenticated:
-            return False
-        return True
 
     def has_object_permission(self, request, view, obj):
         # 管理员/超级用户可以操作任何文件
@@ -38,14 +34,28 @@ class FileCategoryViewSet(viewsets.ModelViewSet):
     """文件分类管理"""
     queryset = FileCategory.objects.all()
     serializer_class = FileCategorySerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'files:category:read',
+        'create': 'files:category:manage',
+        'update': 'files:category:manage',
+        'partial_update': 'files:category:manage',
+        'destroy': 'files:category:manage',
+    }
 
 
 class CompanyFileViewSet(viewsets.ModelViewSet):
     """公司文件管理"""
     queryset = CompanyFile.objects.all()
     serializer_class = CompanyFileSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'files:file:read',
+        'create': 'files:file:upload',
+        'update': 'files:file:update',
+        'partial_update': 'files:file:update',
+        'destroy': 'files:file:delete',
+    }
     parser_classes = [MultiPartParser, FormParser]
     filterset_fields = ['category', 'company']
     search_fields = ['file_name', 'alias']
