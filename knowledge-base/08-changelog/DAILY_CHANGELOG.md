@@ -36,6 +36,30 @@
 
 ---
 
+### 🔴 严重：RoleRequired 权限检查形同虚设（P1-1）
+
+**涉及模块**：`apps.finance`
+
+**问题描述**：
+- `core.permissions.RoleRequired` 检查 `core_permission` 表，该表从创建至今一直为空
+- 所有 ViewSet 的 `permission_classes = [IsAuthenticated, RoleRequired]` 从未真正执行权限过滤
+- 任何登录用户都能访问任何模块（只要知道 URL）
+
+**根因**：`RoleRequired` 的 `action_perms` 字段引用的是 `core_permission` 表的 `codename` 字段（如 `finance_invoice_read`），但该表从未写入过数据，导致 `RoleRequired.has_permission` 直接 raise 403。等等——之前的分析说它会 raise 403，但实际用户仍能访问数据，说明另一个逻辑覆盖了？实际上是因为 view 层 `get_queryset` 的公司过滤 + DRF 默认权限已经部分实现了过滤。
+
+**解决方案**：
+1. 全部11个 ViewSet 替换 `RoleRequired` → `ModulePermission`
+2. 每个 ViewSet 声明 `module_name`（company/employee/income/expense/invoice/wage/report/bank）
+3. `ModulePermission` 查 `UserCompanyPermission` 表，真正实现五档权限检查（超管 bypass）
+4. `EmployeeViewSet.get_queryset` 从 `company_id` 单值过滤改为 `EmployeeCompany` 中间表多公司过滤
+
+**涉及文件**：
+- `apps/finance/views.py`（+34行，-17行）
+
+**教训**：`RoleRequired` 和 `core_permission` 表从未生效，说明光有设计不够，必须有验证机制。建议后续在 admin 后台加"权限健康检查"功能。
+
+---
+
 ## 2026-05-21
 
 ### 🔴 阶段1-3：多公司权限体系改造
