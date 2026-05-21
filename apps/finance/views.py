@@ -61,6 +61,8 @@ class SafePageNumberPagination(PageNumberPagination):
         }
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.permission_registry.permissions import ModulePermission
+from apps.permission_registry.services import get_user_companies
 from django.shortcuts import render
 
 
@@ -214,7 +216,8 @@ class CompanyViewSet(viewsets.ModelViewSet):
     search_fields = ['name', 'code', 'contact_person', 'contact_phone']
     ordering_fields = ['name', 'code', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'company'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:company:read',
         'list': 'finance:company:read',
@@ -276,7 +279,8 @@ class IncomeViewSet(viewsets.ModelViewSet):
     search_fields = ['description', 'customer', 'source']
     ordering_fields = ['date', 'amount', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'income'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:income:read',
         'list': 'finance:income:read',
@@ -474,7 +478,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     search_fields = ['description', 'supplier', 'expense_category']
     ordering_fields = ['date', 'expense_date', 'amount', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'expense'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:expense:read',
         'list': 'finance:expense:read',
@@ -649,7 +654,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 class WageRecordViewSet(viewsets.ModelViewSet):
     """工资单视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'wage'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     queryset = WageRecord.objects.all()
     serializer_class = WageRecordSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -1356,7 +1362,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     search_fields = ['invoice_no', 'remarks']
     ordering_fields = ['issue_date', 'due_date', 'amount', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'invoice'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:invoice:read',
         'list': 'finance:invoice:read',
@@ -1540,7 +1547,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 class ReportViewSet(viewsets.ViewSet):
     """财务报表视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'report'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:report:read',
         'list': 'finance:report:read',
@@ -1989,7 +1997,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name', 'id_card', 'phone', 'email']
     ordering_fields = ['code', 'name', 'hire_date', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'employee'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:company:read',
         'list': 'finance:company:read',
@@ -2005,15 +2014,19 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        # 多租户隔离：普通用户只看本公司员工
+        # 多租户隔离：普通用户只看关联公司的员工
         if not self.request.user.is_authenticated:
             return Employee.objects.none()
-        queryset = Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
         user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                queryset = queryset.filter(company_id=user.company_id)
-        return queryset
+        if user.is_superuser:
+            return Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
+        cids = get_user_companies(user)
+        if not cids:
+            return Employee.objects.none()
+        # 员工可能关联多个公司，取并集
+        from apps.finance.models import EmployeeCompany
+        employee_ids = EmployeeCompany.objects.filter(company_id__in=cids).values_list('employee_id', flat=True)
+        return Employee.objects.filter(id__in=employee_ids).prefetch_related('company_links__company').order_by('-created_at')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -2087,7 +2100,8 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['company']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'company'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:company:read',
         'list': 'finance:company:read',
@@ -2112,7 +2126,8 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
 class ARAPViewSet(viewsets.ViewSet):
     """应收应付台账视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'report'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:report:read',
         'list': 'finance:report:read',
@@ -2214,7 +2229,8 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
     search_fields = ['employee__name', 'company__name', 'department', 'position']
     ordering_fields = ['company__name', 'is_primary', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'employee'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:company:read',
         'list': 'finance:company:read',
@@ -2251,7 +2267,8 @@ class BankAccountViewSet(viewsets.ModelViewSet):
     search_fields = ['account_no', 'account_name', 'bank_name']
     ordering_fields = ['company__name', 'created_at', 'account_no']
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    module_name = 'bank'
+    permission_classes = [permissions.IsAuthenticated, ModulePermission]
     action_perms = {
         None: 'finance:company:read',
         'list': 'finance:company:read',
