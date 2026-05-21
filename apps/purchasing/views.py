@@ -20,12 +20,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:request:read',
-        'list': 'purchasing:request:read',
-        'retrieve': 'purchasing:request:read',
         'create': 'purchasing:request:update',
-        'update': 'purchasing:request:update',
-        'partial_update': 'purchasing:request:update',
-        'destroy': 'purchasing:request:update',
         'submit': 'purchasing:request:update',
         'approve': 'purchasing:request:update',
         'reject': 'purchasing:request:update',
@@ -127,12 +122,7 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:request:read',
-        'list': 'purchasing:request:read',
-        'retrieve': 'purchasing:request:read',
         'create': 'purchasing:request:update',
-        'update': 'purchasing:request:update',
-        'partial_update': 'purchasing:request:update',
-        'destroy': 'purchasing:request:update',
     }
 
     def get_queryset(self):
@@ -179,12 +169,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:order:read',
-        'list': 'purchasing:order:read',
-        'retrieve': 'purchasing:order:read',
         'create': 'purchasing:order:update',
-        'update': 'purchasing:order:update',
-        'partial_update': 'purchasing:order:update',
-        'destroy': 'purchasing:order:update',
         'confirm': 'purchasing:order:update',
         'ship': 'purchasing:order:update',
         'cancel': 'purchasing:order:update',
@@ -284,12 +269,7 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:order:read',
-        'list': 'purchasing:order:read',
-        'retrieve': 'purchasing:order:read',
         'create': 'purchasing:order:update',
-        'update': 'purchasing:order:update',
-        'partial_update': 'purchasing:order:update',
-        'destroy': 'purchasing:order:update',
     }
 
     def get_queryset(self):
@@ -339,14 +319,9 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
     queryset = PurchaseReceive.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:purchase_receive:read',
-        'list': 'purchasing:purchase_receive:read',
-        'retrieve': 'purchasing:purchase_receive:read',
-        'create': 'purchasing:purchase_receive:update',
-        'update': 'purchasing:purchase_receive:update',
-        'partial_update': 'purchasing:purchase_receive:update',
-        'destroy': 'purchasing:purchase_receive:update',
-        'complete': 'purchasing:purchase_receive:update',
+        None: 'purchasing:receive:read',
+        'create': 'purchasing:receive:update',
+        'complete': 'purchasing:receive:update',
     }
 
     def get_serializer_class(self):
@@ -393,13 +368,8 @@ class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseReceiveItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:purchase_receive:read',
-        'list': 'purchasing:purchase_receive:read',
-        'retrieve': 'purchasing:purchase_receive:read',
-        'create': 'purchasing:purchase_receive:update',
-        'update': 'purchasing:purchase_receive:update',
-        'partial_update': 'purchasing:purchase_receive:update',
-        'destroy': 'purchasing:purchase_receive:update',
+        None: 'purchasing:receive:read',
+        'create': 'purchasing:receive:update',
     }
 
     def get_queryset(self):

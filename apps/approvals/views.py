@@ -94,12 +94,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'approval:flow:read',
-        'list': 'approval:flow:read',
-        'retrieve': 'approval:flow:read',
         'create': 'approval:flow:read',
-        'update': 'approval:flow:read',
-        'partial_update': 'approval:flow:read',
-        'destroy': 'approval:flow:read',
         'submit': 'approval:flow:read',
         'approve': 'approval:flow:approve',
         'reject': 'approval:flow:approve',
@@ -475,12 +470,7 @@ class ApprovalNodeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'approval:node:read',
-        'list': 'approval:node:read',
-        'retrieve': 'approval:node:read',
         'create': 'approval:node:update',
-        'update': 'approval:node:update',
-        'partial_update': 'approval:node:update',
-        'destroy': 'approval:node:update',
     }
 
     def get_queryset(self):
@@ -509,12 +499,7 @@ class ApprovalTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'approval:template:read',
-        'list': 'approval:template:read',
-        'retrieve': 'approval:template:read',
         'create': 'approval:template:update',
-        'update': 'approval:template:update',
-        'partial_update': 'approval:template:update',
-        'destroy': 'approval:template:update',
     }
 
     def get_queryset(self):

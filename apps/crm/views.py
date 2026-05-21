@@ -19,12 +19,7 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:client_source:read',
-        'list': 'crm:client_source:read',
-        'retrieve': 'crm:client_source:read',
         'create': 'crm:client_source:update',
-        'update': 'crm:client_source:update',
-        'partial_update': 'crm:client_source:update',
-        'destroy': 'crm:client_source:update',
     }
     search_fields = ['name']
 
@@ -44,12 +39,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:supplier:read',
-        'list': 'crm:supplier:read',
-        'retrieve': 'crm:supplier:read',
         'create': 'crm:supplier:update',
-        'update': 'crm:supplier:update',
-        'partial_update': 'crm:supplier:update',
-        'destroy': 'crm:supplier:update',
         'export': 'crm:supplier:read',
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'brands']
@@ -87,12 +77,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:customer:read',
-        'list': 'crm:customer:read',
-        'retrieve': 'crm:customer:read',
         'create': 'crm:customer:update',
-        'update': 'crm:customer:update',
-        'partial_update': 'crm:customer:update',
-        'destroy': 'crm:customer:update',
         'export': 'crm:customer:read',
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'code']
@@ -130,12 +115,7 @@ class ContractViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:contract:read',
-        'list': 'crm:contract:read',
-        'retrieve': 'crm:contract:read',
         'create': 'crm:contract:update',
-        'update': 'crm:contract:update',
-        'partial_update': 'crm:contract:update',
-        'destroy': 'crm:contract:update',
         'export': 'crm:contract:read',
         'approve': 'crm:client_source:update',
         'reject': 'crm:client_source:update',
@@ -293,12 +273,7 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:payment_plan:read',
-        'list': 'crm:payment_plan:read',
-        'retrieve': 'crm:payment_plan:read',
         'create': 'crm:payment_plan:update',
-        'update': 'crm:payment_plan:update',
-        'partial_update': 'crm:payment_plan:update',
-        'destroy': 'crm:payment_plan:update',
         'mark_paid': 'crm:payment_plan:update',
         'update_paid': 'crm:payment_plan:update',
     }
@@ -377,12 +352,7 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:contract_change_log:read',
-        'list': 'crm:contract_change_log:read',
-        'retrieve': 'crm:contract_change_log:read',
         'create': 'crm:contract_change_log:update',
-        'update': 'crm:contract_change_log:update',
-        'partial_update': 'crm:contract_change_log:update',
-        'destroy': 'crm:contract_change_log:update',
     }
     filterset_fields = ['contract', 'change_type']
 
@@ -417,12 +387,7 @@ class ContactViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:contact:read',
-        'list': 'crm:contact:read',
-        'retrieve': 'crm:contact:read',
         'create': 'crm:contact:update',
-        'update': 'crm:contact:update',
-        'partial_update': 'crm:contact:update',
-        'destroy': 'crm:contact:update',
     }
     search_fields = ['name', 'phone', 'email']
     filterset_fields = ['client', 'is_primary']
@@ -453,12 +418,7 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:follow_up_record:read',
-        'list': 'crm:follow_up_record:read',
-        'retrieve': 'crm:follow_up_record:read',
         'create': 'crm:follow_up_record:update',
-        'update': 'crm:follow_up_record:update',
-        'partial_update': 'crm:follow_up_record:update',
-        'destroy': 'crm:follow_up_record:update',
     }
     search_fields = ['content', 'next_plan']
     filterset_fields = ['contact', 'client', 'follow_type']
@@ -489,12 +449,7 @@ class OpportunityViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:opportunity:read',
-        'list': 'crm:opportunity:read',
-        'retrieve': 'crm:opportunity:read',
         'create': 'crm:opportunity:update',
-        'update': 'crm:opportunity:update',
-        'partial_update': 'crm:opportunity:update',
-        'destroy': 'crm:opportunity:update',
         'pipeline': 'crm:opportunity:read',
         'advance_stage': 'crm:opportunity:approve',
         'win': 'crm:opportunity:approve',

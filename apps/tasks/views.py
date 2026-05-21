@@ -398,12 +398,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'project:project:read',
-        'list': 'project:project:read',
-        'retrieve': 'project:project:read',
         'create': 'project:project:update',
-        'update': 'project:project:update',
-        'partial_update': 'project:project:update',
-        'destroy': 'project:project:update',
         'export': 'project:project:read',
         'submit_approval': 'project:project:update',
         'activate': 'project:project:update',
@@ -612,12 +607,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'project:task:read',
-        'list': 'project:task:read',
-        'retrieve': 'project:task:read',
         'create': 'project:task:update',
-        'update': 'project:task:update',
-        'partial_update': 'project:task:update',
-        'destroy': 'project:task:update',
         'export': 'project:task:read',
         'start': 'project:task:update',
         'complete': 'project:task:update',
@@ -812,12 +802,7 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:flow_template:read',
-        'list': 'task:flow_template:read',
-        'retrieve': 'task:flow_template:read',
         'create': 'task:flow_template:update',
-        'update': 'task:flow_template:update',
-        'partial_update': 'task:flow_template:update',
-        'destroy': 'task:flow_template:update',
         'nodes': 'task:flow_template:read',
     }
 
@@ -851,12 +836,7 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:flow_node:read',
-        'list': 'task:flow_node:read',
-        'retrieve': 'task:flow_node:read',
         'create': 'task:flow_node:update',
-        'update': 'task:flow_node:update',
-        'partial_update': 'task:flow_node:update',
-        'destroy': 'task:flow_node:update',
     }
 
     def get_queryset(self):
@@ -880,12 +860,7 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at']
     action_perms = {
         None: 'task:stage_instance:read',
-        'list': 'task:stage_instance:read',
-        'retrieve': 'task:stage_instance:read',
         'create': 'task:stage_instance:update',
-        'update': 'task:stage_instance:update',
-        'partial_update': 'task:stage_instance:update',
-        'destroy': 'task:stage_instance:update',
         'start': 'task:stage_instance:update',
         'approve': 'task:stage_instance:update',
         'reject': 'task:stage_instance:update',
@@ -996,12 +971,7 @@ class StageActivityViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:activity:read',
-        'list': 'task:activity:read',
-        'retrieve': 'task:activity:read',
         'create': 'task:activity:update',
-        'update': 'task:activity:update',
-        'partial_update': 'task:activity:update',
-        'destroy': 'task:activity:update',
     }
     
     def get_queryset(self):
@@ -1025,12 +995,7 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:transition:read',
-        'list': 'task:transition:read',
-        'retrieve': 'task:transition:read',
         'create': 'task:transition:update',
-        'update': 'task:transition:update',
-        'partial_update': 'task:transition:update',
-        'destroy': 'task:transition:update',
     }
     
     def get_queryset(self):
@@ -1062,12 +1027,7 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:flow_instance:read',
-        'list': 'task:flow_instance:read',
-        'retrieve': 'task:flow_instance:read',
         'create': 'task:flow_instance:update',
-        'update': 'task:flow_instance:update',
-        'partial_update': 'task:flow_instance:update',
-        'destroy': 'task:flow_instance:update',
         'start_flow': 'task:flow_instance:update',
         'approve_node': 'task:flow_instance:update',
         'reject_node': 'task:flow_instance:update',
@@ -1192,12 +1152,7 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:comment:read',
-        'list': 'task:comment:read',
-        'retrieve': 'task:comment:read',
         'create': 'task:comment:update',
-        'update': 'task:comment:update',
-        'partial_update': 'task:comment:update',
-        'destroy': 'task:comment:update',
     }
 
     def get_queryset(self):
@@ -1220,12 +1175,7 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     action_perms = {
         None: 'task:attachment:read',
-        'list': 'task:attachment:read',
-        'retrieve': 'task:attachment:read',
         'create': 'task:attachment:update',
-        'update': 'task:attachment:update',
-        'partial_update': 'task:attachment:update',
-        'destroy': 'task:attachment:update',
     }
 
     def get_queryset(self):
@@ -1247,12 +1197,7 @@ class TaskDependencyViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:dependency:read',
-        'list': 'task:dependency:read',
-        'retrieve': 'task:dependency:read',
         'create': 'task:dependency:update',
-        'update': 'task:dependency:update',
-        'partial_update': 'task:dependency:update',
-        'destroy': 'task:dependency:update',
     }
 
     def get_queryset(self):

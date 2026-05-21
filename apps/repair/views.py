@@ -16,12 +16,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'repair:repair_request:read',
-        'list': 'repair:repair_request:read',
-        'retrieve': 'repair:repair_request:read',
         'create': 'repair:repair_request:update',
-        'update': 'repair:repair_request:update',
-        'partial_update': 'repair:repair_request:update',
-        'destroy': 'repair:repair_request:update',
         'assign': 'repair:repair_request:update',
         'start_repair': 'repair:repair_request:update',
         'complete': 'repair:repair_request:update',
@@ -179,12 +174,7 @@ class RepairImageViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'repair:repair_request:read',
-        'list': 'repair:repair_request:read',
-        'retrieve': 'repair:repair_request:read',
         'create': 'repair:repair_request:update',
-        'update': 'repair:repair_request:update',
-        'partial_update': 'repair:repair_request:update',
-        'destroy': 'repair:repair_request:update',
     }
 
     def get_queryset(self):
@@ -209,12 +199,7 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'repair:repair_request:read',
-        'list': 'repair:repair_request:read',
-        'retrieve': 'repair:repair_request:read',
         'create': 'repair:repair_request:update',
-        'update': 'repair:repair_request:update',
-        'partial_update': 'repair:repair_request:update',
-        'destroy': 'repair:repair_request:update',
     }
 
     def get_queryset(self):

@@ -8,10 +8,15 @@ class FinanceConfig(AppConfig):
 
     def ready(self):
         """
-        Django 启动时注册模块到内存注册表。
+        Django 启动时注册模块到内存注册表，并同步到数据库。
 
-        注意：这里只填充 _REGISTRY 内存表，不写数据库。
-        数据库同步由 post_migrate 信号处理（在 migrate 之后执行）。
+        1. import modules.py → 触发 @register_module → 填充 _REGISTRY 内存表
+        2. 调用 sync_all_modules() → 将模块信息写入 permission_registry_module 表
+
+        这样重启服务后 DB 里就有数据了，ModulePermission 权限类才能正常工作。
         """
-        # import modules.py → 触发 @register_module → 填充 _REGISTRY 内存表
+        # 填充内存注册表
         from apps.finance import modules as _fm
+        # 同步到数据库
+        from apps.permission_registry.registry import sync_all_modules
+        sync_all_modules()

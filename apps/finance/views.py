@@ -218,13 +218,8 @@ class CompanyViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'company'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:company:read',
-        'list': 'finance:company:read',
-        'retrieve': 'finance:company:read',
-        'create': 'finance:company:update',
-        'update': 'finance:company:update',
-        'partial_update': 'finance:company:update',
         'destroy': 'finance:company:update',
         'bank_accounts': 'finance:company:read',
         'export': 'finance:company:read',
@@ -281,13 +276,8 @@ class IncomeViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'income'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:income:read',
-        'list': 'finance:income:read',
-        'retrieve': 'finance:income:read',
-        'create': 'finance:income:create',
-        'update': 'finance:income:update',
-        'partial_update': 'finance:income:update',
         'destroy': 'finance:income:delete',
         'confirm': 'finance:income:update',
         'unconfirm': 'finance:income:update',
@@ -480,13 +470,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'expense'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:expense:read',
-        'list': 'finance:expense:read',
-        'retrieve': 'finance:expense:read',
-        'create': 'finance:expense:create',
-        'update': 'finance:expense:update',
-        'partial_update': 'finance:expense:update',
         'destroy': 'finance:expense:delete',
         'summary': 'finance:expense:read',
         'export': 'finance:expense:read',
@@ -662,13 +647,8 @@ class WageRecordViewSet(viewsets.ModelViewSet):
     filterset_class = WageRecordFilter
     search_fields = ['employee_name', 'employee__name', 'employee__code', 'department', 'position']
     ordering_fields = ['year', 'month', 'company__name', 'employee_name', 'net_salary']
-    action_perms = {
+    {
         None: 'finance:wage:read',
-        'list': 'finance:wage:read',
-        'retrieve': 'finance:wage:read',
-        'create': 'finance:wage:create',
-        'update': 'finance:wage:update',
-        'partial_update': 'finance:wage:update',
         'destroy': 'finance:wage:update',
         'approve': 'finance:wage:approve',
         'pay': 'finance:wage:pay',
@@ -1364,13 +1344,8 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'invoice'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:invoice:read',
-        'list': 'finance:invoice:read',
-        'retrieve': 'finance:invoice:read',
-        'create': 'finance:invoice:create',
-        'update': 'finance:invoice:update',
-        'partial_update': 'finance:invoice:update',
         'destroy': 'finance:invoice:update',
         'cancel': 'finance:invoice:update',
         'mark_paid': 'finance:invoice:update',
@@ -1549,9 +1524,8 @@ class ReportViewSet(viewsets.ViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'report'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:report:read',
-        'list': 'finance:report:read',
         'years': 'finance:report:read',
         'monthly': 'finance:report:read',
         'yearly': 'finance:report:read',
@@ -1999,13 +1973,8 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'employee'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:company:read',
-        'list': 'finance:company:read',
-        'retrieve': 'finance:company:read',
-        'create': 'finance:company:update',
-        'update': 'finance:company:update',
-        'partial_update': 'finance:company:update',
         'destroy': 'finance:company:update',
         'export': 'finance:company:read',
         'promote': 'finance:company:update',
@@ -2102,13 +2071,8 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'company'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:company:read',
-        'list': 'finance:company:read',
-        'retrieve': 'finance:company:read',
-        'create': 'finance:company:update',
-        'update': 'finance:company:update',
-        'partial_update': 'finance:company:update',
         'destroy': 'finance:company:update',
     }
 
@@ -2128,9 +2092,8 @@ class ARAPViewSet(viewsets.ViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'report'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:report:read',
-        'list': 'finance:report:read',
     }
 
     def paginate_queryset(self, queryset, request=None):
@@ -2231,13 +2194,8 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'employee'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:company:read',
-        'list': 'finance:company:read',
-        'retrieve': 'finance:company:read',
-        'create': 'finance:company:update',
-        'update': 'finance:company:update',
-        'partial_update': 'finance:company:update',
         'destroy': 'finance:company:update',
     }
 
@@ -2269,13 +2227,8 @@ class BankAccountViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     module_name = 'bank'
     permission_classes = [permissions.IsAuthenticated, ModulePermission]
-    action_perms = {
+    {
         None: 'finance:company:read',
-        'list': 'finance:company:read',
-        'retrieve': 'finance:company:read',
-        'create': 'finance:company:update',
-        'update': 'finance:company:update',
-        'partial_update': 'finance:company:update',
         'destroy': 'finance:company:update',
     }
 
