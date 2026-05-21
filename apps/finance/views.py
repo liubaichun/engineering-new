@@ -100,19 +100,20 @@ def render_bank_import_page(request):
 def _get_user_company_id(user):
     """从登录用户自动提取当前公司ID（用于多租户自动上下文）
     超级用户返回 None（不限制公司），普通用户返回其主公司ID（第一个关联公司）。
-
-    注意：本函数已废弃，请使用 permission_registry.services.get_user_companies(user)
-    返回用户有权限的全部公司列表。
     """
     if not user or not user.is_authenticated:
         return None
     if user.is_superuser:
         return None
-    # 从 UserCompanyPermission 取第一个关联公司
-    from apps.permission_registry.models import UserCompanyPermission
-    ucp = UserCompanyPermission.objects.filter(user=user, can_view=True).first()
-    if ucp:
-        return ucp.company_id
+    # 从 UserCompanyRole 取主公司
+    from apps.core.models import UserCompanyRole
+    ucr = UserCompanyRole.objects.filter(user=user, is_primary=True).first()
+    if ucr:
+        return ucr.company_id
+    # 取第一个关联公司
+    first = UserCompanyRole.objects.filter(user=user).first()
+    if first:
+        return first.company_id
     # 兼容旧字段
     if hasattr(user, 'company_id') and user.company_id:
         return user.company_id
@@ -124,7 +125,7 @@ def get_user_companies(user):
     返回用户有权限的全部公司 ID 列表。
 
     超管 is_superuser=True → 返回 None（不过滤，等于全公司）
-    普通用户 → list[company_id]（从 UserCompanyPermission 查）
+    普通用户 → list[company_id]（从 UserCompanyRole 查）
 
     用法：
         company_ids = get_user_companies(request.user)
@@ -137,9 +138,9 @@ def get_user_companies(user):
         return []
     if user.is_superuser:
         return None  # 超管：不过滤
-    from apps.permission_registry.models import UserCompanyPermission
+    from apps.core.models import UserCompanyRole
     cids = list(
-        UserCompanyPermission.objects.filter(user=user, can_view=True)
+        UserCompanyRole.objects.filter(user=user)
         .values_list('company_id', flat=True).distinct()
     )
     return cids if cids else []

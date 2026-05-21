@@ -100,6 +100,7 @@ class UserCompanyRole(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_roles')
     company = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='user_roles')
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff', verbose_name='角色')
+    is_primary = models.BooleanField(default=False, verbose_name='主体企业')
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
 

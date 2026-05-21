@@ -113,7 +113,9 @@ def permission_list_page(request):
     return TemplateView.as_view(template_name='system/permission_list.html')(request)
 
 def permission_matrix_page(request):
-    return TemplateView.as_view(template_name='permission_registry/permission_matrix.html')(request)
+    """权限矩阵页已移除（permission_registry 已废弃）"""
+    from django.http import HttpResponseGone
+    return HttpResponseGone("权限矩阵功能已移除")
 
 def system_settings_page(request):
     """系统参数配置页 — 渲染页头所需的初始数据"""
@@ -392,8 +394,6 @@ urlpatterns = [
     path('api/core/', include('apps.core.urls')),
     path('api/tasks/', include('apps.tasks.urls')),
     path('api/finance/', include('apps.finance.urls')),
-    path('api/permission-registry/',
-         include('apps.permission_registry.urls')),
     path('api/approvals/', include('apps.approvals.urls')),
     path('api/notifications/', include('apps.notifications.urls')),
     path('api/channels/', include('apps.channels.urls')),

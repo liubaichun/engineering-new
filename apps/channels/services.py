@@ -10,7 +10,7 @@ from django.utils import timezone
 from apps.core.models import User
 from apps.channels.models import ChannelPlugin, ChannelBinding, NotificationLog
 from apps.channels.base import ChannelRegistry
-from apps.permission_registry.services import get_active_company_id
+from apps.core.services import get_active_company_id
 
 logger = logging.getLogger('channels')
 
