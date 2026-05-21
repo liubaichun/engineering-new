@@ -142,38 +142,86 @@ class RoleRequired(BasePermission):
 
     def _infer_perm_from_view(self, view, action):
         """
-        从 view 推断权限码。
+        从 view 推断权限码（智能映射版）。
 
-        推断规则：
-        - 从 queryset.model 的 _meta.app_label 获取模块前缀（如 'finance'）
-        - 从 queryset.model 的类名推断资源名（如 IncomeViewSet → income）
-        - 结合 STANDARD_ACTION_MAP 推断动作（如 list → read）
-        结果：'finance:income:read'
+        DB 权限 category 不等于 app_label：
+        - core app 的权限 category 是 'system'（user/role/permission/setting/log）
+        - finance app 下的 FinanceCompany 用 category='finance'（非 core）
+        - 其他 app（crm/purchasing/approvals/repair/equipment/material/tasks）category=app_label
 
-        适用于：所有遵循 DRFV iewSet 命名规范（XxxViewSet → basename=xxx）的视图
+        规则优先级：
+        1. VIEW_CATEGORY_MAP：显式映射 ViewSet → (category, resource)
+        2. QUERYSET MODEL：直接从 model._meta 推断（用于 finance/crm/purchasing 等标准 app）
         """
         queryset = getattr(view, 'queryset', None)
         if not queryset:
             return None
 
         model = queryset.model
+        app_label = model._meta.app_label  # 'finance', 'core', 'crm', etc.
+        model_name = model._meta.model_name  # 'income', 'user', 'company', etc.
 
-        # 模块前缀
-        app_label = model._meta.app_label  # 如 'finance'
+        # 1. 显式映射（覆盖推断结果）
+        view_class_name = view.__class__.__name__
+        if view_class_name in self.VIEW_CATEGORY_MAP:
+            category, resource = self.VIEW_CATEGORY_MAP[view_class_name]
+            perm_action = STANDARD_ACTION_MAP.get(action, action)
+            return f'{category}:{resource}:{perm_action}'
 
-        # 资源名：从 model 类名推断
-        # Income → income, BankStatement → bank_statement
-        model_name = model._meta.model_name  # 如 'income'
-
-        # 动作
+        # 2. 推断：category = app_label（标准情况）
+        # 资源名标准化（companysocialconfig → company 等）
+        normalized_resource = self._normalize_resource(app_label, model_name)
         perm_action = STANDARD_ACTION_MAP.get(action, action)
+        return f'{app_label}:{normalized_resource}:{perm_action}'
 
-        # 组合：模块前缀:资源名:动作
-        # 注意：crm app 下的资源前缀用 crm（如 crm:customer:read）
-        # 而 finance app 下 finance:income:read 不是 finance:income_income:read
-        # 所以这里 model_name 不需要再带上前缀
-        perm_code = f'{app_label}:{model_name}:{perm_action}'
-        return perm_code
+    VIEW_CATEGORY_MAP = {
+        # core app → DB category 是 'system'（不是 'core'）
+        'UserViewSet':                ('system', 'user'),
+        'RoleViewSet':                ('system', 'role'),
+        'PermissionViewSet':          ('system', 'permission'),
+        'RolePermissionViewSet':      ('system', 'role'),
+        'UserRoleViewSet':            ('system', 'user'),
+        'LoginLogViewSet':            ('system', 'log'),
+        'OperationAuditLogViewSet':   ('system', 'log'),
+        'PermissionAuditLogViewSet':  ('system', 'log'),
+        'SystemSettingViewSet':       ('system', 'setting'),
+        'NotificationViewSet':        ('notifications', 'channel'),
+        # finance app 下的 FinanceCompanyViewSet 映射到 finance:company（而非 core:company）
+        'FinanceCompanyViewSet':      ('finance', 'company'),
+        # core app 下的 EmployeeCompanyViewSet → finance:employee
+        'EmployeeCompanyViewSet':     ('finance', 'employee'),
+        # approvals app：model 名是 ApprovalFlow/ApprovalNode → DB category=approval
+        'ApprovalFlowViewSet':       ('approval', 'flow'),
+        'ApprovalNodeViewSet':       ('approval', 'node'),
+        'ApprovalTemplateViewSet':    ('approval', 'template'),
+        # crm app：ClientViewSet 对应 DB resource='customer'
+        'ClientViewSet':             ('crm', 'customer'),
+        # finance app 特殊资源名
+        'BankAccountViewSet':        ('finance', 'bank'),
+        'CompanySocialConfigViewSet': ('finance', 'company'),
+        'EmployeeViewSet':           ('finance', 'employee'),
+        'WageRecordViewSet':         ('finance', 'wage'),
+        'InvoiceViewSet':           ('finance', 'invoice'),
+        'MaterialViewSet':          ('material', 'stock'),  # material:stock 是 DB 中的资源名
+        # repair app
+        'RepairRequestViewSet':       ('repair', 'repair_request'),
+        'RepairImageViewSet':        ('repair', 'repair_request'),
+        'RepairSparePartViewSet':    ('repair', 'repair_request'),
+    }
+
+    @staticmethod
+    def _normalize_resource(app_label, model_name):
+        """资源名标准化：处理特殊命名"""
+        # finance app 特殊资源名
+        if app_label == 'finance':
+            mapping = {
+                'companeysocialconfig': 'company',  # 拼写错误保留映射
+                'bankaccount': 'bank',
+                'employeecompany': 'employee',
+            }
+            if model_name in mapping:
+                return mapping[model_name]
+        return model_name
 
     def _get_company_id(self, request, view):
         """从请求中提取 company_id"""

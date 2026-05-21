@@ -1965,7 +1965,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     ordering_fields = ['code', 'name', 'hire_date', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    {
+    action_perms = {
         None: 'finance:company:read',
         'partial_update': 'finance:company:update',
         'export': 'finance:company:read',
@@ -2211,7 +2211,7 @@ class BankAccountViewSet(viewsets.ModelViewSet):
     ordering_fields = ['company__name', 'created_at', 'account_no']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    {
+    action_perms = {
         None: 'finance:company:read',
         'partial_update': 'finance:company:update',
     }
