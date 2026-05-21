@@ -100,7 +100,8 @@ class Task(models.Model):
     description = models.TextField(verbose_name='描述', blank=True, default='')
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE,
-        related_name='tasks', verbose_name='所属项目'
+        related_name='tasks', verbose_name='所属项目',
+        null=True, blank=True
     )
     priority = models.CharField(verbose_name='优先级', max_length=20, choices=PRIORITY_CHOICES, default='medium')
     status = models.CharField(verbose_name='状态', max_length=20, choices=STATUS_CHOICES, default='pending')
@@ -129,7 +130,8 @@ class Task(models.Model):
         unique_together = ['project', 'code']
     
     def __str__(self):
-        return f"{self.project.code}-{self.code} {self.title}"
+        prefix = f"{self.project.code}-" if self.project else ""
+        return f"{prefix}{self.code} {self.title}"
 
     def save(self, *args, **kwargs):
         # 自动从 project 继承 company_id

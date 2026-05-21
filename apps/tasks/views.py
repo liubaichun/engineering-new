@@ -178,6 +178,10 @@ class TaskSerializer(serializers.ModelSerializer):
 
 class TaskCreateSerializer(serializers.ModelSerializer):
     company_id = serializers.IntegerField(read_only=True)
+    project = serializers.PrimaryKeyRelatedField(
+        queryset=Project.objects.all(),
+        required=False, allow_null=True
+    )
     assignee = serializers.SlugRelatedField(
         queryset=User.objects.all(), slug_field='username',
         required=False, allow_null=True
