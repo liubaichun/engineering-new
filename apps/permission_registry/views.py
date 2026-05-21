@@ -71,15 +71,22 @@ class UserCompanyPermissionSerializer(serializers.ModelSerializer):
 
 class BatchPermissionSerializer(serializers.Serializer):
     """批量权限更新请求体"""
-    permissions = serializers.ListField(child=serializers.DictField(), min_length=1)
+    permissions = serializers.ListField(child=serializers.DictField(), allow_empty=True)
 
     def validate_permissions(self, value):
+        if not value:
+            return value  # 空数组由 view 层提前返回 200
         required_fields = {'company_id', 'module_id'}
+        bool_fields = {'can_view', 'can_create', 'can_edit', 'can_delete', 'can_approve', 'is_primary'}
         for item in value:
             if not required_fields.issubset(item.keys()):
                 raise serializers.ValidationError(
                     f"每条权限必须包含 company_id 和 module_id，当前: {item}"
                 )
+            # 强制类型转换
+            for f in bool_fields:
+                if f in item and not isinstance(item[f], bool):
+                    item[f] = bool(item[f])
         return value
 
 
@@ -216,6 +223,12 @@ class PermissionMatrixViewSet(viewsets.ViewSet):
                 'can_delete': item.get('can_delete', False),
                 'can_approve': item.get('can_approve', False),
             }
+
+            # 如果设置了 is_primary，先取消该公司下其他模块的 primary（同一公司只能有一个主体企业）
+            if is_primary:
+                UserCompanyPermission.objects.filter(
+                    user=user, company_id=company_id
+                ).exclude(module_id=module_id).update(is_primary=False)
 
             obj, created = UserCompanyPermission.objects.update_or_create(
                 user=user,

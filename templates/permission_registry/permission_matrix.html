@@ -150,8 +150,14 @@ let unsavedChanges = new Set();
 let userList = [];         // 用户列表缓存
 
 // ─── Init ────────────────────────────────────────────────────────────────────
-document.addEventListener('DOMContentLoaded', () => {
-    loadUsers();
+document.addEventListener('DOMContentLoaded', async () => {
+    await loadUsers();
+    // 自动加载当前登录用户的矩阵（无需手动选择）
+    const sel = document.getElementById('userSelect');
+    if (sel.options.length > 0) {
+        sel.selectedIndex = 0;  // 选中第一个（当前管理员）
+        loadMatrix();
+    }
 });
 
 // ─── Load 用户列表 ────────────────────────────────────────────────────────────
@@ -260,22 +266,22 @@ function renderCell(module, company, rec) {
     const labels = { view: 'V', create: 'C', edit: 'E', delete: 'D', approve: 'A' };
     let permHtml = perms.map(p => {
         const checked = hasRec && rec['can_' + p] ? 'checked' : '';
-        const disabled = hasRec ? '' : 'disabled'; // 无记录时禁用勾选
+        // 始终可操作（无记录时后端自动创建）
         return `<label title="${labels[p]}">
             <input type="checkbox"
                 data-company="${cid}" data-module="${mid}" data-perm="${p}"
                 data-pid="${pid || ''}"
-                ${checked} ${disabled}
+                ${checked}
                 onchange="onPermChange(this)">
         </label>`;
     }).join('');
 
-    // 主体企业单选（同一公司下所有模块共有一个 primary）
+    // 主体企业单选（同一公司下所有模块共用一个 primary）
     const primaryChecked = hasRec && rec.is_primary ? 'checked' : '';
     const primaryHtml = `<input type="radio"
         name="primary_${cid}"
         data-company="${cid}" data-module="${mid}" data-pid="${pid || ''}"
-        ${primaryChecked} ${hasRec ? '' : 'disabled'}
+        ${primaryChecked}
         onchange="onPrimaryChange(this)"
         title="主体企业">`;
 
