@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     'apps.channels',
     'apps.finance', 'apps.crm', 'apps.files', 'apps.material', 'apps.equipment',
     'apps.purchasing', 'apps.repair',
+    'apps.permission_registry',
 ]
 
 AUTH_USER_MODEL = 'core.User'

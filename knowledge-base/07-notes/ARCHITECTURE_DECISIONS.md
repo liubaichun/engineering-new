@@ -103,3 +103,65 @@
 - 对于不支持的格式，fallback 到下载
 
 **限制**：无法预览加密/受保护的 Office 文件。
+
+---
+
+## ADR-007：权限体系改造方案
+
+**日期**：2026-05-21
+**状态**：✅ 已采纳（方案 B — apps/permission_registry）
+
+**决策**：
+采用独立 `apps/permission_registry` app + `@register_module` 装饰器 + `AppConfig.ready()` 机制，实现模块自注册 + 用户×公司×模块五档权限矩阵。
+
+**核心设计**：
+- `Module` 模型：注册所有功能模块（income/expense/invoice/employee/project...）
+- `ModulePermission` 模型：每个模块的权限定义（view/create/edit/delete/approve）
+- `UserCompanyPermission` 模型：用户×公司×模块 权限矩阵
+- `@register_module` 装饰器：代码声明 → 重启服务 → 自动同步到 DB
+- `AppConfig.ready()`：Django 启动时执行一次幂等同步
+
+**理由**：
+- Django AppConfig.ready() 是 Django 原生机制，稳定可靠
+- 独立 app 设计，架构上可复用其他系统
+- 只做 update_or_create，不删除已有记录，幂等安全
+- 新增模块只需写装饰器，无需人工维护权限表
+
+**备选方案对比**：
+| 方案 | 结果 |
+|------|------|
+| A: pip 包独立仓库 | 不适合当前阶段，需要单独维护 |
+| B: apps/permission_registry | ✅ 采用 |
+| C: 集成到 core app | 不推荐，权限代码和业务代码混杂 |
+
+**与旧体系共存策略**：
+- `core_role` / `core_permission` / `core_role_permission` 保留（用于系统管理：用户管理、角色分配）
+- `core_user_company_role` 保留（向后兼容，新旧并存）
+- 新模块用 `ModulePermission`，旧模块（finance 等）逐步迁移
+
+**迁移路径**（渐进式，不影响业务）：
+1. 先建 `apps/permission_registry` 基础设施
+2. 建 `UserCompanyPermission` 表 + 数据迁移
+3. 重写 `get_queryset`（解决多公司数据丢失）
+4. 开发前端权限矩阵 UI
+5. 逐步废弃旧架构
+
+---
+
+## ADR-008：多公司用户数据隔离方案
+
+**日期**：2026-05-21
+**状态**：✅ 已采纳
+
+**决策**：`get_user_companies(user)` 返回用户有权限的全部 company_id 列表，`get_queryset()` 用 `filter(company_id__in=company_ids)` 替代原来的单值过滤。
+
+**根因**：原 `_get_user_company_id()` 只取 `.first()`，导致多公司用户数据大量丢失。
+
+**理由**：
+- 多公司用户（如人事/财务）需要同时看到所有关联公司的数据
+- 改为 `__in` 列表后，业务逻辑不变，数据不丢失
+- `company_ids=None` 时（超管）不过滤，等于全公司可见
+
+**风险**：
+- `company_id=NULL` 的历史数据会被 `__in` 过滤掉（不影响普通用户，因为普通用户没有 NULL 关联）
+- 超管仍可看到所有数据（包括 NULL）

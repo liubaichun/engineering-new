@@ -9,7 +9,8 @@ knowledge-base/
 ├── 01-requirements/          # 需求与规划
 │   ├── BUSINESS_REQUIREMENTS.md      # 商业版需求报告 v2.0（主文档）
 │   ├── SYSTEM_AUDIT_2026-04-29.md   # 代码审计报告
-│   └── SPRINT_PLAN.md               # 迭代计划
+│   ├── SPRINT_PLAN.md               # 迭代计划
+│   └── PERMISSION_REGISTRY_REQUIREMENTS.md  # 权限注册中心模块需求文档 v1.0
 │
 ├── 02-development/          # 开发过程记录
 │   ├── CHANGELOG.md                  # 变更日志

@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.core.models import User
 from apps.channels.models import ChannelPlugin, ChannelBinding, NotificationLog
 from apps.channels.base import ChannelRegistry
+from apps.permission_registry.services import get_active_company_id
 
 logger = logging.getLogger('channels')
 
@@ -51,10 +52,10 @@ class ChannelNotificationService:
         if not user or not user.is_active:
             return {'total': 0, 'sent': 0, 'failed': 0, 'details': []}
 
-        # 找到用户的公司
-        company_id = cls._get_user_company_id(user)
+        # 找到用户的主公司（is_primary=True）或第一个关联公司
+        company_id = get_active_company_id(user)
         if not company_id:
-            logger.warning(f'[ChannelNotify] 用户 {user.username} 无公司，跳过外部通知')
+            logger.warning(f'[ChannelNotify] 用户 {user.username} 无关联公司，跳过外部通知')
             return {'total': 0, 'sent': 0, 'failed': 0, 'details': []}
 
         # 获取该公司所有已激活的渠道

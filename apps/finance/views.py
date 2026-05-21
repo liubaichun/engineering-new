@@ -1,4 +1,5 @@
 import functools
+from django.db.models import Q
 from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
@@ -99,20 +100,49 @@ def render_bank_import_page(request):
 def _get_user_company_id(user):
     """从登录用户自动提取当前公司ID（用于多租户自动上下文）
     超级用户返回 None（不限制公司），普通用户返回其主公司ID（第一个关联公司）。
+
+    注意：本函数已废弃，请使用 permission_registry.services.get_user_companies(user)
+    返回用户有权限的全部公司列表。
     """
     if not user or not user.is_authenticated:
         return None
     if user.is_superuser:
         return None
-    # 从 UserCompanyRole 取第一个关联公司（没有 is_primary 字段）
-    from apps.core.models import UserCompanyRole
-    ucr = UserCompanyRole.objects.filter(user=user).first()
-    if ucr:
-        return ucr.company_id
+    # 从 UserCompanyPermission 取第一个关联公司
+    from apps.permission_registry.models import UserCompanyPermission
+    ucp = UserCompanyPermission.objects.filter(user=user, can_view=True).first()
+    if ucp:
+        return ucp.company_id
     # 兼容旧字段
     if hasattr(user, 'company_id') and user.company_id:
         return user.company_id
     return None
+
+
+def get_user_companies(user):
+    """
+    返回用户有权限的全部公司 ID 列表。
+
+    超管 is_superuser=True → 返回 None（不过滤，等于全公司）
+    普通用户 → list[company_id]（从 UserCompanyPermission 查）
+
+    用法：
+        company_ids = get_user_companies(request.user)
+        if company_ids is None:
+            queryset = Model.objects.all()
+        else:
+            queryset = Model.objects.filter(company_id__in=company_ids)
+    """
+    if not user or not user.is_authenticated:
+        return []
+    if user.is_superuser:
+        return None  # 超管：不过滤
+    from apps.permission_registry.models import UserCompanyPermission
+    cids = list(
+        UserCompanyPermission.objects.filter(user=user, can_view=True)
+        .values_list('company_id', flat=True).distinct()
+    )
+    return cids if cids else []
 
 
 def _check_perm(request, *perm_codes):
@@ -264,10 +294,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 自动多租户：普通用户只看本公司数据，超管看全部
-        cid = _get_user_company_id(self.request.user)
-        if cid is not None:
-            qs = qs.filter(company_id=cid)
+        # 自动多租户：普通用户看所有关联公司数据，超管看全部
+        cids = get_user_companies(self.request.user)
+        if cids is not None:
+            qs = qs.filter(company_id__in=cids)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -460,10 +490,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 自动多租户：普通用户只看本公司数据，超管看全部
-        cid = _get_user_company_id(self.request.user)
-        if cid is not None:
-            qs = qs.filter(company_id=cid)
+        # 自动多租户：普通用户看所有关联公司数据，超管看全部
+        cids = get_user_companies(self.request.user)
+        if cids is not None:
+            qs = qs.filter(company_id__in=cids)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -648,10 +678,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 自动多租户：普通用户只看本公司数据，超管看全部
-        cid = _get_user_company_id(self.request.user)
-        if cid is not None:
-            qs = qs.filter(company_id=cid)
+        # 自动多租户：普通用户看所有关联公司数据，超管看全部
+        cids = get_user_companies(self.request.user)
+        if cids is not None:
+            qs = qs.filter(company_id__in=cids)
         return qs.select_related(
             'company', 'approver', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
         ).prefetch_related('approval_flow')
@@ -1050,9 +1080,9 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         year = request.POST.get('year') or request.data.get('year')
         month = request.POST.get('month') or request.data.get('month')
         company_id = request.data.get('company_id')
-        cid = _get_user_company_id(request.user)
-        if company_id is None and cid is not None:
-            company_id = cid
+        cids = get_user_companies(request.user)
+        if company_id is None and cids:
+            company_id = cids[0]  # 取第一个有权限的公司
         company_id = int(company_id) if company_id else None
 
         defaults = {}
@@ -1342,10 +1372,11 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 自动多租户：普通用户只看本公司数据，超管看全部
-        cid = _get_user_company_id(self.request.user)
-        if cid is not None:
-            qs = qs.filter(company_id=cid)
+        # 自动多租户：普通用户看所有关联公司数据，超管看全部
+        # 兼容 company_id=NULL 的遗留数据（这些视为公司主账号数据）
+        cids = get_user_companies(self.request.user)
+        if cids is not None:
+            qs = qs.filter(Q(company_id__in=cids) | Q(company_id__isnull=True))
         return qs.select_related('company', 'project')
 
     def perform_create(self, serializer):
@@ -1560,36 +1591,39 @@ class ReportViewSet(viewsets.ViewSet):
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
 
-        # 自动多租户：普通用户只看本公司数据；超管可以传 company 参数指定公司
-        user_company_id = _get_user_company_id(request.user)
-        if user_company_id is not None:
-            # 普通用户：强制只看本公司
-            company_id = user_company_id
-        # else: 超管可以自由指定 company（company_id 可以是 None=查全部）
+        # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
+        user_company_ids = get_user_companies(request.user)
+        if user_company_ids is not None:
+            # 普通用户：有权公司列表
+            if company_id:
+                cid = int(company_id)
+                if cid not in user_company_ids:
+                    cid = user_company_ids[0]
+                company_id = cid
+                companies = Company.objects.filter(id=company_id)
+            else:
+                # 未指定公司 → 只返回有权公司的汇总
+                companies = Company.objects.filter(id__in=user_company_ids)
+                company_id = None
+        else:
+            # 超管
+            if company_id:
+                company_id = int(company_id)
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.all()
 
-        # 构建筛选条件
-        income_qs = Income.objects.all()
-        expense_qs = Expense.objects.all()
-
-        if company_id:
-            income_qs = income_qs.filter(company_id=company_id)
-            expense_qs = expense_qs.filter(company_id=company_id)
-        if year:
-            income_qs = income_qs.filter(date__year=year)
-            expense_qs = expense_qs.filter(date__year=year)
-        if month:
-            income_qs = income_qs.filter(date__month=month)
-            expense_qs = expense_qs.filter(date__month=month)
-
-        # 按公司分组统计
-        companies = Company.objects.all()
-        if company_id:
-            companies = companies.filter(id=company_id)
-
+        # year/month 过滤（在每个公司的 queryset 内做）
         results = []
         for company in companies:
-            inc_qs = income_qs.filter(company=company)
-            exp_qs = expense_qs.filter(company=company)
+            inc_qs = Income.objects.filter(company=company)
+            exp_qs = Expense.objects.filter(company=company)
+            if year:
+                inc_qs = inc_qs.filter(date__year=year)
+                exp_qs = exp_qs.filter(date__year=year)
+            if month:
+                inc_qs = inc_qs.filter(date__month=month)
+                exp_qs = exp_qs.filter(date__month=month)
 
             total_income = inc_qs.aggregate(total=Sum('amount'))['total'] or 0
             total_expense = exp_qs.aggregate(total=Sum('amount'))['total'] or 0
@@ -1626,29 +1660,33 @@ class ReportViewSet(viewsets.ViewSet):
         """年度报表 - 按公司+年份统计"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
-        # 自动多租户：普通用户只看本公司数据，超管看全部
-        user_company_id = _get_user_company_id(request.user)
-        if user_company_id is not None:
-            company_id = user_company_id
 
-        income_qs = Income.objects.all()
-        expense_qs = Expense.objects.all()
-
-        if company_id:
-            income_qs = income_qs.filter(company_id=company_id)
-            expense_qs = expense_qs.filter(company_id=company_id)
-        if year:
-            income_qs = income_qs.filter(date__year=year)
-            expense_qs = expense_qs.filter(date__year=year)
-
-        companies = Company.objects.all()
-        if company_id:
-            companies = companies.filter(id=company_id)
+        # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
+        user_company_ids = get_user_companies(request.user)
+        if user_company_ids is not None:
+            if company_id:
+                cid = int(company_id)
+                if cid not in user_company_ids:
+                    cid = user_company_ids[0]
+                company_id = cid
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.filter(id__in=user_company_ids)
+                company_id = None
+        else:
+            if company_id:
+                company_id = int(company_id)
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.all()
 
         results = []
         for company in companies:
-            inc_qs = income_qs.filter(company=company)
-            exp_qs = expense_qs.filter(company=company)
+            inc_qs = Income.objects.filter(company=company)
+            exp_qs = Expense.objects.filter(company=company)
+            if year:
+                inc_qs = inc_qs.filter(date__year=year)
+                exp_qs = exp_qs.filter(date__year=year)
 
             total_income = inc_qs.aggregate(total=Sum('amount'))['total'] or 0
             total_expense = exp_qs.aggregate(total=Sum('amount'))['total'] or 0
@@ -1694,13 +1732,25 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         month = request.query_params.get('month')
         company_id = request.query_params.get('company')
-        user_company_id = _get_user_company_id(request.user)
-        if user_company_id is not None:
-            company_id = user_company_id
 
-        companies = Company.objects.all()
-        if company_id:
-            companies = companies.filter(id=company_id)
+        # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
+        user_company_ids = get_user_companies(request.user)
+        if user_company_ids is not None:
+            if company_id:
+                cid = int(company_id)
+                if cid not in user_company_ids:
+                    cid = user_company_ids[0]
+                company_id = cid
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.filter(id__in=user_company_ids)
+                company_id = None
+        else:
+            if company_id:
+                company_id = int(company_id)
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.all()
 
         results = []
         for company in companies:
@@ -1767,26 +1817,40 @@ class ReportViewSet(viewsets.ViewSet):
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
         invoice_type = request.query_params.get('type')  # income or expense
-        # 自动多租户：普通用户只看本公司数据；超管可以传 company 参数指定公司
-        user_company_id = _get_user_company_id(request.user)
-        if user_company_id is not None:
-            company_id = user_company_id
 
-        queryset = Invoice.objects.all()
+        # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
+        user_company_ids = get_user_companies(request.user)
+        if user_company_ids is not None:
+            if company_id:
+                cid = int(company_id)
+                if cid not in user_company_ids:
+                    cid = user_company_ids[0]
+                company_id = cid
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.filter(id__in=user_company_ids)
+                company_id = None
+        else:
+            if company_id:
+                company_id = int(company_id)
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.all()
+
+        # 基础过滤条件（year / type）
+        base_qs = Invoice.objects.all()
         if year:
-            queryset = queryset.filter(issue_date__year=year)
-        if company_id:
-            queryset = queryset.filter(company_id=company_id)
+            base_qs = base_qs.filter(issue_date__year=year)
         if invoice_type:
-            queryset = queryset.filter(type=invoice_type)
+            base_qs = base_qs.filter(type=invoice_type)
 
-        companies = Company.objects.all()
-        if company_id:
-            companies = companies.filter(id=company_id)
+        # 普通用户额外包含 NULL company_id 遗留数据
+        if user_company_ids is not None and not company_id:
+            base_qs = base_qs.filter(Q(company_id__in=user_company_ids) | Q(company_id__isnull=True))
 
         results = []
         for company in companies:
-            qs = queryset.filter(company=company)
+            qs = base_qs.filter(company=company)
 
             # 作废发票不计入总额，只做记录展示；有效总额 = paid + issued + pending
             issued_count = qs.filter(status='issued').count()
@@ -1809,11 +1873,39 @@ class ReportViewSet(viewsets.ViewSet):
                 'total_amount': float(valid_amount),
             })
 
+        # 顶层聚合（供 stat 卡片直接使用）
+        # 查询所有符合条件的发票（包含 NULL company_id），再按公司分组
+        all_filtered = Invoice.objects.all()
+        if year:
+            all_filtered = all_filtered.filter(issue_date__year=year)
+        if company_id:
+            if user_company_id is not None:
+                all_filtered = all_filtered.filter(
+                    Q(company_id=company_id) | Q(company_id__isnull=True)
+                )
+            else:
+                all_filtered = all_filtered.filter(company_id=company_id)
+        elif user_company_id is not None:
+            all_filtered = all_filtered.filter(
+                Q(company_id=user_company_id) | Q(company_id__isnull=True)
+            )
+        if invoice_type:
+            all_filtered = all_filtered.filter(type=invoice_type)
+
+        total_count = all_filtered.count()
+        total_amount = all_filtered.aggregate(total=Sum('amount'))['total'] or 0
+        total_tax = all_filtered.aggregate(total=Sum('tax_amount'))['total'] or 0
+        net_amount = total_amount - total_tax
+
         return Response({
             'year': int(year) if year else None,
             'company_id': int(company_id) if company_id else None,
             'type': invoice_type,
             'results': results,
+            'total_count': total_count,
+            'total_amount': float(total_amount),
+            'total_tax': float(total_tax),
+            'net_amount': float(net_amount),
         })
 
     @action(detail=False, methods=['get'])
