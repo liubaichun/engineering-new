@@ -19,7 +19,10 @@ knowledge-base/
 │   │   └── SPRINT_*.md              # 当前迭代执行记录
 │   └── history/                      # 历史迭代记录
 │
-├── 03-testing/              # 测试报告
+├── 03-roadmap/              # 项目路线图
+│   └── PROJECT_ROADMAP.md           # 需求规划与技术债务清单
+│
+├── 03-testing/              # 测试报告（保留）
 │   ├── TEST_REPORT_*.md              # 各轮测试报告
 │   └── VALIDATION_*.md               # 自动化验证结果
 │
@@ -42,6 +45,9 @@ knowledge-base/
     ├── ARCHITECTURE_DECISIONS.md     # 架构决策记录
     ├── THIRD_PARTY_APIS.md           # 第三方API集成笔记
     └── KNOWN_ISSUES.md               # 已知问题
+│
+├── 08-changelog/             # 每日更新日志
+│   └── DAILY_CHANGELOG.md           # Bug修复/功能迭代记录
 ```
 
 ## 快速导航
@@ -55,6 +61,8 @@ knowledge-base/
 - 📖 [开发规范](../docs/STANDARDS.md)
 - 🐛 [Bug修复记录](../docs/BUG_FIX_RECORD.md)
 - ⚠️ [已知残留问题](./07-notes/KNOWN_ISSUES.md)
+- 🗺️ [项目路线图](./03-roadmap/PROJECT_ROADMAP.md)
+- 📝 [每日更新日志](./08-changelog/DAILY_CHANGELOG.md)
 
 ### 检查清单
 - [ ] [部署前检查](../05-checklists/PRE_DEPLOY_CHECKLIST.md)

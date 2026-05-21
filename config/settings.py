@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     # Local apps
     'apps.core',
+    'apps.permission_registry',
     'apps.tasks',
     'apps.approvals',
     'apps.notifications',
