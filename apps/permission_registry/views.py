@@ -200,6 +200,8 @@ class PermissionMatrixViewSet(viewsets.ViewSet):
             return Response({'detail': '超管拥有全部权限，无需通过矩阵配置。'}, status=200)
 
         serializer = BatchPermissionSerializer(data=request.data)
+        if not serializer.is_valid():
+            import sys; print(f'SERIALIZER ERRORS: {serializer.errors}', file=sys.stderr)
         serializer.is_valid(raise_exception=True)
 
         permissions = serializer.validated_data['permissions']
