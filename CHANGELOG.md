@@ -2,6 +2,50 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v2.2.1] - 2026-05-22
+
+版本代号：权限系统根因修复（Permission Root Cause Fix）
+
+### 问题背景
+
+2026-05-22 全系统权限扫描发现**两套权限系统并存**：
+- **RoleRequired**（旧）：Permission/RolePermission/UserRole 表，13个App实际校验层
+- **ModulePermission**（新）：Module/ModulePermission/UserCompanyPermission 表，写了但从未被调用
+
+根因：某次 Agent 提交在 SPEC 定义后将 finance 临时迁移到 ModulePermission，init_rbac.py 权限矩阵未同步更新，导致 inference 引擎有三类严重缺陷。
+
+详见：`docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md`
+
+### 修复 🐛
+
+#### 权限架构（根本性修复）
+- **彻底删除 permission_registry app**：从 INSTALLED_APPS 移除、删除全部表、清理 URL 路由、清理 import 引用
+- **修复 inference 引擎三缺陷**：
+  A. `_infer_perm_from_view()` 用 `model._meta.app_label` 作 category，core app 推断为 `core:xxx:read` 但 DB 是 `system:xxx:read` → 新增 VIEW_CATEGORY_MAP 覆盖
+  B. BankAccount→bankaccount、WageRecord→wagerecord、Client→customer 等特殊命名映射错误 → VIEW_CATEGORY_MAP 逐一覆盖
+  C. finance/views.py 的 EmployeeViewSet/BankAccountViewSet 的 `action_perms =` 关键字丢失，字典变孤立代码块 → 补回关键字
+- **补全 init_rbac.py 权限矩阵**：60条 → 172条，新增缺失的 bank/company/employee/invoice:wage:delete/approval:flow,node/material CRUD/equipment CRUD/system role&setting 细粒度权限
+- **新增 UserCompanyRole.is_primary 字段**：标识主体企业，迁移 get_active_company_id 到 core/services.py
+
+### 修复后状态
+
+| 指标 | 修复前 | 修复后 |
+|------|--------|--------|
+| Permission 表 | 60条 | **172条** |
+| ViewSet inference 命中率 | 大量 MISS | **87/87（100%）** |
+| permission_registry | 存在 | **已删除** |
+| core ViewSet 推断 | 全错 | **全部正确** |
+| HR 访问 finance | — | **403 ✅** |
+| admin 访问 finance | — | **200 ✅** |
+
+### Git commit
+
+```
+32a5537 fix(permissions): inference engine complete rewrite + init_rbac full coverage
+```
+
+---
+
 ## [v2.2.0] - 2026-05-11
 
 版本代号：核心Bug修复稳定版（Core Stability Release）

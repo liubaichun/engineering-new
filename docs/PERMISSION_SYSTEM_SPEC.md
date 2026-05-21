@@ -1,8 +1,9 @@
 # GREEN ERP 权限体系规范文档
 
-> 版本：v1.0
-> 日期：2026-05-20
-> 状态：初稿，待评审
+> 版本：v1.1
+> 日期：2026-05-22
+> 状态：✅ 已实施（permission_registry 已删除，RoleRequired 单一架构确立）
+> 关联修复：docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md
 
 ---
 
