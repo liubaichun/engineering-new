@@ -152,10 +152,10 @@ let userList = [];         // 用户列表缓存
 // ─── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
     await loadUsers();
-    // 自动加载当前登录用户的矩阵（无需手动选择）
+    // 自动加载第一个用户的矩阵（移除占位符选项，直接选到真实用户）
     const sel = document.getElementById('userSelect');
-    if (sel.options.length > 0) {
-        sel.selectedIndex = 0;  // 选中第一个（当前管理员）
+    if (sel.options.length > 1) {  // 有真实用户选项时
+        sel.selectedIndex = 1;  // 选第一个真实用户（跳过占位符"选择用户"）
         loadMatrix();
     }
 });
