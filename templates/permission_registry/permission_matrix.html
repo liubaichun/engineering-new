@@ -383,7 +383,14 @@ async function saveAll() {
             }
         );
 
-        const data = await resp.json().catch(() => ({}));
+        // 先拿 status（不依赖 body），再安全读 body（带超时兜底）
+        const status = resp.status;
+        const data = status >= 200 && status < 300
+            ? await Promise.race([
+                resp.clone().json(),
+                new Promise(resolve => setTimeout(() => resolve({}), 8000))
+              ]).catch(() => ({}))
+            : {};
 
         if (!resp.ok) {
             throw new Error(data.detail || `HTTP ${resp.status}`);

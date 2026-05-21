@@ -97,8 +97,8 @@ class ICBCAdapter(BankStatementAdapter):
     Row 1 (A1): [HISTORYDETAIL]
     Row 2: 表头行
     Row 3+: 数据行
-    表头列名：凭证号、交易时间、借贷标志、对方单位、对方账号、对方行号、用途、摘要、附言、个性化信息、余额
-    借贷标志：贷=收入，借=支出
+    表头列名：凭证号、对方账号、交易时间、借贷标志、对方单位、对方行号、用途、摘要、附言、回单个性化信息、余额、时间戳、发生额、入账日期、入账时间、本方账号、转出金额、转入金额
+    借贷标志：贷=收入（从"转入金额"取金额），借=支出（从"转出金额"取金额）
     余额列存在时直接使用，不依赖余额变化推导金额
     """
     bank_code = 'ICBC'
@@ -139,6 +139,14 @@ class ICBCAdapter(BankStatementAdapter):
                             return v
             return None
 
+        # 从第一行数据提取本方账号（"本方账号"列），供所有记录使用
+        file_account_no = ''
+        first_data_row = header_row + 1
+        if first_data_row <= ws.max_row:
+            raw_acct = get_col(first_data_row, '本方账号', '本公司账号', '我的账号')
+            if raw_acct:
+                file_account_no = str(raw_acct).strip()
+
         # 直接读文件已有字段，1:1记录，不推算
         records = []
         for row_idx in range(header_row + 1, ws.max_row + 1):
@@ -156,9 +164,14 @@ class ICBCAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                # 金额：直接读金额列（如果文件有的话），没有金额列则跳过
-                amount_raw = get_col(row_idx, '金额', '交易金额', '发生额')
-                amount = self._decimal(amount_raw) if amount_raw else None
+                # 金额：根据借贷方向从不同列读取
+                # 借方（支出）从"转出金额"取，贷方（收入）从"转入金额"取
+                if direction == 'expense':
+                    amount_raw = get_col(row_idx, '转出金额')
+                    amount = self._decimal(amount_raw) if amount_raw else None
+                else:
+                    amount_raw = get_col(row_idx, '转入金额')
+                    amount = self._decimal(amount_raw) if amount_raw else None
 
                 # 余额：直接读余额列
                 balance_raw = get_col(row_idx, '余额', '账户余额', '可用余额')
@@ -175,8 +188,7 @@ class ICBCAdapter(BankStatementAdapter):
                     counterparty_bank=str(get_col(row_idx, '对方行号', '对方银行', '开户行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
                     bank_serial=str(get_col(row_idx, '凭证号', '流水号', '交易流水') or '').strip(),
-                    # ICBC HISTORYDETAIL 文件无本公司账号列，account_no 留空
-                    account_no='',
+                    account_no=file_account_no,
                 ))
             except Exception:
                 continue
