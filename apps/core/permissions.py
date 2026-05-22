@@ -75,13 +75,52 @@ class RoleRequired(BasePermission):
                 # 权限码在 DB 中不存在，放行（避免因漏建权限导致全站 403）
                 # 这种情况应该在开发阶段发现并修复，而不是让用户无法使用系统
                 pass
-            elif not user.has_perm(perm_code):
+            elif not self._user_has_perm_for_company(user, perm_code, request, view):
                 return False
             # 记录已检查的权限
             request._checked_perms = getattr(request, '_checked_perms', set())
             request._checked_perms.add(perm_code)
 
         return True
+
+    def _user_has_perm_for_company(self, user, perm_code, request, view):
+        """
+        检查用户在当前公司是否有指定权限。
+
+        校验顺序：
+        1. 超级用户 is_superuser → 全局放行
+        2. 有公司上下文 → 查 UserCompanyRole，拿该公司下的 role 字符串
+           → 再拿该 role 找 Role 表记录 → RolePermission 查权限码
+        3. 无公司上下文 → 降级走原有系统级 UserRole 校验
+        """
+        # 超级用户 bypass
+        if user.is_superuser:
+            return True
+
+        # 拿公司上下文
+        company_id = self._get_company_id(request, view)
+
+        if company_id:
+            # 查 UserCompanyRole，拿该公司下的 role 字符串
+            ucr = user.company_roles.filter(company_id=company_id).first()
+            if ucr:
+                role_code = ucr.role  # 'admin' / 'staff'
+                # 拿 role_code 找 Role 表记录
+                from apps.core.models import Role
+                role_obj = Role.objects.filter(code=role_code, is_active=True).first()
+                if role_obj:
+                    # RolePermission 查权限
+                    from apps.core.models import RolePermission
+                    if RolePermission.objects.filter(role=role_obj, permission__code=perm_code).exists():
+                        return True
+                    # admin 角色拥有全部权限（Role 表 admin=193条权限，但系统可能有漏配）
+                    if role_code == 'admin':
+                        return True
+            # 该公司未分配角色
+            return False
+
+        # 无公司上下文，降级走系统级 UserRole（兼容旧逻辑）
+        return user.has_perm(perm_code)
 
     def _perm_exists(self, perm_code):
         """
@@ -225,15 +264,22 @@ class RoleRequired(BasePermission):
 
     def _get_company_id(self, request, view):
         """从请求中提取 company_id"""
-        # URL query param ?company=1
+        # 1. URL query param ?company=1
         company_id = request.query_params.get('company')
         if company_id:
             return int(company_id)
-        # URL path kwarg {pk}
+        # 2. URL path kwarg {pk}
         if hasattr(view, 'kwargs') and 'pk' in view.kwargs:
             return view.kwargs.get('pk')
-        # request.data POST body
+        # 3. request.data POST body
         company_id = request.data.get('company_id') if hasattr(request, 'data') else None
+        if company_id:
+            return int(company_id)
+        # 4. middleware 注入的 auth_company（公司上下文）
+        if hasattr(request, 'auth_company') and request.auth_company:
+            return request.auth_company.id
+        # 5. session 中的 current_company_id
+        company_id = request.session.get('current_company_id')
         if company_id:
             return int(company_id)
         return None
