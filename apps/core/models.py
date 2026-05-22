@@ -394,3 +394,145 @@ class OperationAuditLog(models.Model):
             return json.loads(self.changes)
         except Exception:
             return {}
+
+
+# ─────────────────────────────────────────────────────────────
+# Phase 2 权限矩阵：自适应模块 + 动作自注册 + 用户公司动作级授权
+# ─────────────────────────────────────────────────────────────
+
+class Module(models.Model):
+    """
+    模块注册表 — 每个 app 模块（如 income/wage/expense）在这里注册。
+    由 register_module() 自注册写入，app 无需手动维护。
+    """
+    name        = models.CharField(max_length=50, unique=True, verbose_name='模块名')
+    label       = models.CharField(max_length=100, verbose_name='显示名称')
+    icon        = models.CharField(max_length=50, blank=True, default='', verbose_name='图标')
+    category    = models.CharField(max_length=50, blank=True, default='', verbose_name='分类')
+    description = models.TextField(blank=True, default='', verbose_name='描述')
+    sort_order  = models.IntegerField(default=0, verbose_name='排序')
+    is_active   = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'core_module'
+        ordering = ['category', 'sort_order']
+        verbose_name = '模块'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.name} ({self.label})"
+
+
+class ModuleAction(models.Model):
+    """
+    模块的动作定义 — 每个模块有哪些动作（read/create/update/delete/submit/pay...）。
+    由 register_module() 自注册写入，完全自适应数量。
+    """
+    module      = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='actions')
+    name        = models.CharField(max_length=50, verbose_name='动作名')
+    label       = models.CharField(max_length=100, verbose_name='显示名称')
+    sort_order  = models.IntegerField(default=0, verbose_name='排序')
+    # 关联到系统权限码（桥接到 RoleRequired 的权限码体系）
+    perm_codes  = models.JSONField(default=list, verbose_name='对应权限码列表')
+
+    class Meta:
+        db_table = 'core_module_action'
+        unique_together = ('module', 'name')
+        verbose_name = '模块动作'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.module.name}.{self.name}"
+
+
+class UserCompanyPermission(models.Model):
+    """
+    用户 × 公司 × 模块 × 动作 的权限矩阵核心表。
+
+    一行 = 一个用户在一家公司对一个模块的一个动作的授权状态。
+    由 RoleRequired 在权限校验时查询，也由权限矩阵 UI 读写。
+
+    迁移策略：
+      admin 角色 → 该用户该公司所有动作全部 is_granted=True
+      staff 角色 → staff 权限列表中涉及的动作 is_granted=True
+      viewer 角色 → viewer 权限列表中涉及的动作 is_granted=True
+    """
+    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_permissions')
+    company     = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='user_permissions')
+    module      = models.ForeignKey(Module, on_delete=models.CASCADE)
+    action      = models.ForeignKey(ModuleAction, on_delete=models.CASCADE)
+    is_granted  = models.BooleanField(default=False, verbose_name='是否授权')
+    granted_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    granted_at  = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'core_user_company_permission'
+        unique_together = ('user', 'company', 'module', 'action')
+        verbose_name = '用户公司权限'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.user.username}@{self.company.name}/{self.module.name}.{self.action.name}={'✓' if self.is_granted else '✗'}"
+
+
+# ─────────────────────────────────────────────────────────────
+# 注册表（内存缓存，App.ready() 时写入）
+# ─────────────────────────────────────────────────────────────
+
+# _MODULE_REGISTRY（内存缓存）— 仅收集，不写 DB
+# finance modules.py 加载时调用 register_module() 只是往这里注册
+# 真正写入 DB 由 core.apps.CoreConfig.ready() 触发 post_migrate 信号来做
+
+_MODULE_REGISTRY = {}  # name -> {name, label, icon, category, description, sort_order, actions}
+
+
+def register_module(name, label, icon='', category='', description='',
+                    sort_order=0, actions=None):
+    """
+    自注册收集函数。只往内存缓存_REGISTRY写，不写DB。
+    finance modules.py 末尾调用此函数，只是把模块定义注册到内存。
+    真正写入DB在 post_migrate 信号中（表创建好之后）。
+    """
+    _MODULE_REGISTRY[name] = {
+        'name': name,
+        'label': label,
+        'icon': icon,
+        'category': category,
+        'description': description,
+        'sort_order': sort_order,
+        'actions': actions or [],
+    }
+
+
+def sync_modules_to_db():
+    """
+    将内存中的模块注册表写入 DB。只在 post_migrate 信号中调用，
+    此时表已存在。
+    """
+    from django.db import transaction
+    from apps.core.models import Module, ModuleAction
+
+    for name, data in _MODULE_REGISTRY.items():
+        defaults = {
+            'label': data['label'],
+            'icon': data.get('icon', ''),
+            'category': data.get('category', ''),
+            'description': data.get('description', ''),
+            'sort_order': data.get('sort_order', 0),
+        }
+        module_obj, _ = Module.objects.update_or_create(name=name, defaults=defaults)
+
+        if data.get('actions'):
+            with transaction.atomic():
+                for act in data['actions']:
+                    act_name = act['name']
+                    perm_codes = act.get('perm_codes', [])
+                    ModuleAction.objects.update_or_create(
+                        module=module_obj, name=act_name,
+                        defaults={
+                            'label': act.get('label', act_name),
+                            'sort_order': act.get('sort_order', 0),
+                            'perm_codes': perm_codes,
+                        }
+                    )

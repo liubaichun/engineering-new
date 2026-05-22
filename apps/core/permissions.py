@@ -87,11 +87,15 @@ class RoleRequired(BasePermission):
         """
         检查用户在当前公司是否有指定权限。
 
-        校验顺序：
+        Phase 2 优先级（按顺序查，任何一步命中即放行）：
         1. 超级用户 is_superuser → 全局放行
-        2. 有公司上下文 → 查 UserCompanyRole，拿该公司下的 role 字符串
-           → 再拿该 role 找 Role 表记录 → RolePermission 查权限码
-        3. 无公司上下文 → 降级走原有系统级 UserRole 校验
+        2. 有公司上下文 → 优先查 UserCompanyPermission（动作级矩阵）
+        3. UserCompanyPermission 无记录 → 查 UserCompanyRole（角色包级）
+        4. 无公司上下文 → 降级走系统级 UserRole
+
+        perm_code 格式：模块:资源:动作（如 finance:income:read）
+        → module_name = 第二段（income）
+        → action_name = 第三段（read）
         """
         # 超级用户 bypass
         if user.is_superuser:
@@ -100,22 +104,59 @@ class RoleRequired(BasePermission):
         # 拿公司上下文
         company_id = self._get_company_id(request, view)
 
+        # ── Phase 2: 优先查 UserCompanyPermission（动作级矩阵）──────
         if company_id:
-            # 查 UserCompanyRole，拿该公司下的 role 字符串
+            # 从 perm_code 解析出 module_name 和 action_name
+            # 格式: finance:income:read → module='income', action='read'
+            parts = perm_code.split(':')
+            if len(parts) >= 3:
+                action_name = parts[-1]  # 'read' / 'create' / 'update' / ...
+                # module 可以是第一段（如 bank:read）或第二段（如 finance:income:read）
+                if parts[0] in ('bank', 'approval', 'crm', 'project', 'equipment',
+                                'material', 'notifications', 'files', 'purchasing',
+                                'repair', 'tasks'):
+                    module_name = parts[0]
+                else:
+                    module_name = parts[1]  # e.g. 'income' from 'finance:income:read'
+
+                from apps.core.models import UserCompanyPermission, Module, ModuleAction
+                # 查 UserCompanyPermission(user, company, module, action, is_granted=True)
+                granted = UserCompanyPermission.objects.filter(
+                    user=user,
+                    company_id=company_id,
+                    module__name=module_name,
+                    action__name=action_name,
+                    is_granted=True,
+                ).exists()
+                if granted:
+                    return True
+                # 如果 UserCompanyPermission 表里这个用户的这个公司该动作有记录
+                # （即使是 False），说明已经"表态"过，精确到动作，拒绝就是拒绝
+                has_explicit_record = UserCompanyPermission.objects.filter(
+                    user=user, company_id=company_id,
+                    module__name=module_name, action__name=action_name,
+                ).exists()
+                if has_explicit_record:
+                    # 有表态记录但 is_granted=False → 拒绝
+                    return False
+
+            # ── Phase A fallback: 查 UserCompanyRole（角色包级）──────────
             ucr = user.company_roles.filter(company_id=company_id).first()
             if ucr:
                 role_code = ucr.role  # 'admin' / 'staff'
-                # 拿 role_code 找 Role 表记录
                 from apps.core.models import Role
                 role_obj = Role.objects.filter(code=role_code, is_active=True).first()
                 if role_obj:
-                    # RolePermission 查权限
                     from apps.core.models import RolePermission
-                    if RolePermission.objects.filter(role=role_obj, permission__code=perm_code).exists():
+                    if RolePermission.objects.filter(
+                            role=role_obj, permission__code=perm_code).exists():
                         return True
-                    # admin 角色拥有全部权限（Role 表 admin=193条权限，但系统可能有漏配）
+                    # admin 角色拥有全部权限
                     if role_code == 'admin':
                         return True
+                # 该公司有角色记录但无此具体权限
+                return False
+
             # 该公司未分配角色
             return False
 
