@@ -1,9 +1,8 @@
 # GREEN ERP 权限体系规范文档
 
-> 版本：v1.1
+> 版本：v2.0
 > 日期：2026-05-22
-> 状态：✅ 已实施（permission_registry 已删除，RoleRequired 单一架构确立）
-> 关联修复：docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md
+> 状态：✅ 已实施（permission_registry 已删除，RoleRequired 单一架构确立）| 待实施（公司级矩阵权限 — CompanyPermission 方案）
 
 ---
 
@@ -594,8 +593,219 @@ python3 manage.py init_rbac --force
 
 ---
 
-## 九、变更记录
+## 九、矩阵式公司级权限 — 完整设计方案
+
+> 状态：待实施
+> 日期：2026-05-22
+> 目标：在现有 RoleRequired 系统基础上，增加公司级权限维度，实现"用户 × 公司 × 模块"矩阵式权限控制
+
+### 9.1 为什么不能基于 permission_registry
+
+| 问题 | 说明 |
+|------|------|
+| 从未激活 | permission_registry 代码写了但从未进入 INSTALLED_APPS，逻辑无法验证 |
+| 架构冲突 | ModulePermission 类假设"五档布尔"能替代 role-based 系统，但finance等模块需要9个资源粒度，五档不够用 |
+| 不兼容 | 两套系统并存时，ModulePermission 和 RoleRequired 会产生双重校验冲突 |
+| 决策 | 删除 permission_registry，从零设计公司级权限扩展 |
+
+### 9.2 核心设计原则
+
+```
+1. 保留 RoleRequired 完整性：公司级权限是增强层，不修改核心校验逻辑
+2. 公司是数据维度，权限是控制维度：数据隔离靠 ViewSet filter company_id，权限控制靠公司级 Permission 覆盖
+3. 超管：is_superuser=True → 全公司通行，不走公司权限层
+4. 普通用户：公司级权限覆盖系统级权限（同模块同动作，优先公司级）
+5. 无公司记录：降级为纯系统级权限（向后兼容）
+```
+
+### 9.3 数据模型
+
+**新增 `CompanyPermission` 模型（替代现有的 UserCompanyRole）**：
+
+```python
+class CompanyPermission(models.Model):
+    """
+    公司级权限：用户 × 公司 × 模块 × 资源 × 动作
+    覆盖系统级 Permission 码校验
+    """
+    user     = ForeignKey(User, on_delete=CASCADE)
+    company  = ForeignKey('finance.FinanceCompany', on_delete=CASCADE)
+    # 权限标识：格式与 core_permission.code 一致，如 'finance:income:read'
+    # 为空表示该用户在该公司拥有所有系统级权限（同 admin 的公司级代理）
+    perm_code = CharField(max_length=100, blank=True, db_index=True)
+    # 是否激活，False=禁用该条记录
+    is_active = BooleanField(default=True)
+    granted_by = ForeignKey(User, null=True, on_delete=SET_NULL, related_name='company_perms_granted')
+    granted_at = DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'core_company_permission'
+        unique_together = ('user', 'company', 'perm_code')
+        indexes = [
+            Index(fields=['user', 'company'], name='idx_cp_user_company'),
+            Index(fields=['company', 'perm_code'], name='idx_cp_company_perm'),
+        ]
+```
+
+**与现有 `UserCompanyRole` 的关系**：
+
+| UserCompanyRole（现有） | CompanyPermission（新增） |
+|------------------------|--------------------------|
+| 用户 × 公司 × 角色(admin/staff) | 用户 × 公司 × 权限码 |
+| 影响 UI 显示和工作区切换 | 影响 API 权限校验 |
+| 角色粒度太粗 | 权限码粒度，可精确到每个 resource × action |
+| 不参与权限校验 | 参与权限校验 |
+
+**迁移策略**：
+- UserCompanyRole 保留不变（用于 UI/工作区）
+- CompanyPermission 存储细粒度权限
+- admin 公司级角色 → 等价于 company 所有 permission_code=''（全权限代理）
+
+### 9.4 权限校验流程（增强后）
+
+```
+HTTP 请求
+  ↓
+Session: auth_company_id = 当前公司ID
+  ↓
+RoleRequired.has_permission(request, view)
+  ↓
+┌─ is_superuser=True → 直接放行（不查公司权限）
+└─ is_superuser=False
+    ↓
+    ① 查 CompanyPermission(user=<当前用户>, company=<auth_company_id>)
+       ├─ 找到 perm_code=''（全权限代理）→ 直接放行
+       └─ 找到 perm_code='xxx'
+           ├─ 'xxx' == view要求的权限码 → 放行
+           └─ 'xxx' != view要求的权限码 → 查②
+    ↓
+    ② 查系统级 Permission（user.has_perm()，现有逻辑）
+       ├─ 找到 → 放行
+       └─ 未找到 → HTTP 403
+```
+
+**关键点**：先查公司级，命中则跳过系统级；公司级查不到再走系统级兜底。这样：
+- 有公司权限 → 公司级精确控制
+- 无公司记录 → 沿用系统级权限（向后兼容）
+- 超管 → 完全 bypass，不查公司层
+
+### 9.5 中间件：注入 company_id
+
+请求进入时，middleware 需要把 session 中的公司上下文注入到 request 对象：
+
+```python
+# apps/core/middleware.py
+
+class CompanyContextMiddleware:
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        # request.auth_company 在登录时由 session 写入
+        # request.company 是权限校验时使用的上下文对象
+        company_id = request.session.get('current_company_id')
+        if company_id:
+            request.company_id = company_id
+            try:
+                request.company = FinanceCompany.objects.get(id=company_id, is_active=True)
+            except FinanceCompany.DoesNotExist:
+                request.company = None
+                request.company_id = None
+        else:
+            request.company_id = None
+            request.company = None
+
+        response = self.get_response(request)
+        return response
+```
+
+**已在 channels/views.py 修复**：所有 View 直接从 `request.auth_company.id` 获取，不再依赖不存在的 `request.company_id`。
+
+### 9.6 迁移步骤
+
+**Phase 1：数据模型（不影响现有逻辑）**
+
+```
+Step 1.1: 创建 CompanyPermission 模型
+         → 新建 migration: core.0017_company_permission
+         → 创建表，不迁移数据（空表启动）
+
+Step 1.2: 注册 middleware（仅注入 request.company_id）
+         → config/settings.py MIDDLEWARE 新增
+         → 不改变任何权限行为
+
+Step 1.3: 验证 middleware 正常
+         → curl 测试 request.company_id 是否正确注入
+```
+
+**Phase 2：权限校验增强（向后兼容）**
+
+```
+Step 2.1: 修改 RoleRequired.has_permission()
+         → 新增 _check_company_permission() 方法
+         → 优先查 CompanyPermission，找不到则走原有 has_perm()
+         → 现有系统级权限完全不受影响
+
+Step 2.2: 验证向后兼容
+         → CompanyPermission 为空时，系统行为与修改前完全一致
+         → admin/finance/manager 等系统角色正常访问
+```
+
+**Phase 3：公司级管理界面**
+
+```
+Step 3.1: 创建 CompanyPermissionViewSet
+         → GET: /api/companies/{id}/permissions/  # 查看某公司权限矩阵
+         → POST: /api/companies/{id}/permissions/  # 分配权限
+         → DELETE: /api/companies/{id}/permissions/{id}/  # 撤销
+
+Step 3.2: 在 system/ 用户管理页面增加公司权限 Tab
+         → 用户详情页：选择公司 → 显示/编辑该公司下的细粒度权限
+         → 与系统级角色分配分开
+```
+
+**Phase 4：数据迁移（可选，回溯历史）**
+
+```
+Step 4.1: 将现有 UserCompanyRole 的 admin 映射为 CompanyPermission(perm_code='')
+Step 4.2: 将现有 UserCompanyRole 的 staff 映射为特定资源权限包
+Step 4.3: 验证迁移后行为一致
+```
+
+### 9.7 与旧方案（ModulePermission）的关键区别
+
+| 维度 | 旧方案（ModulePermission） | 新方案（CompanyPermission） |
+|------|--------------------------|---------------------------|
+| 粒度 | 用户 × 公司 × 模块 × 5档布尔 | 用户 × 公司 × 权限码（精确到 resource×action） |
+| 权限码 | 无，依赖 can_view/create 等布尔字段 | 直接复用 core_permission.code，与 RoleRequired 一致 |
+| 与系统级关系 | 独立校验，容易冲突 | 公司级优先，覆盖系统级 |
+| 中间件 | 无 | request.company_id 注入 |
+| UI | 独立的模块矩阵页面 | 集成到现有用户管理页面 |
+| 复杂度 | 高（五档字段多） | 低（单码字段） |
+| 可验证性 | 从未激活，无法测试 | 每步可独立验证 |
+
+### 9.8 实施检查清单
+
+```
+□ Phase 1.1: 创建 core/models.py CompanyPermission 模型
+□ Phase 1.1: python manage.py makemigrations core
+□ Phase 1.1: python manage.py migrate
+□ Phase 1.2: config/settings.py 注册 middleware
+□ Phase 1.3: curl 验证 request.company_id
+□ Phase 2.1: 修改 apps/core/permissions.py RoleRequired
+□ Phase 2.2: admin/finance/manager 角色验证（行为不变）
+□ Phase 3.1: 创建 CompanyPermissionViewSet + URL
+□ Phase 3.2: 前端用户管理页增加公司权限 Tab
+□ Phase 4.x: 数据迁移（可选）
+□ Phase 5: 同步到 124 / 129 服务器
+```
+
+---
+
+## 十、变更记录
 
 | 日期 | 版本 | 变更内容 |
 |------|------|---------|
 | 2026-05-20 | v1.0 | 初稿建立，完整扫描 193 条问题，制定规范和修复计划 |
+| 2026-05-22 | v1.1 | permission_registry 已删除，RoleRequired 单一架构确立，inference 引擎三缺陷已修复 |
+| 2026-05-22 | v2.0 | 新增第九章：矩阵式公司级权限完整设计方案（CompanyPermission 模型 + 迁移路径） |

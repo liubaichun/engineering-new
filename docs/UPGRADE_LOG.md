@@ -41,8 +41,9 @@
 | 4955b11 | docs: 补充两套系统关系图+后续三次修复记录 |
 
 ### 详细报告
-
-见 `docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md`
+**关联文档：**
+- `docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md` — 根因分析 + 修复过程详细记录
+- `docs/PERMISSION_SYSTEM_SPEC.md` — v2.0 含公司级矩阵权限完整设计方案（待实施）
 
 ---
 
