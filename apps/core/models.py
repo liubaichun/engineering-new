@@ -39,11 +39,14 @@ class User(AbstractUser):
         return self.is_superuser
 
     def has_role(self, role_code, company_id=None):
-        """检查用户是否拥有指定角色（支持系统级角色和公司级角色）"""
+        """检查用户是否拥有指定角色（系统级角色 + 公司级角色）"""
         if self.is_superuser:
             return True
-        # 系统级角色：User.role 字段
+        # 系统级角色：User.role 字段（如 admin）
         if self.role == role_code:
+            return True
+        # 系统级角色：UserRole 表（如 商务主管/财务总监）
+        if self.user_roles.filter(role__name=role_code).exists():
             return True
         # 公司级角色
         if company_id:

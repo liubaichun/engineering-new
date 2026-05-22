@@ -55,8 +55,8 @@ class RoleRequired(BasePermission):
         # ── 角色校验（优先于权限校验）─────────────────────────────────────────
         required_roles = getattr(view, 'required_roles', [])
         if required_roles:
-            # 先试系统级角色（User.role 字段）
-            if user.role in required_roles:
+            # 先试系统级角色（User.role 字段 + UserRole 表）
+            if user.role in required_roles or user.user_roles.filter(role__name__in=required_roles).exists():
                 return True
             # 再试公司级角色
             company_id = self._get_company_id(request, view)
@@ -64,7 +64,15 @@ class RoleRequired(BasePermission):
                 for rc in required_roles:
                     if user.has_role(rc, company_id):
                         return True
-            return False
+                # required_roles 都不满足，但若有系统级 UserRole（不在 required_roles 里）
+                # → 让权给权限校验，不要直接拒绝（例如 商务主管 进 finance:income 被 staff UCR 卡住）
+                if user.user_roles.exists():
+                    pass  # 继续走权限校验
+                else:
+                    return False
+            else:
+                # 无公司上下文 → 允许（权限走系统级 has_perm）
+                pass
 
         # ── 权限校验 ──────────────────────────────────────────────────────────
         perm_code = self._resolve_action_perm(request, view)
@@ -130,20 +138,18 @@ class RoleRequired(BasePermission):
                 ).exists()
                 if granted:
                     return True
-                # 如果 UserCompanyPermission 表里这个用户的这个公司该动作有记录
-                # （即使是 False），说明已经"表态"过，精确到动作，拒绝就是拒绝
+                # 如果 UserCompanyPermission 有记录（即使是 False）→ 已表态，精确拒绝
                 has_explicit_record = UserCompanyPermission.objects.filter(
                     user=user, company_id=company_id,
                     module__name=module_name, action__name=action_name,
                 ).exists()
                 if has_explicit_record:
-                    # 有表态记录但 is_granted=False → 拒绝
                     return False
 
-            # ── Phase A fallback: 查 UserCompanyRole（角色包级）──────────
+            # ── Phase A fallback: 查 UserCompanyRole（仅在 UCP 无记录时）────
             ucr = user.company_roles.filter(company_id=company_id).first()
             if ucr:
-                role_code = ucr.role  # 'admin' / 'staff'
+                role_code = ucr.role
                 from apps.core.models import Role
                 role_obj = Role.objects.filter(code=role_code, is_active=True).first()
                 if role_obj:
@@ -151,10 +157,8 @@ class RoleRequired(BasePermission):
                     if RolePermission.objects.filter(
                             role=role_obj, permission__code=perm_code).exists():
                         return True
-                    # admin 角色拥有全部权限
                     if role_code == 'admin':
                         return True
-                # 该公司有角色记录但无此具体权限
                 return False
 
             # 该公司未分配角色
