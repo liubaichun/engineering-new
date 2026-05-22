@@ -78,12 +78,7 @@ class RoleRequired(BasePermission):
         perm_code = self._resolve_action_perm(request, view)
 
         if perm_code:
-            # 检查权限码是否在 DB 中存在（安全兜底，防止引用不存在的权限）
-            if not self._perm_exists(perm_code):
-                # 权限码在 DB 中不存在，放行（避免因漏建权限导致全站 403）
-                # 这种情况应该在开发阶段发现并修复，而不是让用户无法使用系统
-                pass
-            elif not self._user_has_perm_for_company(user, perm_code, request, view):
+            if not self._user_has_perm_for_company(user, perm_code, request, view):
                 return False
             # 记录已检查的权限
             request._checked_perms = getattr(request, '_checked_perms', set())
@@ -95,15 +90,15 @@ class RoleRequired(BasePermission):
         """
         检查用户在当前公司是否有指定权限。
 
-        Phase 2 优先级（按顺序查，任何一步命中即放行）：
+        优先级（任何一步命中即放行）：
         1. 超级用户 is_superuser → 全局放行
-        2. 有公司上下文 → 优先查 UserCompanyPermission（动作级矩阵）
-        3. UserCompanyPermission 无记录 → 查 UserCompanyRole（角色包级）
-        4. 无公司上下文 → 降级走系统级 UserRole
+        2. 有公司上下文 → 查 UserCompanyPermission（user × company × module × action，is_granted=True）
+           - granted=True → 放行
+           - 有记录（即使是 False）→ 已表态，直接拒绝
+           - 无记录 → 拒绝
+        3. 无公司上下文 → 拒绝（不再降级走 RolePermission/UserRole）
 
         perm_code 格式：模块:资源:动作（如 finance:income:read）
-        → module_name = 第二段（income）
-        → action_name = 第三段（read）
         """
         # 超级用户 bypass
         if user.is_superuser:
@@ -112,7 +107,7 @@ class RoleRequired(BasePermission):
         # 拿公司上下文
         company_id = self._get_company_id(request, view)
 
-        # ── Phase 2: 优先查 UserCompanyPermission（动作级矩阵）──────
+        # 查 UserCompanyPermission（user × company × module × action）
         if company_id:
             # 从 perm_code 解析出 module_name 和 action_name
             # 格式: finance:income:read → module='income', action='read'
@@ -143,49 +138,13 @@ class RoleRequired(BasePermission):
                     user=user, company_id=company_id,
                     module__name=module_name, action__name=action_name,
                 ).exists()
-                if has_explicit_record:
-                    return False
-
-            # ── Phase A fallback: 查 UserCompanyRole（仅在 UCP 无记录时）────
-            ucr = user.company_roles.filter(company_id=company_id).first()
-            if ucr:
-                role_code = ucr.role
-                from apps.core.models import Role
-                role_obj = Role.objects.filter(code=role_code, is_active=True).first()
-                if role_obj:
-                    from apps.core.models import RolePermission
-                    if RolePermission.objects.filter(
-                            role=role_obj, permission__code=perm_code).exists():
-                        return True
-                    if role_code == 'admin':
-                        return True
+                # UCP granted=True → 放行
+                # UCP 有记录（即使是 False）→ 已表态，直接拒绝
+                # UCP 无记录 → 拒绝
                 return False
 
-            # 该公司未分配角色
-            return False
-
-        # 无公司上下文，降级走系统级 UserRole（兼容旧逻辑）
-        return user.has_perm(perm_code)
-
-    def _perm_exists(self, perm_code):
-        """
-        检查权限码是否在 DB 中存在。
-        使用缓存避免重复查询。
-        """
-        cache_key = '_perm_exists_cache'
-        if not hasattr(self, cache_key):
-            object.__setattr__(self, cache_key, {})
-
-        cache = getattr(self, cache_key)
-        if perm_code in cache:
-            return cache[perm_code]
-
-        # 延迟导入避免循环
-        from apps.core.models import Permission
-        exists = Permission.objects.filter(code=perm_code, is_active=True).exists()
-        cache[perm_code] = exists
-        return exists
-
+        # 无公司上下文 → 无权
+        return False
     def _resolve_action_perm(self, request, view):
         """
         解析当前 action 对应的权限码。
