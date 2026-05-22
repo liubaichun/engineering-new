@@ -8,6 +8,7 @@ from django.views.static import serve
 from django.conf import settings
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.core.views import ChangePasswordView
+from apps.core.views_doc import DocPageView
 from apps.finance.views import render_bank_import_page
 
 # 页面视图
@@ -377,6 +378,9 @@ urlpatterns = [
     path('api/auth/password/', ChangePasswordView.as_view(), name='change-password'),
     path('api/schema/', SpectacularAPIView.as_view(authentication_classes=[], permission_classes=[]), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema', authentication_classes=[], permission_classes=[]), name='swagger-ui'),
+    # 文档页面
+    path('docs/<str:doc_name>/', DocPageView.as_view(), name='doc_page'),
+    path('docs/', RedirectView.as_view(url='/docs/permission-system-fix-record-2026-05-22/', permanent=True)),
     # 旧URL路径重定向（永久重定向）
     path('system/api-docs/', RedirectView.as_view(url='/api/docs/', permanent=True)),
     path('system/audit/', RedirectView.as_view(url='/system/audit-logs/', permanent=True)),

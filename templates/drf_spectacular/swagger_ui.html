@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    {% block head %}
+    <title>{{ title|default:"Swagger" }}</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    {% if favicon_href %}<link rel="icon" href="{{ favicon_href }}">{% endif %}
+    <link rel="stylesheet" href="{{ swagger_ui_css }}">
+    <style>
+      html { box-sizing: border-box; overflow-y: scroll; }
+      *, *:after, *:before { box-sizing: inherit; }
+      body { background: #fafafa; margin: 0; }
+      #doc-banner {
+        background: #1a1a2e;
+        color: #eee;
+        padding: 12px 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 24px;
+        flex-wrap: wrap;
+      }
+      #doc-banner .banner-title {
+        font-weight: 600;
+        font-size: 14px;
+        color: #fff;
+        margin-right: 8px;
+      }
+      #doc-banner a {
+        color: #7ec8e3;
+        text-decoration: none;
+      }
+      #doc-banner a:hover { text-decoration: underline; }
+      #doc-banner .sep { color: #555; }
+    </style>
+    {% endblock head %}
+  </head>
+  <body>
+    {% block body %}
+    <div id="doc-banner">
+      <span class="banner-title">📚 开发文档</span>
+      <a href="/docs/permission-system-fix-record-2026-05-22/" target="_blank">权限系统修复记录</a>
+      <span class="sep">|</span>
+      <a href="/docs/permission-system-spec/" target="_blank">权限体系规范</a>
+      <span class="sep">|</span>
+      <a href="/docs/upgrade-log/" target="_blank">升级日志</a>
+      <span class="sep">|</span>
+      <a href="/docs/changelog/" target="_blank">更新日志</a>
+    </div>
+    <div id="swagger-ui"></div>
+    <script src="{{ swagger_ui_bundle }}"></script>
+    <script src="{{ swagger_ui_standalone }}"></script>
+    {% if script_url %}
+    <script src="{{ script_url }}"></script>
+    {% else %}
+    <script>
+    {% include template_name_js %}
+    </script>
+    {% endif %}
+    {% endblock %}
+  </body>
+</html>

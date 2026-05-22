@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>{{ doc_title }} - GREEN ERP 开发文档</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+  <style>
+    body { background: #f8f9fa; }
+    .doc-header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      padding: 20px 0;
+      margin-bottom: 30px;
+    }
+    .doc-header a { color: #7ec8e3; }
+    .doc-nav {
+      position: sticky;
+      top: 20px;
+      max-height: calc(100vh - 120px);
+      overflow-y: auto;
+    }
+    .doc-content { font-size: 15px; line-height: 1.7; }
+    .doc-content h1 { font-size: 1.8rem; border-bottom: 2px solid #1a1a2e; padding-bottom: 8px; margin-bottom: 16px; }
+    .doc-content h2 { font-size: 1.4rem; margin-top: 30px; border-left: 4px solid #1a1a2e; padding-left: 12px; }
+    .doc-content h3 { font-size: 1.1rem; color: #444; }
+    .doc-content table { font-size: 14px; }
+    .doc-content pre { background: #1a1a2e; color: #e0e0e0; border-radius: 8px; padding: 16px; overflow-x: auto; }
+    .doc-content code { background: #f0f0f0; border-radius: 3px; padding: 2px 6px; font-size: 0.9em; }
+    .doc-content pre code { background: none; padding: 0; color: inherit; }
+    blockquote { border-left: 4px solid #7ec8e3; background: #e8f4f8; padding: 12px 16px; margin: 16px 0; }
+    .breadcrumb { background: transparent; padding: 0; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div class="container">
+      <div class="d-flex align-items-center gap-3 mb-2">
+        <i class="bi bi-book-half" style="font-size:1.5rem"></i>
+        <h4 class="mb-0">{{ doc_title }}</h4>
+      </div>
+      <div class="small">
+        <a href="/api/docs/">&larr; 返回API文档</a>
+        <span class="text-muted mx-2">|</span>
+        <a href="/docs/permission-system-fix-record-2026-05-22/">权限修复记录</a>
+        <span class="text-muted mx-2">|</span>
+        <a href="/docs/permission-system-spec/">权限规范</a>
+        <span class="text-muted mx-2">|</span>
+        <a href="/docs/upgrade-log/">升级日志</a>
+      </div>
+    </div>
+  </div>
+  <div class="container">
+    <div class="row">
+      <div class="col-md-9 doc-content">
+        {{ doc_content|safe }}
+      </div>
+      <div class="col-md-3">
+        <div class="doc-nav">
+          <div class="card">
+            <div class="card-header"><i class="bi bi-list-ul"></i> 文档目录</div>
+            <div class="list-group list-group-flush">
+              <a href="/docs/permission-system-fix-record-2026-05-22/" class="list-group-item list-group-item-action {% if 'permission-system-fix' in doc_name %}active{% endif %}">权限系统修复记录</a>
+              <a href="/docs/permission-system-spec/" class="list-group-item list-group-item-action {% if 'permission-system-spec' in doc_name %}active{% endif %}">权限体系规范</a>
+              <a href="/docs/upgrade-log/" class="list-group-item list-group-item-action {% if 'upgrade-log' in doc_name %}active{% endif %}">升级日志</a>
+              <a href="/docs/changelog/" class="list-group-item list-group-item-action {% if 'changelog' in doc_name %}active{% endif %}">更新日志</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
