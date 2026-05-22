@@ -203,6 +203,10 @@ class LoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data['user']
             login(request, user)
+            # 登录时设置当前公司上下文
+            link = user.company_roles.all().first()
+            if link:
+                request.session['current_company_id'] = link.company_id
             # 支持"30天内自动登录"记住我
             remember = request.data.get('remember', False)
             if remember in (True, 'true', '1', 'on'):

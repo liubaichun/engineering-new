@@ -13,6 +13,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 
 from .models import ChannelPlugin, ChannelBinding, NotificationLog, ChannelAuditLog
 from .base import ChannelRegistry
+from apps.core.services import get_active_company_id
 
 
 # ========== 绑定流程 ==========
@@ -384,7 +385,7 @@ class ChannelListView(APIView):
     permission_classes = [IsAuthenticated]
     
     def get(self, request):
-        company_id = getattr(request, 'company_id', None)
+        company_id = get_active_company_id(request)
         queryset = ChannelPlugin.objects.filter(is_deleted=False)
         
         if not (request.user.is_superuser or request.user.is_staff):
@@ -420,7 +421,7 @@ class ChannelListView(APIView):
     
     def post(self, request):
         """创建新渠道"""
-        company_id = getattr(request, 'company_id', None)
+        company_id = get_active_company_id(request)
         
         if not company_id and request.user.is_authenticated and (request.user.is_superuser or request.user.is_staff):
             from apps.core.models import UserCompanyRole
@@ -836,7 +837,7 @@ class SendNotificationView(APIView):
             return Response({'error': f'不支持的渠道类型'}, status=status.HTTP_400_BAD_REQUEST)
         
         User = get_user_model()
-        company_id = getattr(request, 'company_id', None)
+        company_id = get_active_company_id(request)
         
         if user_ids:
             users = User.objects.filter(id__in=user_ids, is_active=True)
@@ -957,9 +958,19 @@ class NotificationLogView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        company_id = getattr(request, 'company_id', None)
+        company_id = get_active_company_id(request)
         if not company_id and not (request.user.is_superuser or request.user.is_staff):
-            return Response({'error': '无权访问'}, status=status.HTTP_403_FORBIDDEN)
+            return Response({
+                'error': '无权访问',
+                'debug': {
+                    'auth_company': str(getattr(request, 'auth_company', None)),
+                    'company_id_attr': getattr(request, 'company_id', None),
+                    'session_current_company': request.session.get('current_company_id'),
+                    'is_super': request.user.is_superuser,
+                    'is_staff': request.user.is_staff,
+                    'user_id': request.user.id,
+                }
+            }, status=status.HTTP_403_FORBIDDEN)
 
         notification_type = request.GET.get('notification_type', '')
         channel_type = request.GET.get('channel_type', '')

@@ -9,13 +9,23 @@ def get_active_company_id(user, request=None):
     优先级：
     1. request query param ?company=ID（显式指定）
     2. request data company_id（表单 body）
-    3. session['active_company_id']
+    3. session['current_company_id']
     4. UserCompanyRole 中 is_primary=True 的公司
     5. UserCompanyRole 中第一个公司
+
+    参数：
+        user: User 对象 或 DRF Request 对象（兼容两种调用方式）
+        request: 可选，DRF Request 对象（用于取 query_params/data/session）
 
     返回：
         int | None（None 表示超管未指定，或用户无任何关联公司）
     """
+    # 兼容：如果传入的是 DRF Request，取出真正的 user 对象
+    if hasattr(user, 'user'):
+        if request is None:
+            request = user
+        user = request.user
+
     if user.is_superuser:
         if request:
             cid = None
@@ -40,6 +50,17 @@ def get_active_company_id(user, request=None):
             try:
                 cid = int(cid)
                 # 验证用户确实关联了这个公司
+                if UserCompanyRole.objects.filter(user=user, company_id=cid).exists():
+                    return cid
+            except (ValueError, TypeError):
+                pass
+
+    # 从 session 读取
+    if request and hasattr(request, 'session'):
+        cid = request.session.get('current_company_id')
+        if cid:
+            try:
+                cid = int(cid)
                 if UserCompanyRole.objects.filter(user=user, company_id=cid).exists():
                     return cid
             except (ValueError, TypeError):

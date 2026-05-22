@@ -6,7 +6,7 @@ class CompanyContextMiddleware(MiddlewareMixin):
     """
     为已认证用户注入 request.auth_company。
 
-    买断版（standalone）：所有用户共享 DEFAULT_COMPANY_ID，无视 UserCompanyRole。
+    买断版（standalone）：所有用户使用 DEFAULT_COMPANY_ID，无视 UserCompanyRole。
     租赁版（subscription）：从 session 或 UserCompanyRole 解析租户。
     """
 
@@ -50,7 +50,6 @@ class CompanyContextMiddleware(MiddlewareMixin):
         from apps.finance.models import Company
 
         if not settings.DEFAULT_COMPANY_ID:
-            # 未配置则跳过，不阻断请求
             return
 
         try:

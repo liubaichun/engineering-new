@@ -175,6 +175,37 @@ class ChannelAuditLog(models.Model):
         return f"[{self.created_at}] {user_str} {self.get_action_display()} ({self.result})"
 
 
+class NotificationRouterRule(models.Model):
+    """通知路由规则"""
+    PRIORITY_CHOICES = [
+        ('low', '低'),
+        ('normal', '普通'),
+        ('important', '重要'),
+        ('critical', '紧急'),
+    ]
+
+    event_type = models.CharField('事件类型', max_length=50)
+    priority = models.CharField('优先级', max_length=20, choices=PRIORITY_CHOICES, default='normal')
+    channel_type = models.CharField('渠道类型', max_length=20)
+    recipient_scope = models.CharField('接收人范围', max_length=50, default='all')
+    custom_user_ids = models.TextField('自定义用户ID', blank=True)
+    is_active = models.BooleanField('是否启用', default=True)
+    remarks = models.TextField('备注', blank=True)
+    company = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='notification_rules')
+    created_by = models.ForeignKey('core.User', on_delete=models.SET_NULL, null=True, related_name='created_rules')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'channels_notification_router_rule'
+        ordering = ['-created_at']
+        verbose_name = '通知路由规则'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.event_type} -> {self.channel_type}"
+
+
 class NotificationLog(models.Model):
     """通知发送日志"""
     STATUS_CHOICES = [
