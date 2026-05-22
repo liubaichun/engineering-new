@@ -22,6 +22,7 @@ from .views import (
     OperationAuditLogViewSet,
     SystemSettingViewSet,
     FinanceCompanyViewSet,
+    UserCompanyPermissionViewSet,
     health_check,
 )
 
@@ -37,6 +38,7 @@ router.register(r'login-logs', LoginLogViewSet, basename='login-log')
 router.register(r'operation-audit-logs', OperationAuditLogViewSet, basename='operation-audit-log')
 router.register(r'settings', SystemSettingViewSet, basename='system-setting')
 router.register(r'companies', FinanceCompanyViewSet, basename='finance-company')
+router.register(r'user-company-permissions', UserCompanyPermissionViewSet, basename='user-company-permission')
 
 urlpatterns = [
     # 认证相关视图

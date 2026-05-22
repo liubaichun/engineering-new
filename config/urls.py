@@ -114,9 +114,8 @@ def permission_list_page(request):
     return TemplateView.as_view(template_name='system/permission_list.html')(request)
 
 def permission_matrix_page(request):
-    """权限矩阵页已移除（permission_registry 已废弃）"""
-    from django.http import HttpResponseGone
-    return HttpResponseGone("权限矩阵功能已移除")
+    """权限矩阵页 — 用户 × 公司 × 模块 细粒度权限配置"""
+    return TemplateView.as_view(template_name='core/permission_matrix.html')(request)
 
 def system_settings_page(request):
     """系统参数配置页 — 渲染页头所需的初始数据"""

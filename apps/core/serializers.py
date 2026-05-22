@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting
+from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction
 from apps.finance.models import Company as FinanceCompany
 
 
@@ -501,3 +501,17 @@ class FinanceCompanySerializer(serializers.ModelSerializer):
                   'contact_phone', 'status', 'status_display',
                   'tax_id', 'bank_name', 'bank_account', 'remark',
                   'created_at']
+
+
+class UserCompanyPermissionSerializer(serializers.ModelSerializer):
+    """用户公司权限序列化器"""
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    module_name = serializers.CharField(source='module.name', read_only=True)
+    action_name = serializers.CharField(source='action.name', read_only=True)
+
+    class Meta:
+        model = UserCompanyPermission
+        fields = ['id', 'user', 'user_username', 'company', 'company_name',
+                  'module', 'module_name', 'action', 'action_name',
+                  'is_granted', 'granted_by', 'granted_at']

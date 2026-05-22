@@ -20,7 +20,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting
+from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction
 from .permissions import RoleRequired
 from apps.finance.models import Company as FinanceCompany
 
@@ -41,6 +41,7 @@ from .serializers import (
     OperationAuditLogSerializer,
     SystemSettingSerializer,
     FinanceCompanySerializer,
+    UserCompanyPermissionSerializer,
 )
 
 
@@ -1193,6 +1194,129 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'companies': FinanceCompanySerializer(companies, many=True).data
         }, status=status.HTTP_200_OK)
+
+
+# ── 用户公司权限矩阵 ──────────────────────────────────────────────────────────
+
+class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
+    """
+    用户公司权限矩阵 CRUD。
+
+    权限矩阵页面调用 /api/core/user-company-permissions/
+    GET  ?user_id=X                                    → 获取某用户在所有公司的所有权限
+    POST   {user_id, company_id, module_id, action_id, is_granted} → 写入/更新一条记录
+    PUT/DELETE 批量操作由 matrix_bulk_update 处理
+    """
+    queryset = UserCompanyPermission.objects.all()
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    serializer_class = UserCompanyPermissionSerializer
+    # 矩阵管理需要 admin 角色
+    required_roles = ['admin']
+
+    def get_queryset(self):
+        qs = UserCompanyPermission.objects.select_related(
+            'user', 'company', 'module', 'action'
+        ).order_by('user__username', 'company__name', 'module__name', 'action__name')
+        user_id = self.request.query_params.get('user_id')
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        return qs
+
+    @action(detail=False, methods=['get'])
+    def matrix(self, request):
+        """
+        权限矩阵页核心接口。
+
+        GET /api/core/user-company-permissions/matrix/?user_id=X
+
+        返回：
+        {
+          modules: [{id, name, label, actions: [{id, name, label}]}],
+          companies: [{id, name}],
+          matrix: [{user_id, company_id, module_id, action_id, is_granted, has_record}]
+        }
+        """
+        user_id = request.query_params.get('user_id')
+        if not user_id:
+            return Response({'detail': 'user_id 是必填参数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 所有模块 + 动作（按 sort_order 排序）
+        modules = Module.objects.filter(is_active=True).prefetch_related('actions').order_by('sort_order')
+        module_data = []
+        for m in modules:
+            module_data.append({
+                'id': m.id,
+                'name': m.name,
+                'label': m.label,
+                'icon': m.icon,
+                'actions': [
+                    {'id': a.id, 'name': a.name, 'label': a.label}
+                    for a in m.actions.all().order_by('sort_order')
+                ]
+            })
+
+        # 所有公司
+        companies = list(FinanceCompany.objects.filter(status='active').order_by('name').values('id', 'name'))
+
+        # 已有权限记录
+        records = UserCompanyPermission.objects.filter(user_id=user_id).values(
+            'user_id', 'company_id', 'module_id', 'action_id', 'is_granted'
+        )
+
+        return Response({
+            'modules': module_data,
+            'companies': companies,
+            'matrix': list(records),
+        })
+
+    @action(detail=False, methods=['post'])
+    def matrix_bulk_update(self, request):
+        """
+        批量更新权限矩阵。
+
+        POST /api/core/user-company-permissions/matrix_bulk_update/
+        Body: {
+          user_id: int,
+          updates: [
+            {company_id, module_id, action_id, is_granted: bool},
+            ...
+          ]
+        }
+        """
+        user_id = request.data.get('user_id')
+        updates = request.data.get('updates', [])
+        if not user_id or not updates:
+            return Response({'detail': 'user_id 和 updates 是必填参数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = []
+        for upd in updates:
+            obj, created = UserCompanyPermission.objects.update_or_create(
+                user_id=user_id,
+                company_id=upd['company_id'],
+                module_id=upd['module_id'],
+                action_id=upd['action_id'],
+                defaults={
+                    'is_granted': upd['is_granted'],
+                    'granted_by': request.user,
+                }
+            )
+            updated.append({
+                'id': obj.id,
+                'company_id': obj.company_id,
+                'module_id': obj.module_id,
+                'action_id': obj.action_id,
+                'is_granted': obj.is_granted,
+                'created': created,
+            })
+
+        return Response({
+            'updated': len(updated),
+            'records': updated,
+        })
+
 
 # ── Health Check ────────────────────────────────────────
 from django.http import JsonResponse
