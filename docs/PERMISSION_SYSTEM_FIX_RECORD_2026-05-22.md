@@ -4,6 +4,52 @@
 > 问题编号：PERM-2026-0522
 > 影响范围：全系统 API 权限校验
 > 状态：✅ 已完全修复
+> 更新：2026-05-22（补充后续发现+liubc角色清理）
+
+---
+
+## 零、两套系统 + 一个 SPEC 的关系
+
+### 三个组件的真实关系
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      SPEC（规范文档）                            │
+│  PERMISSION_SYSTEM_SPEC.md — 单一 RoleRequired 架构设计           │
+│  格式：app:resource:action，覆盖全系统                           │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │ 规定了"只用这一套"
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+        ▼                      ▼                      ▼
+┌───────────────────┐  ┌─────────────────────┐  ┌──────────────────────┐
+│ 旧系统（实际运行）│  │ 新系统（写了但未用） │  │ Inference引擎（缺失） │
+│                  │  │                    │  │                      │
+│ Permission表×193 │  │ Module表×9个模块    │  │ _infer_perm_from_view │
+│ Role表×7个角色    │  │ ModulePermission   │  │ → 推断缺失action_perms │
+│ RolePermission×299│  │ UserCompanyPermission│ │   的ViewSet权限码     │
+│ UserRole表        │  │ (56条已分配)       │  │                      │
+│                  │  │                    │  │ VIEW_CATEGORY_MAP    │
+│ RoleRequired类    │  │ ModulePermission类 │  │ （2026-05-22新增）   │
+│ → DRF权限钩子    │  │ → 从未被调用        │  │                      │
+└───────────────────┘ └─────────────────────┘  └──────────────────────┘
+        │                      ✗
+        │              从未进入 INSTALLED_APPS
+        │              （只写了代码，从未激活）
+        │
+        └──────────────────→ ✅ 唯一校验层
+```
+
+### 判断：保留哪个，删除哪个
+
+| 系统 | 决策 | 理由 |
+|------|------|------|
+| 旧系统 RoleRequired | **保留** | 实际在校验层运行，覆盖全系统13个App |
+| 新系统 ModulePermission | **删除** | 写了代码但从未进入 INSTALLED_APPS = 从未被激活过 |
+| Inference 引擎 VIEW_CATEGORY_MAP | **增强** | 推理引擎本身正确，补全缺失的特殊命名映射即可 |
+
+**Phase 0.5 判断原则**：两套做同一件事的系统，保留一套，删除另一套。修修补补永远修不完。
 
 ---
 
@@ -251,6 +297,48 @@ RoleRequired.has_permission()
 | init_rbac 权限完整性 | 大量缺失（DB 缺 11 条 action_perms 声明的权限） | **已补全** |
 | HR 访问 finance | 预期 403 | **403 ✅** |
 | admin 访问 finance | 预期 200 | **200 ✅** |
+
+---
+
+## 五-2、后续发现与修复（2026-05-22 下午）
+
+### 5-2.1 liubc 错误持有 admin 系统级角色
+
+**问题**：liubc 在 UserRole 表有一条错误记录（id=11, role=admin），导致 staff 角色应有的权限隔离完全失效——liubc 等于 admin 账号。
+
+**根因**：`UserRole`（系统级角色）和 `UserCompanyRole`（公司级角色）是两套独立体系：
+- `UserRole` → `has_perm()` 校验 → 决定系统级权限
+- `UserCompanyRole` → 当前只用于 UI 展示，不进入权限校验逻辑
+- `has_perm()` 只查 UserRole（系统级），不查 UserCompanyRole
+
+**修复**：删除 liubc 的 admin UserRole，为其创建 staff UserRole。
+
+```python
+# 删除错误记录
+UserRole.objects.filter(user__username='liubc', role__code='admin').delete()
+# 创建正确记录
+UserRole.objects.get_or_create(user=liubc, role=Role.objects.get(code='staff'))
+```
+
+**验证**：修复后 liubc/staff 访问 `/api/core/roles/` 返回 403 ✅。
+
+### 5-2.2 channels 视图 `request.company_id` 属性不存在
+
+**问题**：NotificationLogView、NotificationBindingView 等4个 view 使用 `request.company_id`，但 middleware 从未设置此属性，只设置了 `request.auth_company`（Django auth 框架标准属性）。
+
+**影响**：viewer 角色访问 `/system/notification-channels/` 时，NotificationLog tab 返回 403（但渠道配置和路由规则 tab 正常）。
+
+**修复**：4个 view 中 `request.company_id` → `request.auth_company.id`。
+
+### 5-2.3 审批对话框前端权限控制缺失
+
+**现象**：viewer 角色点"批准"按钮，对话框弹出，但后端 `/api/approvals/flows/16/approve/` 返回 403。
+
+**根因**：前端没有在按钮点击时做权限预检，直接弹出对话框后才由后端拦截。
+
+**实际影响**：后端权限拦截正常（403），用户看到"网络错误"toast。对话框弹出是前端体验问题，不影响安全。
+
+**修复**：前端在点击"批准"/"拒绝"按钮前应先检查用户权限，隐藏无权操作的按钮（ApprovalFlowViewSet 的 action_perms 已声明 `approval:flow:approve`）。
 
 ---
 
