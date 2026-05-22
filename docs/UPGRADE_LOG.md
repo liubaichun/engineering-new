@@ -1,9 +1,52 @@
 # 升级日志
-**更新时间：** 2026-05-05
+**更新时间：** 2026-05-22
 
 ---
 
-## 一、本次升级内容
+## 2026-05-22 权限系统大修（v2.2.0）
+
+### 问题概述
+
+全系统两套权限系统并存：旧系统（RoleRequired，真正在校验）vs 新系统（ModulePermission，写了但从未调用）。加上 inference 引擎三缺陷，导致权限判断混乱。
+
+### 修复内容
+
+| 类别 | 操作 |
+|------|------|
+| 删除废弃 app | `permission_registry` 从 INSTALLED_APPS + 代码库彻底移除 |
+| Inference 引擎重写 | 新增 VIEW_CATEGORY_MAP，解决特殊命名映射（core→system、bankaccount→bank等） |
+| init_rbac 补全 | 权限矩阵从 60 条扩充到 172 条，覆盖所有声明的 action_perms |
+| 语法错误修复 | `finance/views.py` EmployeeViewSet + BankAccountViewSet 补回 `action_perms =` 关键字 |
+| 特殊命名修复 | `purchasing:purchase_receive` → `receive`（代码与 DB 命名一致） |
+| liubc 角色清理 | 删除错误的 admin UserRole，分配正确的 staff UserRole |
+| channels 视图修复 | `request.company_id` → `request.auth_company.id`（4个 view） |
+| 字段迁移 | `UserCompanyRole.is_primary` 新增（core.0016 migration） |
+
+### 验证结果（liubc/staff 角色）
+
+| 页面 | 结果 |
+|------|------|
+| 收支管理（无权限） | 显示"网络错误"友好提示 ✅ |
+| CRM客户（有权限） | 页面正常 ✅ |
+| 审批管理（有权限） | 列表+操作按钮正常 ✅ |
+| 通知渠道配置（有权限） | 全部4个tab正常 ✅ |
+| 点"批准"（无权限） | 后端返回 403 ✅ |
+| 审批对话框 | 弹出但后端正确拦截 ✅ |
+
+### 相关提交
+
+| Commit | 内容 |
+|--------|------|
+| 32a5537 | fix(permissions): inference engine + init_rbac full coverage |
+| 4955b11 | docs: 补充两套系统关系图+后续三次修复记录 |
+
+### 详细报告
+
+见 `docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md`
+
+---
+
+## 一、本次升级内容（2026-05-05）
 
 ### 1. 依赖版本升级
 
