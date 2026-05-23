@@ -410,7 +410,12 @@ class UserViewSet(viewsets.ModelViewSet):
     """用户管理视图集"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticated(), RoleRequired()]
 
     def get_queryset(self):
         from django.db.models import Prefetch
@@ -1292,6 +1297,10 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
         updates = request.data.get('updates', [])
         if not user_id or not updates:
             return Response({'detail': 'user_id 和 updates 是必填参数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 权限校验：只有 superuser 或修改自己的权限
+        if not request.user.is_superuser and request.user.id != int(user_id):
+            return Response({'detail': '您没有权限修改他人的权限'}, status=status.HTTP_403_FORBIDDEN)
 
         # 预加载所有 Module/Action 用于 name→id 转换
         modules = {m.name: m.id for m in Module.objects.all()}
