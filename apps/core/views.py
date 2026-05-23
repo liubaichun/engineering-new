@@ -1281,23 +1281,48 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
         Body: {
           user_id: int,
           updates: [
+            {company_id, module_name, action_name, is_granted: bool},
             {company_id, module_id, action_id, is_granted: bool},
             ...
           ]
         }
+        支持 name 或 id 两种方式传入模块/动作，优先用 name（可混用）。
         """
         user_id = request.data.get('user_id')
         updates = request.data.get('updates', [])
         if not user_id or not updates:
             return Response({'detail': 'user_id 和 updates 是必填参数'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # 预加载所有 Module/Action 用于 name→id 转换
+        modules = {m.name: m.id for m in Module.objects.all()}
+        actions = {a.name: a.id for a in ModuleAction.objects.all()}
+        module_ids = {m.id: m.name for m in Module.objects.all()}
+        action_ids = {a.id: a.name for a in ModuleAction.objects.all()}
+
         updated = []
         for upd in updates:
+            # 支持 name 方式或 id 方式，name 优先
+            company_id = upd['company_id']
+            if 'module_name' in upd:
+                module_id = modules.get(upd['module_name'])
+            else:
+                module_id = upd.get('module_id')
+            if 'action_name' in upd:
+                action_id = actions.get(upd['action_name'])
+            else:
+                action_id = upd.get('action_id')
+
+            if not module_id or not action_id:
+                return Response(
+                    {'detail': f"找不到模块或动作: module={upd.get('module_name',upd.get('module_id'))}, action={upd.get('action_name',upd.get('action_id'))}"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             obj, created = UserCompanyPermission.objects.update_or_create(
                 user_id=user_id,
-                company_id=upd['company_id'],
-                module_id=upd['module_id'],
-                action_id=upd['action_id'],
+                company_id=company_id,
+                module_id=module_id,
+                action_id=action_id,
                 defaults={
                     'is_granted': upd['is_granted'],
                     'granted_by': request.user,

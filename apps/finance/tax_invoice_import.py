@@ -15,7 +15,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from openpyxl import load_workbook
-from rest_framework import permissions
+from apps.core.permissions import require_perms
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
@@ -460,7 +460,7 @@ def _validate_xlsx(file_obj: io.BytesIO) -> bool:
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('finance:invoice:create')
 def import_tax_invoices(request):
     """
     导入税务发票（进项/销项通用）
@@ -512,7 +512,7 @@ def import_tax_invoices(request):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('finance:invoice:create')
 def import_tax_invoices_auto(request):
     """
     自动识别并导入进项+销项发票（一次性处理整个文件）

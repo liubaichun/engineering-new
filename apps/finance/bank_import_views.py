@@ -13,7 +13,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from django.utils import timezone
-from rest_framework import permissions
+from apps.core.permissions import require_perms
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
@@ -642,7 +642,7 @@ def match_counterparty(t: ParsedTransaction, company):
 # ═══════════════════════════════════════════════════════════════════════════
 
 @api_view(['GET'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('bank:import')
 def list_banks(request):
     banks = [{'code': cls().bank_code, 'name': cls().bank_name}
              for cls in ALL_ADAPTERS]
@@ -650,7 +650,7 @@ def list_banks(request):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('bank:import')
 def preview_bank_statement(request):
     """预览银行流水（不写库），返回11个核心字段。"""
     import base64
@@ -872,7 +872,7 @@ def _safe_int(val):
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('bank:import')
 def confirm_bank_import(request):
     """
     确认导入银行流水 — 全原子事务版。

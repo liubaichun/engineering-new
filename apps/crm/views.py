@@ -417,8 +417,9 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
     serializer_class = FollowUpRecordSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'crm:follow_up_record:read',
-        'create': 'crm:follow_up_record:update',
+        None: 'crm:followup:read',
+        'create': 'crm:followup:update',
+        'export': 'crm:followup:read',
     }
     search_fields = ['content', 'next_plan']
     filterset_fields = ['contact', 'client', 'follow_type']

@@ -8,6 +8,8 @@
 - 裸动作码（'create': 'create'）禁止使用
 """
 
+from functools import wraps
+from django.http import JsonResponse
 from rest_framework.permissions import BasePermission
 
 
@@ -52,27 +54,14 @@ class RoleRequired(BasePermission):
         if user.is_superuser:
             return True
 
-        # ── 角色校验（优先于权限校验）─────────────────────────────────────────
+        # ── 角色校验（仅限系统级，公司级权限由 UCP 统一处理）───
         required_roles = getattr(view, 'required_roles', [])
         if required_roles:
-            # 先试系统级角色（User.role 字段 + UserRole 表）
+            # 只校验系统级角色（User.role 字段 + UserRole 表）
+            # 公司级权限不再通过 role 判断，统一由下方的 UCP 权限校验处理
             if user.role in required_roles or user.user_roles.filter(role__name__in=required_roles).exists():
                 return True
-            # 再试公司级角色
-            company_id = self._get_company_id(request, view)
-            if company_id:
-                for rc in required_roles:
-                    if user.has_role(rc, company_id):
-                        return True
-                # required_roles 都不满足，但若有系统级 UserRole（不在 required_roles 里）
-                # → 让权给权限校验，不要直接拒绝（例如 商务主管 进 finance:income 被 staff UCR 卡住）
-                if user.user_roles.exists():
-                    pass  # 继续走权限校验
-                else:
-                    return False
-            else:
-                # 无公司上下文 → 允许（权限走系统级 has_perm）
-                pass
+            # required_roles 都不满足 → 走权限校验，由 UCP 决定
 
         # ── 权限校验 ──────────────────────────────────────────────────────────
         perm_code = self._resolve_action_perm(request, view)
@@ -112,36 +101,33 @@ class RoleRequired(BasePermission):
             # 从 perm_code 解析出 module_name 和 action_name
             # 格式: finance:income:read → module='income', action='read'
             parts = perm_code.split(':')
-            if len(parts) >= 3:
-                action_name = parts[-1]  # 'read' / 'create' / 'update' / ...
-                # module 可以是第一段（如 bank:read）或第二段（如 finance:income:read）
-                if parts[0] in ('bank', 'approval', 'crm', 'project', 'equipment',
-                                'material', 'notifications', 'files', 'purchasing',
-                                'repair', 'tasks'):
-                    module_name = parts[0]
-                else:
-                    module_name = parts[1]  # e.g. 'income' from 'finance:income:read'
+            action_name = parts[-1]   # 'read' / 'create' / 'update' / ...
+            if len(parts) == 3:
+                module_name = parts[1]   # 'finance:income:read' → module='income'
+                                         # 'project:task:read'   → module='task'
+            else:
+                module_name = parts[0]   # 'bank:import'         → module='bank'
 
-                from apps.core.models import UserCompanyPermission, Module, ModuleAction
-                # 查 UserCompanyPermission(user, company, module, action, is_granted=True)
-                granted = UserCompanyPermission.objects.filter(
-                    user=user,
-                    company_id=company_id,
-                    module__name=module_name,
-                    action__name=action_name,
-                    is_granted=True,
-                ).exists()
-                if granted:
-                    return True
-                # 如果 UserCompanyPermission 有记录（即使是 False）→ 已表态，精确拒绝
-                has_explicit_record = UserCompanyPermission.objects.filter(
-                    user=user, company_id=company_id,
-                    module__name=module_name, action__name=action_name,
-                ).exists()
-                # UCP granted=True → 放行
-                # UCP 有记录（即使是 False）→ 已表态，直接拒绝
-                # UCP 无记录 → 拒绝
-                return False
+            from apps.core.models import UserCompanyPermission, Module, ModuleAction
+            # 查 UserCompanyPermission(user, company, module, action, is_granted=True)
+            granted = UserCompanyPermission.objects.filter(
+                user=user,
+                company_id=company_id,
+                module__name=module_name,
+                action__name=action_name,
+                is_granted=True,
+            ).exists()
+            if granted:
+                return True
+            # 如果 UserCompanyPermission 有记录（即使是 False）→ 已表态，精确拒绝
+            has_explicit_record = UserCompanyPermission.objects.filter(
+                user=user, company_id=company_id,
+                module__name=module_name, action__name=action_name,
+            ).exists()
+            # UCP granted=True → 放行
+            # UCP 有记录（即使是 False）→ 已表态，直接拒绝
+            # UCP 无记录 → 拒绝
+            return False
 
         # 无公司上下文 → 无权
         return False
@@ -304,3 +290,90 @@ class ManagerOnly(RoleRequired):
 class AdminOnly(RoleRequired):
     """系统管理员：仅 admin 角色"""
     required_roles = ['admin']
+
+
+# ─── 函数视图权限装饰器 ──────────────────────────────────────────────────────
+
+def require_perms(perm_code, required_roles=None):
+    """
+    函数视图权限装饰器，复刻 RoleRequired 的 UCP 校验链路。
+
+    用法：
+        @api_view(['GET'])
+        @require_perms('finance:report:read')
+        def cash_flow_report(request): ...
+
+        @api_view(['GET'])
+        @require_perms('bank:import', required_roles=['admin', 'finance'])
+        def preview_bank_statement(request): ...
+
+    链路：superuser bypass → required_roles（系统级）→ UCP(perm_code, is_granted=True)
+          无任何兜底，UCP 无记录则 403。
+    """
+    def decorator(view_func):
+        @wraps(view_func)
+        def wrapped(request, *args, **kwargs):
+            user = request.user
+            if not user or not user.is_authenticated:
+                return JsonResponse({'detail': '认证失败。'}, status=401)
+
+            # 1. superuser bypass
+            if getattr(user, 'is_superuser', False):
+                return view_func(request, *args, **kwargs)
+
+            # 2. 系统级角色检查（可选）
+            if required_roles:
+                if hasattr(user, 'has_role') and user.has_role(required_roles):
+                    return view_func(request, *args, **kwargs)
+
+            # 3. UCP 权限校验
+            company_id = _resolve_company_id(request)
+            if company_id is None:
+                return JsonResponse({'detail': '请先选择公司上下文。'}, status=403)
+
+            granted = _check_ucp(user, company_id, perm_code)
+            if not granted:
+                return JsonResponse({'detail': '您没有执行该操作的权限。'}, status=403)
+
+            return view_func(request, *args, **kwargs)
+        return wrapped
+    return decorator
+
+
+def _resolve_company_id(request):
+    """从 request 解析 company_id，优先 query_params 再 session"""
+    company_id = None
+    if hasattr(request, 'query_params'):
+        company_id = request.query_params.get('company') or request.query_params.get('company_id')
+    if not company_id and hasattr(request, 'session'):
+        company_id = request.session.get('current_company_id')
+    if company_id:
+        try:
+            return int(company_id)
+        except (ValueError, TypeError):
+            return None
+    return None
+
+
+def _check_ucp(user, company_id, perm_code):
+    """检查用户在指定公司+权限码下是否有 UCP 授权
+    perm_code 格式: 'module:action' 如 'finance:report:read'
+    """
+    from apps.core.models import UserCompanyPermission, Module, ModuleAction
+    parts = perm_code.rsplit(':', 2)
+    # perm_code 格式: 'category:resource:action' (3段，如 finance:report:read, project:task:read)
+    #              或 'module:action'        (2段，如 bank:import)
+    if len(parts) < 2:
+        return False
+    if len(parts) == 3:
+        _, module_name, action_name = parts  # parts[1] = resource = module name
+    else:
+        module_name, action_name = parts[0], parts[1]
+
+    return UserCompanyPermission.objects.filter(
+        user=user,
+        company_id=company_id,
+        module__name=module_name,
+        action__name=action_name,
+        is_granted=True
+    ).exists()

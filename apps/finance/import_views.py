@@ -13,8 +13,8 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 from openpyxl import load_workbook
-from rest_framework import permissions, status
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view
+from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Invoice, Income, Expense, Employee, Company
@@ -131,7 +131,7 @@ INVOICE_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('finance:invoice:create')
 def import_invoices(request):
     """
     导入发票。
@@ -243,7 +243,7 @@ INCOME_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('finance:income:create')
 def import_incomes(request):
     """导入收入记录。表头：金额、收入日期、客户名称"""
     if 'file' not in request.FILES:
@@ -333,7 +333,7 @@ EXPENSE_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('finance:expense:create')
 def import_expenses(request):
     """导入支出记录。表头：金额、支出日期、支出类型"""
     if 'file' not in request.FILES:
@@ -430,7 +430,7 @@ EMPLOYEE_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('finance:employee:create')
 def import_employees(request):
     """导入员工。表头：工号、姓名、身份证号、手机号码、入职日期"""
     if 'file' not in request.FILES:

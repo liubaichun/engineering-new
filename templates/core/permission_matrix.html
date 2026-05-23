@@ -7,20 +7,24 @@
 <style>
 .permission-matrix { font-size: 0.82rem; }
 .matrix-table { border-collapse: collapse; width: 100%; table-layout: fixed; }
-.matrix-table th, .matrix-table td { border: 1px solid #e2e8f0; padding: 6px 8px; text-align: center; vertical-align: middle; }
+.matrix-table th, .matrix-table td { border: 1px solid #e2e8f0; padding: 5px 8px; text-align: center; vertical-align: middle; }
 .matrix-table thead th { background: #f8fafc; font-weight: 600; color: #334155; position: sticky; top: 0; z-index: 2; }
-.matrix-table .company-header { min-width: 140px; }
-.matrix-table .module-header { min-width: 120px; text-align: left !important; }
-.matrix-table .action-header { min-width: 70px; text-align: center; }
+.matrix-table .company-header { min-width: 130px; }
+.matrix-table .module-header { min-width: 110px; text-align: left !important; }
+.matrix-table .action-header { min-width: 65px; text-align: center; }
 .matrix-table tbody td:first-child { background: #f8fafc; font-weight: 600; color: #475569; text-align: left !important; }
-.matrix-table tbody td:nth-child(3) { text-align: center; }
 .permission-matrix .unsaved { background: #fff7ed !important; }
-.permission-matrix .badge-module { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 0.72rem; background: #e0f2fe; color: #0369a1; }
+.permission-matrix .badge-module { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; background: #e0f2fe; color: #0369a1; font-weight: 600; }
 .permission-matrix .sticky-left { position: sticky; left: 0; z-index: 1; background: #f8fafc; }
-.permission-matrix .sticky-left-2 { position: sticky; left: 120px; z-index: 1; background: #fff; }
-.permission-matrix .perm-cell input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb; }
-.permission-matrix .perm-cell label { display: inline-flex; align-items: center; cursor: pointer; margin: 0 2px; }
+.permission-matrix .sticky-left-2 { position: sticky; left: 110px; z-index: 1; background: #fff; }
 .permission-matrix .perm-cell { text-align: center; }
+.permission-matrix .perm-cell input[type="checkbox"] { width: 15px; height: 15px; cursor: pointer; accent-color: #2563eb; }
+.permission-matrix .action-name { font-size: 0.75rem; color: #64748b; }
+.permission-matrix .company-th { font-size: 0.78rem; }
+.permission-matrix .check-all { font-size: 0.7rem; padding: 1px 5px; cursor: pointer; color: #2563eb; background: none; border: 1px solid #bfdbfe; border-radius: 3px; }
+.permission-matrix .check-all:hover { background: #eff6ff; }
+.permission-matrix .module-row td:first-child { background: #f1f5f9; }
+.permission-matrix .action-row td:first-child { background: #fff; }
 </style>
 {% endblock %}
 
@@ -65,8 +69,10 @@
 
     <div class="mt-2 text-muted" style="font-size: 0.8rem;">
         <i class="bi bi-info-circle me-1"></i>
-        <strong>操作说明：</strong>勾选 = 授权该动作 | 取消 = 撤销授权 &nbsp;|&nbsp;
-        <strong>橙色底色</strong> = 未保存的修改
+        <strong>操作说明：</strong>勾选 = 授权 | 取消 = 撤销 &nbsp;|&nbsp;
+        <strong>橙色底色</strong> = 未保存 &nbsp;|&nbsp;
+        <strong>模块行全选</strong> = 该模块全部动作授权给该公司 &nbsp;|&nbsp;
+        <strong>公司列全选</strong> = 该公司全部模块全部动作授权
     </div>
 </div>
 {% endblock %}
@@ -77,6 +83,7 @@ let currentUserId = null;
 let matrixData = null;
 let unsavedChanges = new Map(); // key: `${company_id}-${module_id}-${action_id}`, value: bool
 let userList = [];
+let currentCompanyIds = []; // 保留当前公司列顺序用于全选
 
 // ─── Init ────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -148,72 +155,89 @@ function refreshMatrix() {
 function renderMatrix() {
     const { modules, companies, matrix } = matrixData;
     document.getElementById('matrixContainer').style.display = 'block';
+    currentCompanyIds = companies.map(c => c.id);
 
     // ── 表头 ──
-    // 列: 模块 | 动作 | 公司1 | 公司2 | ...
     const thead = document.getElementById('matrixHead');
     let thHtml = '<tr>';
     thHtml += '<th class="module-header sticky-left">模块</th>';
     thHtml += '<th class="action-header sticky-left-2">动作</th>';
     companies.forEach(c => {
-        thHtml += `<th class="company-header">${escapeHtml(c.name)}</th>`;
+        thHtml += `<th class="company-header company-th">${escapeHtml(c.name)}<br>`;
+        thHtml += `<button class="check-all" onclick="checkAllCompany(${c.id})" title="该公司全部授权">全选</button>`;
+        thHtml += '</th>';
     });
     thHtml += '</tr>';
     thead.innerHTML = thHtml;
 
-    // ── 表体：按 module × action 分行 ──
+    // ── 表体 ──
     const tbody = document.getElementById('matrixBody');
     let bodyHtml = '';
 
     modules.forEach(mod => {
-        // 模块分组标题行
         const actionCount = mod.actions ? mod.actions.length : 0;
-        bodyHtml += `<tr data-module-id="${mod.id}">`;
-        bodyHtml += `<td class="sticky-left" rowspan="${actionCount || 1}">
-            <span class="badge-module">${escapeHtml(mod.label || mod.name)}</span>
-            <div class="text-muted mt-1" style="font-size:0.72rem;">${escapeHtml(mod.name)}</div>
+        if (actionCount === 0) return;
+
+        // 模块分组行（第一动作行 = 模块标题行）
+        const firstAct = mod.actions[0];
+        bodyHtml += `<tr class="module-row" data-module-id="${mod.id}">`;
+        bodyHtml += `<td class="sticky-left" rowspan="${actionCount}">
+            <span class="badge-module">${escapeHtml(mod.label)}</span>
+        </td>`;
+        bodyHtml += `<td class="sticky-left-2" data-action-id="${firstAct.id}">
+            <div>${escapeHtml(firstAct.label)}</div>
+            <div class="action-name">${escapeHtml(firstAct.name)}</div>
         </td>`;
 
-        if (actionCount === 0) {
-            bodyHtml += `<td class="sticky-left-2 text-muted">—</td>`;
-            companies.forEach(() => { bodyHtml += '<td class="perm-cell text-muted">无动作</td>'; });
+        companies.forEach(comp => {
+            bodyHtml += buildCellHtml(comp, mod, firstAct, matrix, true);
+        });
+        bodyHtml += '</tr>';
+
+        // 其余动作行
+        for (let i = 1; i < mod.actions.length; i++) {
+            const act = mod.actions[i];
+            bodyHtml += `<tr class="action-row" data-module-id="${mod.id}" data-action-id="${act.id}">`;
+            bodyHtml += `<td class="sticky-left-2" data-action-id="${act.id}">
+                <div>${escapeHtml(act.label)}</div>
+                <div class="action-name">${escapeHtml(act.name)}</div>
+            </td>`;
+            companies.forEach(comp => {
+                bodyHtml += buildCellHtml(comp, mod, act, matrix, false);
+            });
             bodyHtml += '</tr>';
-            return;
         }
 
-        mod.actions.forEach((act, idx) => {
-            if (idx > 0) {
-                bodyHtml += `<tr data-module-id="${mod.id}" data-action-id="${act.id}">`;
-            } else {
-                bodyHtml += `<tr data-module-id="${mod.id}" data-action-id="${act.id}">`;
-            }
-            bodyHtml += `<td class="sticky-left-2">${escapeHtml(act.label || act.name)}</td>`;
-
-            companies.forEach(comp => {
-                // 找该用户-公司-模块-动作的记录
-                const rec = matrix.find(
-                    r => r.company_id === comp.id &&
-                         r.module_id === mod.id &&
-                         r.action_id === act.id
-                );
-                const isGranted = rec && rec.is_granted;
-                const key = `${comp.id}-${mod.id}-${act.id}`;
-                const hasChange = unsavedChanges.has(key);
-                const cellClass = hasChange ? 'perm-cell unsaved' : 'perm-cell';
-
-                bodyHtml += `<td class="${cellClass}" data-company="${comp.id}" data-module="${mod.id}" data-action="${act.id}">
-                    <input type="checkbox"
-                        ${isGranted ? 'checked' : ''}
-                        onchange="onPermChange(this)"
-                        title="${escapeHtml(comp.name)} / ${escapeHtml(mod.label)} / ${escapeHtml(act.label)}">
-                </td>`;
-            });
-
-            bodyHtml += '</tr>';
-        });
+        // 模块全选行（在该模块最后一个动作行之后追加一个合并行）
+        // 追加在最后一条action行后面
     });
 
     tbody.innerHTML = bodyHtml;
+}
+
+function buildCellHtml(comp, mod, act, matrix, isFirstAction) {
+    const rec = matrix.find(
+        r => r.company_id === comp.id &&
+             r.module_id === mod.id &&
+             r.action_id === act.id
+    );
+    const isGranted = rec && rec.is_granted;
+    const key = `${comp.id}-${mod.id}-${act.id}`;
+    const hasChange = unsavedChanges.has(key);
+    const cellClass = hasChange ? 'perm-cell unsaved' : 'perm-cell';
+
+    // 标记该模块该公司是否"全选"（模块内所有动作都被勾选）
+    let extraAttrs = '';
+    if (isFirstAction) {
+        extraAttrs += ` data-module="${mod.id}" data-company="${comp.id}"`;
+    }
+
+    return `<td class="${cellClass}" data-company="${comp.id}" data-module="${mod.id}" data-action="${act.id}"${extraAttrs}>
+        <input type="checkbox"
+            ${isGranted ? 'checked' : ''}
+            onchange="onPermChange(this)"
+            title="${escapeHtml(mod.label)} / ${escapeHtml(act.label)}">
+    </td>`;
 }
 
 // ─── 交互 ─────────────────────────────────────────────────────────────────────
@@ -234,28 +258,92 @@ function onPermChange(el) {
     document.getElementById('saveBtn').disabled = false;
 }
 
+// ─── 全选：按公司列（该公司 × 当前矩阵显示的所有模块+动作） ─────────────────────
+function checkAllCompany(companyId) {
+    if (!matrixData) return;
+    const { modules } = matrixData;
+    let changed = false;
+    const cid = String(companyId); // 统一转字符串，避免 number/string 不一致
+
+    modules.forEach(mod => {
+        mod.actions.forEach(act => {
+            const key = `${cid}-${mod.id}-${act.id}`;
+            if (!unsavedChanges.has(key) || unsavedChanges.get(key) !== true) {
+                unsavedChanges.set(key, true);
+                changed = true;
+            }
+        });
+    });
+
+    if (changed) {
+        document.getElementById('saveBtn').disabled = false;
+        document.querySelectorAll(`td.perm-cell[data-company="${cid}"] input`).forEach(cb => {
+            cb.checked = true;
+            cb.closest('td').classList.add('unsaved');
+        });
+    }
+}
+
+// ─── 全选：按模块行（该模块 × 当前矩阵显示的所有公司） ─────────────────────────
+function checkAllModule(moduleId) {
+    if (!matrixData) return;
+    const { companies } = matrixData;
+    const mod = matrixData.modules.find(m => String(m.id) === String(moduleId));
+    if (!mod) return;
+    let changed = false;
+    const mid = String(moduleId);
+
+    companies.forEach(comp => {
+        mod.actions.forEach(act => {
+            const key = `${comp.id}-${mid}-${act.id}`;
+            if (!unsavedChanges.has(key) || unsavedChanges.get(key) !== true) {
+                unsavedChanges.set(key, true);
+                changed = true;
+            }
+        });
+    });
+
+    if (changed) {
+        document.getElementById('saveBtn').disabled = false;
+        document.querySelectorAll(`td.perm-cell[data-module="${mid}"] input`).forEach(cb => {
+            cb.checked = true;
+            cb.closest('td').classList.add('unsaved');
+        });
+    }
+}
+
 // ─── Save ─────────────────────────────────────────────────────────────────────
 async function saveAll() {
-    if (!currentUserId || unsavedChanges.size === 0) return;
+    if (!currentUserId || unsavedChanges.size === 0) {
+        console.log('saveAll early return: currentUserId=', currentUserId, 'unsavedChanges.size=', unsavedChanges.size);
+        return;
+    }
 
     const saveBtn = document.getElementById('saveBtn');
     saveBtn.disabled = true;
     saveBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>保存中...';
 
     try {
-        // 把 Map 转为 {company_id, module_id, action_id, is_granted} 数组
         const updates = [];
+        console.log('unsavedChanges size:', unsavedChanges.size);
+        let debugCount = 0;
         unsavedChanges.forEach((isGranted, key) => {
+            if (debugCount < 3) console.log('key:', key, 'isGranted:', isGranted);
+            debugCount++;
             const [company_id, module_id, action_id] = key.split('-').map(Number);
-            updates.push({ company_id, module_id, action_id, is_granted });
+            updates.push({ company_id, module_id, action_id, is_granted: isGranted });
         });
+        console.log('updates count:', updates.length, 'first update:', JSON.stringify(updates[0]));
 
         const resp = await fetch(
             '/api/core/user-company-permissions/matrix_bulk_update/',
             {
                 method: 'POST',
                 credentials: 'include',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCsrfToken(),
+                },
                 body: JSON.stringify({ user_id: currentUserId, updates }),
             }
         );

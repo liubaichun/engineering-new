@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from django.db import transaction
 from openpyxl import load_workbook
-from rest_framework import permissions
+from apps.core.permissions import require_perms
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 
@@ -93,7 +93,7 @@ CLIENT_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('crm:client:create')
 def import_clients(request):
     """导入客户。必填：客户名称"""
     if 'file' not in request.FILES:
@@ -148,7 +148,7 @@ SUPPLIER_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('crm:supplier:create')
 def import_suppliers(request):
     """导入供应商。必填：供应商名称"""
     if 'file' not in request.FILES:
@@ -205,7 +205,7 @@ CONTRACT_FIELDS = {
 
 
 @api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
+@require_perms('crm:contract:create')
 def import_contracts(request):
     """导入合同。必填：合同编号、合同名称、合同金额、签订日期"""
     if 'file' not in request.FILES:

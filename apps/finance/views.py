@@ -76,11 +76,14 @@ def render_bank_import_page(request):
             'preloaded_companies': [],
             'preloaded_bank_accounts_by_company': '{}',
         })
-    # 超级用户看所有公司，普通用户只看自己关联的公司
+    # 超级用户看所有公司，普通用户只看自己在 UCP 中有权限的公司
     if request.user.is_superuser:
         companies = Company.objects.filter(status='active').order_by('id')
     else:
-        company_ids = UserCompanyRole.objects.filter(user=request.user).values_list('company_id', flat=True)
+        from apps.core.models import UserCompanyPermission
+        company_ids = UserCompanyPermission.objects.filter(
+            user=request.user, is_granted=True
+        ).values_list('company_id', flat=True).distinct()
         companies = Company.objects.filter(id__in=company_ids, status='active').order_by('id')
     companies_list = list(companies.values('id', 'name'))
     # 预加载所有公司的银行账户（字典格式，key=company_id）
@@ -105,15 +108,13 @@ def _get_user_company_id(user):
         return None
     if user.is_superuser:
         return None
-    # 从 UserCompanyRole 取主公司
-    from apps.core.models import UserCompanyRole
-    ucr = UserCompanyRole.objects.filter(user=user, is_primary=True).first()
-    if ucr:
-        return ucr.company_id
-    # 取第一个关联公司
-    first = UserCompanyRole.objects.filter(user=user).first()
-    if first:
-        return first.company_id
+    # 从 UCP 取主公司（取 ID 最小的公司作为默认主公司）
+    from apps.core.models import UserCompanyPermission
+    first_ucp = UserCompanyPermission.objects.filter(
+        user=user, is_granted=True
+    ).order_by('company_id').first()
+    if first_ucp:
+        return first_ucp.company_id
     # 兼容旧字段
     if hasattr(user, 'company_id') and user.company_id:
         return user.company_id
@@ -138,9 +139,9 @@ def get_user_companies(user):
         return []
     if user.is_superuser:
         return None  # 超管：不过滤
-    from apps.core.models import UserCompanyRole
+    from apps.core.models import UserCompanyPermission
     cids = list(
-        UserCompanyRole.objects.filter(user=user)
+        UserCompanyPermission.objects.filter(user=user, is_granted=True)
         .values_list('company_id', flat=True).distinct()
     )
     return cids if cids else []

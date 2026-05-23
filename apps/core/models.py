@@ -39,7 +39,11 @@ class User(AbstractUser):
         return self.is_superuser
 
     def has_role(self, role_code, company_id=None):
-        """检查用户是否拥有指定角色（系统级角色 + 公司级角色）"""
+        """
+        检查用户是否拥有指定角色（仅限系统级角色）。
+        公司级权限判断统一由 UserCompanyPermission 表和 UCP 校验逻辑处理，
+        不再通过 has_role() 判断。
+        """
         if self.is_superuser:
             return True
         # 系统级角色：User.role 字段（如 admin）
@@ -48,11 +52,6 @@ class User(AbstractUser):
         # 系统级角色：UserRole 表（如 商务主管/财务总监）
         if self.user_roles.filter(role__name=role_code).exists():
             return True
-        # 公司级角色
-        if company_id:
-            link = self.company_roles.filter(company_id=company_id, role=role_code).exists()
-            if link:
-                return True
         return False
 
     def has_perm(self, perm_code):

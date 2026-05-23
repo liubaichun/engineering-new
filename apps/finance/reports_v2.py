@@ -7,8 +7,8 @@ import re
 
 from django.db.models import Sum, Count, Q, F
 from django.utils import timezone
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view
+from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
@@ -72,7 +72,7 @@ def build_qs(model, company_id=None, year=None, month=None):
 
 # ─── 1. 现金流量表 ───────────────────────────────────────────────────────
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@require_perms('finance:report:read')
 def cash_flow_report(request):
     params = parse_date_range(request)
     year = params['year']
@@ -181,7 +181,7 @@ def cash_flow_report(request):
 
 # ─── 2. 应收应付账龄分析 ────────────────────────────────────────────────
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@require_perms('finance:report:read')
 def ar_ap_aging_report(request):
     params = parse_date_range(request)
     today = timezone.now().date()
@@ -254,7 +254,7 @@ def ar_ap_aging_report(request):
 
 # ─── 3. 客户收入排行 ────────────────────────────────────────────────────
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@require_perms('finance:report:read')
 def customer_revenue_report(request):
     params = parse_date_range(request)
     year = params['year']
@@ -303,7 +303,7 @@ def customer_revenue_report(request):
 
 # ─── 4. 供应商支出报表 ──────────────────────────────────────────────────
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@require_perms('finance:report:read')
 def supplier_expense_report(request):
     """供应商支出报表
     【P2-2 修复】识别人名类供应商（刘柏春等员工姓名），自动归入"个人/内部"分组，
@@ -448,7 +448,7 @@ def _parse_tax_type(desc: str, amount: float):
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@require_perms('finance:report:read')
 def tax_summary_report(request):
     params = parse_date_range(request)
     year = params['year']
@@ -567,7 +567,7 @@ def tax_summary_report(request):
 
 # ─── 6. 预算执行表 ──────────────────────────────────────────────────────
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@require_perms('finance:report:read')
 def budget_execution_report(request):
     params = parse_date_range(request)
     year = params['year'] or timezone.now().year
