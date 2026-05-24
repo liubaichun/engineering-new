@@ -16,11 +16,12 @@ from apps.finance.models_bank import BankStatement
 from apps.crm.models import Client, Supplier
 
 # 内部公司名称（同一集团内各公司互转不算外部收入）
-INTERNAL_COMPANY_NAMES = {
-    '深圳市绿聚能科技有限公司',
-    '深圳市金易豪信息技术有限公司',
-    '深圳市百川软件科技发展有限公司',
-}
+# ── 【P2-1 修复】从 Company 表动态读取（排除所有公司名，避免硬编码）────
+def get_internal_company_names():
+    """从 Company 表获取所有公司名称，用于排除内部转账收入"""
+    return set(Company.objects.values_list('name', flat=True))
+
+INTERNAL_COMPANY_NAMES = get_internal_company_names()
 
 
 def agg(qs, field):
@@ -374,7 +375,7 @@ def supplier_expense_report(request):
         is_individual = (
             supplier in employee_names
             or supplier in individual_suppliers
-            or len(supplier) <= 4  # 单姓名的简单判断
+            or bool(re.match(r'^[\u4e00-\u9fa5]{2,4}$', supplier))  # 纯中文姓名：2-4个汉字
         )
 
         bucket = individual_stats if is_individual else enterprise_stats
@@ -624,10 +625,6 @@ def budget_execution_report(request):
     if company_id:
         companies = companies.filter(id=company_id)
 
-    # 深圳2026社保费率常量（写死，不从CompanySocialConfig读取）
-    _EMP_SI_RATE = 10.3   # 个人：养老8% + 医疗2% + 失业0.3%
-    _COM_SI_RATE = 23.0   # 公司：养老16% + 医疗6% + 失业0.6% + 工伤0.4%
-
     results = []
     grand_actual = 0
 
@@ -637,10 +634,21 @@ def budget_execution_report(request):
             if exp_type == 'salary':
                 total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_salary')
             elif exp_type == 'social':
-                # 公司社保成本：逐人从个人扣款反推基数，再乘公司费率23%
+                # 公司社保成本：从 CompanySocialConfig 读费率，逐人反推基数后乘公司费率
+                social_config = getattr(company, 'social_config', None)
+                if social_config:
+                    emp_rate = (float(social_config.pension_rate_employee or 0) +
+                                float(social_config.medical_rate_employee or 0) +
+                                float(social_config.unemployment_rate_employee or 0))
+                    com_rate = (float(social_config.pension_rate_company or 0) +
+                                float(social_config.medical_rate_company or 0) +
+                                float(social_config.unemployment_rate_company or 0) +
+                                float(social_config.injury_rate_company or 0))
+                else:
+                    emp_rate = 10.3; com_rate = 23.0  # 深圳默认值
                 wr_q = WageRecord.objects.filter(company=company, year=year)
                 total = sum(
-                    (float(wr.social_insurance) / _EMP_SI_RATE * 100) * (_COM_SI_RATE / 100)
+                    (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
                     for wr in wr_q
                     if wr.social_insurance > 0
                 )
