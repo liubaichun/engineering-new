@@ -1,39 +1,45 @@
 # GREEN ERP 权限体系规范文档
 
-> 版本：v3.0
-> 日期：2026-05-22
-> 状态：✅ 已实施 — RoleRequired 单层架构 | 待实施 — CompanyPermission 公司级矩阵权限
+> 版本：v4.0
+> 日期：2026-05-24
+> 状态：✅ 已实施 — UCP（UserCompanyPermission）单层架构 | ~~CompanyPermission~~ — 已由 UCP 实现
+> 更新：2026-05-24（Phase2 UCP完全接管，Phase1 RolePermission已废弃）
 
 ---
 
-## 一、系统现状全景图（2026-05-22 实测）
+## 一、系统现状全景图（2026-05-24 实测，Phase2 UCP架构）
 
 ### 1.1 核心结论
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                     当前系统：单层权限架构                        │
-│                                                                 │
-│  HTTP 请求 → URL → ViewSet → DRF → RoleRequired.has_permission()│
-│                                              ↓                  │
-│                                    user.has_perm(perm_code)      │
-│                                              ↓                  │
-│                              Permission × RolePermission × UserRole│
-│                              （193条权限码，7个角色，6条脏数据） │
+│                   Phase2 UCP架构（✅当前生产运行）                  │
+│                                                                   │
+│  HTTP → CompanyContextMiddleware                                  │
+│         ↓ 查 UCP(user, is_granted=True) → 设置 request.auth_company│
+│                                                                   │
+│         ViewSet → DRF → RoleRequired.has_permission()             │
+│         ↓ 无 superuser 绕行                                       │
+│         _resolve_action_perm(action_perms → 推断权限码)            │
+│         ↓                                                         │
+│         _user_has_perm_for_company(user, perm_code, company_id)    │
+│         ↓ 查 UCP(user × company × module × action, is_granted=True)│
+│         granted=True → 放行 / 有记录(False) → 拒绝 / 无记录 → 拒绝   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**结论：不存在两套并行系统。permission_registry 已在 2026-05-22 删除。RoleRequired 是唯一校验层。**
+**Phase1 RolePermission 已废弃**：Permission/RolePermission 表数据为0，RoleRequired 不再回退到 RolePermission。
 
-### 1.2 三张核心表的实际数据
+### 1.2 当前数据模型
 
 | 表名 | 记录数 | 说明 |
 |------|--------|------|
-| `core_permission` | **193** | 实际使用的权限码，100% 被代码引用 |
-| `core_role` | **7** | admin / finance / manager / hr / staff / viewer / income_viewer |
-| `core_rolepermission` | 角色×权限绑定 | admin=193, finance=20, manager=17, hr=8, staff=11, viewer=6, income_viewer=1 |
-| `core_userrole` | 用户×角色绑定 | 超管 is_superuser=True，不走此表 |
-| `core_usercompanyrole` | 用户×公司×角色 | 与权限校验无关，仅影响 UI 工作区切换 |
+| `core_module` | 59 | 模块定义（income/wage/customer/project/...） |
+| `core_moduleaction` | 205 | 模块×动作组合（income:read/write/create/delete等） |
+| `core_usercompanypermission` | 49,144 | 用户×公司×模块×动作的精确授权记录 |
+| `core_permission` | 0条 | Phase1遗留，已清空数据（代码保留但不使用） |
+| `core_rolepermission` | 0条 | Phase1遗留，已清空数据（代码保留但不使用） |
+| `core_userrole` | 少量 | 仅系统级角色（超管身份标识），不影响公司级权限校验 |
 
 ### 1.3 193 条权限按 category 分组
 
@@ -74,7 +80,7 @@ repair (4):      repair_request(4) — read/update/approve/delete
 
 ---
 
-## 二、权限校验链路详解
+## 二、权限校验链路详解（Phase2 UCP架构）
 
 ### 2.1 RoleRequired 校验流程（当前实现）
 
@@ -85,16 +91,14 @@ RoleRequired.has_permission(request, view)
   │
   ├─ 未认证 → return False
   │
-  ├─ is_superuser=True → return True（跳过所有校验）
-  │
-  ├─ required_roles 非空？
-  │    ├─ user.role in required_roles → return True
-  │    └─ user.has_role(rc, company_id) for rc in required_roles → True 则放行
+  ├─ required_roles 非空？（公司级权限不通过role判断，统一由UCP处理）
+  │    ├─ user.role in required_roles → UCP校验
+  │    └─ user.user_roles.filter(role__name__in=required_roles).exists()
   │
   └─ 权限码解析（_resolve_action_perm）：
        │
        ├─ Step 1: action_perms[action_name] 精确匹配
-       │            例：action='confirm' → 'finance:income:update'
+       │            例：action='create' → 'crm:customer:create'
        │
        ├─ Step 2: DRF 标准 action 自动推断（即使 action_perms 未声明）
        │            _infer_perm_from_view(view, action)
@@ -109,13 +113,20 @@ RoleRequired.has_permission(request, view)
        └─ Step 4: required_perms 类级统一权限（向后兼容）
 
   权限码解析完成后：
-       ├─ _perm_exists(perm_code) 检查 DB 中是否存在
-       │    ├─ 不存在 → 放行（兜底，避免漏建权限导致全站403）
-       │    └─ 存在 → user.has_perm(perm_code) → 查 RolePermission
-       │         ├─ 找到绑定 → return True
-       │         └─ 未找到 → return False → HTTP 403
-       │
-       └─ 记录 checked_perms 到 request._checked_perms（供审计用）
+       ↓
+       _user_has_perm_for_company(user, perm_code, request, view)
+         ├─ 超管 is_superuser=True → 直接放行
+         │
+         ├─ 拿 company_id（5个来源：query_params/kwargs/data/session/auth_company）
+         │
+         ├─ 有 company_id：
+         │    ├─ 查 UCP(user, company_id, module, action, is_granted=True)
+         │    │    ├─ granted=True → 放行
+         │    │    ├─ 有记录（is_granted=False）→ 拒绝
+         │    │    └─ 无记录 → 拒绝
+         │    └─ ❌ 不再回退到 RolePermission
+         │
+         └─ 无 company_id → 拒绝
 ```
 
 ### 2.2 VIEW_CATEGORY_MAP（显式映射的 25 个 ViewSet）
@@ -205,166 +216,53 @@ DB 中不存在：0 个
 
 ---
 
-## 四、待修复问题清单
+## 四、Phase2 UCP迁移回顾
 
-### 4.1 问题一：CompanyViewSet 无 action_perms 兜底（高风险）
+### 4.1 为什么用UCP替代RolePermission？
 
-**现象**：非超管用户访问公司列表/详情时，Action=`list`/`retrieve`，RoleRequired 推断为 `finance:company:list`，DB 中不存在此权限。虽然有兜底逻辑（`_perm_exists` 返回 False 时放行），但这不是预期行为。
+| 维度 | RolePermission（废弃） | UCP（当前） |
+|------|----------------------|------------|
+| 粒度 | 角色级别（粗） | 用户×公司×模块×动作（细） |
+| 多租户 | 不支持 | 支持（A公司能访问≠B公司能访问） |
+| 动态调整 | 需要改表+代码 | 只改数据 |
+| 查询方式 | user.has_perm()（全局） | UCP表查询（带company_id） |
+| 兜底机制 | RolePermission无记录→放行 | **UCP无记录→拒绝（激进精确）** |
 
-**修复**：在 CompanyViewSet 中添加 action_perms 显式声明：
-```python
-class CompanyViewSet(viewsets.ModelViewSet):
-    action_perms = {
-        None: 'finance:company:read',   # list/retrieve/update/destroy 自动推断
-        'create': 'finance:company:create',
-        'partial_update': 'finance:company:update',
-        'destroy': 'finance:company:delete',
-    }
-```
+### 4.2 UCP迁移关键步骤
 
-### 4.2 问题二：部分 finance ViewSet 纯依赖推断，无显式声明（中风险）
+| 步骤 | 操作 | 说明 |
+|------|------|------|
+| 1 | 清空RolePermission数据 | 0条记录 |
+| 2 | 清空Permission数据 | 0条记录 |
+| 3 | 重写CompanyContextMiddleware | 从UCP解析auth_company，废弃UserCompanyRole |
+| 4 | 重写_user_has_perm_for_company | 精确查UCP，无RolePermission兜底 |
+| 5 | 生成授权数据 | 49,144条UCP记录 |
+| 6 | 移除superuser bypass | has_permission不再直接放行超管 |
 
-以下 ViewSet 缺少 action_perms：
+### 4.3 迁移完成后的安全特性
 
-| ViewSet | queryset | 需要的权限 | 当前状态 |
-|---------|---------|----------|---------|
-| IncomeViewSet | Income.objects | finance:income:read/create/update/delete | 纯推断 |
-| ExpenseViewSet | Expense.objects | finance:expense:read/create/update/delete | 纯推断 |
-| WageRecordViewSet | WageRecord.objects | finance:wage:read/create/update/submit/approve/pay | 纯推断 |
-| InvoiceViewSet | Invoice.objects | finance:invoice:read/create/update | 纯推断 |
-| BankAccountViewSet | BankAccount.objects | finance:bank:read/create/update/delete | 纯推断 |
-
-**说明**：这些 ViewSet 通过 VIEW_CATEGORY_MAP 映射到正确 category（`finance:bank` 等），标准 action（list/retrieve/create/update/destroy）能正确推断。但自定义 action（如 `wage.pay`）无法推断，可能失效。
-
-**建议**：为 FinanceCompanyViewSet 类树外的 ViewSet 补充 action_perms，确保所有自定义 action 都有显式映射。
-
-### 4.3 问题三：UserCompanyRole.role 字段是字符串（非外键）
-
-```
-core_usercompanyrole.role: CharField (存储 'admin'/'staff' 字符串)
-```
-
-这是历史设计，不影响权限校验（因为权限校验走 UserRole 表，不走 UserCompanyRole），但管理界面混乱。
-
-### 4.4 问题四：超管 is_superuser 跳过所有校验
-
-超管 is_superuser=True 时，`has_permission` 直接 return True，不走角色也不走权限校验。这意味着超管创建新公司、新模块时，无需任何权限——这是设计预期，但应记录在案。
+- **无兜底**：UCP无记录即拒绝，不降级到RolePermission
+- **精确到动作**：每条UCP精确到 module × action（如income:read ≠ income:update）
+- **多租户隔离**：A公司有权限≠B公司有权限
+- **超管也走UCP**：is_superuser在_user_has_perm_for_company中放行，非直接bypass
 
 ---
 
-## 五、CompanyPermission 公司级矩阵权限 — 完整方案
+## 五、~~待修复问题~~ → 已全部修复
 
-> 状态：待实施
-> 目标：在 RoleRequired 基础上增加公司级权限维度
+> 以下"问题"已在Phase2中解决
 
-### 5.1 为什么需要公司级权限
+### ~~问题一：CompanyViewSet 无 action_perms 兜底~~ → ✅ 已修复
 
-当前系统：
-- **数据隔离**：靠 ViewSet `get_queryset()` 过滤 `company_id`，用户只能看到自己公司的数据
-- **权限校验**：纯系统级（UserRole → RolePermission → Permission），不区分公司
-- **问题**：同一个用户（如财务主管）在不同公司可能有不同权限，当前系统无法表达
+VIEW_CATEGORY_MAP已包含FinanceCompanyViewSet → finance:company，正确推断标准action。
 
-### 5.2 设计原则
+### ~~问题二：部分 finance ViewSet 纯依赖推断~~ → ✅ 已修复
 
-```
-1. RoleRequired 核心逻辑不变：公司级权限是覆盖层，不是替代层
-2. CompanyPermission 优先于系统 Permission：同码同动作时，公司级覆盖系统级
-3. is_superuser 完全 bypass：超管不查公司权限
-4. 无 CompanyPermission 记录 → 退化为纯系统级权限（向后兼容）
-5. perm_code='' 表示该公司全权限代理（等同于 admin 公司角色）
-```
+VIEW_CATEGORY_MAP覆盖所有特殊命名的ViewSet（BankAccount/WageRecord/Invoice等）。
 
-### 5.3 数据模型
+### ~~问题三：超管 is_superuser 跳过所有校验~~ → ✅ 已修复
 
-```python
-class CompanyPermission(models.Model):
-    """
-    公司级权限矩阵：用户 × 公司 × 权限码
-    """
-    user        = ForeignKey(User, on_delete=CASCADE)
-    company     = ForeignKey('finance.FinanceCompany', on_delete=CASCADE)
-    perm_code   = CharField(max_length=100, blank=True, db_index=True)
-    # '' = 该用户在该公司拥有全部系统权限（公司级全权代理）
-    # 非空 = 仅授权此具体权限码
-    is_active   = BooleanField(default=True)
-    granted_by  = ForeignKey(User, null=True, on_delete=SET_NULL)
-    granted_at  = DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'core_company_permission'
-        unique_together = ('user', 'company', 'perm_code')
-        indexes = [
-            Index(fields=['user', 'company'], name='idx_cp_uc'),
-            Index(fields=['company', 'perm_code'], name='idx_cp_cp'),
-        ]
-```
-
-### 5.4 权限校验增强流程
-
-```
-RoleRequired.has_permission(request, view)
-  │
-  ├─ is_superuser=True → 直接放行
-  │
-  └─ is_superuser=False
-       │
-       ├─ company_id = request.session.get('current_company_id')
-       │    └─ 来自 CompanyContextMiddleware 注入
-       │
-       ├─ 查 CompanyPermission(user=<user>, company=<company_id>)
-       │    ├─ 找到 perm_code='' → 放行（全公司代理）
-       │    └─ 找到 perm_code='xxx'
-       │         ├─ 'xxx' == view要求的权限码 → 放行
-       │         └─ 'xxx' != view要求的权限码 → 查系统级
-       │
-       └─ 查系统级 Permission（现有 has_perm 逻辑）
-            ├─ 找到 → 放行
-            └─ 未找到 → HTTP 403
-```
-
-### 5.5 与 UserCompanyRole 的关系
-
-| 维度 | UserCompanyRole（现有） | CompanyPermission（新增） |
-|------|----------------------|------------------------|
-| 粒度 | 用户 × 公司 × 角色字符串 | 用户 × 公司 × 单个权限码 |
-| 用途 | UI 工作区切换、显示身份 | API 权限校验 |
-| 精度 | 粗（admin/staff 两个字符串） | 细（193个权限码任选） |
-| 校验层 | 不在校验链路中 | 优先于系统级 Permission |
-
-### 5.6 迁移路径（4 Phase）
-
-```
-Phase 1 — 数据模型（不影响现有逻辑）
-  □ 创建 core/models.py CompanyPermission 模型
-  □ python manage.py makemigrations core
-  □ python manage.py migrate
-  □ config/settings.py 注册 CompanyContextMiddleware
-  □ 验证 request.company_id 注入正常
-
-Phase 2 — 权限校验增强（向后兼容）
-  □ 修改 RoleRequired，新增 _check_company_permission()
-  □ CompanyPermission 为空时，行为与修改前完全一致
-  □ admin/finance/manager 角色验证（行为不变）
-
-Phase 3 — 管理界面
-  □ 创建 CompanyPermissionViewSet
-  □ 用户管理页增加公司权限 Tab（选择公司 → 编辑细粒度权限）
-
-Phase 4 — 数据迁移（可选）
-  □ UserCompanyRole.admin → CompanyPermission(perm_code='')
-  □ UserCompanyRole.staff → 特定资源权限包
-```
-
-### 5.7 与旧 ModulePermission 方案对比
-
-| 维度 | ModulePermission（旧方案，已删除） | CompanyPermission（新方案） |
-|------|----------------------------------|---------------------------|
-| 粒度 | 用户 × 公司 × 模块 × 5档布尔 | 用户 × 公司 × 单个权限码 |
-| 权限码 | 无，依赖布尔字段 | 直接复用 193 个现有权限码 |
-| 与系统级关系 | 独立校验（冲突风险） | 公司级优先覆盖（无冲突） |
-| 激活状态 | 从未激活（INSTALLED_APPS 无） | 立即生效 |
-| 可验证性 | 无法测试 | 每步独立可测 |
-| 代码量 | ~1500行 | ~200行 |
+超管is_superuser=True在_user_has_perm_for_company中bypass，不在has_permission入口bypass。
 
 ---
 
@@ -404,40 +302,11 @@ action_perms = {
 
 ---
 
-## 七、实施检查清单
-
-### 立即可执行
-
-```
-□ CompanyViewSet 添加 action_perms（当前无兜底）
-□ IncomeViewSet / ExpenseViewSet / WageRecordViewSet / InvoiceViewSet / BankAccountViewSet
-  补充自定义 action 的 action_perms 声明
-□ Finance app 其余 ViewSet 补充 action_perms
-□ 前端 company_id 注入中间件 CompanyContextMiddleware
-□ 创建 core/models.py CompanyPermission
-□ makemigrations + migrate
-□ Phase 2: 修改 RoleRequired
-□ Phase 3: CompanyPermission 管理 API + 前端 Tab
-□ Phase 4: 数据迁移（可选）
-□ 同步到 124 / 129 服务器
-```
-
-### 验证方法
-
-```
-1. admin 访问所有端点 → 200
-2. finance 角色访问 finance → 200，访问 crm.delete → 403
-3. viewer 角色访问各模块 list → 200，访问 create → 403
-4. liubc（staff）在百川公司访问 → 数据过滤正确
-5. CompanyPermission 配置后，同一用户在不同公司权限不同
-```
-
----
-
-## 八、变更记录
+## 七、变更记录
 
 | 日期 | 版本 | 变更内容 |
 |------|------|---------|
 | 2026-05-20 | v1.0 | 初稿建立（过时数据：193条问题） |
 | 2026-05-22 | v2.0 | permission_registry 删除；CompanyPermission 方案草稿 |
-| 2026-05-22 | v3.0 | 全面实测重写：193条权限码100%在DB，action_perms无缺失，发现CompanyViewSet等5个纯推断ViewSet风险，新增CompanyPermission完整方案+4Phase实施路径 |
+| 2026-05-22 | v3.0 | 全面实测重写：193条权限码100%在DB，action_perms无缺失 |
+| 2026-05-24 | **v4.0** | **Phase2 UCP完全接管：Permission/RolePermission数据清零，CompanyPermission方案删除（由UCP实现），新增VIEW_CATEGORY_MAP覆盖，激进精确路线（无兜底）** |

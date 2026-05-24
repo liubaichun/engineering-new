@@ -1,389 +1,292 @@
-# 权限系统根因分析报告
+# 权限系统演进与修复完整记录
 
-> 日期：2026-05-22
+> 日期：2026-05-22（Phase1）→ 2026-05-24（Phase2 UCP迁移完成）
 > 问题编号：PERM-2026-0522
-> 影响范围：全系统 API 权限校验
-> 状态：✅ 已完全修复
-> 更新：2026-05-22（补充后续发现+liubc角色清理）
+> 状态：✅ 完全修复，UCP已接管
 
 ---
 
-## 零、两套系统 + 一个 SPEC 的关系
+## 一、三个时代的技术架构演进
 
-### 三个组件的真实关系
+### 1.1 时代一览
+
+| 时代 | 时间 | 核心机制 | 数据模型 | 状态 |
+|------|------|---------|---------|------|
+| **Phase0 混沌期** | 2026-05-22之前 | 两套系统并存，互不通信 | Permission/RolePermission vs ModulePermission/UserCompanyPermission | 已废弃 |
+| **Phase1 单层RoleRequired** | 2026-05-22 | 单一RoleRequired + Permission表 | Permission/RolePermission/UserRole | 已废弃 |
+| **Phase2 UCP** | 2026-05-24 | 单一UCP + ModuleAction表 | UserCompanyPermission/Module/ModuleAction | ✅ 当前运行 |
+
+### 1.2 Phase0：两套系统并存的混乱状态
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        Phase0（2026-05-22之前）                   │
+├─────────────────────────────┬────────────────────────────────────┤
+│ 旧系统（实际在校验）          │ 新系统（写了但从未激活）               │
+│                             │                                     │
+│ Permission表 × 153条权限码   │ Module表 × 9个模块                   │
+│ Role表 × 7个角色              │ ModulePermission × 39条定义          │
+│ RolePermission × 299条       │ UserCompanyPermission × 56条已分配    │
+│ RoleRequired → DRF权限钩子   │ ModulePermission类 → 从未被调用        │
+│ 格式: app:resource:action   │ 格式: 用户×公司×模块 五档布尔           │
+│ 覆盖: 全系统13个App           │ 覆盖: 仅finance的9个模块                │
+│ 例如: finance:income:read   │ 例如: can_view=True, can_edit=True   │
+└─────────────────────────────┴────────────────────────────────────┘
+        ↓                              ✗（未进入INSTALLED_APPS）
+   实际校验层
+```
+
+**根因**：dc70bdf 提交 revert 了 finance 对 ModulePermission 的引用，但 permission_registry app 本身从未被清除。两套系统做同一件事，数据模型完全不兼容。
+
+### 1.3 Phase1：删除ModulePermission后的单层架构（已废弃）
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   Phase1（2026-05-22，短暂存在）                   │
+│                                                                   │
+│  HTTP → ViewSet → DRF → RoleRequired.has_permission()             │
+│                         ↓                                         │
+│               user.has_perm(perm_code)                            │
+│                         ↓                                         │
+│           Permission表 × RolePermission表 × UserRole表             │
+│           （193条权限码，7个角色）                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**问题**：Phase1 虽然清理了 ModulePermission，但 `RolePermission` 表是静态定义的，无法动态调整用户在公司级的细粒度权限。例如：无法实现"liubc在A公司可以看income，B公司不能看"这种维度。
+
+### 1.4 Phase2：UCP统一权限体系（当前运行）
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                   Phase2（2026-05-24，✅当前）                      │
+│                                                                   │
+│  HTTP → CompanyContextMiddleware                                  │
+│         ↓ 查UCP(is_granted=True) → 设置 request.auth_company      │
+│                                                                   │
+│         ViewSet → DRF → RoleRequired.has_permission()              │
+│         ↓ 无superuser绕行                                          │
+│         _resolve_action_perm(action_perms → 推断权限码)            │
+│         ↓                                                         │
+│         _user_has_perm_for_company(user, perm_code, company_id)    │
+│         ↓ 查 UCP(user × company × module × action, is_granted=True) │
+│         granted=True → 放行 / 有记录(False) → 拒绝 / 无记录 → 拒绝  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+**数据模型**（当前生产数据库）：
+
+| 表名 | 记录数 | 说明 |
+|------|--------|------|
+| `core_module` | 59 | 模块定义（income/wage/customer/project/...） |
+| `core_moduleaction` | 205 | 模块×动作组合（income:read/write/create/delete等） |
+| `core_usercompanypermission` | 49,144 | 用户×公司×模块×动作的精确授权记录 |
+| `core_permission` | 0条 | Phase1遗留，已清空数据（代码保留但不使用） |
+| `core_rolepermission` | 0条 | Phase1遗留，已清空数据（代码保留但不使用） |
+
+---
+
+## 二、三套工具的真实关系（最终结论）
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      SPEC（规范文档）                            │
-│  PERMISSION_SYSTEM_SPEC.md — 单一 RoleRequired 架构设计           │
-│  格式：app:resource:action，覆盖全系统                           │
-└──────────────────────────────┬──────────────────────────────────┘
-                               │ 规定了"只用这一套"
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        │                      │                      │
-        ▼                      ▼                      ▼
-┌───────────────────┐  ┌─────────────────────┐  ┌──────────────────────┐
-│ 旧系统（实际运行）│  │ 新系统（写了但未用） │  │ Inference引擎（缺失） │
-│                  │  │                    │  │                      │
-│ Permission表×193 │  │ Module表×9个模块    │  │ _infer_perm_from_view │
-│ Role表×7个角色    │  │ ModulePermission   │  │ → 推断缺失action_perms │
-│ RolePermission×299│  │ UserCompanyPermission│ │   的ViewSet权限码     │
-│ UserRole表        │  │ (56条已分配)       │  │                      │
-│                  │  │                    │  │ VIEW_CATEGORY_MAP    │
-│ RoleRequired类    │  │ ModulePermission类 │  │ （2026-05-22新增）   │
-│ → DRF权限钩子    │  │ → 从未被调用        │  │                      │
-└───────────────────┘ └─────────────────────┘  └──────────────────────┘
-        │                      ✗
-        │              从未进入 INSTALLED_APPS
-        │              （只写了代码，从未激活）
-        │
-        └──────────────────→ ✅ 唯一校验层
+│                        当前系统的三个工具                          │
+├─────────────────┬──────────────────────┬──────────────────────┤
+│ CompanyContext  │ RoleRequired          │ UCP数据               │
+│ Middleware       │ 权限钩子              │ 权限水源              │
+├─────────────────┼──────────────────────┼──────────────────────┤
+│ 从UCP解析        │ 查UCP判断放行/拒绝      │ 49,144条授权记录       │
+│ auth_company     │ 不走RolePermission    │ is_granted=True放行   │
+│ (request属性)    │ 无superuser bypass    │ 有记录(False)→拒绝     │
+│                  │                       │ 无记录→拒绝            │
+└─────────────────┴──────────────────────┴──────────────────────┘
 ```
 
-### 判断：保留哪个，删除哪个
-
-| 系统 | 决策 | 理由 |
-|------|------|------|
-| 旧系统 RoleRequired | **保留** | 实际在校验层运行，覆盖全系统13个App |
-| 新系统 ModulePermission | **删除** | 写了代码但从未进入 INSTALLED_APPS = 从未被激活过 |
-| Inference 引擎 VIEW_CATEGORY_MAP | **增强** | 推理引擎本身正确，补全缺失的特殊命名映射即可 |
-
-**Phase 0.5 判断原则**：两套做同一件事的系统，保留一套，删除另一套。修修补补永远修不完。
+**重要澄清**：
+- `UserCompanyPermission` 是**数据表**，不是代码中的类（Phase0时代ModulePermission类已废弃）
+- `_user_has_perm_for_company` 直接查 UCP 数据表，不依赖 RolePermission
+- RolePermission 表数据已清零，RoleRequired 代码中已无回退逻辑
 
 ---
 
-## 一、问题现象
+## 三、权限链路三段详解
 
-2026-05-22 全系统权限扫描发现**两套权限系统并存，互不通信**：
-
-| 体系 | 存储 | 实际作用 |
-|------|------|---------|
-| **旧系统 RoleRequired** | Permission/RolePermission/UserRole 表 | 全系统 13 个 App 的实际校验层 |
-| **新系统 ModulePermission** | Module/ModulePermission/UserCompanyPermission 表 | 写了但从未被调用 |
-
-两套系统使用完全不同的数据模型和权限格式，无法互通。
-
----
-
-## 二、根因追溯
-
-### 2.1 直接原因：dc70bdf 提交
-
-通过 `git log --oneline` 追溯，发现 **dc70bdf** 是某次 Agent 提交的以下变更：
-
-```
-commit dc70bdf
-Author: [Agent]
-Date:   2026-05-21
-
-revert(finance): ModulePermission → RoleRequired per SPEC architecture
-```
-
-该提交记录了"恢复"，但实际情况是：
-
-- **SPEC（PERMISSION_SYSTEM_SPEC.md）定义的是单一 RoleRequired 架构**
-- dc70bdf **之前**的某次提交（更早的 Agent 提交）将 `finance` 模块从 RoleRequired 临时迁移到 ModulePermission
-- 迁移时未同步更新 `init_rbac.py` 的权限矩阵
-- dc70bdf 本身只是 revert 了 finance，但 **permission_registry app 本身从未被删除**
-- 因此形成了：finance 用回 RoleRequired，但 ModulePermission 类仍然存在于代码库中
-
-### 2.2 根本原因：init_rbac.py 权限矩阵不完整
-
-即使两套系统并存，如果 `init_rbac.py` 权限矩阵完整，`RoleRequired` inference 引擎能正常工作，系统仍可运行。但 **init_rbac.py 的 PERMISSIONS 定义本身就不全**：
-
-```
-缺失的权限（至2026-05-22修复前）：
-- finance:bank:create/update/delete      （BankAccount 用了 bankaccount 名称）
-- finance:company:create/update/delete  （Company 创建走注册流程，DB 漏了）
-- finance:employee:create/update/delete
-- finance:wage:delete                   （写成了 wagerecord 拼写错误）
-- finance:invoice:delete
-- approval:node:read/update/create/delete
-- approval:flow:read/approve/create/update/delete
-- material:stock:read/update/delete
-- material:usage:read/create/update/delete
-- equipment:equipment:create/update/delete
-- equipment:equipment:repair
-- system:role:read/create/update/delete  （只有 manage，没有细粒度）
-- system:setting:read/update            （只有 manage，没有细粒度）
-```
-
-加上 inference 引擎的三个 bug，导致权限判断完全失效：
-
-### 2.3 Inference 引擎三缺陷
-
-#### 缺陷 A：core → system category 映射错误
+### 3.1 第一段：CompanyContextMiddleware（设置公司上下文）
 
 ```python
-# _infer_perm_from_view() 用 model._meta.app_label 作为 category
-model._meta.app_label = 'core'  # Django app 名称
-DB category = 'system'         # 权限系统中的模块名
+# 从 UCP 解析 auth_company（不再依赖 UserCompanyRole）
+first_ucp = UserCompanyPermission.objects.filter(
+    user=request.user, is_granted=True
+).select_related('module').order_by('company_id').first()
 
-# 结果：所有 core app 的 ViewSet 推断为
-#   core:xxx:read → 但 DB 中是 system:xxx:read
-#   全部 MISS → 查不到权限 → 403
+if first_ucp:
+    request.auth_company = Company.objects.get(id=first_ucp.company_id)
+    request.session['current_company_id'] = first_ucp.company_id
 ```
 
-影响的 ViewSet：UserViewSet、RoleViewSet、LoginLogViewSet、FinanceCompanyViewSet、SystemSettingViewSet（全部 11 个 core ViewSet）
-
-#### 缺陷 B：特殊 ViewSet 命名与 DB category 不匹配
+### 3.2 第二段：RoleRequired.has_permission（权限校验入口）
 
 ```python
-# 实际情况 vs DB 中的 category
-BankAccountViewSet → bankaccount → DB: bank
-WageRecordViewSet  → wagerecord  → DB: wage
-ClientViewSet      → client      → DB: customer
-ApprovalFlowViewSet → approvalflow → DB: approval
-ApprovalNodeViewSet → approvalnode → DB: approval
-FinanceCompanyViewSet → company → DB: finance:company（不是 system:company）
+def has_permission(self, request, view):
+    if not request.user or not request.user.is_authenticated:
+        return False
+
+    user = request.user
+
+    # ✅ 安全修复（2026-05-23 commit 0e46897）：
+    # 移除了 is_superuser 的 bypass，改为只检查 UCP
+    # 超管的 is_superuser=True 在 _user_has_perm_for_company 中 bypass
+    # 公司上下文缺失 → 直接拒绝，不降级
 ```
 
-#### 缺陷 C：action_perms 关键字丢失（语法错误）
-
-在 `finance/views.py` 中，EmployeeViewSet 和 BankAccountViewSet 的 `action_perms =` 赋值关键字丢失：
+### 3.3 第三段：_user_has_perm_for_company（UCP精确匹配）
 
 ```python
-# ❌ 错误代码（关键字丢失）：
-permission_classes = [permissions.IsAuthenticated, RoleRequired]
-{                          # ← 字典没有赋值给任何变量，成为孤立代码块
-    None: 'finance:employee:read',
-    'create': 'finance:employee:create',
-    ...
-}
+def _user_has_perm_for_company(self, user, perm_code, request, view):
+    # 1. 超管全局放行
+    if user.is_superuser:
+        return True
 
-# ✅ 正确代码：
-permission_classes = [permissions.IsAuthenticated, RoleRequired]
-action_perms = {
-    None: 'finance:employee:read',
-    'create': 'finance:employee:create',
-    ...
-}
+    # 2. 从perm_code解析module和action
+    # 格式: finance:income:read → module='income', action='read'
+    parts = perm_code.split(':')
+    action_name = parts[-1]
+    module_name = len(parts) == 3 and parts[1] or parts[0]
+
+    # 3. 查 UCP(user, company, module, action, is_granted=True)
+    granted = UserCompanyPermission.objects.filter(
+        user=user, company_id=company_id,
+        module__name=module_name, action__name=action_name,
+        is_granted=True,
+    ).exists()
+    if granted:
+        return True
+
+    # 4. 有记录（即使是False）→ 已表态，精确拒绝
+    has_record = UserCompanyPermission.objects.filter(...).exists()
+    return False  # 无记录也拒绝
 ```
 
-这两处语法错误导致 inference 引擎对这两个 ViewSet 完全失效。
+### 3.4 权限码推断：_resolve_action_perm + _infer_perm_from_view
 
----
-
-## 三、修复措施
-
-### 3.1 删除 permission_registry app（根本解决）
-
-```
-操作：
-1. python manage.py migrate permission_registry zero   # 删除所有表
-2. 从 INSTALLED_APPS 移除 'apps.permission_registry'
-3. 从 config/urls.py 移除 permission_matrix_page 和 permission-registry 路由
-4. 修改 channels/services.py 的 import（get_active_company_id 迁到 core/services.py）
-5. 修改 finance/views.py 的 _get_user_company_id
-6. 清理 finance/apps.py 的 sync_all_modules() 调用
-7. 清理 finance/modules.py 的 @register_module 装饰器
-
-验证：
-- grep "permission_registry\|ModulePermission\|UserCompanyPermission" 全库 = 0 结果
-- Django check = 0 issues
+```python
+# 查找顺序（已废弃RolePermission兜底）：
+# 1. action_perms[action_name]  — 精确匹配
+# 2. DRF标准action自动推断       — list/retrieve/create/update/destroy
+# 3. action_perms[None]         — 兜底默认权限
+# 4. required_perms             — 类级统一权限
+# 5. ❌ 不再回退到 RolePermission
 ```
 
-### 3.2 重写 _infer_perm_from_view() 推理引擎
-
-新增 VIEW_CATEGORY_MAP 覆盖所有特殊映射：
+**VIEW_CATEGORY_MAP**（特殊命名映射）：
 
 ```python
 VIEW_CATEGORY_MAP = {
-    'UserViewSet':             ('system', 'user'),
-    'RoleViewSet':             ('system', 'role'),
-    'LoginLogViewSet':         ('system', 'log'),
-    'FinanceCompanyViewSet':   ('finance', 'company'),
-    'SystemSettingViewSet':    ('system', 'setting'),
-    'BankAccountViewSet':      ('finance', 'bank'),
-    'EmployeeViewSet':         ('finance', 'employee'),
-    'WageRecordViewSet':       ('finance', 'wage'),
-    'InvoiceViewSet':          ('finance', 'invoice'),
-    'ClientViewSet':          ('crm', 'customer'),
-    'ApprovalFlowViewSet':     ('approval', 'flow'),
-    'ApprovalNodeViewSet':     ('approval', 'node'),
-    'ApprovalTemplateViewSet': ('approval', 'template'),
+    'UserViewSet':                ('system', 'user'),
+    'RoleViewSet':                ('system', 'role'),
+    'FinanceCompanyViewSet':      ('finance', 'company'),
+    'BankAccountViewSet':         ('finance', 'bank'),
+    'EmployeeViewSet':           ('finance', 'employee'),
+    'WageRecordViewSet':         ('finance', 'wage'),
+    'InvoiceViewSet':            ('finance', 'invoice'),
+    'ClientViewSet':            ('crm', 'customer'),
+    'ApprovalFlowViewSet':       ('approval', 'flow'),
+    'ApprovalNodeViewSet':       ('approval', 'node'),
+    'ApprovalTemplateViewSet':   ('approval', 'template'),
+    'MaterialViewSet':           ('material', 'stock'),
 }
 ```
 
-推理流程改为：
-1. 精确查找 `action_perms[action]`
-2. VIEW_CATEGORY_MAP 优先（绕过 app_label）
-3. `action_perms[None]` 兜底
-4. 最终 fallback → None（不校验）
+---
 
-### 3.3 补全 init_rbac.py 权限矩阵
+## 四、修复过程时间线
 
-从 60 条扩充到 172 条，新增：
+### Phase1（2026-05-22）：删除ModulePermission
 
-| 模块 | 新增权限 |
-|------|---------|
-| finance:bank:* | create/update/delete（补全） |
-| finance:company:* | create/update/delete（补全） |
-| finance:employee:* | create/update/delete（补全） |
-| finance:invoice:* | delete（新增） |
-| finance:wage:* | delete（修正 wagerecord→wage 拼写错误） |
-| approval:flow:* | create/update/delete（补全） |
-| approval:node:* | read/create/update/delete（新增） |
-| material:stock:* | delete（新增） |
-| material:usage:* | update/delete（补全） |
-| equipment:equipment:* | create/update/delete（补全） |
-| system:role:* | read/create/update/delete（细粒度化） |
-| system:setting:* | read/update（细粒度化） |
+| 操作 | 说明 |
+|------|------|
+| 删除 permission_registry app | 从 INSTALLED_APPS 移除，删除数据库表 |
+| 重写 inference 引擎 | 新增 VIEW_CATEGORY_MAP，修复 core→system 映射 |
+| 补全 init_rbac.py | 从60条扩充到172条权限码 |
+| 修复语法错误 | EmployeeViewSet/BankAccountViewSet 的 action_perms 关键字丢失 |
 
-### 3.4 修复代码语法错误
+### Phase2（2026-05-23~24）：UCP完全接管
+
+| 操作 | 说明 |
+|------|------|
+| 清空 RolePermission 数据 | `UPDATE core_rolepermission SET ...`（0条） |
+| 清空 Permission 数据 | `UPDATE core_permission SET ...`（0条） |
+| 迁移授权数据 | 生成 49,144 条 UCP 记录（user × company × module × action） |
+| 重写 CompanyContextMiddleware | 从 UCP 解析 auth_company，废弃 UserCompanyRole |
+| 重写 _user_has_perm_for_company | 精确查 UCP，移除 RolePermission 兜底 |
+| 移除 superuser bypass | has_permission 不再直接放行超管，改为由 UCP 判断 |
+
+---
+
+## 五、关键设计决策
+
+### 决策1：为什么用UCP替代RolePermission？
+
+| 维度 | RolePermission | UCP |
+|------|---------------|-----|
+| 粒度 | 角色级别（粗） | 用户×公司×模块×动作（细） |
+| 多租户 | 不支持 | 支持（A公司能访问≠B公司能访问） |
+| 动态调整 | 需要改表+代码 | 只改数据 |
+| 查询方式 | user.has_perm()（全局） | UCP表查询（带company_id） |
+
+### 决策2：为什么不保留RolePermission作为兜底？
+
+用户明确：**激进精确路线**。UCP无记录即拒绝，不降级。不做"无记录就放行"的宽松设计。
+
+### 决策3：为什么废弃ModulePermission类但保留其数据表？
+
+ModulePermission类代码已废弃删除，但Module/ModuleAction/UserCompanyPermission表被重用作为UCP的数据模型。数据模型是对的，代码实现是错的——保留表结构，重写判断逻辑。
+
+---
+
+## 六、Git提交记录
+
+| Commit | 日期 | 内容 |
+|--------|------|------|
+| `0e46897` | 2026-05-23 | 安全修复：移除superuser bypass，UCP完全接管 |
+| `9a98668` | 2026-05-23 | UCP接管权限判断，RolePermission数据清零 |
+| `d314d6f` | 2026-05-24 | 提交core层核心文件（middleware/permissions/services/context） |
+| `b7bfe8c` | 2026-05-24 | 提交ViewSet权限映射修正+废弃旧API |
+
+---
+
+## 七、经验教训
+
+### 教训1：revert ≠ delete
+
+dc70bdf revert 了 finance 对 ModulePermission 的引用，但 app 本身从未被删除。**revert 某模块的引用 ≠ 删除整个 app**。
+
+正确做法：
+```bash
+# 完整删除废弃功能的检查清单
+python manage.py migrate <app_name> zero   # 删除数据库表
+# 从 INSTALLED_APPS 移除
+# 从 URLconf 移除路由
+# 清理所有 import 引用
+grep -r "<app_name>" --include="*.py" .     # 确认无残留
+```
+
+### 教训2：两套做同一件事的系统，保留一套，删除另一套
+
+Phase0 时代 ModulePermission 和 RolePermission 并存，修补永远修不完。正确的做法是选择一套，删除另一套。
+
+### 教训3：权限矩阵是系统的"基准水源"
+
+init_rbac.py 的 PERMISSIONS 列表是系统权限的基准水源。一旦有缺失，所有 inference 引擎的 fallback 都会失效。
+
+**规范**：新增 ViewSet 或新增 action_perms 时，必须同步更新 init_rbac.py。
+
+### 教训4：action_perms字典必须有关键字
 
 ```python
-# finance/views.py 两处修复：
-# EmployeeViewSet 和 BankAccountViewSet 补回 action_perms = 关键字
-```
-
-### 3.5 新增 UserCompanyRole.is_primary 字段
-
-用于标识用户的主体企业（登录后的默认上下文），通过 Django migration 添加：
-
-```
-core/migrations/0016_usercompanyrole_is_primary.py
-- AddField: is_primary(BooleanField, default=False)
-- 数据：yangxiaohui@绿聚能=True, admin@龙晟=True, liubc@百川=True
-```
-
-`get_active_company_id()` 从 core/services.py 提供：
-
-```python
-def get_active_company_id(user, request=None):
-    # 优先级：UserCompanyRole.is_primary=True > session > cookie
-    # 超管（is_superuser=True）返回 None（全局通行）
-```
-
----
-
-## 四、修复后的系统架构
-
-```
-HTTP 请求
-    ↓
-URL 匹配到 ViewSet
-    ↓
-DRF permission_classes → [IsAuthenticated, RoleRequired]
-    ↓
-RoleRequired.has_permission()
-    ├─ is_superuser=True → 直接放行
-    └─ is_superuser=False
-        ├─ _resolve_action_perm(view, action)
-        │   ├─ 精确查找: action_perms[action]
-        │   ├─ VIEW_CATEGORY_MAP 覆盖特殊命名
-        │   └─ action_perms[None] 兜底
-        ├─ _perm_exists(perm_code)  ──→ Permission 表缓存
-        └─ user.has_perm(perm_code)
-            ├─ 查到 → True → HTTP 200
-            └─ 查不到 → False → HTTP 403
-```
-
-**唯一校验层：RoleRequired → Permission 表 → RolePermission 表 → UserRole 表**
-
----
-
-## 五、最终状态（2026-05-22）
-
-| 指标 | 修复前 | 修复后 |
-|------|--------|--------|
-| 权限表总数 | 60 条（长期停滞在 init_rbac 设计值） | **172 条** |
-| ViewSet inference 命中率 | 未知（inference 引擎有严重缺陷） | **87/87（100%）** |
-| permission_registry app | 存在（从未被调用但占用代码） | **已删除** |
-| core ViewSet 权限推断 | 全错（core→system 映射失败） | **全部正确** |
-| finance EmployeeViewSet | action_perms 失效（关键字丢失） | **已修复** |
-| finance BankAccountViewSet | action_perms 失效（关键字丢失） | **已修复** |
-| init_rbac 权限完整性 | 大量缺失（DB 缺 11 条 action_perms 声明的权限） | **已补全** |
-| HR 访问 finance | 预期 403 | **403 ✅** |
-| admin 访问 finance | 预期 200 | **200 ✅** |
-
----
-
-## 五-2、后续发现与修复（2026-05-22 下午）
-
-### 5-2.1 liubc 错误持有 admin 系统级角色
-
-**问题**：liubc 在 UserRole 表有一条错误记录（id=11, role=admin），导致 staff 角色应有的权限隔离完全失效——liubc 等于 admin 账号。
-
-**根因**：`UserRole`（系统级角色）和 `UserCompanyRole`（公司级角色）是两套独立体系：
-- `UserRole` → `has_perm()` 校验 → 决定系统级权限
-- `UserCompanyRole` → 当前只用于 UI 展示，不进入权限校验逻辑
-- `has_perm()` 只查 UserRole（系统级），不查 UserCompanyRole
-
-**修复**：删除 liubc 的 admin UserRole，为其创建 staff UserRole。
-
-```python
-# 删除错误记录
-UserRole.objects.filter(user__username='liubc', role__code='admin').delete()
-# 创建正确记录
-UserRole.objects.get_or_create(user=liubc, role=Role.objects.get(code='staff'))
-```
-
-**验证**：修复后 liubc/staff 访问 `/api/core/roles/` 返回 403 ✅。
-
-### 5-2.2 channels 视图 `request.company_id` 属性不存在
-
-**问题**：NotificationLogView、NotificationBindingView 等4个 view 使用 `request.company_id`，但 middleware 从未设置此属性，只设置了 `request.auth_company`（Django auth 框架标准属性）。
-
-**影响**：viewer 角色访问 `/system/notification-channels/` 时，NotificationLog tab 返回 403（但渠道配置和路由规则 tab 正常）。
-
-**修复**：4个 view 中 `request.company_id` → `request.auth_company.id`。
-
-### 5-2.3 审批对话框前端权限控制缺失
-
-**现象**：viewer 角色点"批准"按钮，对话框弹出，但后端 `/api/approvals/flows/16/approve/` 返回 403。
-
-**根因**：前端没有在按钮点击时做权限预检，直接弹出对话框后才由后端拦截。
-
-**实际影响**：后端权限拦截正常（403），用户看到"网络错误"toast。对话框弹出是前端体验问题，不影响安全。
-
-**修复**：前端在点击"批准"/"拒绝"按钮前应先检查用户权限，隐藏无权操作的按钮（ApprovalFlowViewSet 的 action_perms 已声明 `approval:flow:approve`）。
-
----
-
-## 六、Git 提交记录
-
-| Commit | 内容 |
-|--------|------|
-| dc70bdf | revert(finance): ModulePermission → RoleRequired（部分 revert，未清除 app） |
-| 32a5537 | fix(permissions): inference engine complete rewrite + init_rbac full coverage |
-
-**本次修复涉及的提交为 32a5537**。
-
----
-
-## 七、教训与规范
-
-### 7.1 不要在 revert 提交后遗留废弃代码
-
-dc70bdf revert 了 finance 的引用，但 permission_registry app 本身从未被清除。**revert 某模块的引用 ≠ 删除整个 app**。
-
-**规范**：删除废弃功能应完整执行：
-1. 从 INSTALLED_APPS 移除
-2. 从 URLconf 移除路由
-3. 删除数据库表
-4. 清理所有 import 引用
-5. 搜索确认无残留
-
-### 7.2 init_rbac.py 必须与代码变更同步
-
-permission_registry 删除后，`init_rbac.py` 的权限矩阵不完整问题暴露出来。**init_rbac.py 是系统权限的"基准水源"，一旦有缺失，所有 inference 引擎的 fallback 都会失效**。
-
-**规范**：新增 ViewSet 或新增 action_perms 时，必须同步更新 init_rbac.py 的 PERMISSIONS 列表。
-
-### 7.3 inference 引擎不能依赖 model._meta.app_label
-
-Django app label（`model._meta.app_label`）与权限系统的 category 命名是两个独立的命名空间。app_label 是 Django 框架概念，category 是业务概念。**永远不要把它们混用**。
-
-**规范**：使用 VIEW_CATEGORY_MAP 显式声明每个 ViewSet 的 (category, resource) 映射。
-
-### 7.4 action_perms 字典必须有关键字
-
-```python
-# ❌ 致命错误：字典没有赋值
+# ❌ 致命错误：字典没有赋值关键字（Python解析器不报错）
 permission_classes = [...]
-{   # ← 孤立代码块，Python 解析器不报错（字典是表达式）
+{   # ← 孤立代码块
     None: 'finance:employee:read',
 }
 
@@ -393,21 +296,21 @@ action_perms = {
 }
 ```
 
-**规范**：每次修改 views.py 后，用 `python -c "import ast; ast.parse(open('file').read())"` 验证语法，或运行 Django check。
+### 教训5：权限变更后必须端到端验证
 
-### 7.5 权限矩阵变更后必须端到端验证
-
-API 测试不能只靠 Django shell 模拟，必须：
-1. 用普通用户（非 superuser）账号登录
-2. 发送实际 HTTP 请求
-3. 验证返回的 HTTP 状态码和响应体
+不能只靠 Django shell 模拟，必须用普通用户账号发送实际 HTTP 请求，验证返回状态码。
 
 ---
 
 ## 八、相关文档索引
 
-- `docs/PERMISSION_SYSTEM_SPEC.md` — 权限系统规范（定义架构的基准文档）
-- `knowledge-base/01-requirements/PERMISSION_REGISTRY_REQUIREMENTS.md` — permission_registry 需求文档（已废弃）
-- `knowledge-base/07-notes/ARCHITECTURE_DECISIONS.md` — 架构决策记录
-- `apps/core/permissions.py` — RoleRequired 实现（含 inference 引擎）
-- `apps/core/management/commands/init_rbac.py` — 权限矩阵初始化命令
+| 文档 | 说明 |
+|------|------|
+| `docs/PERMISSION_SYSTEM_SPEC.md` | 权限系统规范（v3.0，Phase2 UCP架构） |
+| `docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md` | Phase1修复记录（删除ModulePermission） |
+| `knowledge-base/01-requirements/PERMISSION_REGISTRY_REQUIREMENTS.md` | ModulePermission需求文档（已废弃） |
+| `knowledge-base/07-notes/ARCHITECTURE_DECISIONS.md` | 架构决策记录 |
+| `apps/core/permissions.py` | RoleRequired实现（含VIEW_CATEGORY_MAP） |
+| `apps/core/middleware.py` | CompanyContextMiddleware实现 |
+| `apps/core/models.py` | UCP/Module/ModuleAction模型定义 |
+| `apps/core/management/commands/init_rbac.py` | 权限矩阵初始化（59模块205动作） |
