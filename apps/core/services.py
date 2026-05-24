@@ -1,5 +1,5 @@
 # channels 通知路由所需的公司上下文服务
-from apps.core.models import UserCompanyRole
+from apps.core.models import UserCompanyPermission
 
 
 def get_active_company_id(user, request=None):
@@ -10,8 +10,9 @@ def get_active_company_id(user, request=None):
     1. request query param ?company=ID（显式指定）
     2. request data company_id（表单 body）
     3. session['current_company_id']
-    4. UserCompanyRole 中 is_primary=True 的公司
-    5. UserCompanyRole 中第一个公司
+    4. UserCompanyPermission 中 company_id 最小的那条
+
+    不再依赖 UserCompanyRole。
 
     参数：
         user: User 对象 或 DRF Request 对象（兼容两种调用方式）
@@ -49,8 +50,10 @@ def get_active_company_id(user, request=None):
         if cid:
             try:
                 cid = int(cid)
-                # 验证用户确实关联了这个公司
-                if UserCompanyRole.objects.filter(user=user, company_id=cid).exists():
+                # 验证用户在该公司有 UCP
+                if UserCompanyPermission.objects.filter(
+                    user=user, company_id=cid, is_granted=True
+                ).exists():
                     return cid
             except (ValueError, TypeError):
                 pass
@@ -61,19 +64,70 @@ def get_active_company_id(user, request=None):
         if cid:
             try:
                 cid = int(cid)
-                if UserCompanyRole.objects.filter(user=user, company_id=cid).exists():
+                if UserCompanyPermission.objects.filter(
+                    user=user, company_id=cid, is_granted=True
+                ).exists():
                     return cid
             except (ValueError, TypeError):
                 pass
 
-    # 取主公司
-    primary = UserCompanyRole.objects.filter(
-        user=user,
-        is_primary=True
-    ).first()
-    if primary:
-        return primary.company_id
+    # 取用户第一个有权限的公司
+    # 优先级：UCP 记录数最多的公司优先（频率最高的公司），其次按 company_id 排序
+    from django.db.models import Count
+    company_counts = (
+        UserCompanyPermission.objects.filter(user=user, is_granted=True)
+        .values('company_id')
+        .annotate(ucp_count=Count('id'))
+        .order_by('-ucp_count', 'company_id')
+    )
+    if company_counts:
+        return company_counts[0]['company_id']
 
-    # 取第一个关联的公司
-    first = UserCompanyRole.objects.filter(user=user).first()
-    return first.company_id if first else None
+    return None  # 用户没有任何 UCP
+
+
+def get_user_companies(user):
+    """
+    获取用户有权限的所有公司列表。
+
+    返回格式：[(company_id, company_name), ...]
+    按权限记录数降序（最常用优先）、company_id 升序排序。
+    """
+    from apps.finance.models import Company
+    from django.db.models import Count
+
+    if user.is_superuser:
+        return [(c.id, c.name) for c in Company.objects.all()]
+
+    rows = (
+        UserCompanyPermission.objects.filter(user=user, is_granted=True)
+        .values('company_id', 'company__name')
+        .annotate(ucp_count=Count('id'))
+        .distinct()
+        .order_by('-ucp_count', 'company_id')
+    )
+    return [(r['company_id'], r['company__name']) for r in rows]
+
+
+def get_user_module_perm(user, company_id, module_name, action_name):
+    """
+    检查用户在指定公司对指定模块动作是否有权限。
+
+    参数：
+        user: User 对象
+        company_id: int
+        module_name: str（如 'income', 'expense'）
+        action_name: str（如 'read', 'create'）
+
+    返回：True（有权限）/ False（无权限）
+    """
+    if user.is_superuser:
+        return True
+
+    return UserCompanyPermission.objects.filter(
+        user=user,
+        company_id=company_id,
+        module__name=module_name,
+        action__name=action_name,
+        is_granted=True,
+    ).exists()

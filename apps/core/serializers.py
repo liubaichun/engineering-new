@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction
+from .models import User, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, Role, Permission, RolePermission, UserRole
 from apps.finance.models import Company as FinanceCompany
 
 
@@ -501,6 +501,37 @@ class FinanceCompanySerializer(serializers.ModelSerializer):
                   'contact_phone', 'status', 'status_display',
                   'tax_id', 'bank_name', 'bank_account', 'remark',
                   'created_at']
+
+
+# ── 角色管理（基于新权限系统 UserCompanyRole）─────────────────────────────────
+
+class CompanyRoleSerializer(serializers.ModelSerializer):
+    """公司角色序列化器 — 基于 UserCompanyRole，支持按公司查询用户角色"""
+    user_username = serializers.CharField(source='user.username', read_only=True)
+    user_display = serializers.SerializerMethodField()
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    assigned_by_username = serializers.CharField(source='assigned_by.username', read_only=True, default='')
+
+    class Meta:
+        model = UserCompanyRole
+        fields = ['id', 'user', 'user_username', 'user_display', 'company', 'company_name',
+                  'role', 'role_display', 'is_primary', 'assigned_by', 'assigned_by_username', 'assigned_at']
+        read_only_fields = ['id', 'assigned_by', 'assigned_at']
+
+    def get_user_display(self, obj):
+        return f"{obj.user.username} ({obj.user.first_name or obj.user.username})"
+
+    def create(self, validated_data):
+        # 防止重复：同一用户在同一公司只能有一条记录
+        defaults = {k: v for k, v in validated_data.items() if k not in ('user', 'company')}
+        defaults['is_primary'] = validated_data.get('is_primary', False)
+        obj, created = UserCompanyRole.objects.update_or_create(
+            user=validated_data['user'],
+            company=validated_data['company'],
+            defaults=defaults
+        )
+        return obj
 
 
 class UserCompanyPermissionSerializer(serializers.ModelSerializer):

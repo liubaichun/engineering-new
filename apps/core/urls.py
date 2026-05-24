@@ -12,10 +12,6 @@ from .views import (
     CurrentUserView,
     MyPermissionsView,
     UserViewSet,
-    RoleViewSet,
-    PermissionViewSet,
-    RolePermissionViewSet,
-    UserRoleViewSet,
     NotificationViewSet,
     PermissionAuditLogViewSet,
     LoginLogViewSet,
@@ -23,15 +19,12 @@ from .views import (
     SystemSettingViewSet,
     FinanceCompanyViewSet,
     UserCompanyPermissionViewSet,
+    CompanyRoleViewSet,
     health_check,
 )
 
 router = IntegerPkRouter()
 router.register(r'users', UserViewSet, basename='user')
-router.register(r'roles', RoleViewSet, basename='role')
-router.register(r'permissions', PermissionViewSet, basename='permission')
-router.register(r'role-permissions', RolePermissionViewSet, basename='role-permission')
-router.register(r'user-roles', UserRoleViewSet, basename='user-role')
 router.register(r'notifications', NotificationViewSet, basename='notification')
 router.register(r'audit-logs', PermissionAuditLogViewSet, basename='audit-log')
 router.register(r'login-logs', LoginLogViewSet, basename='login-log')
@@ -39,6 +32,7 @@ router.register(r'operation-audit-logs', OperationAuditLogViewSet, basename='ope
 router.register(r'settings', SystemSettingViewSet, basename='system-setting')
 router.register(r'companies', FinanceCompanyViewSet, basename='finance-company')
 router.register(r'user-company-permissions', UserCompanyPermissionViewSet, basename='user-company-permission')
+router.register(r'company-roles', CompanyRoleViewSet, basename='company-role')
 
 urlpatterns = [
     # 认证相关视图

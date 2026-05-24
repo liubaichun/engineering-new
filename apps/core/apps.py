@@ -22,12 +22,11 @@ class CoreConfig(AppConfig):
         from django.db.models.signals import post_migrate
         post_migrate.connect(_sync_modules_on_migrate, sender=self)
 
-        # 启动后立即尝试同步（若 migrate 已跑过则成功，否则静默跳过）
+        # 启动后立即同步模块到 DB（每次启动都跑，覆盖所有 app 的 modules.py）
         try:
-            from apps.core.models import _MODULE_REGISTRY
-            if _MODULE_REGISTRY:
-                from apps.finance import modules as _fm  # noqa: F401
-                _sync_modules_on_migrate(sender=self)
+            from apps.finance import modules as _fm  # noqa: F401
+            from apps.core.models import sync_modules_to_db
+            sync_modules_to_db()
         except Exception:
             pass  # 表不存在时跳过，migrate 会触发 post_migrate 再次同步
 

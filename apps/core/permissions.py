@@ -76,6 +76,14 @@ class RoleRequired(BasePermission):
         return True
 
     def _user_has_perm_for_company(self, user, perm_code, request, view):
+        import logging
+        log = logging.getLogger("perm_debug")
+        company_id = self._get_company_id(request, view)
+        parts = perm_code.split(":")
+        action_name = parts[-1]
+        module_name = len(parts) == 3 and parts[1] or parts[0]
+        with open("/tmp/perm_call.log", "a") as f:
+            f.write("user=%s perm=%s company=%s module=%s action=%s\n" % (getattr(user, "username", "?"), perm_code, company_id, module_name, action_name))
         """
         检查用户在当前公司是否有指定权限。
 
@@ -210,6 +218,7 @@ class RoleRequired(BasePermission):
         'PermissionViewSet':          ('system', 'permission'),
         'RolePermissionViewSet':      ('system', 'role'),
         'UserRoleViewSet':            ('system', 'user'),
+        'CompanyRoleViewSet':         ('system', 'role'),
         'LoginLogViewSet':            ('system', 'log'),
         'OperationAuditLogViewSet':   ('system', 'log'),
         'PermissionAuditLogViewSet':  ('system', 'log'),
@@ -250,6 +259,13 @@ class RoleRequired(BasePermission):
             }
             if model_name in mapping:
                 return mapping[model_name]
+        # crm app 特殊资源名（snake_case 标准化）
+        if app_label == 'crm':
+            mapping = {
+                'clientsource': 'client_source',
+            }
+            if model_name in mapping:
+                return mapping[model_name]
         return model_name
 
     def _get_company_id(self, request, view):
@@ -261,10 +277,11 @@ class RoleRequired(BasePermission):
         # 2. URL path kwarg {pk}
         if hasattr(view, 'kwargs') and 'pk' in view.kwargs:
             return view.kwargs.get('pk')
-        # 3. request.data POST body
-        company_id = request.data.get('company_id') if hasattr(request, 'data') else None
-        if company_id:
-            return int(company_id)
+        # 3. request.data POST body（兼容 company 和 company_id 两种字段名）
+        if hasattr(request, 'data'):
+            company_id = request.data.get('company_id') or request.data.get('company')
+            if company_id:
+                return int(company_id)
         # 4. middleware 注入的 auth_company（公司上下文）
         if hasattr(request, 'auth_company') and request.auth_company:
             return request.auth_company.id
