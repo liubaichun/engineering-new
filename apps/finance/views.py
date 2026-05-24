@@ -1693,10 +1693,7 @@ class ReportViewSet(viewsets.ViewSet):
             }
         })
 
-    # 深圳2026社保费率常量（写死，不从CompanySocialConfig读取）
-    _EMP_SI_RATE = 10.3   # 个人：养老8% + 医疗2% + 失业0.3%
-    _COM_SI_RATE = 23.0   # 公司：养老16% + 医疗6% + 失业0.6% + 工伤0.4%
-    _HF_RATE = 5.0        # 公积金：公司5% + 个人5% = 对半
+    
 
     @action(detail=False, methods=['get'])
     def wage_summary(self, request):
@@ -1743,13 +1740,27 @@ class ReportViewSet(viewsets.ViewSet):
             total_hf = wr_q.aggregate(t=Sum('housing_fund'))['t'] or 0          # 个人公积金扣款合计
             record_count = wr_q.count()
 
-            # 公司社保 = Σ(个人扣款 / 10.3% × 23%)，逐人反推基数后乘公司费率
+            # 公司社保 = Σ(个人扣款/个人费率×100)×公司费率，逐人从 CompanySocialConfig 读费率
+            social_config = getattr(company, 'social_config', None)
+            if social_config:
+                emp_rate = (float(social_config.pension_rate_employee or 0) +
+                            float(social_config.medical_rate_employee or 0) +
+                            float(social_config.unemployment_rate_employee or 0))
+                com_rate = (float(social_config.pension_rate_company or 0) +
+                            float(social_config.medical_rate_company or 0) +
+                            float(social_config.unemployment_rate_company or 0) +
+                            float(social_config.injury_rate_company or 0))
+            else:
+                # 无配置则用深圳默认值（兼容旧数据）
+                emp_rate = 10.3
+                com_rate = 23.0
+
             com_si = sum(
-                (float(wr.social_insurance) / self._EMP_SI_RATE * 100) * (self._COM_SI_RATE / 100)
+                (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
                 for wr in wr_q.select_related('employee')
                 if wr.social_insurance > 0
             )
-            # 公司公积金 = Σ(个人扣款 / 5% × 5%) = Σ个人扣款（对半）
+            # 公司公积金 = Σ(个人扣款/5%×5%) = Σ个人扣款（对半）
             com_hf = total_hf  # 公积金公司出和个人出一样多
 
             results.append({

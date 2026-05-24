@@ -521,17 +521,31 @@ def tax_summary_report(request):
             else:
                 other_tax += float(row.amount)
 
-        # 社保公积金：走 WageRecord 反推（不走 Expense，因为 expense_type='social' 全为0）
-        # ── 【P1-1 修复】───────────────────────────────────────────────
-        _EMP_SI_RATE = 10.3
-        _COM_SI_RATE = 23.0
+        # 社保公积金：从 CompanySocialConfig 读取各公司实际费率，走 WageRecord 反推
+        # ── 【P1-2 修复】───────────────────────────────────────────────
         social_wr_q = WageRecord.objects.filter(company=company)
         if year:
             social_wr_q = social_wr_q.filter(year=year)
         if month:
             social_wr_q = social_wr_q.filter(month=month)
+
+        # 读取该公司社保配置（个人费率=养老+医疗+失业，公司费率=养老+医疗+失业+工伤）
+        social_config = getattr(company, 'social_config', None)
+        if social_config:
+            emp_rate = (float(social_config.pension_rate_employee or 0) +
+                        float(social_config.medical_rate_employee or 0) +
+                        float(social_config.unemployment_rate_employee or 0))
+            com_rate = (float(social_config.pension_rate_company or 0) +
+                        float(social_config.medical_rate_company or 0) +
+                        float(social_config.unemployment_rate_company or 0) +
+                        float(social_config.injury_rate_company or 0))
+        else:
+            # 无配置则用深圳默认值（兼容旧数据）
+            emp_rate = 10.3
+            com_rate = 23.0
+
         social_total = sum(
-            (float(wr.social_insurance) / _EMP_SI_RATE * 100) * (_COM_SI_RATE / 100)
+            (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
             for wr in social_wr_q if wr.social_insurance > 0
         )
 
