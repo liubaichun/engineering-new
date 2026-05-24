@@ -312,7 +312,7 @@ function fmtMoneyRaw(n) {
 function renderKPI(companies, projects, tasks, wages, incomes, expenses, contracts, equipment) {
     const year = new Date().getFullYear();
     const totalIncome = incomes.reduce((s,i) => s + parseFloat(i.amount||0), 0);
-    const confirmedIncome = incomes.filter(i => i.status==='confirmed').reduce((s,i) => s + parseFloat(i.amount||0), 0);
+    const confirmedIncome = incomes.filter(i => i.status==='received' || i.status==='approved').reduce((s,i) => s + parseFloat(i.amount||0), 0);
     const totalExpense = expenses.reduce((s,e) => s + parseFloat(e.amount||0), 0);
     const totalWage = wages.reduce((s,w) => s + parseFloat(w.gross_salary||0), 0);
     const activeProjects = projects.filter(p => p.status==='active'||p.status==='in_progress').length;

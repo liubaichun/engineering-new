@@ -1854,17 +1854,8 @@ class ReportViewSet(viewsets.ViewSet):
         all_filtered = Invoice.objects.all()
         if year:
             all_filtered = all_filtered.filter(issue_date__year=year)
-        if company_id:
-            if user_company_id is not None:
-                all_filtered = all_filtered.filter(
-                    Q(company_id=company_id) | Q(company_id__isnull=True)
-                )
-            else:
-                all_filtered = all_filtered.filter(company_id=company_id)
-        elif user_company_id is not None:
-            all_filtered = all_filtered.filter(
-                Q(company_id=user_company_id) | Q(company_id__isnull=True)
-            )
+        # 顶层聚合：直接复用前端company过滤逻辑，不额外约束company_id
+        # （base_qs已在上面按用户权限过滤好了，这里只追加type过滤）
         if invoice_type:
             all_filtered = all_filtered.filter(type=invoice_type)
 
