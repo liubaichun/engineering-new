@@ -992,6 +992,74 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
         }, status=status.HTTP_200_OK)
 
 
+# ── 公司角色定义 CRUD ────────────────────────────────────────────────────────
+
+class CompanyRoleDefViewSet(viewsets.ModelViewSet):
+    """
+    公司角色定义 — CRUD CompanyRole 本身。
+
+    GET  /api/core/company-role-defs/                       → 所有角色定义
+    GET  /api/core/company-role-defs/?company_id=X          → 某公司下角色定义
+    POST /api/core/company-role-defs/                        → {company_id, name, code, description}
+    PATCH/DELETE /api/core/company-role-defs/{id}/          → 更新/删除
+    """
+    queryset = CompanyRole.objects.select_related('company')
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    lookup_field = 'id'
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return CompanyRoleDefListSerializer
+        return CompanyRoleDefSerializer
+
+    def get_queryset(self):
+        qs = CompanyRole.objects.select_related('company')
+        company_id = self.request.query_params.get('company_id')
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        return qs.order_by('company__name', 'name')
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # 检查是否已有用户分配了这个角色
+        from .models import UserCompanyRole
+        if UserCompanyRole.objects.filter(company_role=instance).exists():
+            raise serializers.ValidationError({'detail': '该角色已有用户分配，无法删除'})
+        instance.delete()
+
+
+class CompanyRoleDefListSerializer(serializers.ModelSerializer):
+    """角色定义列表序列化器"""
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    permission_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CompanyRole
+        fields = ['id', 'name', 'code', 'description', 'is_active',
+                  'company', 'company_name', 'permission_count',
+                  'created_at', 'updated_at']
+
+    def get_permission_count(self, obj):
+        return obj.permissions.count()
+
+
+class CompanyRoleDefSerializer(serializers.ModelSerializer):
+    """角色定义详情序列化器（包含权限列表）"""
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    permissions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CompanyRole
+        fields = ['id', 'name', 'code', 'description', 'is_active',
+                  'company', 'company_name', 'permissions',
+                  'created_at', 'updated_at']
+
+    def get_permissions(self, obj):
+        return [{'id': p.id, 'code': p.code, 'name': p.name} for p in obj.permissions.all()]
+
+
 # ── 角色管理（基于新权限系统 UserCompanyRole）───────────────────────────────
 
 class CompanyRoleViewSet(viewsets.ModelViewSet):
