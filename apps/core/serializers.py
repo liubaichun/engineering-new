@@ -113,12 +113,19 @@ class UserCompanyRoleSerializer(serializers.ModelSerializer):
     """用户公司角色序列化器"""
     company_name = serializers.CharField(source='company.name', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
-    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    role_display = serializers.SerializerMethodField()
+    company_role_name = serializers.CharField(source='company_role.name', read_only=True, default='')
+    company_role_id = serializers.IntegerField(source='company_role.id', read_only=True, default=None)
 
     class Meta:
         model = UserCompanyRole
-        fields = ['id', 'user', 'user_name', 'company', 'company_name', 'role', 'role_display', 'assigned_by', 'assigned_at']
+        fields = ['id', 'user', 'user_name', 'company', 'company_name',
+                  'company_role', 'company_role_id', 'company_role_name',
+                  'role_display', 'is_primary', 'assigned_by', 'assigned_at']
         read_only_fields = ['id', 'assigned_by', 'assigned_at']
+
+    def get_role_display(self, obj):
+        return obj.company_role.name if obj.company_role else '未分配'
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -506,21 +513,31 @@ class FinanceCompanySerializer(serializers.ModelSerializer):
 # ── 角色管理（基于新权限系统 UserCompanyRole）─────────────────────────────────
 
 class CompanyRoleSerializer(serializers.ModelSerializer):
-    """公司角色序列化器 — 基于 UserCompanyRole，支持按公司查询用户角色"""
+    """
+    公司角色分配序列化器 — 用于 UserCompanyRole 的 CRUD。
+
+    注意：这个 ViewSet 和 Serializer 管理的是「用户角色分配」，
+    而非 CompanyRole 本身。CompanyRole 的 CRUD 在 CompanyRoleDefViewSet 中。
+    """
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_display = serializers.SerializerMethodField()
     company_name = serializers.CharField(source='company.name', read_only=True)
-    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    role_display = serializers.SerializerMethodField()
+    company_role_name = serializers.CharField(source='company_role.name', read_only=True, default='未分配')
     assigned_by_username = serializers.CharField(source='assigned_by.username', read_only=True, default='')
 
     class Meta:
         model = UserCompanyRole
         fields = ['id', 'user', 'user_username', 'user_display', 'company', 'company_name',
-                  'role', 'role_display', 'is_primary', 'assigned_by', 'assigned_by_username', 'assigned_at']
+                  'company_role', 'company_role_name',
+                  'role_display', 'is_primary', 'assigned_by', 'assigned_by_username', 'assigned_at']
         read_only_fields = ['id', 'assigned_by', 'assigned_at']
 
     def get_user_display(self, obj):
         return f"{obj.user.username} ({obj.user.first_name or obj.user.username})"
+
+    def get_role_display(self, obj):
+        return obj.company_role.name if obj.company_role else '未分配'
 
     def create(self, validated_data):
         # 防止重复：同一用户在同一公司只能有一条记录
@@ -540,9 +557,12 @@ class UserCompanyPermissionSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(source='company.name', read_only=True)
     module_name = serializers.CharField(source='module.name', read_only=True)
     action_name = serializers.CharField(source='action.name', read_only=True)
+    module_label = serializers.CharField(source='module.label', read_only=True)
+    action_label = serializers.CharField(source='action.label', read_only=True)
 
     class Meta:
         model = UserCompanyPermission
         fields = ['id', 'user', 'user_username', 'company', 'company_name',
-                  'module', 'module_name', 'action', 'action_name',
-                  'is_granted', 'granted_by', 'granted_at']
+                  'module', 'module_name', 'module_label',
+                  'action', 'action_name', 'action_label',
+                  'is_granted', 'source', 'granted_by', 'granted_at']

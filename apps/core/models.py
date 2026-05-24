@@ -94,14 +94,13 @@ class User(AbstractUser):
 
 class UserCompanyRole(models.Model):
     """用户在公司内的角色 — 支持多公司多角色"""
-    ROLE_CHOICES = [
-        ('admin', '公司管理员'),
-        ('staff', '普通员工'),
-    ]
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_roles')
     company = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='user_roles')
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='staff', verbose_name='角色')
+    company_role = models.ForeignKey(
+        'CompanyRole', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='user_assignments', verbose_name='公司角色'
+    )
     is_primary = models.BooleanField(default=False, verbose_name='主体企业')
     assigned_at = models.DateTimeField(auto_now_add=True)
     assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
@@ -113,7 +112,41 @@ class UserCompanyRole(models.Model):
         verbose_name_plural = verbose_name
 
     def __str__(self):
-        return f"{self.user.username}@{self.company.name}({self.get_role_display()})"
+        role_str = self.company_role.name if self.company_role else '未分配'
+        return f"{self.user.username}@{self.company.name}({role_str})"
+
+
+class CompanyRole(models.Model):
+    """
+    公司级角色定义 — 公司私有角色模板，可定义权限集合。
+    一个公司可以创建多个角色，每个角色包含多个权限（通过 Permission M2M）。
+    分配角色给用户时，批量写入 UserCompanyPermission。
+    """
+    id = models.AutoField(primary_key=True)
+    company = models.ForeignKey(
+        'finance.Company', on_delete=models.CASCADE,
+        related_name='company_roles', verbose_name='所属公司'
+    )
+    name = models.CharField(max_length=100, verbose_name='角色名称')
+    code = models.CharField(max_length=50, verbose_name='角色代码')
+    description = models.TextField(blank=True, verbose_name='描述')
+    is_active = models.BooleanField(default=True, verbose_name='是否激活')
+    permissions = models.ManyToManyField(
+        'Permission',
+        through='CompanyRolePermission',
+        related_name='company_roles', verbose_name='权限集合'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'core_company_role'
+        unique_together = [['company', 'code']]
+        verbose_name = '公司角色'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.company.name} - {self.name}"
 
 
 class Role(models.Model):
@@ -171,6 +204,21 @@ class RolePermission(models.Model):
     class Meta:
         db_table = 'core_role_permission'
         unique_together = [['role', 'permission']]
+
+
+class CompanyRolePermission(models.Model):
+    """CompanyRole 与 Permission 的关联表（公司角色权限中间表）"""
+    id = models.AutoField(primary_key=True)
+    company_role = models.ForeignKey(CompanyRole, on_delete=models.CASCADE)
+    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
+    granted_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    granted_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'core_company_role_permission'
+        unique_together = [['company_role', 'permission']]
+        verbose_name = '公司角色权限'
+        verbose_name_plural = verbose_name
 
 
 class UserRole(models.Model):
@@ -467,6 +515,11 @@ class UserCompanyPermission(models.Model):
     is_granted  = models.BooleanField(default=False, verbose_name='是否授权')
     granted_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     granted_at  = models.DateTimeField(auto_now_add=True)
+    source      = models.CharField(
+        max_length=50, default='manual',
+        verbose_name='权限来源',
+        help_text='manual=手动授予，role:ID=由CompanyRole.ID=ID批量分配'
+    )
 
     class Meta:
         db_table = 'core_user_company_permission'

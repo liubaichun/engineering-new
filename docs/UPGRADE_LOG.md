@@ -217,3 +217,72 @@
 ---
 
 *本文件记录每次升级的完整信息，便于追溯和问题回滚。*
+---
+
+## 2026-05-24 发票管理模块修复（v2.3.0）
+
+### 问题概述
+
+刘柏春在 43 服务器发现发票管理模块两个问题：
+1. 收到发票/开出发票的默认排序不符合业务预期（最新开票日期的发票未排在最前）
+2. 年份下拉框选择具体年份后，过滤失效，仍显示所有年份数据
+
+### 根因分析
+
+**问题1：排序不符合业务预期**
+- `Invoice` 模型 Meta 声明 `ordering = ['-created_at']`
+- 但历史导入数据批量导入时 `created_at` 全部相同（2026-05-10），导致 id 大的旧发票反而排在最前
+- 正确业务语义应按**开票日期**倒序排列
+
+**问题2：年份过滤失效**
+- `InvoiceFilter`（`filters.py`）声明了 `year` 字段（NumberFilter，直接按 `issue_date__year` 过滤）
+- `loadInvoices()` 漏读 `filterYear`，导致年份参数从未拼接进 API URL
+- `loadSummary()` 虽读取了 `filterYear`，但传了 `year=` 参数，而后端 `summary()` 端点只支持 `issue_date_min/max`，不支持 `year=`
+- 结果：**两个函数都失效**，选 2026 年仍然显示全量
+
+### 修复内容
+
+**文件1：`apps/finance/views.py`（`InvoiceViewSet`）**
+```python
+class InvoiceViewSet(ModelViewSet):
+    queryset = Invoice.objects.all()
+    serializer_class = InvoiceSerializer
+    permission_classes = [IsAuthenticated]
+    ordering = ['-issue_date']  # 新增：覆盖 Model Meta，按开票日期倒序
+```
+
+**文件2：`templates/finance/invoice_list.html`**
+```javascript
+// loadInvoices() — 补读 filterYear 并用 year= 参数
+const year = document.getElementById('filterYear').value;
+if (year) url += '&year=' + year;
+
+// loadSummary() — 用 issue_date_min/max= 参数（summary 端点只认这两个）
+if (year) {
+    params.append('issue_date_min', year + '-01-01');
+    params.append('issue_date_max', year + '-12-31');
+}
+```
+
+### 验证结果
+
+| 验证项 | 预期 | 实际 | 状态 |
+|--------|------|------|------|
+| 默认排序（无参数） | 第一条 issue_date=2026-04-30 | id=24, 2026-04-30 | ✅ |
+| year=2026 过滤（expense） | 184 条 | count=184 | ✅ |
+| year=2026 过滤（income） | 79 条 | count=79 | ✅ |
+| issue_date_min/max=2026 summary | count=184 | count=184 | ✅ |
+| 浏览器年份选 2026 | 收到发票总数=184 | 184 | ✅ |
+
+### 同步状态
+
+| 服务器 | 状态 | 说明 |
+|--------|------|------|
+| 124（124.222.227.28） | ✅ 已同步 | `views.py` + `invoice_list.html` 已 SCP，gunicorn HUP 重载生效 |
+| 129（129.204.250.24） | ❌ 待同步 | 网络不可达（ping 100% 丢包） |
+
+### 关键结论（经验教训）
+
+1. **后端不同端点支持不同参数格式**：列表用 `year=`（InvoiceFilter），summary 用 `issue_date_min/max=`（直接 QuerySet 过滤）
+2. **前端 patch 必须同步到所有目标服务器**：本次仅同步了 124，129 因网络问题待补
+3. **排序优先级**：ViewSet 层 `ordering` > Model Meta `ordering`
