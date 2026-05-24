@@ -1881,22 +1881,28 @@ class ReportViewSet(viewsets.ViewSet):
         """资产负债表 - 各公司收支平衡表"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
-        user = request.user
 
-        # 公司隔离
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            if hasattr(user, 'company') and user.company_id:
-                company_id = str(user.company_id)
+        # 多公司隔离：超管看全部，普通用户只看有权公司
+        user_company_ids = get_user_companies(request.user)
+        if user_company_ids is not None:
+            if company_id:
+                cid = int(company_id)
+                if cid not in user_company_ids:
+                    cid = user_company_ids[0]
+                company_id = cid
+                companies = Company.objects.filter(id=company_id)
             else:
-                return Response({'year': None, 'company_id': None, 'results': [], 'summary': {}})
-
-        companies = Company.objects.all()
-        if company_id:
-            companies = companies.filter(id=company_id)
+                companies = Company.objects.filter(id__in=user_company_ids)
+                company_id = None
+        else:
+            if company_id:
+                company_id = int(company_id)
+                companies = Company.objects.filter(id=company_id)
+            else:
+                companies = Company.objects.all()
 
         results = []
         for company in companies:
-            # 收入总计
             income_qs = Income.objects.filter(company=company)
             expense_qs = Expense.objects.filter(company=company)
 
@@ -1907,9 +1913,12 @@ class ReportViewSet(viewsets.ViewSet):
             total_income = income_qs.aggregate(total=Sum('amount'))['total'] or 0
             total_expense = expense_qs.aggregate(total=Sum('amount'))['total'] or 0
 
-            # 工资支出单独统计
-            wage_expense = expense_qs.filter(expense_type='wage').aggregate(total=Sum('amount'))['total'] or 0
-            other_expense = total_expense - wage_expense
+            # 工资支出：从 WageRecord 汇总（不是 expense_type='wage'，银行导入不用那个类型）
+            wr_q = WageRecord.objects.filter(company=company)
+            if year:
+                wr_q = wr_q.filter(year=year)
+            wage_expense = float(wr_q.aggregate(t=Sum('gross_salary'))['t'] or 0)
+            other_expense = float(total_expense) - wage_expense
 
             results.append({
                 'company_id': company.id,
@@ -1918,8 +1927,8 @@ class ReportViewSet(viewsets.ViewSet):
                 'year': int(year) if year else None,
                 'total_income': float(total_income),
                 'total_expense': float(total_expense),
-                'wage_expense': float(wage_expense),
-                'other_expense': float(other_expense),
+                'wage_expense': wage_expense,
+                'other_expense': other_expense,
                 'balance': float(total_income) - float(total_expense),
             })
 

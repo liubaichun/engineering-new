@@ -228,14 +228,18 @@ def ar_ap_aging_report(request):
             })
         return results
 
-    ar_results = build_arap(
-        Invoice.objects.filter(type='income', status='pending'),
-        'counterparty'
-    )
-    ap_results = build_arap(
-        Invoice.objects.filter(type='expense', status='pending'),
-        'counterparty'
-    )
+    ar_qs = Invoice.objects.filter(type='income', status='pending')
+    ap_qs = Invoice.objects.filter(type='expense', status='pending')
+    # 按时间范围过滤（params 从 parse_date_range 解析得到）
+    if params['year']:
+        ar_qs = ar_qs.filter(issue_date__year=params['year'])
+        ap_qs = ap_qs.filter(issue_date__year=params['year'])
+    if params['month']:
+        ar_qs = ar_qs.filter(issue_date__month=params['month'])
+        ap_qs = ap_qs.filter(issue_date__month=params['month'])
+
+    ar_results = build_arap(ar_qs, 'counterparty')
+    ap_results = build_arap(ap_qs, 'counterparty')
 
     return Response({
         'report': 'ar_ap_aging',
