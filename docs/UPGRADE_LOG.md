@@ -1,5 +1,46 @@
 # 升级日志
-**更新时间：** 2026-05-22
+**更新时间：** 2026-05-24
+
+---
+
+## 2026-05-24 财务报表 API 全面审计修复（v2.2.1）
+
+### 问题背景
+
+刘柏春指出之前的分析报告过于简略，仅列举具体 bug，未对整个财务报表模块的**数据来源、逻辑链路、前端展示**做全面分析。本次以用户视角用可视化浏览器对所有修复进行了逐项验证。
+
+### 审计结论：不存在"多租户漏洞"
+
+之前报告判断 `reports_v2.py` 存在多租户漏洞是**错误的**。`get_user_companies()` 和 `parse_date_range()` 实现正确：
+- 普通用户：只能看到自己关联公司的数据
+- 超管：可以指定公司，也可以不指定（查全部）
+
+### 修复记录
+
+| 严重度 | 接口/文件 | 问题 | 修复方案 | 验证结果 |
+|--------|-----------|------|---------|---------|
+| **P0** | `ar_ap_aging_report` (`reports_v2.py`) | `year/month` 参数声明了但未使用，返回全量数据 | 添加 `due_date__year=year` + `due_date__month=month` 过滤 | year=2026: AR=311,500逾期 ✅ |
+| **P1** | `balance_sheet` (`views.py:1880`) | `wage_expense` 永远为 0 | 改为从 WageRecord 汇总 `gross_salary` | BC=376,000/LJN=280,000/JYH=88,000 ✅ |
+| **P1** | `cash_flow_report` (`reports_v2.py`) | `month` 参数声明了但未使用 | 添加 month 参数逻辑：指定则只处理该月 | month=4只返回1个月数据 ✅ |
+| **P1** | `tax_summary`/`wage_summary` (`reports_v2.py`) | 社保费率硬编码深圳 | 改为从 CompanySocialConfig 读取 | BC社保公司=42,588 ✅ |
+| **P2** | `customer_revenue_report` | INTERNAL_COMPANY_NAMES 硬编码 | 从 Company 表动态读取 | 内部转账100,000已排除 ✅ |
+| **P2** | `supplier_expense_report` | `len(supplier) <= 4` 误判个人 | 改用正则精确匹配2-4个汉字 | 个人=刘柏春/沈涌 ✅ |
+| **P2** | `budget_execution_report` | 社保费率硬编码 | 与B5同步修复 | ✅ |
+| **P2** | `report_dashboard.html` | 现金流量表 URL 未传 month 参数 | 前端URL添加 month 参数 | ✅ |
+
+### 相关提交
+
+| Commit | 内容 |
+|--------|------|
+| `9518d52` | fix: P0 ar_ap_aging year/month + P1 balance_sheet WageRecord |
+| `210d176` | fix: cash_flow_report respect month param |
+| `ba7b7b9` | fix: P1 tax_summary/wage_summary read social config |
+| `4ae315e` | fix: P2 customer_revenue + supplier + budget_execution |
+| `43c0b0e` | fix: cash_flow frontend URL include month param |
+
+### 详细报告
+**关联文档：**
+- `docs/REPORTS_API_DAILY_DEBUG_LOG_2026-05-24.md` — 财务报表全面审计修复完整记录
 
 ---
 
