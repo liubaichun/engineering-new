@@ -1859,12 +1859,13 @@ class ReportViewSet(viewsets.ViewSet):
         if invoice_type:
             all_filtered = all_filtered.filter(type=invoice_type)
 
-        import logging; logging.error(f"[DEBUG] invoice_summary: user={request.user}, is_auth={request.user.is_authenticated if request.user else 'N/A'}")
-
+        with open('/tmp/invoice_debug.log', 'a') as f:
+            f.write(f"invoice_summary called: user={request.user}, auth={request.user.is_authenticated if request.user else 'N/A'}\n")
         try:
             total_count = all_filtered.count()
         except Exception as e:
-            logging.error(f"[ERROR] all_filtered.count() failed: {e}")
+            with open('/tmp/invoice_debug.log', 'a') as f:
+                f.write(f"ERROR in count(): {e}\n")
             raise
 
         total_amount = all_filtered.aggregate(total=Sum('amount'))['total'] or 0
