@@ -498,49 +498,34 @@ async function loadProjects() {
     }
 }
 
-async function fetchAllExpenses(page = 1, allData = []) {
+async function fetchExpensesPage(page = 1) {
     const company = document.getElementById('filterCompany').value;
     const year = document.getElementById('filterYear') ? document.getElementById('filterYear').value : '';
     const expenseType = document.getElementById('filterExpenseType').value;
     const dateStart = document.getElementById('filterDateStart').value;
     const dateEnd = document.getElementById('filterDateEnd').value;
 
-    let url = `/api/finance/expenses/?page=${page}&page_size=${pageSize}`;
-    if (company) url += `&company_id=${company}`;
-    if (year) url += `&year=${year}`;
-    if (expenseType) url += `&expense_type=${expenseType}`;
-    if (dateStart) url += `&date_from=${dateStart}`;
-    if (dateEnd) url += `&date_to=${dateEnd}`;
+    let url = '/api/finance/expenses/?page=' + page + '&page_size=' + pageSize;
+    if (company) url += '&company_id=' + company;
+    if (year) url += '&year=' + year;
+    if (expenseType) url += '&expense_type=' + expenseType;
+    if (dateStart) url += '&date_from=' + dateStart;
+    if (dateEnd) url += '&date_to=' + dateEnd;
 
     const response = await fetch(url, { credentials: 'include' });
     if (!response.ok) throw new Error('加载失败');
-    const data = await response.json();
-    allData.push(...(data.results || data));
-
-    if (data.next) {
-        return fetchAllExpenses(page + 1, allData);
-    }
-    // 保留第一页的分页元数据，但results替换为全部数据
-    return {
-        count: data.count,
-        total_pages: data.total_pages,
-        page_size: data.page_size,
-        current_page: 1,
-        next: null,
-        previous: null,
-        results: allData
-    };
+    return await response.json();
 }
 
 async function loadExpenses(page) {
-    if (page) currentPage = page;
+    if (page) currentExpensePage = page;
     const tableBody = document.getElementById('expenseTableBody');
     tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>';
 
     try {
-        const data = await fetchAllExpenses();
+        const data = await fetchExpensesPage(currentExpensePage);
         renderExpenses(data.results || data);
-        renderPagination(data.count || 0);
+        renderExpensePagination(data);
         updateSummary(data.results || data);
     } catch (error) {
         console.error('加载支出数据失败:', error);
@@ -609,43 +594,34 @@ function renderExpenses(expenses) {
     }).join('');
 }
 
-function renderPagination(totalCount) {
-    const totalPages = Math.ceil(totalCount / pageSize);
-    const pagination = document.getElementById('pagination');
-    const paginationInfo = document.getElementById('paginationInfo');
-    const start = (currentPage - 1) * pageSize + 1;
-    const end = Math.min(currentPage * pageSize, totalCount);
-    
-    paginationInfo.textContent = `显示 ${start}-${end} 条，共 ${totalCount} 条`;
-    document.getElementById('recordCount').textContent = totalCount;
-    
-    let html = `
-        <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
-            <a class="page-link" href="#" onclick="goToPage(${currentPage - 1})">上一页</a>
-        </li>
-    `;
-    
-    for (let i = 1; i <= totalPages; i++) {
-        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
-                <a class="page-link" href="#" onclick="goToPage(${i})">${i}</a>
-            </li>`;
-        } else if (i === currentPage - 3 || i === currentPage + 3) {
-            html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+function renderExpensePagination(data) {
+    var total = data.count || 0;
+    var totalPages = Math.ceil(total / pageSize);
+    var pagination = document.getElementById('pagination');
+    var paginationInfo = document.getElementById('paginationInfo');
+    var current = currentExpensePage || 1;
+    if (totalPages <= 1) {
+        pagination.innerHTML = '';
+        paginationInfo.textContent = '显示 ' + total + ' 条';
+        return;
+    }
+    var html = '<li class="page-item ' + (current === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (current - 1) + ');return false;">上一页</a></li>';
+    for (var i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= current - 2 && i <= current + 2)) {
+            html += '<li class="page-item ' + (i === current ? 'active' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + i + ');return false;">' + i + '</a></li>';
+        } else if (i === current - 3 || i === current + 3) {
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
         }
     }
-    
-    html += `
-        <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
-            <a class="page-link" href="#" onclick="goToPage(${currentPage + 1})">下一页</a>
-        </li>
-    `;
-    
+    html += '<li class="page-item ' + (current === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (current + 1) + ');return false;">下一页</a></li>';
     pagination.innerHTML = html;
+    paginationInfo.textContent = '显示 ' + Math.min((current - 1) * pageSize + 1, total) + '-' + Math.min(current * pageSize, total) + ' 条，共 ' + total + ' 条';
+    document.getElementById('recordCount').textContent = total;
 }
 
 function goToPage(page) {
-    loadExpenses(page);
+    currentExpensePage = page;
+    loadExpenses();
 }
 
 function updateSummary(expenses) {

@@ -517,7 +517,7 @@ async function fetchIncomesPage(page = 1) {
     const dateStart = document.getElementById('filterDateStart').value;
     const dateEnd = document.getElementById('filterDateEnd').value;
 
-    let url = '/api/finance/incomes/?page=' + page;
+    let url = '/api/finance/incomes/?page=' + page + '&page_size=' + incomePageSize;
     if (company) url += `&company_id=${company}`;
     if (year) url += '&year=' + year;
     if (dateStart) url += '&date_from=' + dateStart;
@@ -599,7 +599,7 @@ function renderIncomes(data) {
     
     tableBody.innerHTML = html;
     document.getElementById('recordCount').textContent = data.count || incomes.length;
-    renderPagination(data, 'paginationInfo');
+    renderPagination(data);
 }
 
 function updateSummary(data) {
@@ -637,40 +637,30 @@ function updateSummary(data) {
     }).length;
 }
 
-function renderPagination(data, infoId) {
-    var infoEl = document.getElementById(infoId || 'paginationInfo');
-    var pagination = document.getElementById('pagination');
-    var pageSize = data.page_size || 20;
+var incomePageSize = 20;
 
-    if (!data.total_pages || data.total_pages <= 1) {
+function renderPagination(data) {
+    var total = data.count || 0;
+    var totalPages = Math.ceil(total / incomePageSize);
+    var pagination = document.getElementById('pagination');
+    var infoEl = document.getElementById('paginationInfo');
+    if (totalPages <= 1) {
         pagination.innerHTML = '';
-        var start = (currentPage - 1) * pageSize + 1;
-        var end = Math.min(currentPage * pageSize, data.count || 0);
-        if (infoEl) infoEl.textContent = '显示 ' + start + '-' + end + ' 条，共 ' + (data.count || 0) + ' 条';
+        if (infoEl) infoEl.textContent = '显示 ' + total + ' 条';
         return;
     }
-
     var html = '';
-    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '">\
-        <a class="page-link" href="#" onclick="loadIncomes(' + (currentPage - 1) + '); return false;">上一页</a></li>';
-
-    for (var i = 1; i <= data.total_pages; i++) {
-        if (i === 1 || i === data.total_pages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-            html += '<li class="page-item ' + (currentPage === i ? 'active' : '') + '">\
-                <a class="page-link" href="#" onclick="loadIncomes(' + i + '); return false;">' + i + '</a></li>';
+    html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadIncomes(' + (currentPage - 1) + '); return false;">上一页</a></li>';
+    for (var i = 1; i <= totalPages; i++) {
+        if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
+            html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '"><a class="page-link" href="#" onclick="loadIncomes(' + i + '); return false;">' + i + '</a></li>';
         } else if (i === currentPage - 3 || i === currentPage + 3) {
-            html += '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
+            html += '<li class="page-item disabled"><span class="page-link">...</span></li>';
         }
     }
-
-    html += '<li class="page-item ' + (currentPage === data.total_pages ? 'disabled' : '') + '">\
-        <a class="page-link" href="#" onclick="loadIncomes(' + (currentPage + 1) + '); return false;">下一页</a></li>';
-
+    html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="loadIncomes(' + (currentPage + 1) + '); return false;">下一页</a></li>';
     pagination.innerHTML = html;
-
-    var start2 = (currentPage - 1) * pageSize + 1;
-    var end2 = Math.min(currentPage * pageSize, data.count || 0);
-    if (infoEl) infoEl.textContent = '显示 ' + start2 + '-' + end2 + ' 条，共 ' + (data.count || 0) + ' 条';
+    if (infoEl) infoEl.textContent = '显示 ' + ((currentPage - 1) * incomePageSize + 1) + '-' + Math.min(currentPage * incomePageSize, total) + ' 条，共 ' + total + ' 条';
 }
 
 function formatNumber(num) {
