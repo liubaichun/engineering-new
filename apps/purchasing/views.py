@@ -20,7 +20,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:request:read',
-        'create': 'purchasing:request:update',
+        'create': 'purchasing:request:create',
         'submit': 'purchasing:request:update',
         'approve': 'purchasing:request:update',
         'reject': 'purchasing:request:update',
@@ -122,7 +122,7 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:request:read',
-        'create': 'purchasing:request:update',
+        'create': 'purchasing:request:create',
     }
 
     def get_queryset(self):
@@ -169,7 +169,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:order:read',
-        'create': 'purchasing:order:update',
+        'create': 'purchasing:order:create',
         'confirm': 'purchasing:order:update',
         'ship': 'purchasing:order:update',
         'cancel': 'purchasing:order:update',
@@ -269,7 +269,7 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:order:read',
-        'create': 'purchasing:order:update',
+        'create': 'purchasing:order:create',
     }
 
     def get_queryset(self):
@@ -320,7 +320,7 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:receive:read',
-        'create': 'purchasing:receive:update',
+        'create': 'purchasing:receive:create',
         'complete': 'purchasing:receive:update',
     }
 
@@ -369,7 +369,7 @@ class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'purchasing:receive:read',
-        'create': 'purchasing:receive:update',
+        'create': 'purchasing:receive:create',
     }
 
     def get_queryset(self):

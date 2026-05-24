@@ -470,7 +470,7 @@ class ApprovalNodeViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'approval:node:read',
-        'create': 'approval:node:update',
+        'create': 'approval:node:create',
     }
 
     def get_queryset(self):
@@ -499,7 +499,7 @@ class ApprovalTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'approval:template:read',
-        'create': 'approval:template:update',
+        'create': 'approval:template:create',
     }
 
     def get_queryset(self):

@@ -16,7 +16,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'repair:repair_request:read',
-        'create': 'repair:repair_request:update',
+        'create': 'repair:repair_request:create',
         'assign': 'repair:repair_request:update',
         'start_repair': 'repair:repair_request:update',
         'complete': 'repair:repair_request:update',
@@ -174,7 +174,7 @@ class RepairImageViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'repair:repair_request:read',
-        'create': 'repair:repair_request:update',
+        'create': 'repair:repair_request:create',
     }
 
     def get_queryset(self):
@@ -199,7 +199,7 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'repair:repair_request:read',
-        'create': 'repair:repair_request:update',
+        'create': 'repair:repair_request:create',
     }
 
     def get_queryset(self):

@@ -17,9 +17,10 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
     queryset = ClientSource.objects.all()
     serializer_class = ClientSourceSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
+    # 使用 crm:client_source:* 格式，与 SupplierViewSet 保持一致
     action_perms = {
         None: 'crm:client_source:read',
-        'create': 'crm:client_source:update',
+        'create': 'crm:client_source:create',
     }
     search_fields = ['name']
 
@@ -39,7 +40,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:supplier:read',
-        'create': 'crm:supplier:update',
+        'create': 'crm:supplier:create',
         'export': 'crm:supplier:read',
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'brands']
@@ -77,7 +78,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:customer:read',
-        'create': 'crm:customer:update',
+        'create': 'crm:customer:create',
         'export': 'crm:customer:read',
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'code']
@@ -115,7 +116,7 @@ class ContractViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:contract:read',
-        'create': 'crm:contract:update',
+        'create': 'crm:contract:create',
         'export': 'crm:contract:read',
         'approve': 'crm:client_source:update',
         'reject': 'crm:client_source:update',
@@ -273,7 +274,7 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:payment_plan:read',
-        'create': 'crm:payment_plan:update',
+        'create': 'crm:payment_plan:create',
         'mark_paid': 'crm:payment_plan:update',
         'update_paid': 'crm:payment_plan:update',
     }
@@ -352,7 +353,7 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:contract_change_log:read',
-        'create': 'crm:contract_change_log:update',
+        'create': 'crm:contract_change_log:create',
     }
     filterset_fields = ['contract', 'change_type']
 
@@ -387,7 +388,7 @@ class ContactViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:contact:read',
-        'create': 'crm:contact:update',
+        'create': 'crm:contact:create',
     }
     search_fields = ['name', 'phone', 'email']
     filterset_fields = ['client', 'is_primary']
@@ -418,7 +419,7 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:followup:read',
-        'create': 'crm:followup:update',
+        'create': 'crm:followup:create',
         'export': 'crm:followup:read',
     }
     search_fields = ['content', 'next_plan']
@@ -450,7 +451,7 @@ class OpportunityViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'crm:opportunity:read',
-        'create': 'crm:opportunity:update',
+        'create': 'crm:opportunity:create',
         'pipeline': 'crm:opportunity:read',
         'advance_stage': 'crm:opportunity:approve',
         'win': 'crm:opportunity:approve',

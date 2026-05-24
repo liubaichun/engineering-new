@@ -424,10 +424,11 @@ class ChannelListView(APIView):
         company_id = get_active_company_id(request)
         
         if not company_id and request.user.is_authenticated and (request.user.is_superuser or request.user.is_staff):
-            from apps.core.models import UserCompanyRole
-            first_role = UserCompanyRole.objects.filter(user=request.user).first()
-            if first_role:
-                company_id = first_role.company_id
+            # 超管/staff 用户：取其第一个 UCP 记录对应的公司
+            from apps.core.models import UserCompanyPermission
+            first_ucp = UserCompanyPermission.objects.filter(user=request.user).first()
+            if first_ucp:
+                company_id = first_ucp.company_id
         
         if not company_id:
             return Response({'error': '无法确定公司'}, status=status.HTTP_400_BAD_REQUEST)

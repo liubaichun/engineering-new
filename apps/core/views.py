@@ -20,7 +20,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import User, Role, Permission, RolePermission, UserRole, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction
+from .models import User, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction
 from .permissions import RoleRequired
 from apps.finance.models import Company as FinanceCompany
 
@@ -30,10 +30,6 @@ from .serializers import (
     UserRegisterSerializer,
     UserLoginSerializer,
     UserSerializer,
-    UserRoleSerializer,
-    RoleSerializer,
-    PermissionSerializer,
-    RolePermissionSerializer,
     NotificationSerializer,
     PermissionAuditLogSerializer,
     LoginLogSerializer,
@@ -42,6 +38,7 @@ from .serializers import (
     SystemSettingSerializer,
     FinanceCompanySerializer,
     UserCompanyPermissionSerializer,
+    CompanyRoleSerializer,
 )
 
 
@@ -387,17 +384,56 @@ class MyPermissionsView(APIView):
     """当前用户权限列表（用于前端按钮级权限控制）"""
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
+    # action 映射：UCP标准action → 前端权限码格式
+    _ACTION_MAP = {'create': 'add', 'update': 'change', 'delete': 'delete', 'read': 'view'}
+    # DRF权限码的 category→module 映射（DRF格式用 category:resource:action）
+    # UCP的module名 → 对应的DRF category前缀
+    _CATEGORY_MODULE_MAP = {
+        'material': 'material',  # stock模块 → material前缀（资源名=stock）
+        'crm': 'crm',            # customer模块 → crm前缀（资源名=customer）
+        'approval': 'approval',   # flow模块 → approval前缀（资源名=flow）
+        'customer': 'crm',        # customer模块在finance/crm app → crm category
+        'stock': 'material',     # stock模块在material app → material category
+        'flow': 'approval',       # flow模块在approvals app → approval category
+    }
+
+    def _generate_codes_from_ucp(self, user, company_id):
+        """从 UserCompanyPermission 生成前端权限码（两种格式）"""
+        from apps.core.models import UserCompanyPermission
+        ucp_qs = UserCompanyPermission.objects.filter(
+            user=user, company_id=company_id, is_granted=True
+        ).select_related('module', 'action')
+
+        codes = set()
+        for r in ucp_qs:
+            action_name = r.action.name
+            mapped = self._ACTION_MAP.get(action_name)
+            if mapped:
+                # 格式1: module.action （如 equipment.add）
+                codes.add(f'{r.module.name}.{mapped}')
+                # 格式2: category:resource:action （如 crm:customer:create）
+                # resource 名 = _CATEGORY_MODULE_MAP.get(module_name, module_name)
+                resource = self._CATEGORY_MODULE_MAP.get(r.module.name, r.module.name)
+                codes.add(f'{r.module.name}:{resource}:{action_name}')
+        return codes
+
     def get(self, request):
         user = request.user
+        # 获取公司ID：优先从session，其次从UserCompanyRole第一笔
+        company_id = request.session.get('current_company_id')
+        if not company_id:
+            from apps.core.models import UserCompanyRole
+            first_link = UserCompanyRole.objects.filter(user=user).first()
+            company_id = first_link.company_id if first_link else None
+
         if user.is_superuser:
-            perms = Permission.objects.all()
+            from apps.core.models import Permission
+            codes = list(Permission.objects.values_list('code', flat=True))
+        elif company_id:
+            codes = list(self._generate_codes_from_ucp(user, company_id))
         else:
-            user_roles = UserRole.objects.filter(user=user, user__is_active=True)
-            role_ids = list(user_roles.values_list('role_id', flat=True))
-            role_perms = RolePermission.objects.filter(role_id__in=role_ids)
-            perm_ids = list(set(role_perms.values_list('permission_id', flat=True)))
-            perms = Permission.objects.filter(id__in=perm_ids)
-        codes = list(perms.values_list('code', flat=True))
+            codes = []
+
         return Response({
             'status': 'success',
             'codes': codes,
@@ -678,256 +714,11 @@ class UserViewSet(viewsets.ModelViewSet):
         return make_export_response(buf, f'用户_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
 
-class RoleViewSet(viewsets.ModelViewSet):
-    """角色管理视图集"""
-    queryset = Role.objects.all()
-    serializer_class = RoleSerializer
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    
-    def get_queryset(self):
-        queryset = Role.objects.all()
-        is_active = self.request.query_params.get('is_active')
-        
-        if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() == 'true')
-        
-        return queryset.order_by('-created_at')
-    
-    @action(detail=True, methods=['get'])
-    def permissions(self, request, pk=None):
-        """获取角色的所有权限"""
-        role = self.get_object()
-        role_permissions = RolePermission.objects.filter(role=role)
-        serializer = RolePermissionSerializer(role_permissions, many=True)
-        return Response({
-            'status': 'success',
-            'permissions': serializer.data
-        }, status=status.HTTP_200_OK)
-
-
-    @action(detail=False, methods=['get'])
-    def export(self, request):
-        """导出角色 Excel"""
-        from apps.core.export_excel import export_to_xlsx, make_export_response
-        records = list(self.get_queryset())
-        rows = []
-        for r in records:
-            rows.append([
-                r.name,
-                r.code,
-                r.description or '',
-                '是' if r.is_active else '否',
-                str(r.created_at)[:19] if r.created_at else '',
-            ])
-        buf = export_to_xlsx([{
-            'title': '角色列表',
-            'headers': ['名称', '代码', '描述', '状态', '创建时间'],
-            'rows': rows,
-        }])
-        return make_export_response(buf, f'角色_{timezone.now().strftime("%Y%m%d")}.xlsx')
-
-
-class PermissionViewSet(viewsets.ModelViewSet):
-    """权限管理视图集"""
-    queryset = Permission.objects.all()
-    serializer_class = PermissionSerializer
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    
-    def get_queryset(self):
-        queryset = Permission.objects.all()
-        resource = self.request.query_params.get('resource')
-        action = self.request.query_params.get('action')
-        is_active = self.request.query_params.get('is_active')
-        
-        if resource:
-            queryset = queryset.filter(resource=resource)
-        if action:
-            queryset = queryset.filter(action=action)
-        if is_active is not None:
-            queryset = queryset.filter(is_active=is_active.lower() == 'true')
-        
-        return queryset.order_by('resource', 'action')
-    
-    @action(detail=False, methods=['get'])
-    def resources(self, request):
-        """获取所有资源路径"""
-        resources = Permission.objects.values_list('resource', flat=True).distinct()
-        return Response({
-            'status': 'success',
-            'resources': list(resources)
-        }, status=status.HTTP_200_OK)
-
-
-    @action(detail=False, methods=['get'])
-    def export(self, request):
-        """导出权限 Excel"""
-        from apps.core.export_excel import export_to_xlsx, make_export_response
-        records = list(self.get_queryset())
-        rows = []
-        for p in records:
-            rows.append([
-                p.name,
-                p.code,
-                p.resource,
-                p.action,
-                p.category or '',
-                p.description or '',
-            ])
-        buf = export_to_xlsx([{
-            'title': '权限列表',
-            'headers': ['名称', '代码', '资源', '动作', '类别', '描述'],
-            'rows': rows,
-        }])
-        return make_export_response(buf, f'权限_{timezone.now().strftime("%Y%m%d")}.xlsx')
-
-
-class RolePermissionViewSet(viewsets.ModelViewSet):
-    """角色权限关联视图集"""
-    queryset = RolePermission.objects.all()
-    serializer_class = RolePermissionSerializer
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    
-    def get_queryset(self):
-        queryset = RolePermission.objects.all()
-        role_id = self.request.query_params.get('role')
-        permission_id = self.request.query_params.get('permission')
-        
-        if role_id:
-            queryset = queryset.filter(role_id=role_id)
-        if permission_id:
-            queryset = queryset.filter(permission_id=permission_id)
-        
-        return queryset.select_related('role', 'permission')
-    
-    def create(self, request, *args, **kwargs):
-        """创建角色权限关联"""
-        role_id = request.data.get('role')
-        permission_id = request.data.get('permission')
-
-        if RolePermission.objects.filter(role_id=role_id, permission_id=permission_id).exists():
-            return Response({
-                'status': 'error',
-                'message': '该角色已有此权限'
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        return super().create(request, *args, **kwargs)
-
-    @action(detail=False, methods=['post'], url_path='toggle')
-    def toggle(self, request):
-        """切换角色权限（添加或移除）"""
-        role_id = request.data.get('role_id')
-        permission_id = request.data.get('permission_id')
-        granted = request.data.get('granted', True)
-
-        if not role_id or not permission_id:
-            return Response({'status': 'error', 'message': 'role_id和permission_id必填'},
-                          status=status.HTTP_400_BAD_REQUEST)
-
-        if granted:
-            obj, created = RolePermission.objects.get_or_create(
-                role_id=role_id,
-                permission_id=permission_id,
-                defaults={'permission_type': 'allow'}
-            )
-            return Response({
-                'status': 'success',
-                'action': 'added' if created else 'already_exists'
-            })
-        else:
-            deleted, _ = RolePermission.objects.filter(
-                role_id=role_id,
-                permission_id=permission_id
-            ).delete()
-            return Response({
-                'status': 'success',
-                'action': 'removed' if deleted else 'not_found'
-            })
-
-    @action(detail=False, methods=['post'], url_path='assign_permissions')
-    def assign_permissions(self, request):
-        """批量分配权限到角色"""
-        role_id = request.data.get('role_id')
-        permission_ids = request.data.get('permission_ids', [])
-        permission_type = request.data.get('permission_type', 'allow')
-
-        if not role_id:
-            return Response({'status': 'error', 'message': 'role_id必填'},
-                          status=status.HTTP_400_BAD_REQUEST)
-
-        if not permission_ids:
-            return Response({'status': 'error', 'message': 'permission_ids必填'},
-                          status=status.HTTP_400_BAD_REQUEST)
-
-        created_count = 0
-        for perm_id in permission_ids:
-            obj, created = RolePermission.objects.get_or_create(
-                role_id=role_id,
-                permission_id=perm_id,
-                defaults={'permission_type': permission_type}
-            )
-            if created:
-                created_count += 1
-
-        return Response({
-            'status': 'success',
-            'created': created_count,
-            'total': len(permission_ids)
-        })
-
-
-class UserRoleViewSet(viewsets.ModelViewSet):
-    """用户角色关联视图集"""
-    queryset = UserRole.objects.all()
-    serializer_class = UserRoleSerializer
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    
-    def get_queryset(self):
-        queryset = UserRole.objects.all()
-        user_id = self.request.query_params.get('user')
-        role_id = self.request.query_params.get('role')
-        
-        if user_id:
-            queryset = queryset.filter(user_id=user_id)
-        if role_id:
-            queryset = queryset.filter(role_id=role_id)
-        
-        return queryset.select_related('user', 'role', 'assigned_by')
-    
-    def create(self, request, *args, **kwargs):
-        """创建用户角色关联"""
-        user_id = request.data.get('user')
-        role_id = request.data.get('role')
-        
-        if UserRole.objects.filter(user_id=user_id, role_id=role_id).exists():
-            return Response({
-                'status': 'error',
-                'message': '该用户已有此角色'
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        if not request.data.get('assigned_by'):
-            request.data['assigned_by'] = request.user.id
-        
-        return super().create(request, *args, **kwargs)
-    
-    @action(detail=False, methods=['get'], url_path='by-user/(?P<user_id>[^/.]+)')
-    def by_user(self, request, user_id=None):
-        """获取指定用户的所有角色"""
-        user_roles = UserRole.objects.filter(user_id=user_id).select_related('role')
-        serializer = self.get_serializer(user_roles, many=True)
-        return Response({
-            'status': 'success',
-            'user_roles': serializer.data
-        }, status=status.HTTP_200_OK)
-    
-    @action(detail=False, methods=['get'], url_path='by-role/(?P<role_id>[^/.]+)')
-    def by_role(self, request, role_id=None):
-        """获取指定角色的所有用户"""
-        role_users = UserRole.objects.filter(role_id=role_id).select_related('user')
-        serializer = self.get_serializer(role_users, many=True)
-        return Response({
-            'status': 'success',
-            'role_users': serializer.data
-        }, status=status.HTTP_200_OK)
+# ── 旧权限系统（已废弃，RolePermission/UserRole 表无数据）──────────────────
+# class RoleViewSet(viewsets.ModelViewSet): ...      # 废弃
+# class PermissionViewSet(viewsets.ModelViewSet): ... # 废弃
+# class RolePermissionViewSet(viewsets.ModelViewSet): ... # 废弃
+# class UserRoleViewSet(viewsets.ModelViewSet): ... # 废弃
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -1199,6 +990,75 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
             'status': 'success',
             'companies': FinanceCompanySerializer(companies, many=True).data
         }, status=status.HTTP_200_OK)
+
+
+# ── 角色管理（基于新权限系统 UserCompanyRole）───────────────────────────────
+
+class CompanyRoleViewSet(viewsets.ModelViewSet):
+    """
+    公司角色管理视图集 — 基于 UserCompanyRole。
+
+    提供公司角色（admin/staff）的 CRUD，不再使用旧的 Role 表。
+    GET  /api/core/company-roles/                    → 所有用户公司角色记录
+    GET  /api/core/company-roles/?company_id=X       → 某公司下所有用户角色
+    GET  /api/core/company-roles/?user_id=X          → 某用户所有公司角色
+    POST /api/core/company-roles/                   → {user_id, company_id, role, is_primary}
+    PATCH /api/core/company-roles/{id}/             → 更新角色
+    DELETE /api/core/company-roles/{id}/             → 删除
+    """
+    queryset = UserCompanyRole.objects.select_related('user', 'company', 'assigned_by')
+    serializer_class = CompanyRoleSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+
+    def get_queryset(self):
+        qs = UserCompanyRole.objects.select_related('user', 'company', 'assigned_by')
+        company_id = self.request.query_params.get('company_id')
+        user_id = self.request.query_params.get('user_id')
+        role = self.request.query_params.get('role')
+        if company_id:
+            qs = qs.filter(company_id=company_id)
+        if user_id:
+            qs = qs.filter(user_id=user_id)
+        if role:
+            qs = qs.filter(role=role)
+        return qs.order_by('-assigned_at')
+
+    @action(detail=False, methods=['get'])
+    def roles_summary(self, request):
+        """
+        角色统计摘要 — 返回所有公司的角色分布。
+        GET /api/core/company-roles/roles_summary/
+        """
+        from django.db.models import Count
+        summary = (
+            UserCompanyRole.objects
+            .values('company__id', 'company__name', 'role')
+            .annotate(count=Count('id'))
+            .order_by('company__name', 'role')
+        )
+        result = []
+        for item in summary:
+            result.append({
+                'company_id': item['company__id'],
+                'company_name': item['company__name'],
+                'role': item['role'],
+                'count': item['count'],
+            })
+        return Response({'status': 'success', 'summary': result})
+
+    @action(detail=False, methods=['get'])
+    def available_roles(self, request):
+        """
+        可用角色列表 — 返回 admin/staff 两个选项。
+        GET /api/core/company-roles/available_roles/
+        """
+        return Response({
+            'status': 'success',
+            'roles': [
+                {'value': 'admin', 'label': '公司管理员'},
+                {'value': 'staff', 'label': '普通员工'},
+            ]
+        })
 
 
 # ── 用户公司权限矩阵 ──────────────────────────────────────────────────────────

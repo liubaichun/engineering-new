@@ -42,7 +42,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'material:stock:read',
-        'create': 'material:stock:update',
+        'create': 'material:stock:create',
         'stock_alerts': 'material:stock:read',
         'export': 'material:stock:read',
         'get_usage_logs': 'material:usage:read',
@@ -156,7 +156,7 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'material:stock:read',
-        'create': 'material:stock:update',
+        'create': 'material:stock:create',
         'tree': 'material:stock:read',
         'add_node': 'material:stock:update',
         'remove_node': 'material:stock:update',

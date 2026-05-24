@@ -42,7 +42,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     # action 名对应 DRF ViewSet action 属性（标准 CRUD + 自定义 @action）
     action_perms = {
         None: 'equipment:equipment:read',          # 默认：查看设备
-        'create': 'equipment:equipment:update',
+        'create': 'equipment:equipment:create',
         'record_usage': 'equipment:equipment:use',   # 领用设备
         'record_return': 'equipment:equipment:return',  # 归还设备
         'get_usage_logs': 'equipment:equipment:read',
@@ -200,7 +200,7 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'equipment:equipment:read',
-        'create': 'equipment:equipment:update',
+        'create': 'equipment:equipment:create',
     }
 
     def get_queryset(self):

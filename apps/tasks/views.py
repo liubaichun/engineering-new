@@ -398,7 +398,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'project:project:read',
-        'create': 'project:project:update',
+        'create': 'project:project:create',
         'export': 'project:project:read',
         'submit_approval': 'project:project:update',
         'activate': 'project:project:update',
@@ -607,7 +607,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'project:task:read',
-        'create': 'project:task:update',
+        'create': 'project:task:create',
         'export': 'project:task:read',
         'start': 'project:task:update',
         'complete': 'project:task:update',
@@ -802,7 +802,7 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:flow_template:read',
-        'create': 'task:flow_template:update',
+        'create': 'task:flow_template:create',
         'nodes': 'task:flow_template:read',
     }
 
@@ -836,7 +836,7 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:flow_node:read',
-        'create': 'task:flow_node:update',
+        'create': 'task:flow_node:create',
     }
 
     def get_queryset(self):
@@ -860,7 +860,7 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at']
     action_perms = {
         None: 'task:stage_instance:read',
-        'create': 'task:stage_instance:update',
+        'create': 'task:stage_instance:create',
         'start': 'task:stage_instance:update',
         'approve': 'task:stage_instance:update',
         'reject': 'task:stage_instance:update',
@@ -971,7 +971,7 @@ class StageActivityViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:activity:read',
-        'create': 'task:activity:update',
+        'create': 'task:activity:create',
     }
     
     def get_queryset(self):
@@ -995,7 +995,7 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:transition:read',
-        'create': 'task:transition:update',
+        'create': 'task:transition:create',
     }
     
     def get_queryset(self):
@@ -1027,7 +1027,7 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:flow_instance:read',
-        'create': 'task:flow_instance:update',
+        'create': 'task:flow_instance:create',
         'start_flow': 'task:flow_instance:update',
         'approve_node': 'task:flow_instance:update',
         'reject_node': 'task:flow_instance:update',
@@ -1152,7 +1152,7 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:comment:read',
-        'create': 'task:comment:update',
+        'create': 'task:comment:create',
     }
 
     def get_queryset(self):
@@ -1175,7 +1175,7 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
     parser_classes = [JSONParser, MultiPartParser, FormParser]
     action_perms = {
         None: 'task:attachment:read',
-        'create': 'task:attachment:update',
+        'create': 'task:attachment:create',
     }
 
     def get_queryset(self):
@@ -1197,7 +1197,7 @@ class TaskDependencyViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'task:dependency:read',
-        'create': 'task:dependency:update',
+        'create': 'task:dependency:create',
     }
 
     def get_queryset(self):
