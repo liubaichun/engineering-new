@@ -32,3 +32,15 @@ os.makedirs(_log_dir, exist_ok=True)
 errorlog = os.path.join(_log_dir, 'error.log')
 accesslog = os.path.join(_log_dir, 'access.log')
 loglevel = 'info'
+
+# Enable DEBUG logging for perm_debug
+import logging
+import os
+_log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+os.makedirs(_log_dir, exist_ok=True)
+perm_debug_handler = logging.FileHandler(os.path.join(_log_dir, 'perm_debug.log'))
+perm_debug_handler.setLevel(logging.DEBUG)
+perm_debug_handler.setFormatter(logging.Formatter('[%(asctime)s] %(message)s', datefmt='%H:%M:%S'))
+perm_debug_logger = logging.getLogger('perm_debug')
+perm_debug_logger.setLevel(logging.DEBUG)
+perm_debug_logger.addHandler(perm_debug_handler)

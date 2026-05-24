@@ -6,7 +6,8 @@
 
 ## 一、已完成的架构决策（ADR）
 
-### ✅ ADR-007：权限体系改造（2026-05-21）
+### ✅ ADR-007：权限体系改造（2026-05-21）— ⚠️ 已废弃
+
 **决策**：新建 `apps/permission_registry` 独立模块，实现多公司×五档权限体系。
 
 **核心内容**：
@@ -16,7 +17,9 @@
 - 每个用户在每个公司有且仅有一个主体企业（is_primary=True）
 - 模块自注册：`@register_module` + post_migrate 信号
 
-**状态**：✅ 已完成（阶段1-3全部完成）
+**状态**：❌ **2026-05-22 废弃** — Phase3 permission_registry 与 Phase2 UCP 冲突，v2.2.1 当天决定彻底删除。详见 `PERMISSION_REGISTRY_REQUIREMENTS.md` 第五节「废弃原因与替代方案」。
+
+> 替代方案：Phase2 UCP（RoleRequired + UserCompanyPermission）已完全覆盖需求，修复后正常运行于 43/124/129 三台服务器。
 
 ---
 
@@ -60,16 +63,9 @@
 ### P1 — 核心功能补全
 
 #### P1-1：权限检查真正落地
-**问题**：虽然 `permission_registry` 模块已创建，但 ViewSet 的 DRF 权限类（`ModulePermission`）并未被实际使用。
+**状态**：❌ **已废弃（2026-05-22）** — Phase3 permission_registry 已删除，Phase2 UCP 已完全覆盖需求。
 
-**现状**：所有 ViewSet 继承 `rest_framework.viewsets.ModelViewSet`，默认使用 `DRF` 的 `IsAuthenticated` 权限。`ModulePermission` 权限类虽然写了，但没有被配置到 ViewSet 上。
-
-**解决方案**：
-- 为每个 ViewSet 配置 `permission_classes = [ModulePermission]`（参考 `core.permissions.RoleRequired` 的设计）
-- 在 `ModulePermission` 中实现 `has_permission`（视图级）和 `has_object_permission`（对象级）
-- 超管（`is_superuser=True`）直接放行
-
-**注意**：这会影响所有现有用户的行为，需要先在测试环境验证。
+> 原计划用 ModulePermission 替换 RoleRequired，但 ModulePermission 从未被实际调用。v2.2.1 修复当日确认 Phase2 UCP（RoleRequired + UserCompanyPermission）已能正确处理所有权限场景，P1-1 无需执行。
 
 ---
 
@@ -81,12 +77,9 @@
 ---
 
 #### P1-3：UserCompanyRole 表废弃计划
-**问题**：当前 `finance/views.py` 仍然在查 `UserCompanyRole`（`get_user_companies` 内部实现），新系统应该统一走 `UserCompanyPermission`。
+**状态**：✅ **已完成（2026-05-22）** — `UserCompanyRole` 表已废弃，数据已迁移到 `UserCompanyPermission`。
 
-**解决方案**：
-- 阶段A：`get_user_companies()` 不变，底层从 `UserCompanyRole` 查改为从 `UserCompanyPermission` 查
-- 阶段B：`UserCompanyRole` 表保留但标记废弃（向后兼容）
-- 阶段C：彻底删除 `UserCompanyRole`，迁移所有数据到 `UserCompanyPermission`
+> 原计划分三阶段执行，实际在 v2.2.1 权限系统修复当日一次性完成：底层查询从 `UserCompanyRole` 改为 `UserCompanyPermission`，`UserCompanyRole` 表保留但已无业务代码调用。
 
 ---
 

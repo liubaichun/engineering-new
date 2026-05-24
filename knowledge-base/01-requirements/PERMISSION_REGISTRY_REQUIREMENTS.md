@@ -2,7 +2,7 @@
 
 > 版本：v1.0
 > 日期：2026-05-21
-> 状态：待执行
+> 状态：⚠️ 已废弃（见本文末节「五、废弃原因与替代方案」）
 > 归属：GREEN 企业信息化管理系统
 
 ---
@@ -724,11 +724,71 @@ Step 5.3：清理 core_permission 表（可选）
 
 ---
 
+## 五、废弃原因与替代方案
+
+> **废弃日期**：2026-05-22
+> **废弃根因**：Phase3 permission_registry 设计过于复杂，与既有的 Phase2 UCP 系统职责重叠。v2.2.1 权限系统修复当日决定彻底删除 permission_registry，专注修复 Phase2 UCP。
+
+### 废弃直接原因
+
+1. **两套权限系统并存冲突**：Phase3 ModulePermission 与 Phase2 RoleRequired 功能重叠，ModulePermission 写了但从未被调用
+2. **permission_registry 未注册到 INSTALLED_APPS**：生产环境 `config/settings.py` 漏了 `'apps.permission_registry'`，导致模块从未真正加载
+3. **Phase2 UCP 已完全覆盖需求**：修复后的 RoleRequired + VIEW_CATEGORY_MAP + UserCompanyPermission 体系已能正确处理所有权限场景
+4. **Phase3 自注册机制过于复杂**：`@register_module` + post_migrate 信号 + ModulePermission 权限类 vs 直接用 RoleRequired 声明式权限，前者额外复杂度无收益
+
+### 废弃时的状态
+
+```
+已创建但未生效的文件：
+apps/permission_registry/models.py      — 写了 Module/ModulePermission 模型
+apps/permission_registry/registry.py    — 写了 @register_module 装饰器
+apps/permission_registry/permissions.py — 写了 ModulePermission 权限类
+
+已删除的内容（v2.2.1 当天删除）：
+- INSTALLED_APPS 中 'apps.permission_registry'（已移除）
+- permission_registry_module 表（已 DROP）
+- permission_registry_module_permission 表（已 DROP）
+- URL 路由（已清理）
+- 所有 import 引用（已清理）
+```
+
+### 替代方案（Phase2 UCP）
+
+```
+当前运行的权限系统（Phase2）：
+────────────────────────────────────────────────────────────
+RoleRequired（权限类） + UserCompanyPermission（数据）
+────────────────────────────────────────────────────────────
+核心设计：
+- superuser bypass → 直接放行
+- view.required_roles → 系统级角色检查（User.role / UserRole）
+- VIEW_CATEGORY_MAP → 推断权限码（category:resource:action）
+- UserCompanyPermission → 用户×公司×模块×action，is_granted=True 放行
+
+覆盖范围：
+- 49,144 条 UCP 记录（43服务器）
+- 59 个 Module，205 个 ModuleAction
+- 4 家公司，3 个用户
+
+Phase3（permission_registry）完全废弃，不再维护。
+```
+
+### 文档清理记录
+
+| 文档 | 操作 | 日期 |
+|------|------|------|
+| PERMISSION_REGISTRY_REQUIREMENTS.md | 状态改为「已废弃」，末节增加废弃说明 | 2026-05-24 |
+| PROJECT_ROADMAP.md | ADR-007 标注「⚠️ 已废弃」 | 2026-05-24 |
+| DAILY_CHANGELOG.md | 删除 Phase3 相关条目（已被 v2.2.1 覆盖） | 2026-05-24 |
+
+---
+
 ## 十一、变更记录
 
 | 日期 | 版本 | 变更内容 |
 |------|------|---------|
 | 2026-05-21 | v1.0 | 初稿建立，整合调研结果、现状诊断、实施方案 |
+| 2026-05-24 | v1.1 | **废弃 Phase3**：状态改为「已废弃」，增加第五节废弃说明，清理相关文档 |
 
 ---
 

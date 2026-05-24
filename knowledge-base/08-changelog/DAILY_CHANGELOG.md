@@ -6,6 +6,12 @@
 
 ## 2026-05-21
 
+> **⚠️ 注意**：以下 2026-05-21 当日记录的两条关于 permission_registry 的条目，已被 v2.2.1（2026-05-22）彻底废弃。Phase3 permission_registry 因与 Phase2 UCP 冲突，在 v2.2.1 当天被完全删除。详见 `PERMISSION_REGISTRY_REQUIREMENTS.md` 第五节「废弃原因与替代方案」。
+>
+> - 「权限模块未注册导致全局数据异常」→ 废弃（permission_registry 已删除）
+> - 「RoleRequired 权限检查形同虚设」→ 废弃（Phase3 已废弃，Phase2 UCP 已完全覆盖）
+> - 「阶段1-3：多公司权限体系改造」→ 废弃（Phase3 已废弃）
+
 ### 🔴 严重：权限模块未注册导致全局数据异常
 
 **涉及模块**：系统全局（config/settings.py）
