@@ -793,15 +793,24 @@ def preview_bank_statement(request):
             return Response({'error': hint}, status=400)
 
     # ── 解析（已通过格式校验）───────────────────────────────────────────
+    _debug_log = lambda msg: open('/tmp/bank_preview_debug.log', 'a').write(msg + '\n')
     try:
+        _debug_log(f'[preview] validate_bank_code={validate_bank_code}, content_len={len(content)}')
         if validate_bank_code:
+            _debug_log(f'[preview] calling parse_with_adapter({validate_bank_code})')
             transactions = parse_with_adapter(content, validate_bank_code)
             used_bank = validate_bank_code
         else:
+            _debug_log(f'[preview] calling detect_and_parse')
             used_bank, transactions = detect_and_parse(content)
+        _debug_log(f'[preview] parse success: bank={used_bank}, txns={len(transactions)}')
     except ValueError as e:
+        _debug_log(f'[preview] ValueError: {e}')
         return Response({'error': str(e)}, status=400)
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        _debug_log(f'[preview] Exception: {type(e).__name__}: {e}\n{tb}')
         return Response({'error': f'解析失败: {type(e).__name__}: {e}'}, status=500)
 
     # ── 公司账号精确匹配校验（选了已有账户时）────────────────────────────────
