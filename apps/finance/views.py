@@ -1859,6 +1859,8 @@ class ReportViewSet(viewsets.ViewSet):
         if invoice_type:
             all_filtered = all_filtered.filter(type=invoice_type)
 
+        import logging; logging.error(f"[DEBUG] invoice_summary: user={request.user}, is_auth={request.user.is_authenticated if request.user else 'N/A'}")
+
         total_count = all_filtered.count()
         total_amount = all_filtered.aggregate(total=Sum('amount'))['total'] or 0
         total_tax = all_filtered.aggregate(total=Sum('tax_amount'))['total'] or 0
