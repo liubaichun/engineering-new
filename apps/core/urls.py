@@ -20,6 +20,7 @@ from .views import (
     FinanceCompanyViewSet,
     UserCompanyPermissionViewSet,
     CompanyRoleViewSet,
+    CompanyRoleDefViewSet,
     health_check,
 )
 
@@ -33,6 +34,7 @@ router.register(r'settings', SystemSettingViewSet, basename='system-setting')
 router.register(r'companies', FinanceCompanyViewSet, basename='finance-company')
 router.register(r'user-company-permissions', UserCompanyPermissionViewSet, basename='user-company-permission')
 router.register(r'company-roles', CompanyRoleViewSet, basename='company-role')
+router.register(r'company-role-defs', CompanyRoleDefViewSet, basename='company-role-def')
 
 urlpatterns = [
     # 认证相关视图
