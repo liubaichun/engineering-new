@@ -160,9 +160,16 @@ class ICBCAdapter(BankStatementAdapter):
                 else:
                     continue  # 无借贷标志的行跳过
 
-                txn_date = self._parse_date(get_col(row_idx, '交易时间', '交易日期', '记账日期', '日期'))
+                txn_date = self._parse_date(
+                    get_col(row_idx, '入账日期', '交易日期', '记账日期', '日期') or
+                    get_col(row_idx, '入账时间')
+                )
                 if not txn_date:
                     continue
+
+                # 入账时间 → transaction_time（优先用入账时间，不用交易时间）
+                txn_time = self._parse_time(get_col(row_idx, '入账时间')) or \
+                           self._parse_time(get_col(row_idx, '交易时间'))
 
                 # 金额：根据借贷方向从不同列读取
                 # 借方（支出）从"转出金额"取，贷方（收入）从"转入金额"取
@@ -177,9 +184,12 @@ class ICBCAdapter(BankStatementAdapter):
                 balance_raw = get_col(row_idx, '余额', '账户余额', '可用余额')
                 balance = self._decimal(balance_raw) if balance_raw else None
 
+                # 用途 → 交易类型
+                transaction_type = str(get_col(row_idx, '用途') or '').strip()
+
                 records.append(ParsedTransaction(
                     transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                    transaction_time=txn_time,
                     amount=amount,
                     direction=direction,
                     balance=balance,
@@ -188,6 +198,7 @@ class ICBCAdapter(BankStatementAdapter):
                     counterparty_bank=str(get_col(row_idx, '对方行号', '对方银行', '开户行') or '').strip(),
                     summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
                     bank_serial=str(get_col(row_idx, '凭证号', '流水号', '交易流水') or '').strip(),
+                    transaction_type=transaction_type,
                     account_no=file_account_no,
                 ))
             except Exception:
