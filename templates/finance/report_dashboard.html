@@ -349,7 +349,7 @@ async function loadReport() {
             url = `${API_BASE}/reports/invoice_summary/?year=${year}${company ? '&company=' + company : ''}`;
             break;
         case 'cash_flow':
-            url = `${API_BASE}/reports/cash-flow/?year=${year}${company ? '&company=' + company : ''}`;
+            url = `${API_BASE}/reports/cash-flow/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
             break;
         case 'ar_ap_aging':
             url = `${API_BASE}/reports/ar-ap-aging/?year=${year}${company ? '&company=' + company : ''}`;
