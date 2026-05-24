@@ -253,3 +253,66 @@ POST /api/crm/import/contracts/
 2. **counterparty_type 智能化判断**：根据名称/税号自动判断企业/个人/政府
 3. **供应商客户合并导入**：同一批数据里同时包含供应商和客户
 4. **company 字段自动填充**：根据当前登录用户的公司自动填充
+---
+
+## 7. 工商银行（ICBC）银行流水适配器
+
+### 7.1 文件格式
+
+工商银行导出的 Excel 银行流水文件，18列标准格式：
+
+| 列号 | 列名 | 说明 |
+|------|------|------|
+| col1 | 凭证号 | 流水号 |
+| col2 | 对方账号 | 对方银行账号 |
+| col3 | 交易时间 | 业务发生时间（非入账时间） |
+| col4 | 借贷标志 | 贷=收入，借=支出 |
+| col5 | 对方单位 | 对方名称 |
+| col6 | 对方行号 | 对方联行号 |
+| col7 | 用途 | **→ 交易类型(transaction_type)** |
+| col8 | 摘要 | |
+| col9 | 附言 | |
+| col10 | 回单个性化信息 | |
+| col11 | 余额 | 当前账户余额 |
+| col12 | 时间戳 | |
+| col13 | 发生额 | 正数，贷借方向由借贷标志决定 |
+| col14 | 入账日期 | **→ happened_date（交易日期）** |
+| col15 | 入账时间 | **→ transaction_time（交易时间）** |
+| col16 | 本方账号 | 我方银行账号 |
+| col17 | 转出金额 | 借方金额（支出） |
+| col18 | 转入金额 | 贷方金额（收入） |
+
+### 7.2 ParsedTransaction 字段映射（2026-05-24 修复）
+
+| ParsedTransaction 字段 | ← | 工商银行列 | 说明 |
+|------------------------|---|-----------|------|
+| transaction_date | ← | 入账日期(col14) | 日期优先用入账日期 |
+| transaction_time | ← | 入账时间(col15) | 优先用入账时间，其次交易时间(col3) |
+| amount | ← | 转出金额(col17) / 转入金额(col18) | 借方从转出金额取，贷方从转入金额取 |
+| direction | ← | 借贷标志(col4) | 贷=income，借=expense |
+| balance | ← | 余额(col11) | |
+| counterparty_name | ← | 对方单位(col5) | |
+| counterparty_account | ← | 对方账号(col2) | |
+| counterparty_bank | ← | 对方行号(col6) | |
+| summary | ← | 摘要(col8) | |
+| bank_serial | ← | 凭证号(col1) | |
+| transaction_type | ← | 用途(col7) | **2026-05-24 新增** |
+| account_no | ← | 本方账号(col16) | 用于与系统账户归属校验 |
+
+### 7.3 历史 bug
+
+| 日期 | 问题 | 根因 | 修复 |
+|------|------|------|------|
+| 2026-05-24 | 预览界面交易时间和交易类型为空 | transaction_time 读的是交易时间(col3)而非入账时间(col15)，transaction_type 未读取用途列 | ICBCAdapter.parse() 改为：transaction_time 优先读入账时间，transaction_type 读用途列 |
+
+
+
+
+### 7.4 detect 逻辑
+
+```python
+def detect(self, ws) -> bool:
+    return str(ws.cell(1, 1).value or '').strip() == '[HISTORYDETAIL]'
+```
+
+**注意**：detect 只检查 A1 格是否为 `[HISTORYDETAIL]`，不验证必需列是否存在。列不完整的文件（如只有11列的简化格式）也会被误判为 ICBC，但 parse 时 amount 会为 None。
