@@ -76,7 +76,14 @@ def build_qs(model, company_id=None, year=None, month=None):
 def cash_flow_report(request):
     params = parse_date_range(request)
     year = params['year']
+    month = params['month']  # 可选，若指定则只看该月
     company_id = params['company_id']
+
+    # month 参数：若指定则只统计该月，否则统计全年
+    if month:
+        months_to_process = [month]
+    else:
+        months_to_process = list(range(1, 13))
 
     companies = Company.objects.all()
     if company_id:
@@ -100,7 +107,7 @@ def cash_flow_report(request):
             begin_balance = float(prior_bs.last().balance or 0)
 
         monthly_data = []
-        for month in range(1, 13):
+        for month in months_to_process:
             month_start = f"{year}-{month:02d}-01"
             # 下个月1日
             if month == 12:
