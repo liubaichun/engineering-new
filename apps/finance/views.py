@@ -1517,7 +1517,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 class ReportViewSet(viewsets.ViewSet):
     """财务报表视图集"""
     authentication_classes = [CSRFExemptSessionAuthentication]
-    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    # permission_classes = [permissions.IsAuthenticated, RoleRequired]
     {
         None: 'finance:report:read',
         'years': 'finance:report:read',
