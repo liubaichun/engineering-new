@@ -6,11 +6,11 @@
 <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
     <div>
         <h4><i class="bi bi-shield me-2"></i>角色管理</h4>
-        <p class="text-muted mb-0" style="font-size: 0.9rem;">管理系统角色和权限</p>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">基于公司的用户角色分配（管理员/员工）</p>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="showRoleModal()" data-perm="role.add">
-            <i class="bi bi-plus-lg me-1"></i>新建角色
+        <button class="btn btn-primary btn-sm" onclick="showRoleModal()">
+            <i class="bi bi-plus-lg me-1"></i>分配角色
         </button>
     </div>
 </div>
@@ -19,7 +19,7 @@
     <div class="col-md-4">
         <div class="card">
             <div class="card-header">
-                <h6 class="mb-0"><i class="bi bi-list-ul me-2"></i>角色列表</h6>
+                <h6 class="mb-0"><i class="bi bi-list-ul me-2"></i>公司角色列表</h6>
             </div>
             <div class="card-body p-0">
                 <div class="list-group list-group-flush" id="roleList">
@@ -35,16 +35,10 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h6 class="mb-0" id="roleDetailTitle">角色详情</h6>
                 <div>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="expandAllModules()">
-                        <i class="bi bi-arrows-expand"></i>展开
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary me-1" onclick="collapseAllModules()">
-                        <i class="bi bi-arrows-collapse"></i>折叠
-                    </button>
                     <button class="btn btn-sm btn-outline-primary me-1" onclick="editCurrentRole()">
                         <i class="bi bi-pencil"></i>编辑
                     </button>
-                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentRole()" data-perm="role.delete">
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteCurrentRole()">
                         <i class="bi bi-trash"></i>删除
                     </button>
                 </div>
@@ -55,7 +49,7 @@
         <div class="card" id="roleEmptyCard">
             <div class="card-body text-center text-muted py-5">
                 <i class="bi bi-shield-lock" style="font-size: 3rem;"></i>
-                <p class="mt-3">选择角色查看详情</p>
+                <p class="mt-3">选择一条角色记录查看详情</p>
             </div>
         </div>
     </div>
@@ -66,38 +60,35 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="roleModalTitle"><i class="bi bi-shield-plus me-2"></i>新建角色</h5>
+                <h5 class="modal-title" id="roleModalTitle"><i class="bi bi-shield-plus me-2"></i>分配角色</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="roleId">
                 <div class="mb-3">
-                    <label class="form-label">角色名称 <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="roleName" placeholder="如：项目经理">
+                    <label class="form-label">用户 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="roleUser">
+                        <option value="">请选择用户</option>
+                    </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">角色代码 <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" id="roleCode" placeholder="如：project_manager">
-                    <small class="text-muted">唯一标识，用于权限判断</small>
+                    <label class="form-label">公司 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="roleCompany">
+                        <option value="">请选择公司</option>
+                    </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">描述</label>
-                    <textarea class="form-control" id="roleDescription" rows="2" placeholder="角色描述"></textarea>
+                    <label class="form-label">角色 <span class="text-danger">*</span></label>
+                    <select class="form-select" id="roleRole">
+                        <option value="">请选择角色</option>
+                        <option value="admin">公司管理员</option>
+                        <option value="staff">普通员工</option>
+                    </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">权限分配 <span class="text-muted" style="font-size:0.8rem;">（勾选即为角色授予权限）</span></label>
-                    <div class="mb-2">
-                        <input type="text" class="form-control form-control-sm" id="modalPermSearch" placeholder="搜索权限..." oninput="filterModalPermissions()">
-                    </div>
-                    <div id="modalPermCategories" class="border rounded p-2" style="max-height:300px;overflow-y:auto;background:#fafafa;">
-                        <div class="text-muted text-center py-3">加载中...</div>
-                    </div>
-                    <div class="d-flex align-items-center gap-3 mt-2">
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="modal_perm_select_all" onchange="toggleAllModalPermissions(this.checked)">
-                            <label class="form-check-label fw-bold" for="modal_perm_select_all">全选 / 取消全选</label>
-                        </div>
-                        <span class="ms-auto text-muted" style="font-size:0.8rem;" id="modalPermCount"></span>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="roleIsPrimary">
+                        <label class="form-check-label" for="roleIsPrimary">设为默认公司</label>
                     </div>
                 </div>
             </div>
@@ -108,7 +99,6 @@
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -116,13 +106,11 @@
 var roleModal;
 var allRoles = [];
 var currentRoleId = null;
-var _loadPermissionsPromise = null; // 跟踪权限加载状态，避免重复请求
 
 document.addEventListener('DOMContentLoaded', function() {
     roleModal = new bootstrap.Modal(document.getElementById('roleModal'));
     loadCurrentUser();
     loadRoles();
-    _loadPermissionsPromise = loadPermissions(); // 保存Promise引用
 });
 
 async function loadCurrentUser() {
@@ -139,53 +127,38 @@ async function loadCurrentUser() {
 
 async function loadRoles() {
     try {
-        var response = await fetch('/api/core/roles/', { credentials: 'include' });
+        var response = await fetch('/api/core/company-roles/', { credentials: 'include' });
         var data = await response.json();
         allRoles = data.results || data;
         renderRoleList();
     } catch (error) {
         console.error('加载角色失败:', error);
-    }
-}
-
-async function loadPermissions() {
-    try {
-        // 分页抓取所有权限：page_size=200 确保一页拉完
-        var response = await fetch('/api/core/permissions/?page_size=200', { credentials: 'include' });
-        var data = await response.json();
-        window.allPermissions = data.results || data;
-        // 如果后端返回了 count 总数且结果被分页，继续抓完
-        if (data.count && data.results && data.results.length < data.count) {
-            var allPerms = data.results;
-            var page = 2;
-            while (allPerms.length < data.count) {
-                var r = await fetch('/api/core/permissions/?page_size=200&page=' + page, { credentials: 'include' });
-                var d = await r.json();
-                allPerms = allPerms.concat(d.results || d);
-                page++;
-            }
-            window.allPermissions = allPerms;
-        }
-    } catch (error) {
-        console.error('加载权限失败:', error);
+        document.getElementById('roleList').innerHTML =
+            '<div class="text-center text-danger py-4">加载失败: ' + error.message + '</div>';
     }
 }
 
 function renderRoleList() {
     var container = document.getElementById('roleList');
     if (!Array.isArray(allRoles) || allRoles.length === 0) {
-        container.innerHTML = '<div class="text-center text-muted py-4">暂无角色</div>';
+        container.innerHTML = '<div class="text-center text-muted py-4">暂无角色分配记录</div>';
         return;
     }
-    
+
     var html = '';
     allRoles.forEach(function(role) {
         var isActive = currentRoleId == role.id;
+        var roleClass = role.role === 'admin' ? 'text-danger' : 'text-primary';
+        var roleBadge = role.role === 'admin' ? '管理员' : '员工';
         html += '<a href="#" class="list-group-item list-group-item-action ' + (isActive ? 'active' : '') + '" '
               + 'onclick="showRoleDetail(' + role.id + '); return false;">'
-              + '<i class="bi bi-shield me-2"></i>' + escapeHtml(role.name)
-              + '<small class="text-muted ms-2" style="font-size:0.7rem;">' + escapeHtml(role.code) + '</small>'
-              + '</a>';
+              + '<div class="d-flex justify-content-between align-items-start">'
+              + '<div>'
+              + '<i class="bi bi-shield me-2"></i>' + escapeHtml(role.user_username || role.user_display || '用户' + role.user)
+              + '<div class="small text-muted mt-1">' + escapeHtml(role.company_name || '公司' + role.company) + '</div>'
+              + '</div>'
+              + '<span class="badge bg-' + (role.role === 'admin' ? 'danger' : 'primary') + '">' + roleBadge + '</span>'
+              + '</div></a>';
     });
     container.innerHTML = html;
 }
@@ -199,202 +172,73 @@ function showRoleDetail(roleId) {
 
     document.getElementById('roleEmptyCard').style.display = 'none';
     document.getElementById('roleDetailCard').style.display = 'block';
-    document.getElementById('roleDetailTitle').textContent = role.name;
+    document.getElementById('roleDetailTitle').textContent = '角色详情';
 
-    var permissions = window.allPermissions || [];
-    var rolePermIds = role.permissions || [];
+    var roleDisplay = role.role === 'admin' ? '公司管理员' : '普通员工';
+    var roleBadgeClass = role.role === 'admin' ? 'bg-danger' : 'bg-primary';
 
-    var html = '<p class="text-muted mb-3">' + escapeHtml(role.description || '无描述') + '</p>';
-    html += '<p><strong>角色代码：</strong><code>' + escapeHtml(role.code) + '</code></p>';
-    html += '<p><strong>用户数：</strong>' + (role.user_count || 0) + '</p>';
+    var html = '<div class="row">';
+    html += '<div class="col-md-6">';
+    html += '<p><strong>用户：</strong>' + escapeHtml(role.user_username || '用户' + role.user) + '</p>';
+    html += '<p><strong>用户显示名：</strong>' + escapeHtml(role.user_display || '-') + '</p>';
+    html += '</div>';
+    html += '<div class="col-md-6">';
+    html += '<p><strong>公司：</strong>' + escapeHtml(role.company_name || '公司' + role.company) + '</p>';
+    html += '<p><strong>角色：</strong><span class="badge ' + roleBadgeClass + '">' + roleDisplay + '</span></p>';
+    html += '</div>';
+    html += '</div>';
+
     html += '<hr>';
-
-    // 检查当前登录用户是否是超级管理员
-    var isSuperuser = (window.currentUser && window.currentUser.is_superuser);
-    var isCurrentRole = (currentRoleId && parseInt(currentRoleId) === parseInt(roleId));
-    var isSelfSuperuser = isSuperuser && isCurrentRole;
-
-    if (isSelfSuperuser) {
-        html += '<div class="alert alert-info py-2 mb-3" style="font-size:0.85rem;">';
-        html += '<i class="bi bi-info-circle me-1"></i>您是超级管理员，拥有所有权限，无需为角色分配具体权限。';
-        html += '</div>';
-    } else {
-        html += '<p class="mb-2"><strong>权限分配：</strong> <span class="text-muted" style="font-size:0.8rem;">（点击模块标题可折叠/展开）</span></p>';
-    }
-
-    if (permissions.length === 0) {
-        html += '<span class="text-muted">暂无权限定义</span>';
-    } else {
-        // 按分类分组，每组一个可折叠面板
-        var grouped = {};
-        permissions.forEach(function(p) {
-            var cat = p.category || '其他';
-            if (!grouped[cat]) grouped[cat] = [];
-            grouped[cat].push(p);
-        });
-
-        var catIndex = 0;
-        for (var cat in grouped) {
-            catIndex++;
-            var catId = 'cat_' + catIndex;
-            var perms = grouped[cat];
-            var checkedCount = perms.filter(function(p) { return rolePermIds.indexOf(p.id) !== -1; }).length;
-            html += '<div class="mb-2 border rounded">';
-            // 模块头部（可点击折叠）
-            html += '<div class="d-flex align-items-center justify-content-between px-3 py-2 bg-light cursor-pointer" onclick="toggleModule(\'' + catId + '\')" style="cursor:pointer;">';
-            html += '<div class="form-check mb-0">';
-            html += '<input class="form-check-input" type="checkbox" id="cat_check_' + catId + '" onchange="toggleModuleCheck(\'' + catId + '\', this.checked, ' + roleId + ')" ' + (checkedCount === perms.length ? 'checked' : (checkedCount > 0 ? 'checked' : '')) + ' onclick="event.stopPropagation()">';
-            html += '</div>';
-            html += '<div class="flex-grow-1 ms-2">';
-            html += '<strong>' + escapeHtml(cat) + '</strong>';
-            html += ' <span class="text-muted" style="font-size:0.75rem;">' + checkedCount + ' / ' + perms.length + ' 项</span>';
-            html += '</div>';
-            html += '<i class="bi bi-chevron-down" id="icon_' + catId + '" style="transition:transform 0.2s;"></i>';
-            html += '</div>';
-            // 权限列表（折叠内容）
-            html += '<div class="px-3 py-2" id="' + catId + '" style="display:none;">';
-            html += '<div class="row g-2">';
-            perms.forEach(function(p) {
-                var has = rolePermIds.indexOf(p.id) !== -1;
-                html += '<div class="col-md-6">';
-                html += '<div class="form-check">';
-                if (isSelfSuperuser) {
-                    html += '<input class="form-check-input" type="checkbox" checked disabled>';
-                    html += '<label class="form-check-label text-muted">';
-                } else {
-                    html += '<input class="form-check-input" type="checkbox" id="perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + ' onchange="toggleRolePermission(' + roleId + ', ' + p.id + ', this.checked); updateModuleCheck(\'' + catId + '\')">';
-                    html += '<label class="form-check-label" for="perm_' + p.id + '" title="' + escapeHtml(p.resource || p.description || '') + '">';
-                }
-                html += escapeHtml(p.name);
-                if (p.description) {
-                    html += ' <small class="text-muted" style="font-size:0.7rem;">— ' + escapeHtml(p.description) + '</small>';
-                }
-                html += '</label></div></div>';
-            });
-            html += '</div></div></div>';
-        }
-        if (isSelfSuperuser) {
-            html += '<div class="text-muted mt-2" style="font-size:0.8rem;">';
-            html += '<i class="bi bi-lock me-1"></i>超级管理员角色权限由系统控制，无法手动修改';
-            html += '</div>';
-        }
-    }
+    html += '<p><strong>更多信息：</strong></p>';
+    html += '<p><strong>是否默认公司：</strong>' + (role.is_primary ? '是' : '否') + '</p>';
+    html += '<p><strong>分配人：</strong>' + escapeHtml(role.assigned_by_username || '系统') + '</p>';
+    html += '<p><strong>分配时间：</strong>' + (role.assigned_at ? new Date(role.assigned_at).toLocaleString('zh-CN') : '-') + '</p>';
 
     document.getElementById('roleDetailBody').innerHTML = html;
-    // 默认展开前3个模块
-    for (var i = 1; i <= Math.min(3, catIndex); i++) {
-        toggleModule('cat_' + i, true);
-    }
-}
-
-function toggleModule(catId, forceOpen) {
-    var el = document.getElementById(catId);
-    var icon = document.getElementById('icon_' + catId);
-    if (!el) return;
-    var isHidden = el.style.display === 'none';
-    if (forceOpen !== undefined) {
-        el.style.display = forceOpen ? 'block' : 'none';
-        icon.style.transform = forceOpen ? 'rotate(180deg)' : '';
-    } else {
-        el.style.display = isHidden ? 'block' : 'none';
-        icon.style.transform = isHidden ? 'rotate(180deg)' : '';
-    }
-}
-
-function expandAllModules() {
-    document.querySelectorAll('[id^="cat_"]').forEach(function(el) { el.style.display = 'block'; });
-    document.querySelectorAll('[id^="icon_cat_"]').forEach(function(ic) { ic.style.transform = 'rotate(180deg)'; });
-}
-
-function collapseAllModules() {
-    document.querySelectorAll('[id^="cat_"]').forEach(function(el) { el.style.display = 'none'; });
-    document.querySelectorAll('[id^="icon_cat_"]').forEach(function(ic) { ic.style.transform = ''; });
-}
-
-function updateModuleCheck(catId) {
-    var container = document.getElementById(catId);
-    if (!container) return;
-    var checkboxes = container.querySelectorAll('input[type="checkbox"][id^="perm_"]');
-    var checked = container.querySelectorAll('input[type="checkbox"][id^="perm_"]:checked').length;
-    var catCheck = document.getElementById('cat_check_' + catId);
-    if (catCheck) {
-        catCheck.checked = checked === checkboxes.length;
-        catCheck.indeterminate = checked > 0 && checked < checkboxes.length;
-    }
-    // 更新计数
-    var header = container.previousElementSibling;
-    if (header) {
-        var countSpan = header.querySelector('.text-muted');
-        if (countSpan) {
-            var total = checkboxes.length;
-            countSpan.textContent = checked + ' / ' + total + ' 项';
-        }
-    }
-}
-
-function toggleModuleCheck(catId, checked, roleId) {
-    var container = document.getElementById(catId);
-    if (!container) return;
-    var checkboxes = container.querySelectorAll('input[type="checkbox"][id^="perm_"]');
-    checkboxes.forEach(function(cb) {
-        if (cb.checked !== checked) {
-            cb.checked = checked;
-            var permId = parseInt(cb.value);
-            var has = cb.closest('.col-md-6').querySelector('input[type="checkbox"]').checked;
-            // 找到permission id from the checkbox
-            var parts = cb.id.split('_');
-            var pid = parseInt(parts[1]);
-            toggleRolePermission(roleId, pid, checked);
-        }
-    });
-    var countSpan = container.previousElementSibling.querySelector('.text-muted');
-    if (countSpan) {
-        countSpan.textContent = (checked ? checkboxes.length : 0) + ' / ' + checkboxes.length + ' 项';
-    }
-}
-
-async function toggleRolePermission(roleId, permissionId, granted) {
-    try {
-        var response = await fetch('/api/core/role-permissions/toggle/', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCookie('csrftoken'),
-            },
-            credentials: 'include',
-            body: JSON.stringify({
-                role_id: roleId,
-                permission_id: permissionId,
-                granted: granted
-            })
-        });
-        var result = await response.json();
-        if (result.status === 'success') {
-            showToast(granted ? '权限已分配' : '权限已撤销', 'success');
-            // 刷新角色列表，更新内存中的permissions
-            loadRoles().then(function() {
-                showRoleDetail(roleId);
-            });
-        } else {
-            showToast(result.message || '操作失败', 'error');
-        }
-    } catch (error) {
-        showToast('操作失败: ' + error.message, 'error');
-    }
 }
 
 async function showRoleModal() {
-    if (_loadPermissionsPromise) {
-        await _loadPermissionsPromise;
-    }
-    document.getElementById('roleModalTitle').innerHTML = '<i class="bi bi-shield-plus me-2"></i>新建角色';
+    document.getElementById('roleModalTitle').innerHTML = '<i class="bi bi-shield-plus me-2"></i>分配角色';
     document.getElementById('roleId').value = '';
-    document.getElementById('roleName').value = '';
-    document.getElementById('roleCode').value = '';
-    document.getElementById('roleCode').readOnly = false;
-    document.getElementById('roleDescription').value = '';
-    renderModalPermissions(null);
+    document.getElementById('roleIsPrimary').checked = false;
+
+    // Load users and companies
+    await Promise.all([loadUsersForSelect(), loadCompaniesForSelect()]);
+
+    document.getElementById('roleUser').value = '';
+    document.getElementById('roleCompany').value = '';
+    document.getElementById('roleRole').value = '';
     roleModal.show();
+}
+
+async function loadUsersForSelect() {
+    var select = document.getElementById('roleUser');
+    try {
+        var response = await fetch('/api/core/users/?is_active=true&page_size=500', { credentials: 'include' });
+        var data = await response.json();
+        var users = data.results || data;
+        select.innerHTML = '<option value="">请选择用户</option>';
+        users.forEach(function(u) {
+            select.innerHTML += '<option value="' + u.id + '">' + escapeHtml(u.username) + ' (' + escapeHtml(u.first_name || u.username) + ')</option>';
+        });
+    } catch (error) {
+        console.error('加载用户列表失败:', error);
+    }
+}
+
+async function loadCompaniesForSelect() {
+    var select = document.getElementById('roleCompany');
+    try {
+        var response = await fetch('/api/core/companies/active/', { credentials: 'include' });
+        var data = await response.json();
+        var companies = data.companies || [];
+        select.innerHTML = '<option value="">请选择公司</option>';
+        companies.forEach(function(c) {
+            select.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载公司列表失败:', error);
+    }
 }
 
 async function editCurrentRole() {
@@ -402,48 +246,41 @@ async function editCurrentRole() {
     var role = allRoles && Array.isArray(allRoles) ? allRoles.find(function(r) { return r.id === currentRoleId; }) : null;
     if (!role) return;
 
-    // 确保权限数据加载完成后再渲染弹窗
-    if (_loadPermissionsPromise) {
-        await _loadPermissionsPromise;
-    }
+    await loadUsersForSelect();
+    await loadCompaniesForSelect();
 
     document.getElementById('roleModalTitle').innerHTML = '<i class="bi bi-pencil me-2"></i>编辑角色';
     document.getElementById('roleId').value = role.id;
-    document.getElementById('roleName').value = role.name;
-    document.getElementById('roleCode').value = role.code;
-    document.getElementById('roleCode').readOnly = true;
-    document.getElementById('roleDescription').value = role.description || '';
-    renderModalPermissions(role.permissions || []);
+    document.getElementById('roleUser').value = role.user;
+    document.getElementById('roleUser').disabled = true;
+    document.getElementById('roleCompany').value = role.company;
+    document.getElementById('roleCompany').disabled = true;
+    document.getElementById('roleRole').value = role.role;
+    document.getElementById('roleIsPrimary').checked = role.is_primary || false;
     roleModal.show();
 }
 
 async function saveRole() {
     var roleId = document.getElementById('roleId').value;
-    var name = document.getElementById('roleName').value.trim();
-    var code = document.getElementById('roleCode').value.trim();
-    var description = document.getElementById('roleDescription').value.trim();
+    var userId = document.getElementById('roleUser').value;
+    var companyId = document.getElementById('roleCompany').value;
+    var roleCode = document.getElementById('roleRole').value;
+    var isPrimary = document.getElementById('roleIsPrimary').checked;
 
-    if (!name) { showToast('请输入角色名称', 'warning'); return; }
-    if (!code) { showToast('请输入角色代码', 'warning'); return; }
+    if (!userId) { showToast('请选择用户', 'warning'); return; }
+    if (!companyId) { showToast('请选择公司', 'warning'); return; }
+    if (!roleCode) { showToast('请选择角色', 'warning'); return; }
 
-    // 收集弹窗中勾选的权限ID
-    var permissionIds = [];
-    var checkboxes = document.querySelectorAll('#modalPermCategories input[type="checkbox"]');
-    checkboxes.forEach(function(cb) {
-        if (cb.checked) { var pid = parseInt(cb.value); if (!isNaN(pid)) permissionIds.push(pid); }
-    });
+    var payload = {
+        user: parseInt(userId),
+        company: parseInt(companyId),
+        role: roleCode,
+        is_primary: isPrimary
+    };
 
-    var payload = { name: name, code: code, description: description };
-    // 编辑时始终发送 permission_ids（含空数组），让后端区分"没传"和"传空"
-    // 新建时只有勾选了权限才发送
-    if (roleId) {
-        payload.permission_ids = permissionIds;
-    } else if (permissionIds.length > 0) {
-        payload.permission_ids = permissionIds;
-    }
-
-    var url = '/api/core/roles/';
+    var url = '/api/core/company-roles/';
     var method = 'POST';
+
     if (roleId) {
         url += roleId + '/';
         method = 'PATCH';
@@ -452,8 +289,9 @@ async function saveRole() {
     try {
         var response = await fetch(url, {
             method: method,
-            headers: { 'Content-Type': 'application/json',
-                        'X-CSRFToken': getCookie('csrftoken'),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken'),
             },
             credentials: 'include',
             body: JSON.stringify(payload)
@@ -464,171 +302,45 @@ async function saveRole() {
             throw new Error(error.detail || error.code || '保存失败');
         }
 
-        showToast(roleId ? '角色已更新' : '角色已创建', 'success');
+        showToast(roleId ? '角色已更新' : '角色已分配', 'success');
         roleModal.hide();
-        document.getElementById('roleModal').addEventListener('hidden.bs.modal', function handler() {
-            document.getElementById('roleModal').removeEventListener('hidden.bs.modal', handler);
-            loadRoles();
-        });
+        loadRoles();
     } catch (error) {
         console.error('保存角色失败:', error);
         showToast(error.message || '保存失败', 'error');
     }
 }
 
-function renderModalPermissions(rolePermIds) {
-    var container = document.getElementById('modalPermCategories');
-    var permissions = window.allPermissions || [];
-
-    if (permissions.length === 0) {
-        container.innerHTML = '<div class="text-muted text-center py-3">暂无可用权限（请先在权限管理中创建权限）</div>';
-        return;
-    }
-
-    // 动态从权限数据生成分类顺序：系统管理优先，其他垫底，其余按字母序
-    var grouped = {};
-    permissions.forEach(function(p) {
-        var cat = p.category || '其他';
-        if (!grouped[cat]) grouped[cat] = [];
-        grouped[cat].push(p);
-    });
-
-    var MODULE_ORDER = Object.keys(grouped).sort(function(a, b) {
-        if (a === '系统管理') return -1;
-        if (b === '系统管理') return 1;
-        if (a === '其他') return 1;
-        if (b === '其他') return -1;
-        return a.localeCompare(b, 'zh-CN');
-    });
-
-    // 搜索过滤
-    var search = document.getElementById('modalPermSearch').value.trim().toLowerCase();
-
-    var html = '';
-    var totalShown = 0;
-    MODULE_ORDER.forEach(function(cat) {
-        if (!grouped[cat] || grouped[cat].length === 0) return;
-        var filteredPerms = grouped[cat];
-        if (search) {
-            filteredPerms = grouped[cat].filter(function(p) {
-                return (p.name && p.name.toLowerCase().includes(search)) ||
-                       (p.code && p.code.toLowerCase().includes(search)) ||
-                       (p.description && p.description.toLowerCase().includes(search));
-            });
-            if (filteredPerms.length === 0) return;
-        }
-        totalShown += filteredPerms.length;
-
-        html += '<div class="mb-2">';
-        // 模块头部（全选该模块）
-        var checkedInCat = filteredPerms.filter(function(p) { return rolePermIds && rolePermIds.indexOf(p.id) !== -1; }).length;
-        html += '<div class="d-flex align-items-center mb-1">';
-        html += '<div class="form-check mb-0">';
-        html += '<input class="form-check-input" type="checkbox" id="modal_cat_' + cat.replace(/\s+/g, '_') + '" onchange="toggleModalCat(\'' + cat.replace(/\s+/g, '_') + '\', this.checked, ' + (rolePermIds ? JSON.stringify(rolePermIds) : '[]') + ')" ' + (checkedInCat === filteredPerms.length ? 'checked' : '') + '>';
-        html += '</div>';
-        html += '<label class="form-check-label fw-bold text-secondary ms-2" for="modal_cat_' + cat.replace(/\s+/g, '_') + '" style="font-size:0.8rem;">' + cat + '</label>';
-        html += '</div>';
-
-        filteredPerms.forEach(function(p) {
-            var has = rolePermIds && rolePermIds.indexOf(p.id) !== -1;
-            html += '<div class="form-check" style="padding-left:1.8rem;">';
-            html += '<input class="form-check-input" type="checkbox" id="modal_perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + '>';
-            html += '<label class="form-check-label" for="modal_perm_' + p.id + '" title="' + escapeHtml(p.code + (p.description ? ' — ' + p.description : '')) + '">';
-            html += escapeHtml(p.name);
-            if (p.description) {
-                html += ' <small class="text-muted" style="font-size:0.7rem;">— ' + escapeHtml(p.description) + '</small>';
-            }
-            html += '</label></div>';
-        });
-        html += '</div>';
-    });
-
-    // 剩余未分类的
-    var otherCats = Object.keys(grouped).filter(function(c) { return MODULE_ORDER.indexOf(c) === -1; });
-    if (search) {
-        otherCats.forEach(function(cat) {
-            var filteredPerms = grouped[cat].filter(function(p) {
-                return (p.name && p.name.toLowerCase().includes(search)) ||
-                       (p.code && p.code.toLowerCase().includes(search));
-            });
-            if (filteredPerms.length === 0) return;
-            totalShown += filteredPerms.length;
-            html += '<div class="mb-2"><div class="fw-bold text-secondary mb-1" style="font-size:0.8rem;">' + cat + '</div>';
-            filteredPerms.forEach(function(p) {
-                var has = rolePermIds && rolePermIds.indexOf(p.id) !== -1;
-                html += '<div class="form-check" style="padding-left:1.8rem;">';
-                html += '<input class="form-check-input" type="checkbox" id="modal_perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + '>';
-                html += '<label class="form-check-label" for="modal_perm_' + p.id + '">' + escapeHtml(p.name) + '</label></div>';
-            });
-            html += '</div>';
-        });
-    } else {
-        otherCats.forEach(function(cat) {
-            totalShown += grouped[cat].length;
-            html += '<div class="mb-2"><div class="fw-bold text-secondary mb-1" style="font-size:0.8rem;">' + cat + '</div>';
-            grouped[cat].forEach(function(p) {
-                var has = rolePermIds && rolePermIds.indexOf(p.id) !== -1;
-                html += '<div class="form-check" style="padding-left:1.8rem;">';
-                html += '<input class="form-check-input" type="checkbox" id="modal_perm_' + p.id + '" value="' + p.id + '" ' + (has ? 'checked' : '') + '>';
-                html += '<label class="form-check-label" for="modal_perm_' + p.id + '" title="' + escapeHtml(p.code) + '">' + escapeHtml(p.name) + '</label></div>';
-            });
-            html += '</div>';
-        });
-    }
-
-    if (!html) {
-        html = '<div class="text-muted text-center py-3">没有匹配的权限</div>';
-    }
-
-    container.innerHTML = html;
-    document.getElementById('modalPermCount').textContent = '共 ' + totalShown + ' 项';
-}
-
-function filterModalPermissions() {
-    var rolePermIds = [];
-    var roleId = document.getElementById('roleId').value;
-    if (roleId) {
-        var role = allRoles && Array.isArray(allRoles) ? allRoles.find(function(r) { return '' + r.id === '' + roleId; }) : null;
-        if (role) rolePermIds = role.permissions || [];
-    }
-    renderModalPermissions(rolePermIds);
-}
-
-function toggleModalCat(cat, checked, rolePermIds) {
-    var catKey = cat.replace(/_/g, ' ');
-    var perms = (window.allPermissions || []).filter(function(p) { return (p.category || '其他') === catKey; });
-    perms.forEach(function(p) {
-        var cb = document.getElementById('modal_perm_' + p.id);
-        if (cb) cb.checked = checked;
-    });
-}
-
-function toggleAllModalPermissions(checked) {
-    var checkboxes = document.querySelectorAll('#modalPermCategories input[type="checkbox"]');
-    checkboxes.forEach(function(cb) { cb.checked = checked; });
-}
-
 async function deleteCurrentRole() {
     if (!currentRoleId) return;
-    if (!confirm('确定要删除此角色吗？')) return;
-    
+    if (!confirm('确定要删除此角色分配记录吗？')) return;
+
     try {
-        var response = await fetch('/api/core/roles/' + currentRoleId + '/', {
+        var response = await fetch('/api/core/company-roles/' + currentRoleId + '/', {
             method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+            },
             credentials: 'include'
         });
-        
-        if (!response.ok) throw new Error('删除失败');
-        
-        showToast('角色已删除', 'success');
+
+        if (!response.ok && response.status !== 204) throw new Error('删除失败');
+
+        showToast('角色分配已删除', 'success');
         currentRoleId = null;
         document.getElementById('roleDetailCard').style.display = 'none';
         document.getElementById('roleEmptyCard').style.display = 'block';
         loadRoles();
     } catch (error) {
-        showToast('删除失败', 'error');
+        showToast('删除失败: ' + error.message, 'error');
     }
 }
+
+// Fix: reset disabled state when modal closes
+document.getElementById('roleModal').addEventListener('hidden.bs.modal', function() {
+    document.getElementById('roleUser').disabled = false;
+    document.getElementById('roleCompany').disabled = false;
+});
 
 function escapeHtml(text) {
     if (!text) return '';

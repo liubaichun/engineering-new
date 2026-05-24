@@ -90,54 +90,6 @@ class ChannelNotificationService:
         }
 
     @classmethod
-    def send_to_role(
-        cls,
-        company_id: int,
-        role_name: str,
-        title: str,
-        content: str,
-        notification_type: str = 'system',
-    ) -> dict:
-        """
-        向公司内指定角色的所有用户发送通知
-
-        role_name: 'admin' | 'project_manager' | 'employee' | 'finance' 等
-        """
-        from apps.core.models import UserCompanyRole
-
-        # 找到该公司在该角色下的所有用户
-        user_ids = UserCompanyRole.objects.filter(
-            company_id=company_id,
-            role=role_name,
-        ).values_list('user_id', flat=True)
-
-        total_sent = 0
-        total_failed = 0
-        all_details = []
-
-        for user_id in user_ids:
-            try:
-                user = User.objects.get(id=user_id)
-                result = cls.send(
-                    user=user,
-                    title=title,
-                    content=content,
-                    notification_type=notification_type,
-                )
-                total_sent += result['sent']
-                total_failed += result['failed']
-                all_details.extend(result['details'])
-            except User.DoesNotExist:
-                pass
-
-        return {
-            'total': len(user_ids),
-            'sent': total_sent,
-            'failed': total_failed,
-            'details': all_details,
-        }
-
-    @classmethod
     def _send_via_channel(
         cls,
         user: User,
@@ -209,23 +161,6 @@ class ChannelNotificationService:
             'status': 'sent' if success else 'failed',
             'message': msg,
         }
-
-    @classmethod
-    def _get_user_company_id(cls, user: User) -> Optional[int]:
-        """获取用户所属的公司ID"""
-        from apps.core.models import UserCompanyRole
-
-        # 先尝试直接关联
-        if hasattr(user, 'company_id') and user.company_id:
-            return user.company_id
-
-        # 通过 UserCompanyRole 查找
-        ucr = UserCompanyRole.objects.filter(user=user).first()
-        if ucr:
-            return ucr.company_id
-
-        return None
-
 
 # ================================================================
 # 统一广播接口 — 旧系统 send_notification() 的替代入口
