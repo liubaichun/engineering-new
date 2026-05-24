@@ -1861,7 +1861,12 @@ class ReportViewSet(viewsets.ViewSet):
 
         import logging; logging.error(f"[DEBUG] invoice_summary: user={request.user}, is_auth={request.user.is_authenticated if request.user else 'N/A'}")
 
-        total_count = all_filtered.count()
+        try:
+            total_count = all_filtered.count()
+        except Exception as e:
+            logging.error(f"[ERROR] all_filtered.count() failed: {e}")
+            raise
+
         total_amount = all_filtered.aggregate(total=Sum('amount'))['total'] or 0
         total_tax = all_filtered.aggregate(total=Sum('tax_amount'))['total'] or 0
         net_amount = total_amount - total_tax
