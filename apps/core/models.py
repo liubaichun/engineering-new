@@ -233,8 +233,8 @@ class PermissionAuditLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='permission_logs')
     action = models.CharField(max_length=20, choices=ACTION_CHOICES, verbose_name='操作类型')
     target_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+', verbose_name='目标用户')
-    role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='角色')
-    permission = models.ForeignKey(Permission, on_delete=models.SET_NULL, null=True, blank=True, verbose_name='权限')
+    role_name = models.CharField(max_length=100, blank=True, default='', verbose_name='角色名称')
+    permission_code = models.CharField(max_length=100, blank=True, default='', verbose_name='权限码')
     company = models.ForeignKey('finance.Company', on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='公司')
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name='IP地址')
     user_agent = models.TextField(blank=True, verbose_name='User Agent')
@@ -448,6 +448,11 @@ class ModuleAction(models.Model):
         verbose_name_plural = verbose_name
 
     def __str__(self):
+        return f"{self.module.name}.{self.name}"
+
+    @property
+    def code(self):
+        """兼容旧权限码格式：module.action"""
         return f"{self.module.name}.{self.name}"
 
 

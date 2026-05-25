@@ -300,11 +300,21 @@ class PermissionSerializer(serializers.ModelSerializer):
 
 
 class PermissionListSerializer(serializers.ModelSerializer):
-    """权限列表序列化器（简化版，用于角色配置UI）"""
+    """模块动作列表序列化器（简化版，用于角色配置UI）"""
+    module_name = serializers.CharField(source='module.name', read_only=True)
 
     class Meta:
-        model = Permission
-        fields = ['id', 'code', 'name', 'category']
+        model = ModuleAction
+        fields = ['id', 'code', 'name', 'module_name']
+
+
+class ModuleActionSerializer(serializers.ModelSerializer):
+    """模块动作序列化器"""
+    module_name = serializers.CharField(source='module.name', read_only=True)
+
+    class Meta:
+        model = ModuleAction
+        fields = ['id', 'code', 'name', 'label', 'module', 'module_name', 'sort_order', 'perm_codes']
 
 
 class RolePermissionSerializer(serializers.ModelSerializer):
@@ -339,14 +349,13 @@ class PermissionAuditLogSerializer(serializers.ModelSerializer):
     """权限审计日志序列化器"""
     user_name = serializers.CharField(source='user.username', read_only=True, default='')
     target_user_name = serializers.CharField(source='target_user.username', read_only=True, default='')
-    role_name = serializers.CharField(source='role.name', read_only=True, default='')
     action_display = serializers.CharField(source='get_action_display', read_only=True)
 
     class Meta:
         model = PermissionAuditLog
         fields = ['id', 'user', 'user_name', 'action', 'action_display',
-                  'target_user', 'target_user_name', 'role', 'role_name',
-                  'permission', 'ip_address', 'user_agent', 'details', 'created_at']
+                  'target_user', 'target_user_name', 'role_name',
+                  'permission_code', 'ip_address', 'user_agent', 'details', 'created_at']
         read_only_fields = fields  # 只读，仅通过 signals 自动写入
 
 

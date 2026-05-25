@@ -770,14 +770,13 @@ class NotificationViewSet(viewsets.ModelViewSet):
 
 class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     """权限码列表（仅读，用于角色配置UI）"""
-    queryset = Permission.objects.filter(is_active=True).order_by('code')
-    serializer_class = PermissionSerializer
+    queryset = ModuleAction.objects.select_related('module').all().order_by('module__name', 'sort_order')
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_serializer_class(self):
         if self.action == 'list':
             return PermissionListSerializer
-        return PermissionSerializer
+        return ModuleActionSerializer
 
 
 class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
@@ -787,17 +786,14 @@ class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self):
-        queryset = PermissionAuditLog.objects.select_related('user', 'target_user', 'role', 'permission')
+        queryset = PermissionAuditLog.objects.select_related('user', 'target_user')
         # 过滤：操作人/目标用户/操作类型/角色
         target_user_id = self.request.query_params.get('target_user')
         action = self.request.query_params.get('action')
-        role_id = self.request.query_params.get('role')
         if target_user_id:
             queryset = queryset.filter(target_user_id=target_user_id)
         if action:
             queryset = queryset.filter(action=action)
-        if role_id:
-            queryset = queryset.filter(role_id=role_id)
         return queryset
 
 
