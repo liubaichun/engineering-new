@@ -274,10 +274,7 @@ class RoleRequired(BasePermission):
         company_id = request.query_params.get('company')
         if company_id:
             return int(company_id)
-        # 2. URL path kwarg {pk}
-        if hasattr(view, 'kwargs') and 'pk' in view.kwargs:
-            return view.kwargs.get('pk')
-        # 3. request.data POST body（兼容 company 和 company_id 两种字段名）
+        # 2. request.data POST body（兼容 company 和 company_id 两种字段名）
         if hasattr(request, 'data'):
             company_id = request.data.get('company_id') or request.data.get('company')
             if company_id:

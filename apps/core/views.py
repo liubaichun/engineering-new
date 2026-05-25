@@ -1283,8 +1283,8 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 'label': m.label,
                 'icon': m.icon,
                 'actions': [
-                    {'id': a.id, 'name': a.name, 'label': a.label}
-                    for a in m.actions.all().order_by('sort_order')
+                    {'id': a.id, 'name': a.name, 'label': a.label, 'action_group': a.action_group}
+                    for a in m.actions.all().order_by('action_group', 'sort_order')
                 ]
             })
 

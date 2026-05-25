@@ -480,8 +480,16 @@ class ModuleAction(models.Model):
     name        = models.CharField(max_length=50, verbose_name='动作名')
     label       = models.CharField(max_length=100, verbose_name='显示名称')
     sort_order  = models.IntegerField(default=0, verbose_name='排序')
+    action_group = models.CharField(max_length=20, default='basic', verbose_name='动作分组')
     # 关联到系统权限码（桥接到 RoleRequired 的权限码体系）
     perm_codes  = models.JSONField(default=list, verbose_name='对应权限码列表')
+
+    ACTION_GROUP_CHOICES = [
+        ('basic',      '基础'),       # 查看/新建
+        ('data',       '数据'),       # 编辑/删除/作废
+        ('flow',       '流程'),       # 提交/审批/发放
+        ('operation',  '操作'),       # 导入/导出/核销/匹配/管理
+    ]
 
     class Meta:
         db_table = 'core_module_action'

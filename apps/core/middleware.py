@@ -55,6 +55,10 @@ class CompanyContextMiddleware(MiddlewareMixin):
             except Company.DoesNotExist:
                 pass
 
+        if request.auth_company:
+            if hasattr(request.user, 'company_id'):
+                request.user.company_id = request.auth_company.id
+
     def _is_standalone(self):
         from django.conf import settings
         return settings.TENANT_MODE == 'standalone'

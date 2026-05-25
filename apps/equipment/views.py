@@ -62,12 +62,13 @@ class EquipmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = self.request.user
+        # 优先从 middleware 注入的 request.auth_company 获取，兜底从 user ORM 外键读取
+        company_id = getattr(self.request, 'auth_company', None) and self.request.auth_company.id \
+            or (user.company_id if user.company_id else None)
         project = serializer.validated_data.get('project')
-        company_id = getattr(user, 'company_id', None)
-        if project and hasattr(user, 'company_id') and user.company_id:
-            if project.company_id != user.company_id:
-                from django.core.exceptions import PermissionDenied
-                raise PermissionDenied("无权在此项目下创建设备")
+        if project and company_id and project.company_id != company_id:
+            from django.core.exceptions import PermissionDenied
+            raise PermissionDenied("无权在此项目下创建设备")
         # 自动填充company_id
         if company_id and not serializer.validated_data.get('company_id'):
             serializer.save(company_id=company_id)
