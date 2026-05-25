@@ -1020,7 +1020,17 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
         return qs.order_by('company__name', 'name')
 
     def perform_create(self, serializer):
-        serializer.save()
+        role = serializer.save()
+        # 新建时若同时提交了 permission_ids，同步写入中间表
+        perm_ids = self.request.data.get('permission_ids', [])
+        if perm_ids:
+            self._sync_permissions(role, perm_ids)
+
+    def perform_update(self, serializer):
+        role = serializer.save()
+        perm_ids = self.request.data.get('permission_ids', [])
+        if perm_ids is not None:  # None=未传，保留原值；[]=显式清空
+            self._sync_permissions(role, perm_ids)
 
     def perform_destroy(self, instance):
         # 检查是否已有用户分配了这个角色
@@ -1028,6 +1038,19 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
         if UserCompanyRole.objects.filter(company_role=instance).exists():
             raise serializers.ValidationError({'detail': '该角色已有用户分配，无法删除'})
         instance.delete()
+
+    def _sync_permissions(self, role, permission_ids):
+        from django.db import transaction
+        from .models import CompanyRolePermission, Permission
+        with transaction.atomic():
+            CompanyRolePermission.objects.filter(company_role=role).delete()
+            for perm_id in permission_ids:
+                if not Permission.objects.filter(id=perm_id).exists():
+                    continue
+                CompanyRolePermission.objects.create(
+                    company_role=role,
+                    permission_id=perm_id,
+                )
 
 
 class CompanyRoleDefListSerializer(serializers.ModelSerializer):
@@ -1049,15 +1072,40 @@ class CompanyRoleDefSerializer(serializers.ModelSerializer):
     """角色定义详情序列化器（包含权限列表）"""
     company_name = serializers.CharField(source='company.name', read_only=True)
     permissions = serializers.SerializerMethodField()
+    # permission_ids: 写入时接受 [perm_id, ...]，写入 CompanyRolePermission 中间表
+    permission_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False, default=list
+    )
 
     class Meta:
         model = CompanyRole
         fields = ['id', 'name', 'code', 'description', 'is_active',
-                  'company', 'company_name', 'permissions',
+                  'company', 'company_name', 'permissions', 'permission_ids',
                   'created_at', 'updated_at']
+        read_only_fields = ['created_at', 'updated_at']
 
     def get_permissions(self, obj):
         return [{'id': p.id, 'code': p.code, 'name': p.name} for p in obj.permissions.all()]
+
+    def update(self, instance, validated_data):
+        permission_ids = validated_data.pop('permission_ids', None)
+        instance = super().update(instance, validated_data)
+        if permission_ids is not None:
+            self._sync_permissions(instance, permission_ids)
+        return instance
+
+    def _sync_permissions(self, role, permission_ids):
+        from django.db import transaction
+        from apps.core.models import CompanyRolePermission, Permission
+        with transaction.atomic():
+            CompanyRolePermission.objects.filter(company_role=role).delete()
+            for perm_id in permission_ids:
+                if not Permission.objects.filter(id=perm_id).exists():
+                    continue
+                CompanyRolePermission.objects.create(
+                    company_role=role,
+                    permission_id=perm_id,
+                )
 
 
 # ── 角色管理（基于新权限系统 UserCompanyRole）───────────────────────────────

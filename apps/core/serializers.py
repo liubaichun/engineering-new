@@ -157,9 +157,9 @@ class UserSerializer(serializers.ModelSerializer):
         if obj.is_superuser:
             return '系统管理员'
         # 优先取第一个公司角色
-        link = obj.company_roles.first()
-        if link:
-            return dict(UserCompanyRole.ROLE_CHOICES).get(link.role, link.role)
+        link = obj.company_roles.select_related('company_role').first()
+        if link and link.company_role:
+            return link.company_role.name  # 直接用CompanyRole的name字段
         # 兜底 User.role 字段（系统级角色代码）
         role_map = {
             'admin': '系统管理员',
