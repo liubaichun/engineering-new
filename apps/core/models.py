@@ -109,6 +109,13 @@ class CompanyRole(models.Model):
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # 权限集合 — 通过 CompanyRolePermission 中间表关联到 Permission（M2M）
+    permissions = models.ManyToManyField(
+        'Permission',
+        through='CompanyRolePermission',
+        related_name='company_roles',
+        verbose_name='权限集合',
+    )
 
     class Meta:
         db_table = 'core_company_role'
@@ -118,6 +125,41 @@ class CompanyRole(models.Model):
 
     def __str__(self):
         return f"{self.company.name} - {self.name}"
+
+
+class CompanyRolePermission(models.Model):
+    """
+    CompanyRole 与 Permission 的中间表 — 定义角色拥有哪些权限。
+    V5 设计：创建/编辑角色时通过这个表配置权限集合，
+    分配角色给用户时通过 _assign_role_to_ucp() 批量写入 UserCompanyPermission。
+    """
+    id = models.AutoField(primary_key=True)
+    company_role = models.ForeignKey(
+        CompanyRole, on_delete=models.CASCADE, related_name='role_permissions',
+        verbose_name='公司角色'
+    )
+    permission = models.ForeignKey(
+        'Permission', on_delete=models.CASCADE, related_name='role_assignments',
+        verbose_name='权限'
+    )
+    granted_at = models.DateTimeField(
+        auto_now_add=True,
+        null=True,  # 临时可空，迁移后恢复 non-null
+        verbose_name='授权时间',
+    )
+    granted_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name='授权人'
+    )
+
+    class Meta:
+        db_table = 'core_company_role_permission'
+        unique_together = [['company_role', 'permission']]
+        verbose_name = '公司角色权限'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.company_role.name} -> {self.permission.code}"
 
 
 class Role(models.Model):
