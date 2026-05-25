@@ -20,7 +20,7 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, CompanyRole
+from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, CompanyRole, Role, RolePermission
 from .permissions import RoleRequired
 from apps.finance.models import Company as FinanceCompany
 
@@ -429,8 +429,8 @@ class MyPermissionsView(APIView):
             company_id = first_link.company_id if first_link else None
 
         if user.is_superuser:
-            from apps.core.models import Permission
-            codes = list(Permission.objects.values_list('code', flat=True))
+            from apps.core.models import ModuleAction
+            codes = list(ModuleAction.objects.values_list('code', flat=True).distinct())
         elif company_id:
             codes = list(self._generate_codes_from_ucp(user, company_id))
         else:

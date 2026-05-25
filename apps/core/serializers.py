@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, Notification, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, Role, Permission, RolePermission, UserRole
+from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, Role, RolePermission, UserRole, CompanyRole
 from apps.finance.models import Company as FinanceCompany
 
 
@@ -215,54 +215,12 @@ class UserSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
-        role_ids = validated_data.pop('role_ids', None)
         company_role_ids = validated_data.pop('company_role_ids', None)
         request = self.context.get('request')
-        old_role_ids = set(instance.user_roles.values_list('role_id', flat=True))
         instance = super().update(instance, validated_data)
         if password:
             instance.set_password(password)
             instance.save(update_fields=['password'])
-        if role_ids is not None:
-            new_role_ids = set(role_ids)
-            added = new_role_ids - old_role_ids
-            removed = old_role_ids - new_role_ids
-            # 重建 UserRole 关联
-            UserRole.objects.filter(user=instance).delete()
-            for rid in role_ids:
-                UserRole.objects.create(user=instance, role_id=rid)
-            # 写审计日志
-            if request and (added or removed):
-                    try:
-                        from .models import PermissionAuditLog
-                        ip = request.META.get('REMOTE_ADDR', '') if request else ''
-                        ua = request.META.get('HTTP_USER_AGENT', '')[:500] if request else ''
-                        req = self.context.get('request')
-                        auth_company = getattr(req, 'auth_company', None) if req else None
-                        for rid in added:
-                            PermissionAuditLog.objects.create(
-                                user=request.user if request and hasattr(request, 'user') else None,
-                                action='assign_role',
-                                target_user=instance,
-                                role_id=rid,
-                                ip_address=ip,
-                                user_agent=ua,
-                                details=f'分配角色 {rid}',
-                                company=auth_company,
-                            )
-                        for rid in removed:
-                            PermissionAuditLog.objects.create(
-                                user=request.user if request and hasattr(request, 'user') else None,
-                                action='remove_role',
-                                target_user=instance,
-                                role_id=rid,
-                                ip_address=ip,
-                                user_agent=ua,
-                                details=f'移除角色 {rid}',
-                                company=auth_company,
-                            )
-                    except Exception:
-                        pass
         # 处理公司角色分配（批量覆盖）
         if company_role_ids is not None:
             existing = {ucr.company_id: ucr for ucr in instance.company_roles.all()}

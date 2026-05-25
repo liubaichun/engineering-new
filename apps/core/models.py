@@ -39,46 +39,22 @@ class User(AbstractUser):
         return self.is_superuser
 
     def has_role(self, role_code, company_id=None):
-        """
-        检查用户是否拥有指定角色（仅限系统级角色）。
-        公司级权限判断统一由 UserCompanyPermission 表和 UCP 校验逻辑处理，
-        不再通过 has_role() 判断。
-        """
+        """检查用户是否拥有指定角色（仅限系统级角色，已废弃）"""
         if self.is_superuser:
-            return True
-        # 系统级角色：User.role 字段（如 admin）
-        if self.role == role_code:
-            return True
-        # 系统级角色：UserRole 表（如 商务主管/财务总监）
-        if self.user_roles.filter(role__name=role_code).exists():
             return True
         return False
 
     def has_perm(self, perm_code):
-        """检查用户是否拥有指定权限码（精确匹配）"""
-        if self.is_superuser:
-            return True
-        role_ids = list(self.user_roles.values_list('role_id', flat=True))
-        # 精确匹配
-        if Permission.objects.filter(
-            code=perm_code,
-            roles__id__in=role_ids,
-            is_active=True
-        ).exists():
-            return True
+        """检查用户是否拥有指定权限码（已废弃，统一走 UCP 校验）"""
         return False
 
     def get_permissions(self):
-        """Get all permission codes for this user"""
-        role_ids = list(self.user_roles.values_list('role_id', flat=True))
-        return list(Permission.objects.filter(
-            roles__id__in=role_ids,
-            is_active=True
-        ).values_list('code', flat=True).distinct())
+        """Get all permission codes for this user（已废弃）"""
+        return []
 
     def get_roles(self):
-        """获取用户所有角色名称列表"""
-        return list(self.user_roles.select_related('role').values_list('role__name', flat=True).distinct())
+        """获取用户所有角色名称列表（已废弃）"""
+        return []
 
     def get_companies(self):
         return [ucr.company_id for ucr in self.company_roles.all()]
@@ -131,11 +107,6 @@ class CompanyRole(models.Model):
     code = models.CharField(max_length=50, verbose_name='角色代码')
     description = models.TextField(blank=True, verbose_name='描述')
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
-    permissions = models.ManyToManyField(
-        'Permission',
-        through='CompanyRolePermission',
-        related_name='company_roles', verbose_name='权限集合'
-    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -150,6 +121,7 @@ class CompanyRole(models.Model):
 
 
 class Role(models.Model):
+    """系统级角色（废弃，仅存储层保留，无业务逻辑）"""
     id = models.AutoField(primary_key=True)
     name = models.CharField(max_length=100, unique=True, verbose_name='角色名称')
     code = models.CharField(max_length=50, unique=True, verbose_name='角色代码')
@@ -157,7 +129,6 @@ class Role(models.Model):
     is_active = models.BooleanField(default=True, verbose_name='是否激活')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    permissions = models.ManyToManyField('Permission', through='RolePermission', related_name='roles')
 
     class Meta:
         db_table = 'core_role'
@@ -167,61 +138,24 @@ class Role(models.Model):
     def __str__(self):
         return self.name
 
-    def get_user_count(self):
-        return UserRole.objects.filter(role=self).count()
-    get_user_count.short_description = '用户数'
-
-
-class Permission(models.Model):
-    id = models.AutoField(primary_key=True)
-    resource = models.CharField(max_length=50, verbose_name='资源')
-    action = models.CharField(max_length=50, verbose_name='操作')
-    name = models.CharField(max_length=100, verbose_name='权限名称')
-    code = models.CharField(max_length=100, unique=True, verbose_name='权限代码')
-    description = models.TextField(blank=True, verbose_name='描述')
-    category = models.CharField(max_length=50, default='general', verbose_name='分类')
-    is_active = models.BooleanField(default=True, verbose_name='是否启用')
-    menu_code = models.CharField(max_length=50, default='', verbose_name='菜单代码')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'core_permission'
-        verbose_name = '权限'
-        verbose_name_plural = verbose_name
-        unique_together = [['resource', 'action']]
-
-    def __str__(self):
-        return f"{self.resource}:{self.action}"
-
 
 class RolePermission(models.Model):
+    """角色权限关联（废弃，仅存储层保留）"""
     id = models.AutoField(primary_key=True)
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
-    granted_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, related_name='granted_roles')
-    granted_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        db_table = 'core_role_permission'
-        unique_together = [['role', 'permission']]
-
-
-class CompanyRolePermission(models.Model):
-    """CompanyRole 与 Permission 的关联表（公司角色权限中间表）"""
-    id = models.AutoField(primary_key=True)
-    company_role = models.ForeignKey(CompanyRole, on_delete=models.CASCADE)
-    permission = models.ForeignKey(Permission, on_delete=models.CASCADE)
+    permission = models.ForeignKey('Permission', on_delete=models.CASCADE)
     granted_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     granted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        db_table = 'core_company_role_permission'
-        unique_together = [['company_role', 'permission']]
-        verbose_name = '公司角色权限'
+        db_table = 'core_role_permission'
+        unique_together = [['role', 'permission']]
+        verbose_name = '角色权限'
         verbose_name_plural = verbose_name
 
 
 class UserRole(models.Model):
+    """用户系统角色关联（废弃，仅存储层保留）"""
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_roles')
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
@@ -267,6 +201,27 @@ class Notification(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class Permission(models.Model):
+    """权限码定义（废弃，仅存储层保留）"""
+    id = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=100, verbose_name='权限名称')
+    code = models.CharField(max_length=100, unique=True, verbose_name='权限码')
+    resource = models.CharField(max_length=50, verbose_name='资源')
+    action = models.CharField(max_length=50, verbose_name='动作')
+    category = models.CharField(max_length=50, verbose_name='分类')
+    description = models.TextField(blank=True, verbose_name='描述')
+    is_active = models.BooleanField(default=True, verbose_name='是否激活')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'core_permission'
+        verbose_name = '权限'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return self.code
 
 
 class PermissionAuditLog(models.Model):
