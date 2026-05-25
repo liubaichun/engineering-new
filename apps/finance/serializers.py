@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
+from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord
 from .models_bank import BankAccount, BankStatement
 
 
@@ -476,6 +476,52 @@ class CompanySocialConfigSerializer(serializers.ModelSerializer):
             'housing_fund_rate_employee', 'housing_fund_rate_company',
         ]
         read_only_fields = ['id']
+
+
+class SocialRecordSerializer(serializers.ModelSerializer):
+    """社保申报记录序列化器"""
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    employee_name = serializers.CharField(source='employee.name', read_only=True)
+    employee_code = serializers.CharField(source='employee.code', read_only=True, allow_null=True)
+    is_reconciled_display = serializers.CharField(source='get_is_reconciled_display', read_only=True)
+    # 分开合计（社保 vs 公积金）
+    social_total_employee = serializers.SerializerMethodField()
+    social_total_company = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SocialRecord
+        fields = [
+            'id', 'company', 'company_name',
+            'employee', 'employee_name', 'employee_code', 'id_card',
+            'year_month',
+            # 分险种明细
+            'pension_employee', 'pension_company',
+            'pension_bup_employee', 'pension_bup_company',
+            'medical_employee', 'medical_company',
+            'unemployment_employee', 'unemployment_company',
+            'injury_company', 'birth_company',
+            'housing_fund_employee', 'housing_fund_company',
+            # 合计
+            'total_employee', 'total_company', 'total',
+            'social_total_employee', 'social_total_company',
+            # 核销
+            'is_reconciled', 'is_reconciled_display', 'reconciled_at',
+            # 其他
+            'remark', 'created_at', 'updated_at',
+        ]
+        read_only_fields = [
+            'id', 'total_employee', 'total_company', 'total',
+            'created_at', 'updated_at',
+        ]
+
+    def get_social_total_employee(self, obj):
+        return float(obj.pension_employee or 0) + float(obj.pension_bup_employee or 0) + \
+               float(obj.medical_employee or 0) + float(obj.unemployment_employee or 0)
+
+    def get_social_total_company(self, obj):
+        return float(obj.pension_company or 0) + float(obj.pension_bup_company or 0) + \
+               float(obj.medical_company or 0) + float(obj.unemployment_company or 0) + \
+               float(obj.injury_company or 0) + float(obj.birth_company or 0)
 
 
 class BankStatementSerializer(serializers.ModelSerializer):

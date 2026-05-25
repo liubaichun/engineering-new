@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
@@ -772,6 +773,81 @@ class Invoice(models.Model):
         if self.tax_rate and self.amount:
             self.tax_amount = round(float(self.amount) * float(self.tax_rate) / 100, 2)
         super().save(*args, **kwargs)
+
+
+class SocialRecord(models.Model):
+    """社保申报记录 — 按员工×月份存储分险种明细"""
+
+    company = models.ForeignKey(
+        Company, verbose_name='公司',
+        on_delete=models.CASCADE, related_name='social_records'
+    )
+    employee = models.ForeignKey(
+        Employee, verbose_name='员工',
+        on_delete=models.CASCADE, related_name='social_records'
+    )
+    id_card = models.CharField('身份证号', max_length=18, blank=True, default='')
+    year_month = models.CharField('费款所属期', max_length=7)  # YYYY-MM
+
+    # 企业养老
+    pension_employee = models.DecimalField('企业养老个人', max_digits=10, decimal_places=2, default=0)
+    pension_company = models.DecimalField('企业养老单位', max_digits=10, decimal_places=2, default=0)
+    # 地补养老
+    pension_bup_employee = models.DecimalField('地补养老个人', max_digits=10, decimal_places=2, default=0)
+    pension_bup_company = models.DecimalField('地补养老单位', max_digits=10, decimal_places=2, default=0)
+    # 基本医疗
+    medical_employee = models.DecimalField('基本医疗个人', max_digits=10, decimal_places=2, default=0)
+    medical_company = models.DecimalField('基本医疗单位', max_digits=10, decimal_places=2, default=0)
+    # 失业
+    unemployment_employee = models.DecimalField('失业个人', max_digits=10, decimal_places=2, default=0)
+    unemployment_company = models.DecimalField('失业单位', max_digits=10, decimal_places=2, default=0)
+    # 工伤
+    injury_company = models.DecimalField('工伤单位', max_digits=10, decimal_places=2, default=0)
+    # 生育
+    birth_company = models.DecimalField('生育单位', max_digits=10, decimal_places=2, default=0)
+    # 公积金
+    housing_fund_employee = models.DecimalField('公积金个人', max_digits=10, decimal_places=2, default=0)
+    housing_fund_company = models.DecimalField('公积金单位', max_digits=10, decimal_places=2, default=0)
+
+    # 自动计算的合计
+    total_employee = models.DecimalField('个人缴合计', max_digits=10, decimal_places=2, default=0)
+    total_company = models.DecimalField('单位缴合计', max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField('费款总计', max_digits=10, decimal_places=2, default=0)  # total_employee + total_company
+
+    # 核销状态
+    is_reconciled = models.BooleanField('已核销', default=False)
+    reconciled_at = models.DateTimeField('核销时间', null=True, blank=True)
+
+    remark = models.CharField('备注', max_length=200, blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+
+    class Meta:
+        db_table = 'finance_social_record'
+        verbose_name = '社保申报记录'
+        verbose_name_plural = verbose_name
+        # 复合唯一：员工+费款所属期，防止重复导入
+        unique_together = [['employee', 'year_month']]
+        ordering = ['-year_month', 'employee__name']
+
+    def save(self, *args, **kwargs):
+        # 合计包含社保+公积金（分开显示，合计参与运算）
+        self.total_employee = (
+            Decimal(str(self.pension_employee)) + Decimal(str(self.pension_bup_employee)) +
+            Decimal(str(self.medical_employee)) + Decimal(str(self.unemployment_employee)) +
+            Decimal(str(self.housing_fund_employee))
+        )
+        self.total_company = (
+            Decimal(str(self.pension_company)) + Decimal(str(self.pension_bup_company)) +
+            Decimal(str(self.medical_company)) + Decimal(str(self.unemployment_company)) +
+            Decimal(str(self.injury_company)) + Decimal(str(self.birth_company)) +
+            Decimal(str(self.housing_fund_company))
+        )
+        self.total = self.total_employee + self.total_company
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.employee.name} {self.year_month} 社保"
 
 
 class CompanySocialConfig(models.Model):

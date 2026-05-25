@@ -144,7 +144,6 @@ class CompanyRolePermission(models.Model):
     )
     granted_at = models.DateTimeField(
         auto_now_add=True,
-        null=True,  # 临时可空，迁移后恢复 non-null
         verbose_name='授权时间',
     )
     granted_by = models.ForeignKey(

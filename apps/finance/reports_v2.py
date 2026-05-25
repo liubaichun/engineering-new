@@ -531,24 +531,29 @@ def tax_summary_report(request):
             social_wr_q = social_wr_q.filter(month=month)
 
         # 读取该公司社保配置（个人费率=养老+医疗+失业，公司费率=养老+医疗+失业+工伤）
+        # 【P1-3 修复】费率字段存的是小数（0.08=8%），需×100转为百分比再计算
         social_config = getattr(company, 'social_config', None)
         if social_config:
-            emp_rate = (float(social_config.pension_rate_employee or 0) +
-                        float(social_config.medical_rate_employee or 0) +
-                        float(social_config.unemployment_rate_employee or 0))
-            com_rate = (float(social_config.pension_rate_company or 0) +
-                        float(social_config.medical_rate_company or 0) +
-                        float(social_config.unemployment_rate_company or 0) +
-                        float(social_config.injury_rate_company or 0))
+            emp_rate = (float(social_config.pension_rate_employee or 0) * 100 +
+                        float(social_config.medical_rate_employee or 0) * 100 +
+                        float(social_config.unemployment_rate_employee or 0) * 100)
+            com_rate = (float(social_config.pension_rate_company or 0) * 100 +
+                        float(social_config.medical_rate_company or 0) * 100 +
+                        float(social_config.unemployment_rate_company or 0) * 100 +
+                        float(social_config.injury_rate_company or 0) * 100)
+            social_wr_q = WageRecord.objects.filter(company=company, year=year)
+            social_total = sum(
+                (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
+                for wr in social_wr_q if wr.social_insurance > 0
+            )
         else:
-            # 无配置则用深圳默认值（兼容旧数据）
-            emp_rate = 10.3
-            com_rate = 23.0
-
-        social_total = sum(
-            (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
-            for wr in social_wr_q if wr.social_insurance > 0
-        )
+            # 【已修复】无 CompanySocialConfig 时，从 SocialRecord 汇总单位缴
+            # 正确做法：从 SocialRecord 表汇总，或由用户配置社保基数
+            from apps.finance.models import SocialRecord
+            social_total = float(
+                SocialRecord.objects.filter(company=company, year_month__startswith=str(year))
+                .aggregate(total=Sum('total_company'))['total'] or 0
+            )
 
         # 合计
         company_tax_total = personal_tax + corporate_tax + vat + social_total
@@ -635,17 +640,25 @@ def budget_execution_report(request):
                 total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_salary')
             elif exp_type == 'social':
                 # 公司社保成本：从 CompanySocialConfig 读费率，逐人反推基数后乘公司费率
+                # 【P1-3 修复】费率字段存的是小数（0.08=8%），需×100转为百分比再计算
                 social_config = getattr(company, 'social_config', None)
                 if social_config:
-                    emp_rate = (float(social_config.pension_rate_employee or 0) +
-                                float(social_config.medical_rate_employee or 0) +
-                                float(social_config.unemployment_rate_employee or 0))
-                    com_rate = (float(social_config.pension_rate_company or 0) +
-                                float(social_config.medical_rate_company or 0) +
-                                float(social_config.unemployment_rate_company or 0) +
-                                float(social_config.injury_rate_company or 0))
+                    emp_rate = (float(social_config.pension_rate_employee or 0) * 100 +
+                                float(social_config.medical_rate_employee or 0) * 100 +
+                                float(social_config.unemployment_rate_employee or 0) * 100)
+                    com_rate = (float(social_config.pension_rate_company or 0) * 100 +
+                                float(social_config.medical_rate_company or 0) * 100 +
+                                float(social_config.unemployment_rate_company or 0) * 100 +
+                                float(social_config.injury_rate_company or 0) * 100)
                 else:
-                    emp_rate = 10.3; com_rate = 23.0  # 深圳默认值
+                    # 【已修复】无配置时，从 SocialRecord 汇总单位缴
+                    from apps.finance.models import SocialRecord
+                    total = float(
+                        SocialRecord.objects.filter(company=company, year_month__startswith=str(year))
+                        .aggregate(t=Sum('total_company'))['t'] or 0
+                    )
+                    type_totals.append({'type': exp_type, 'label': label, 'actual': total})
+                    continue
                 wr_q = WageRecord.objects.filter(company=company, year=year)
                 total = sum(
                     (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)

@@ -1,0 +1,482 @@
+{% extends "base.html" %}
+
+{% block title %}社保管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.social-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+.summary-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: var(--card-shadow);
+}
+.summary-card .label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+.summary-card .value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.summary-card .value.success { color: var(--success); }
+.summary-card .value.danger { color: var(--danger); }
+.summary-card .value.primary { color: var(--primary); }
+.summary-card .value.warning { color: var(--warning); }
+.insurance-table td { vertical-align: middle; font-size: 0.85rem; }
+.detail-modal-wrap { padding: 0; }
+.detail-header-bar {
+    display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+    padding: 16px 20px; background: linear-gradient(135deg, #f0f7ff 0%, #fafbff 100%);
+    border-bottom: 1px solid #eef2ff;
+}
+.detail-employee { font-size: 1.1rem; font-weight: 600; color: #1a1a2e; }
+.detail-badge {
+    font-size: 0.75rem; padding: 3px 10px; border-radius: 20px;
+    font-weight: 600; background: #e8edff; color: #3b5af5;
+}
+.badge-done { background: #d1fae5; color: #065f46; }
+.badge-pend { background: #fef3c7; color: #92400e; }
+.detail-idcard { font-size: 0.8rem; font-family: monospace; }
+.detail-total-bar {
+    display: flex; align-items: center; justify-content: center; gap: 0;
+    padding: 20px; background: #fff; border-bottom: 1px solid #f0f0f0;
+}
+.detail-total-item { text-align: center; min-width: 90px; }
+.detail-total-label { font-size: 0.75rem; color: #888; margin-bottom: 4px; }
+.detail-total-value { font-size: 1.2rem; font-weight: 700; }
+.detail-total-divider { font-size: 1.2rem; color: #ccc; padding: 0 12px; }
+.detail-section-title {
+    font-size: 0.8rem; font-weight: 600; color: #888; text-transform: uppercase;
+    letter-spacing: 0.05em; padding: 14px 20px 8px; background: #fafafa;
+}
+.detail-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 0;
+    padding: 12px 20px 16px;
+}
+.detail-grid-section { padding: 0 4px; }
+.detail-grid-label {
+    font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; padding: 4px 8px 8px; margin-bottom: 4px;
+    border-radius: 4px;
+}
+.detail-grid-label.danger { color: #dc2626; background: #fff5f5; }
+.detail-grid-label.primary { color: #2563eb; background: #f0f7ff; }
+.detail-card {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 7px 8px; border-radius: 8px; background: #fff;
+    margin-bottom: 4px; border: 1px solid #f5f5f5;
+}
+.detail-label { font-size: 0.82rem; color: #555; }
+.detail-value { font-size: 0.875rem; font-weight: 600; color: #111; }
+.detail-company-row {
+    display: flex; align-items: center; gap: 6px;
+    padding: 12px 20px; background: #f5f7ff; font-size: 0.82rem;
+    color: #555; border-top: 1px solid #e8edff;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-shield-check me-2"></i>社保管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">社保申报记录导入、查询及工资单联动</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-success btn-sm" onclick="showImportModal()" data-perm="finance:company:update">
+            <i class="bi bi-upload me-1"></i>导入社保记录
+        </button>
+    </div>
+</div>
+
+<!-- 统计卡片 -->
+<div class="social-summary" id="summaryCards"></div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-2">
+                <select class="form-select" id="filterCompany" onchange="loadRecords()">
+                    <option value="">全部公司</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterYearMonth" onchange="loadRecords()">
+                    <option value="">全部月份</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterReconciled" onchange="loadRecords()">
+                    <option value="">全部状态</option>
+                    <option value="false">未核销</option>
+                    <option value="true">已核销</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="text" class="form-control" id="searchText" placeholder="搜索姓名/证件号" onkeyup="loadRecords()">
+            </div>
+            <div class="col-md-2">
+                <select class="form-select" id="pageSize" onchange="changePageSize()">
+                    <option value="20">20条/页</option>
+                    <option value="50">50条/页</option>
+                    <option value="100">100条/页</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>费款所属期</th>
+                        <th>公司</th>
+                        <th>员工</th>
+                        <th>证件号</th>
+                        <th class="text-end">个人缴社保</th>
+                        <th class="text-end">个人缴公积金</th>
+                        <th class="text-end">单位缴社保</th>
+                        <th class="text-end">单位缴公积金</th>
+                        <th class="text-end">总合计</th>
+                        <th>核销状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="recordsTableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3" id="paginationInfo"></div>
+    </div>
+</div>
+
+<!-- 导入弹窗 -->
+<div class="modal fade" id="importModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-upload me-2"></i>导入社保申报记录</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <strong>支持格式：</strong>深圳社保局「社保费申报明细」Excel（.xlsx）<br>
+                    支持多Sheet格式，每Sheet对应一个险种，系统自动识别员工和费款所属期。
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">选择 Excel 文件</label>
+                    <input type="file" class="form-control" id="importFile" accept=".xlsx">
+                </div>
+                <div id="importResult" class="d-none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="doImport()" id="importBtn">
+                    <i class="bi bi-upload me-1"></i>开始导入
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPage = 1;
+let pageSize = 20;
+let totalCount = 0;
+let importModal = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    importModal = new bootstrap.Modal(document.getElementById('importModal'));
+    loadCompanies();
+    loadYearMonths();
+    loadRecords();
+});
+
+async function loadCompanies() {
+    try {
+        const resp = await fetch('/api/finance/companies/');
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const select = document.getElementById('filterCompany');
+        data.results?.forEach ? data.results.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        }) : data.forEach ? data.forEach(c => {
+            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        }) : null;
+    } catch(e) {}
+}
+
+async function loadYearMonths() {
+    const select = document.getElementById('filterYearMonth');
+    const now = new Date();
+    for (let i = 0; i < 12; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        select.innerHTML += `<option value="${ym}">${ym}</option>`;
+    }
+}
+
+async function loadRecords() {
+    const company = document.getElementById('filterCompany').value;
+    const year_month = document.getElementById('filterYearMonth').value;
+    const reconciled = document.getElementById('filterReconciled').value;
+    const search = document.getElementById('searchText').value;
+    const offset = (currentPage - 1) * pageSize;
+
+    let url = `/api/finance/social-records/?offset=${offset}&limit=${pageSize}&ordering=-year_month`;
+    if (company) url += `&company=${company}`;
+    if (year_month) url += `&year_month=${year_month}`;
+    if (reconciled !== '') url += `&is_reconciled=${reconciled}`;
+    if (search) url += `&search=${encodeURIComponent(search)}`;
+
+    try {
+        const resp = await fetch(url);
+        if (!resp.ok) { showError('加载失败'); return; }
+        const data = await resp.json();
+        totalCount = data.count || 0;
+        renderTable(data.results || []);
+        renderPagination();
+        renderSummary(data.count || 0);
+    } catch(e) {
+        showError('加载失败: ' + e.message);
+    }
+}
+
+function renderTable(records) {
+    const tbody = document.getElementById('recordsTableBody');
+    if (!records.length) {
+        tbody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">暂无数据</td></tr>';
+        return;
+    }
+window._currentRecords = records;
+    tbody.innerHTML = records.map(r => `
+        <tr>
+            <td><span class="badge bg-secondary">${r.year_month}</span></td>
+            <td>${r.company_name || '—'}</td>
+            <td>${r.employee_name || '—'}</td>
+            <td><code style="font-size:0.75rem">${maskIdCard(r.id_card || '')}</code></td>
+            <td class="text-end text-danger">${formatMoney(r.social_total_employee)}</td>
+            <td class="text-end text-warning">${formatMoney(r.housing_fund_employee)}</td>
+            <td class="text-end text-primary">${formatMoney(r.social_total_company)}</td>
+            <td class="text-end text-success">${formatMoney(r.housing_fund_company)}</td>
+            <td class="text-end fw-bold">${formatMoney(r.total)}</td>
+            <td>${r.is_reconciled ? '<span class="badge bg-success">已核销</span>' : '<span class="badge bg-warning">未核销</span>'}</td>
+            <td>
+                <button class="btn btn-outline-primary btn-sm" onclick="showDetail(${r.id})">详情</button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+function renderSummary(count) {
+    const el = document.getElementById('summaryCards');
+    el.innerHTML = `
+        <div class="summary-card">
+            <div class="label">记录总数</div>
+            <div class="value primary">${count}</div>
+        </div>
+    `;
+}
+
+function renderPagination() {
+    const totalPages = Math.ceil(totalCount / pageSize);
+    const info = document.getElementById('paginationInfo');
+    const start = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, totalCount);
+    info.innerHTML = `
+        <span class="text-muted" style="font-size:0.875rem">第 ${start}-${end} 条，共 ${totalCount} 条</span>
+        <div class="d-flex gap-1">
+            <button class="btn btn-outline-secondary btn-sm" onclick="goPage(${currentPage - 1})" ${currentPage <= 1 ? 'disabled' : ''}>上一页</button>
+            <button class="btn btn-outline-secondary btn-sm" onclick="goPage(${currentPage + 1})" ${currentPage >= totalPages ? 'disabled' : ''}>下一页</button>
+        </div>
+    `;
+}
+
+function goPage(p) {
+    const totalPages = Math.ceil(totalCount / pageSize);
+    if (p < 1 || p > totalPages) return;
+    currentPage = p;
+    loadRecords();
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadRecords();
+}
+
+function showImportModal() {
+    document.getElementById('importFile').value = '';
+    document.getElementById('importResult').classList.add('d-none');
+    importModal.show();
+}
+
+async function doImport() {
+    const fileInput = document.getElementById('importFile');
+    const file = fileInput.files[0];
+    if (!file) { alert('请选择文件'); return; }
+    const btn = document.getElementById('importBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>导入中...';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+        const resp = await fetch('/api/finance/social-records/import_records/', {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-CSRFToken': getCsrfToken() }
+        });
+        const data = await resp.json();
+        const resultDiv = document.getElementById('importResult');
+        resultDiv.classList.remove('d-none');
+        if (data.success) {
+            resultDiv.className = 'alert alert-success';
+            resultDiv.innerHTML = `<strong>导入完成：</strong>${data.message}<br>新建：${data.created || 0}，更新：${data.updated || 0}`;
+            setTimeout(() => { importModal.hide(); loadRecords(); }, 1500);
+        } else {
+            resultDiv.className = 'alert alert-danger';
+            resultDiv.innerHTML = `<strong>导入失败：</strong>${data.message}`;
+        }
+    } catch(e) {
+        const resultDiv = document.getElementById('importResult');
+        resultDiv.classList.remove('d-none');
+        resultDiv.className = 'alert alert-danger';
+        resultDiv.innerHTML = `<strong>错误：</strong>${e.message}`;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-upload me-1"></i>开始导入';
+    }
+}
+
+function maskIdCard(id) {
+    if (!id || id.length < 8) return id;
+    return id.substring(0, 6) + '****' + id.substring(id.length - 4);
+}
+
+function formatMoney(v) {
+    if (v === null || v === undefined) return '—';
+    return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function getCsrfToken() {
+    return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
+}
+
+function showDetail(id) {
+    const rec = window._currentRecords?.find(r => r.id === id);
+    if (!rec) return;
+
+    const mkCard = (label, value, cls = '') =>
+        `<div class="detail-card ${cls}"><div class="detail-label">${label}</div><div class="detail-value">${value}</div></div>`;
+
+    const fmt = v => {
+        if (v === null || v === undefined || v === '' || isNaN(Number(v))) return '—';
+        return Number(v).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    };
+
+    const html = `
+<div class="detail-modal-wrap">
+  <div class="detail-header-bar">
+    <span class="detail-badge">${rec.year_month}</span>
+    <span class="detail-employee">${rec.employee_name || '—'}</span>
+    <span class="detail-idcard text-muted">${maskIdCard(rec.id_card || '')}</span>
+    <span class="detail-badge ${rec.is_reconciled ? 'badge-done' : 'badge-pend'}">${rec.is_reconciled ? '已核销' : '未核销'}</span>
+  </div>
+  <div class="detail-total-bar">
+    <div class="detail-total-item">
+      <div class="detail-total-label">个人缴社保</div>
+      <div class="detail-total-value text-danger">${fmt(rec.social_total_employee)}</div>
+    </div>
+    <div class="detail-total-divider">+</div>
+    <div class="detail-total-item">
+      <div class="detail-total-label">个人缴公积金</div>
+      <div class="detail-total-value text-warning">${fmt(rec.housing_fund_employee)}</div>
+    </div>
+    <div class="detail-total-divider">=</div>
+    <div class="detail-total-item">
+      <div class="detail-total-label">个人缴合计</div>
+      <div class="detail-total-value fw-bold">${fmt(rec.total_employee)}</div>
+    </div>
+  </div>
+  <div class="detail-total-bar" style="background:#fafafa">
+    <div class="detail-total-item">
+      <div class="detail-total-label">单位缴社保</div>
+      <div class="detail-total-value text-primary">${fmt(rec.social_total_company)}</div>
+    </div>
+    <div class="detail-total-divider">+</div>
+    <div class="detail-total-item">
+      <div class="detail-total-label">单位缴公积金</div>
+      <div class="detail-total-value text-success">${fmt(rec.housing_fund_company)}</div>
+    </div>
+    <div class="detail-total-divider">=</div>
+    <div class="detail-total-item">
+      <div class="detail-total-label">单位缴合计</div>
+      <div class="detail-total-value fw-bold">${fmt(rec.total_company)}</div>
+    </div>
+  </div>
+  <div class="detail-total-bar" style="background:#f0f7ff;border-top:2px solid #e8edff">
+    <div class="detail-total-item">
+      <div class="detail-total-label">费款总计</div>
+      <div class="detail-total-value" style="font-size:1.4rem;color:#1a1a2e">${fmt(rec.total)}</div>
+    </div>
+  </div>
+  <div class="detail-section-title">险种明细</div>
+  <div class="detail-grid">
+    <div class="detail-grid-section">
+      <div class="detail-grid-label danger">个人缴纳</div>
+      ${mkCard('企业养老', fmt(rec.pension_employee))}
+      ${mkCard('地补养老', fmt(rec.pension_bup_employee))}
+      ${mkCard('基本医疗', fmt(rec.medical_employee))}
+      ${mkCard('失业', fmt(rec.unemployment_employee))}
+      ${mkCard('公积金', fmt(rec.housing_fund_employee))}
+    </div>
+    <div class="detail-grid-section">
+      <div class="detail-grid-label primary">单位缴纳</div>
+      ${mkCard('企业养老', fmt(rec.pension_company))}
+      ${mkCard('地补养老', fmt(rec.pension_bup_company))}
+      ${mkCard('基本医疗', fmt(rec.medical_company))}
+      ${mkCard('失业', fmt(rec.unemployment_company))}
+      ${mkCard('工伤', fmt(rec.injury_company))}
+      ${mkCard('生育', fmt(rec.birth_company))}
+      ${mkCard('公积金', fmt(rec.housing_fund_company))}
+    </div>
+  </div>
+  <div class="detail-company-row">
+    <i class="bi bi-building"></i> ${rec.company_name || '—'}
+  </div>
+</div>`;
+
+    let modal = document.getElementById('detailModal');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = 'detailModal';
+        modal.innerHTML = `<div class="modal-dialog modal-lg"><div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title"><i class="bi bi-shield-check me-2"></i>社保记录详情</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+          <div class="modal-body p-0" id="detailModalBody" style="font-size:0.875rem;"></div>
+        </div></div></div>`;
+        document.body.appendChild(modal);
+    }
+    document.getElementById('detailModalBody').innerHTML = html;
+    new bootstrap.Modal(modal).show();
+}
+
+function showError(msg) {
+    const tbody = document.getElementById('recordsTableBody');
+    tbody.innerHTML = `<tr><td colspan="12" class="text-center text-danger py-4">${msg}</td></tr>`;
+}
+</script>
+{% endblock %}

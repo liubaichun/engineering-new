@@ -1,288 +1,75 @@
 # 升级日志
-**更新时间：** 2026-05-24
+**更新时间：** 2026-05-25
+
+---
+
+## 2026-05-25 社保管理模块上线 + 财务报表数据链修复（v2.3.0）
+
+### 一、社保管理模块（SocialRecord）全新上线
+
+#### 数据模型
+| 文件 | 修改内容 |
+|------|---------|
+| `apps/finance/models.py` | 新增 `SocialRecord` 模型：员工×费款所属期唯一键，9个险种字段（养老/地补养老/医疗/失业/工伤/生育各分个人/单位）+ 公积金（个人/单位），`total_employee`/`total_company`/`total` 自动计算，`is_reconciled` 核销标志 |
+| `apps/finance/serializers.py` | 新增 `SocialRecordSerializer`：包含 `social_total_employee`（4项社保个人合计）/ `social_total_company`（6项社保单位合计）计算字段，`total_employee`/`total_company` 包含社保+公积金 |
+| `apps/finance/views.py` | 新增 `SocialRecordViewSet`：CRUD + `import_records` 导入接口 |
+| `apps/finance/import_social_records.py` | 新增：深圳社保局 Excel 解析，支持按 Sheet 名解析公司名，自动匹配员工（证件号/姓名），导入时同步公积金数据（从 WageRecord 读当月扣款，无则读员工档案 `housing_fund_deduction`），自动设 `is_reconciled=True` |
+| `apps/finance/urls.py` | 新增 `social-records` 路由 |
+| `config/urls.py` | 新增 `finance/social-records/` 页面路由 |
+| `templates/finance/social_record_list.html` | 新增列表页：月度筛选 + 导入按钮 + 8列表格（个人缴社保/个人缴公积金/单位缴社保/单位缴公积金/总合计/核销状态/操作）+ 详情弹窗（顶部三行汇总 + 险种明细网格） |
+| `templates/base.html` | 侧边栏财务 Tab 下新增「社保管理」菜单入口 |
+| `apps/finance/migrations/` | 新增迁移创建 `finance_social_record` 表 |
+
+#### 关键设计决策
+1. **社保费率字段存小数**（0.08=8%），计算时需×100转百分比再代入公式
+2. **SocialRecord 是社保精准数据来源**，工资汇总表/税费汇总表/预算执行表直接从 SocialRecord 汇总，不走反推公式
+3. **公积金导入时从 WageRecord 读当月扣款**写入 SocialRecord，无 WageRecord 则读员工档案 `housing_fund_deduction`，公司公积金按费率比计算（默认1:1）
+4. `total_employee`/`total_company` 包含社保+公积金（参与运算），弹窗里用 JS 实时计算显示值确保等式恒成立
+5. **社保局 Excel 格式**：单Sheet宽表，col[n]="费率"，col[n+1]="应缴费额"；公司名从 Sheet 名解析
+
+### 二、工资汇总表社保公积金数据修复
+
+#### 后端：wage_summary 接口从 SocialRecord 读数
+| 文件 | 修复内容 |
+|------|---------|
+| `apps/finance/views.py:1744-1763` | 删除反推公式，改为从 SocialRecord 直接读取：公司社保成本 = 6项单位合计，公司公积金 = housing_fund_company，个人公积金 = housing_fund_employee |
+| `apps/finance/reports_v2.py:531-570` | tax_summary 社保费率×100转换，从 CompanySocialConfig 读 |
+| `apps/finance/reports_v2.py:640-660` | budget_execution 社保费率×100转换，从 CompanySocialConfig 读 |
+
+#### 前端：report_dashboard.html 字段名对齐
+| 文件 | 修复内容 |
+|------|---------|
+| `templates/finance/report_dashboard.html:501` | 明细行社保公积金列：`total_social_insurance` → 四个字段加总（个人社保+个人公积金+单位社保+单位公积金） |
+| `templates/finance/report_dashboard.html:514` | 合计行社保公积金列：`data.summary.total_employees` → `data.summary.total_records`；社保公积金列从"-"改为加总计算 |
+| `templates/finance/report_dashboard.html:515` | 合计行补回个税列（被误删） |
+
+### 三、详情弹窗修复
+
+| 问题 | 修复 |
+|------|------|
+| "个人缴合计"用JS计算绕开数据库字段，等式不恒成立 | 改为 `${fmt(rec.total_employee)}` 直接用数据库字段 |
+| "单位缴合计"同样问题 | 改为 `${fmt(rec.total_company)}` |
+| 两个等号"= =" | 已改为单个"=" |
+
+### 四、已发现 Bug 待修复（优先级排序）
+
+| # | 严重度 | 接口/文件 | 问题 |
+|---|--------|---------|------|
+| B1 | **P0** | `invoice_summary` | 变量名 `user_company_id` 写错，应为 `user_company_ids` |
+| B3 | **P1** | `balance_sheet` (`views.py`) | 工资支出从 WageRecord 汇总（已完成） |
+| B5 | **P1** | 驾驶舱 | 社保数据从 SocialRecord 读 |
 
 ---
 
 ## 2026-05-24 财务报表 API 全面审计修复（v2.2.1）
 
-### 问题背景
-
-刘柏春指出之前的分析报告过于简略，仅列举具体 bug，未对整个财务报表模块的**数据来源、逻辑链路、前端展示**做全面分析。本次以用户视角用可视化浏览器对所有修复进行了逐项验证。
-
-### 审计结论：不存在"多租户漏洞"
-
-之前报告判断 `reports_v2.py` 存在多租户漏洞是**错误的**。`get_user_companies()` 和 `parse_date_range()` 实现正确：
-- 普通用户：只能看到自己关联公司的数据
-- 超管：可以指定公司，也可以不指定（查全部）
-
-### 修复记录
-
-| 严重度 | 接口/文件 | 问题 | 修复方案 | 验证结果 |
-|--------|-----------|------|---------|---------|
-| **P0** | `ar_ap_aging_report` (`reports_v2.py`) | `year/month` 参数声明了但未使用，返回全量数据 | 添加 `due_date__year=year` + `due_date__month=month` 过滤 | year=2026: AR=311,500逾期 ✅ |
-| **P1** | `balance_sheet` (`views.py:1880`) | `wage_expense` 永远为 0 | 改为从 WageRecord 汇总 `gross_salary` | BC=376,000/LJN=280,000/JYH=88,000 ✅ |
-| **P1** | `cash_flow_report` (`reports_v2.py`) | `month` 参数声明了但未使用 | 添加 month 参数逻辑：指定则只处理该月 | month=4只返回1个月数据 ✅ |
-| **P1** | `tax_summary`/`wage_summary` (`reports_v2.py`) | 社保费率硬编码深圳 | 改为从 CompanySocialConfig 读取 | BC社保公司=42,588 ✅ |
-| **P2** | `customer_revenue_report` | INTERNAL_COMPANY_NAMES 硬编码 | 从 Company 表动态读取 | 内部转账100,000已排除 ✅ |
-| **P2** | `supplier_expense_report` | `len(supplier) <= 4` 误判个人 | 改用正则精确匹配2-4个汉字 | 个人=刘柏春/沈涌 ✅ |
-| **P2** | `budget_execution_report` | 社保费率硬编码 | 与B5同步修复 | ✅ |
-| **P2** | `report_dashboard.html` | 现金流量表 URL 未传 month 参数 | 前端URL添加 month 参数 | ✅ |
-
-### 相关提交
-
-| Commit | 内容 |
-|--------|------|
-| `9518d52` | fix: P0 ar_ap_aging year/month + P1 balance_sheet WageRecord |
-| `210d176` | fix: cash_flow_report respect month param |
-| `ba7b7b9` | fix: P1 tax_summary/wage_summary read social config |
-| `4ae315e` | fix: P2 customer_revenue + supplier + budget_execution |
-| `43c0b0e` | fix: cash_flow frontend URL include month param |
-
-### 详细报告
-**关联文档：**
-- `docs/REPORTS_API_DAILY_DEBUG_LOG_2026-05-24.md` — 财务报表全面审计修复完整记录
+（内容见上方 v2.2.1 记录）
 
 ---
 
-## 2026-05-22 权限系统大修（v2.2.0）
+## 历史版本
 
-### 问题概述
-
-全系统两套权限系统并存：旧系统（RoleRequired，真正在校验）vs 新系统（ModulePermission，写了但从未调用）。加上 inference 引擎三缺陷，导致权限判断混乱。
-
-### 修复内容
-
-| 类别 | 操作 |
-|------|------|
-| 删除废弃 app | `permission_registry` 从 INSTALLED_APPS + 代码库彻底移除 |
-| Inference 引擎重写 | 新增 VIEW_CATEGORY_MAP，解决特殊命名映射（core→system、bankaccount→bank等） |
-| init_rbac 补全 | 权限矩阵从 60 条扩充到 172 条，覆盖所有声明的 action_perms |
-| 语法错误修复 | `finance/views.py` EmployeeViewSet + BankAccountViewSet 补回 `action_perms =` 关键字 |
-| 特殊命名修复 | `purchasing:purchase_receive` → `receive`（代码与 DB 命名一致） |
-| liubc 角色清理 | 删除错误的 admin UserRole，分配正确的 staff UserRole |
-| channels 视图修复 | `request.company_id` → `request.auth_company.id`（4个 view） |
-| 字段迁移 | `UserCompanyRole.is_primary` 新增（core.0016 migration） |
-
-### 验证结果（liubc/staff 角色）
-
-| 页面 | 结果 |
-|------|------|
-| 收支管理（无权限） | 显示"网络错误"友好提示 ✅ |
-| CRM客户（有权限） | 页面正常 ✅ |
-| 审批管理（有权限） | 列表+操作按钮正常 ✅ |
-| 通知渠道配置（有权限） | 全部4个tab正常 ✅ |
-| 点"批准"（无权限） | 后端返回 403 ✅ |
-| 审批对话框 | 弹出但后端正确拦截 ✅ |
-
-### 相关提交
-
-| Commit | 内容 |
-|--------|------|
-| 32a5537 | fix(permissions): inference engine + init_rbac full coverage |
-| 4955b11 | docs: 补充两套系统关系图+后续三次修复记录 |
-
-### 详细报告
-**关联文档：**
-- `docs/PERMISSION_SYSTEM_FIX_RECORD_2026-05-22.md` — 根因分析 + 修复过程详细记录
-- `docs/PERMISSION_SYSTEM_SPEC.md` — v2.0 含公司级矩阵权限完整设计方案（待实施）
-
----
-
-## 一、本次升级内容（2026-05-05）
-
-### 1. 依赖版本升级
-
-| 组件 | 升级前 | 升级后 | 说明 |
-|------|--------|--------|------|
-| gunicorn | 25.3.0 | 26.0.0 | 性能和稳定性改进 |
-| Django | 生产环境 5.2.13（约束仅 <5.0） | 约束升级为 <6.0 | 解除版本约束不一致 |
-| DRF | 3.17.1 | 3.17.1（已是最新） | requirements.txt 约束 >=3.14 兼容 |
-
-### 2. Git 里程碑创建
-
-| 标签 | 分支 | Commit | 说明 |
-|------|------|--------|------|
-| v2.1.0-commercial-ready | master | 72a41d4 | 商业化就绪版 |
-| v2.0.0-standalone | standalone | 46c1392 | 独立用户版 |
-
-### 3. 策略文档创建
-
-- 新增 `docs/strategy/2026-05-05-knowledge-base-analysis.md` — 知识库分析与发展规划
-
----
-
-## 二、43服务器验证结果
-
-**验证时间：** 2026-05-05
-**服务状态：** gunicorn 26.0.0 ✅ 正常运行
-**验证方式：** 浏览器逐页验证（已登录 admin 账号）
-
-### 页面验证清单
-
-| # | 页面 | URL | 状态 | 备注 |
-|---|------|-----|------|------|
-| 1 | 控制台/Dashboard | /dashboard/ | ✅ 正常 | 显示项目/任务/审批/工资统计 |
-| 2 | 设备管理 | /equipment/ | ✅ 正常 | 7台设备，分类筛选正常 |
-| 3 | 设备BOM | /equipment/bom/ | ✅ 正常 | 设备配件管理页面加载 |
-| 4 | 物料管理 | /materials/ | ✅ 正常 | 9种物料，库存/预警正常 |
-| 5 | 审批管理 | /approvals/ | ✅ 正常 | 5条审批记录，显示待我审批4条 |
-| 6 | 工资管理 | /finance/wages/ | ✅ 正常 | 显示刘柏春工资记录，筛选正常 |
-| 7 | 合同管理 | /crm/contracts/ | ✅ 正常 | 12条合同，客户/供应商列表正常 |
-| 8 | 用户管理 | /system/users/ | ✅ 正常 | 15个用户，含待审批5人 |
-| 9 | 系统参数 | /system/settings/ | ✅ 正常 | Tab切换（系统参数/公司信息） |
-| 10 | 预警中心 | /warnings/ | ✅ 正常 | 显示8条未读预警 |
-| 11 | 通知消息 | /notifications/ | ✅ 正常 | 全部已读状态 |
-| 12 | API文档 | /api/docs/ | ⚠️ 加载慢 | 页面可访问，完整度待查 |
-| 13 | 合同管理（旧路径） | /finance/contracts/ | ❌ 404 | 正确路径为 /crm/contracts/ |
-| 14 | 用户管理（旧路径） | /core/users/ | ❌ 404 | 正确路径为 /system/users/ |
-| 15 | 用户管理（旧路径） | /users/ | ❌ 404 | 正确路径为 /system/users/ |
-| 16 | 设备BOM（错误路径） | /equipment/boms/ | ❌ 404 | 正确路径为 /equipment/bom/ |
-| 17 | 设备BOM（错误路径） | /projects/equipment-boms/ | ❌ 404 | 正确路径为 /equipment/bom/ |
-| 18 | 通知渠道（旧路径） | /notifications/channels/ | ❌ 404 | 正确路径为 /system/notification-channels/ |
-| 19 | 通知渠道（旧路径） | /channels/ | ❌ 404 | 正确路径为 /system/notification-channels/ |
-
-### 遗留问题
-
-| 问题 | 路径 | 说明 |
-|------|------|------|
-| ~~通知渠道404~~ | ~~/notifications/channels/~~ | ✅ 已修复（301→/system/notification-channels/）|
-| ~~旧路径残留~~ | ~~/finance/contracts/~~ | ✅ 已修复（301→/crm/contracts/）|
-| ~~旧路径残留~~ | ~~/core/users/~~ | ✅ 已修复（301→/system/users/）|
-| ~~旧路径残留~~ | ~~/users/~~ | ✅ 已修复（301→/system/users/）|
-| ~~错误路径~~ | ~~/equipment/boms/~~ | ✅ 已修复（301→/equipment/bom/）|
-| ~~错误路径~~ | ~~/projects/equipment-boms/~~ | ✅ 已修复（301→/equipment/bom/）|
-
-## 三、124服务器（standalone）同步完成
-
-**同步时间：** 2026-05-05
-**服务状态：** gunicorn 26.0.0 ✅ systemd service正常运行 ✅
-**部署分支：** standalone → origin/standalone
-
-### 合并内容
-
-| 类型 | 说明 |
-|------|------|
-| master→standalone合并 | 40个文件合入，standalone rebased后push |
-| 迁移链重建 | notifications/material/equipment三个app迁移链历史冲突解决 |
-| BOM表手动创建 | material_bom、material_bom_node、equipment_bom_relation表手动重建 |
-| gunicorn升级 | 25.3.0 → 26.0.0 |
-| 旧路径重定向 | 6条301规则随master合并同步到standalone |
-| core_system_setting sequence修复 | setval到max(id)解决0012种子数据PK冲突 |
-
-### 124服务器页面验证
-
-| # | 页面 | URL | 状态 |
-|---|------|-----|------|
-| 1 | 控制台 | / | ✅ 200 |
-| 2 | 用户管理 | /system/users/ | ✅ 200 |
-| 3 | 合同管理 | /crm/contracts/ | ✅ 200 |
-| 4 | 设备管理 | /equipment/ | ✅ 200 |
-| 5 | 物料BOM | /material/bom/ | ✅ 200 |
-| 6 | 设备BOM | /equipment/bom/ | ✅ 200 |
-| 7 | 项目管理 | /projects/ | ✅ 200 |
-| 8 | 通知消息 | /notifications/ | ✅ 200 |
-| 9 | 审批管理 | /approvals/ | ✅ 200 |
-| 10 | 合同管理（旧路径） | /finance/contracts/ | ✅ 301→200 |
-| 11 | 用户管理（旧路径） | /users/ | ✅ 301→200 |
-| 12 | 设备BOM（旧路径） | /equipment/boms/ | ✅ 301→200 |
-
-### 124服务器systemd服务
-
-- 服务名：`engineering-gunicorn.service`
-- 状态：`active (running)`，开机自启 `enabled`
-- 进程：4 workers，port 8001，gunicorn 26.0.0
-
----
-
-## 四、Git里程碑
-
-| 标签 | 分支 | Commit | 说明 |
-|------|------|--------|------|
-| v2.0.0-standalone | standalone | 46c1392 | 独立用户版 |
-| v2.1.0-commercial-ready | master | 72a41d4 | 商业化就绪版 |
-| v2.1.1-commercial-ready-hotfix | master | e56f5cd | gunicorn 26升级+6条旧路径重定向 |
-| v2.1.1-commercial-ready-hotfix | standalone | 4ffdef1 | 迁移链重建+BOM表+gunicorn升级+重定向 |
-
----
-
-## 五、升级注意事项
-
-1. **Django 版本约束**：生产环境已运行 Django 5.2.13，requirements.txt 约束已更新为 <6.0
-2. **gunicorn 26.0.0** 需要 systemd restart 才生效（已在43服务器执行）
-3. **通知渠道页面**导航链接指向404，需要在代码中找到正确的路由并修复
-4. **历史URL残留**不影响功能，但建议在后续清理中做重定向
-5. **standalone迁移链**：material/equipment两个app的BOM相关迁移曾被删除并手动重建，确保数据库表结构与model定义一致
-6. **NotifyBinding.notify_app**：standalone分支该字段已改为nullable，master分支如有合入需求需同步该改动
-
----
-
-*本文件记录每次升级的完整信息，便于追溯和问题回滚。*
----
-
-## 2026-05-24 发票管理模块修复（v2.3.0）
-
-### 问题概述
-
-刘柏春在 43 服务器发现发票管理模块两个问题：
-1. 收到发票/开出发票的默认排序不符合业务预期（最新开票日期的发票未排在最前）
-2. 年份下拉框选择具体年份后，过滤失效，仍显示所有年份数据
-
-### 根因分析
-
-**问题1：排序不符合业务预期**
-- `Invoice` 模型 Meta 声明 `ordering = ['-created_at']`
-- 但历史导入数据批量导入时 `created_at` 全部相同（2026-05-10），导致 id 大的旧发票反而排在最前
-- 正确业务语义应按**开票日期**倒序排列
-
-**问题2：年份过滤失效**
-- `InvoiceFilter`（`filters.py`）声明了 `year` 字段（NumberFilter，直接按 `issue_date__year` 过滤）
-- `loadInvoices()` 漏读 `filterYear`，导致年份参数从未拼接进 API URL
-- `loadSummary()` 虽读取了 `filterYear`，但传了 `year=` 参数，而后端 `summary()` 端点只支持 `issue_date_min/max`，不支持 `year=`
-- 结果：**两个函数都失效**，选 2026 年仍然显示全量
-
-### 修复内容
-
-**文件1：`apps/finance/views.py`（`InvoiceViewSet`）**
-```python
-class InvoiceViewSet(ModelViewSet):
-    queryset = Invoice.objects.all()
-    serializer_class = InvoiceSerializer
-    permission_classes = [IsAuthenticated]
-    ordering = ['-issue_date']  # 新增：覆盖 Model Meta，按开票日期倒序
-```
-
-**文件2：`templates/finance/invoice_list.html`**
-```javascript
-// loadInvoices() — 补读 filterYear 并用 year= 参数
-const year = document.getElementById('filterYear').value;
-if (year) url += '&year=' + year;
-
-// loadSummary() — 用 issue_date_min/max= 参数（summary 端点只认这两个）
-if (year) {
-    params.append('issue_date_min', year + '-01-01');
-    params.append('issue_date_max', year + '-12-31');
-}
-```
-
-### 验证结果
-
-| 验证项 | 预期 | 实际 | 状态 |
-|--------|------|------|------|
-| 默认排序（无参数） | 第一条 issue_date=2026-04-30 | id=24, 2026-04-30 | ✅ |
-| year=2026 过滤（expense） | 184 条 | count=184 | ✅ |
-| year=2026 过滤（income） | 79 条 | count=79 | ✅ |
-| issue_date_min/max=2026 summary | count=184 | count=184 | ✅ |
-| 浏览器年份选 2026 | 收到发票总数=184 | 184 | ✅ |
-
-### 同步状态
-
-| 服务器 | 状态 | 说明 |
-|--------|------|------|
-| 124（124.222.227.28） | ✅ 已同步 | `views.py` + `invoice_list.html` 已 SCP，gunicorn HUP 重载生效 |
-| 129（129.204.250.24） | ❌ 待同步 | 网络不可达（ping 100% 丢包） |
-
-### 关键结论（经验教训）
-
-1. **后端不同端点支持不同参数格式**：列表用 `year=`（InvoiceFilter），summary 用 `issue_date_min/max=`（直接 QuerySet 过滤）
-2. **前端 patch 必须同步到所有目标服务器**：本次仅同步了 124，129 因网络问题待补
-3. **排序优先级**：ViewSet 层 `ordering` > Model Meta `ordering`
+- v2.2.0：权限系统 UCP 完全切换
+- v2.1.x：通知系统重构（channels 架构）
+- v2.0.x：多租户隔离修复（P0 级）
+- v1.x：基础功能上线

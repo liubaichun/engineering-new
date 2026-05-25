@@ -346,6 +346,7 @@ urlpatterns = [
     path('tasks/board/', tasks_board_page, name='tasks_board'),
     path('tasks/flow-templates/', flow_template_list_page, name='flow_template_list'),
     path('finance/wages/', wage_list_page, name='wage_list'),
+    path('finance/social-records/', lambda request: TemplateView.as_view(template_name='finance/social_record_list.html')(request), name='social_record_list'),
     path('finance/companies/', company_list_page, name='company_list'),
     path('finance/incomes/', income_list_page, name='income_list'),
     path('finance/expenses/', expense_list_page, name='expense_list'),

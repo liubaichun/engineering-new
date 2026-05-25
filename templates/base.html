@@ -535,6 +535,11 @@
                 <i class="bi bi-person-badge"></i><span>员工管理</span>
             </a>
             {% endif %}
+            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/social-records/" class="nav-link {% if '/finance/social-records' in request.path %}active{% endif %}">
+                <i class="bi bi-shield-check"></i><span>社保管理</span>
+            </a>
+            {% endif %}
             {% if 'finance:income:read' in user_menu_codes or 'finance:expense:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/incomes/" class="nav-link {% if '/finance/incomes' in request.path or '/finance/expenses' in request.path %}active{% endif %}">
                 <i class="bi bi-cash-stack"></i><span>收支管理</span>

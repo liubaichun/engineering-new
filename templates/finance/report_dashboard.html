@@ -498,7 +498,7 @@ function renderWageReport(data, container) {
                 <td><strong>${r.company_name}</strong></td>
                 <td>${r.employee_count} 人</td>
                 <td>¥${formatNumber(r.total_gross)}</td>
-                <td>¥${formatNumber((r.total_social_insurance || 0) + (r.total_housing_fund || 0))}</td>
+                <td>¥${formatNumber((r.total_social_insurance_emp || 0) + (r.total_housing_fund_emp || 0) + (r.total_social_insurance_com || 0) + (r.total_housing_fund_com || 0))}</td>
                 <td>¥${formatNumber(r.total_tax)}</td>
                 <td class="text-success"><strong>¥${formatNumber(r.total_net)}</strong></td>
             </tr>
@@ -509,9 +509,9 @@ function renderWageReport(data, container) {
         html += `
             <tr class="summary-row">
                 <td><strong>合计</strong></td>
-                <td>${data.summary?.total_employees || 0} 人</td>
+                <td>${data.summary?.total_records || 0} 人</td>
                 <td>¥${formatNumber(data.summary?.total_gross || 0)}</td>
-                <td>-</td>
+                <td>¥${formatNumber((data.summary?.total_social_insurance_emp || 0) + (data.summary?.total_housing_fund_emp || 0) + (data.summary?.total_social_insurance_com || 0) + (data.summary?.total_housing_fund_com || 0))}</td>
                 <td>¥${formatNumber(data.summary?.total_tax || 0)}</td>
                 <td class="text-success"><strong>¥${formatNumber(data.summary?.total_net || 0)}</strong></td>
             </tr>

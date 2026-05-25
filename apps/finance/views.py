@@ -1,5 +1,5 @@
 import functools
-from django.db.models import Q
+from django.db.models import F, Q, Sum
 from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
@@ -173,10 +173,10 @@ def _require_perms(*perm_codes):
 from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
 from django.db import models
-from django.db.models import Q, Sum, Count
+from django.db.models import F, Q, Sum, Sum, Count
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany
+from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord
 from .models_bank import BankAccount, BankStatement
 from .serializers import (
     CompanySerializer,
@@ -188,6 +188,7 @@ from .serializers import (
     CompanySocialConfigSerializer,
     EmployeeCompanySerializer,
     BankAccountSerializer,
+    SocialRecordSerializer,
 )
 from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
 from apps.approvals.models import ApprovalFlow, ApprovalNode
@@ -1740,28 +1741,27 @@ class ReportViewSet(viewsets.ViewSet):
             total_hf = wr_q.aggregate(t=Sum('housing_fund'))['t'] or 0          # 个人公积金扣款合计
             record_count = wr_q.count()
 
-            # 公司社保 = Σ(个人扣款/个人费率×100)×公司费率，逐人从 CompanySocialConfig 读费率
-            social_config = getattr(company, 'social_config', None)
-            if social_config:
-                emp_rate = (float(social_config.pension_rate_employee or 0) +
-                            float(social_config.medical_rate_employee or 0) +
-                            float(social_config.unemployment_rate_employee or 0))
-                com_rate = (float(social_config.pension_rate_company or 0) +
-                            float(social_config.medical_rate_company or 0) +
-                            float(social_config.unemployment_rate_company or 0) +
-                            float(social_config.injury_rate_company or 0))
-            else:
-                # 无配置则用深圳默认值（兼容旧数据）
-                emp_rate = 10.3
-                com_rate = 23.0
+            # ── 【P1-3 核心修复】从 SocialRecord 直接读取，不用反推公式 ──
+            # 社保公司部分 + 公积金，直接从已导入的社保管理数据读取
+            from apps.finance.models import SocialRecord
+            ym_filter = f"{year}-{int(month):02d}" if year and month else (str(year) if year else '')
+            sr_q = SocialRecord.objects.filter(company=company)
+            if ym_filter:
+                sr_q = sr_q.filter(year_month=ym_filter)
 
-            com_si = sum(
-                (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
-                for wr in wr_q.select_related('employee')
-                if wr.social_insurance > 0
-            )
-            # 公司公积金 = Σ(个人扣款/5%×5%) = Σ个人扣款（对半）
-            com_hf = total_hf  # 公积金公司出和个人出一样多
+            # 公司社保成本（不含公积金）
+            com_si = float(sr_q.aggregate(
+                t=Sum(F('pension_company') + F('pension_bup_company') +
+                      F('medical_company') + F('unemployment_company') +
+                      F('injury_company') + F('birth_company'))
+            )['t'] or 0)
+
+            # 公司公积金
+            com_hf = float(sr_q.aggregate(t=Sum('housing_fund_company'))['t'] or 0)
+
+            # 员工总社保扣款：从 WageRecord 读
+            # 员工总公积金：从 SocialRecord 读（已有精准数据）
+            total_hf_emp = float(sr_q.aggregate(t=Sum('housing_fund_employee'))['t'] or 0)
 
             results.append({
                 'company_id': company.id,
@@ -1776,8 +1776,8 @@ class ReportViewSet(viewsets.ViewSet):
                 'total_net': float(total_net),
                 'total_social_insurance_emp': float(total_emp_si),  # 个人社保扣款
                 'total_social_insurance_com': round(com_si, 2),      # 公司社保
-                'total_housing_fund_emp': float(total_hf),           # 个人公积金扣款
-                'total_housing_fund_com': round(com_hf, 2),           # 公司公积金
+                'total_housing_fund_emp': total_hf_emp,             # 个人公积金（从SocialRecord精准读）
+                'total_housing_fund_com': round(com_hf, 2),          # 公司公积金（从SocialRecord精准读）
             })
 
         return Response({
@@ -2268,3 +2268,68 @@ class BankAccountViewSet(viewsets.ModelViewSet):
                 'is_active': acc.is_active,
             })
         return Response(data)
+
+
+class SocialRecordViewSet(viewsets.ModelViewSet):
+    """社保申报记录视图集"""
+    queryset = SocialRecord.objects.all().select_related('company', 'employee')
+    serializer_class = SocialRecordSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['company', 'employee', 'year_month', 'is_reconciled']
+    search_fields = ['employee__name', 'employee__code', 'id_card']
+    ordering_fields = ['year_month', 'created_at']
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:company:read',
+        'create': 'finance:company:update',
+        'partial_update': 'finance:company:update',
+        'destroy': 'finance:company:update',
+        'import': 'finance:company:update',
+    }
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            if hasattr(user, 'company') and user.company_id:
+                qs = qs.filter(company_id=user.company_id)
+        return qs
+
+    @action(detail=False, methods=['post'])
+    def import_records(self, request):
+        """Excel导入社保申报记录"""
+        from .import_social_records import import_social_records
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'success': False, 'message': '请上传文件'}, status=400)
+        try:
+            result = import_social_records(file)
+        except Exception as e:
+            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+        return Response(result)
+
+    @action(detail=False, methods=['get'])
+    def autofill(self, request):
+        """工资单自动填充社保数据：查某员工某年月的社保记录"""
+        employee_id = request.query_params.get('employee_id')
+        year_month = request.query_params.get('year_month')
+        if not employee_id or not year_month:
+            return Response({'success': False, 'message': '需要 employee_id 和 year_month'}, status=400)
+        qs = self.get_queryset().filter(employee_id=employee_id, year_month=year_month)
+        if not qs.exists():
+            return Response({
+                'success': True,
+                'found': False,
+                'social_insurance': 0,
+                'housing_fund': 0,
+            })
+        rec = qs.first()
+        return Response({
+            'success': True,
+            'found': True,
+            'social_insurance': float(rec.total_employee) - float(rec.housing_fund_employee),
+            'housing_fund': float(rec.housing_fund_employee),
+            'total_employee': float(rec.total_employee),
+            'total_company': float(rec.total_company),
+        })

@@ -361,9 +361,17 @@ async function loadMatrix() {
         matrixData = await resp.json();
         renderCategoryTree();
         renderCompanySelect();
-        document.getElementById('companySelect').selectedIndex = 0;
-        document.getElementById('panelBody').innerHTML =
-            '<div class="text-center text-muted py-5" style="font-size:0.85rem;"><i class="bi bi-building fs-4 d-block mb-2"></i>请选择公司</div>';
+        // 自动选中第一个公司，提升体验
+        const companySel = document.getElementById('companySelect');
+        if (companySel.options.length > 1) {
+            companySel.selectedIndex = 1;
+            currentCompanyId = parseInt(companySel.value);
+            selectCategory(getDefaultCategory());
+        } else {
+            document.getElementById('companySelect').selectedIndex = 0;
+            document.getElementById('panelBody').innerHTML =
+                '<div class="text-center text-muted py-5" style="font-size:0.85rem;"><i class="bi bi-building fs-4 d-block mb-2"></i>请选择公司</div>';
+        }
     } catch (e) {
         alert('加载权限矩阵失败: ' + e.message);
         console.error(e);
