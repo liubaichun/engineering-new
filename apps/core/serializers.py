@@ -341,6 +341,14 @@ class PermissionSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']
 
 
+class PermissionListSerializer(serializers.ModelSerializer):
+    """权限列表序列化器（简化版，用于角色配置UI）"""
+
+    class Meta:
+        model = Permission
+        fields = ['id', 'code', 'name', 'category']
+
+
 class RolePermissionSerializer(serializers.ModelSerializer):
     """角色权限序列化器"""
     role_name = serializers.CharField(source='role.name', read_only=True)

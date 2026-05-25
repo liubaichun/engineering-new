@@ -766,6 +766,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
         return Response({'status': 'success', 'deleted': deleted})
 
 
+class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
+    """权限码列表（仅读，用于角色配置UI）"""
+    queryset = Permission.objects.filter(is_active=True).order_by('code')
+    serializer_class = PermissionSerializer
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return PermissionListSerializer
+        return PermissionSerializer
+
+
 class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     """权限审计日志视图集（仅读）"""
     queryset = PermissionAuditLog.objects.all()
@@ -1088,24 +1100,8 @@ class CompanyRoleDefSerializer(serializers.ModelSerializer):
         return [{'id': p.id, 'code': p.code, 'name': p.name} for p in obj.permissions.all()]
 
     def update(self, instance, validated_data):
-        permission_ids = validated_data.pop('permission_ids', None)
-        instance = super().update(instance, validated_data)
-        if permission_ids is not None:
-            self._sync_permissions(instance, permission_ids)
-        return instance
-
-    def _sync_permissions(self, role, permission_ids):
-        from django.db import transaction
-        from apps.core.models import CompanyRolePermission, Permission
-        with transaction.atomic():
-            CompanyRolePermission.objects.filter(company_role=role).delete()
-            for perm_id in permission_ids:
-                if not Permission.objects.filter(id=perm_id).exists():
-                    continue
-                CompanyRolePermission.objects.create(
-                    company_role=role,
-                    permission_id=perm_id,
-                )
+        # permission_ids 的同步由 ViewSet.perform_update 统一处理
+        return super().update(instance, validated_data)
 
 
 # ── 角色管理（基于新权限系统 UserCompanyRole）───────────────────────────────

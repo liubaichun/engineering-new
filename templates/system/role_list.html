@@ -91,6 +91,13 @@
                     <label class="form-label">描述</label>
                     <textarea class="form-control" id="roleDefDescription" rows="2" placeholder="可选"></textarea>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">权限集合</label>
+                    <div class="border rounded p-2" style="max-height:200px;overflow-y:auto;" id="roleDefPermList">
+                        <div class="text-muted small">加载中...</div>
+                    </div>
+                    <div class="form-text">留空则该角色无任何权限（用户需手动授权）</div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
@@ -153,16 +160,66 @@ window.allRoleDefs = [];
 window.allAssignments = [];
 window.roleDefModal = null;
 window.assignModal = null;
+window.allPermissions = [];  // [{id, code, name, app_label}]
 var currentDefId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     window.roleDefModal = new bootstrap.Modal(document.getElementById('roleDefModal'));
     window.assignModal = new bootstrap.Modal(document.getElementById('assignModal'));
-    // loadCurrentUser: no-op, user info comes from server-side template context
+    loadPermissions();
     loadRoleDefs();
     loadCompaniesForFilter();
     loadUserAssignments();
 });
+
+// ── 权限列表加载 ────────────────────────────────────────────────────────────────
+async function loadPermissions() {
+    try {
+        var resp = await fetch('/api/core/permissions/', { credentials: 'include' });
+        if (!resp.ok) throw new Error(resp.status);
+        var data = await resp.json();
+        window.allPermissions = data.results || data;
+    } catch (e) {
+        console.error('loadPermissions error:', e);
+    }
+}
+
+function renderPermChecklist(selectedIds) {
+    selectedIds = selectedIds || [];
+    var container = document.getElementById('roleDefPermList');
+    if (!container) return;
+    if (window.allPermissions.length === 0) {
+        container.innerHTML = '<div class="text-muted small">暂无可用权限</div>';
+        return;
+    }
+    // Group by app prefix from code (e.g. "finance:income:read" → "finance")
+    var groups = {};
+    window.allPermissions.forEach(function(p) {
+        var parts = (p.code || '').split(':');
+        var app = parts.length >= 2 ? parts[0] : (p.category || '其他');
+        if (!groups[app]) groups[app] = [];
+        groups[app].push(p);
+    });
+    var html = '';
+    Object.keys(groups).sort().forEach(function(app) {
+        html += '<div class="mb-2"><div class="fw-bold small text-muted border-bottom pb-1 mb-1">' + escapeHtml(app) + '</div>';
+        groups[app].forEach(function(p) {
+            var chk = selectedIds.indexOf(p.id) >= 0 ? 'checked' : '';
+            html += '<div class="form-check"><input class="form-check-input" type="checkbox" id="perm_' + p.id + '" value="' + p.id + '" ' + chk + '>';
+            html += '<label class="form-check-label" for="perm_' + p.id + '" title="' + escapeHtml(p.code) + '">' + escapeHtml(p.name) + ' <span class="text-muted small">(' + escapeHtml(p.code) + ')</span></label></div>';
+        });
+        html += '</div>';
+    });
+    container.innerHTML = html;
+}
+
+function getSelectedPermIds() {
+    var ids = [];
+    document.querySelectorAll('#roleDefPermList input[type="checkbox"]:checked').forEach(function(cb) {
+        ids.push(parseInt(cb.value));
+    });
+    return ids;
+}
 
 // ── 角色定义 ──────────────────────────────────────────────────────────────────
 
@@ -202,10 +259,14 @@ function renderRoleDefList() {
               + '<i class="bi bi-shield me-2"></i>' + escapeHtml(def.name)
               + '<div class="small text-muted mt-1">' + escapeHtml(def.company_name) + '</div>'
               + '</div>'
+              + '<div class="d-flex gap-1">'
               + '<span class="badge bg-' + (def.is_active === false ? 'secondary' : 'primary') + '">'
               + (def.is_active === false ? '已停用' : '活跃')
               + '</span>'
-              + '</div></div>';
+              + '<button class="btn btn-sm btn-outline-light py-0" onclick="event.stopPropagation(); showRoleDefModal(' + def.id + ');" title="编辑">'
+              + '<i class="bi bi-pencil"></i>'
+              + '</button>'
+              + '</div></div></div>';
     });
     container.innerHTML = html;
 }
@@ -217,6 +278,7 @@ function showRoleDefModal(id) {
     document.getElementById('roleDefName').value = '';
     document.getElementById('roleDefCode').value = '';
     document.getElementById('roleDefDescription').value = '';
+    renderPermChecklist([]);  // 初始化空权限列表
     window.roleDefModal.show();
     // Load companies for select
     fetch('/api/core/companies/active/', { credentials: 'include' })
@@ -227,6 +289,28 @@ function showRoleDefModal(id) {
             companies.forEach(function(c) {
                 sel.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
             });
+            // 编辑模式：加载已有角色数据
+            if (id) {
+                document.getElementById('roleDefModalTitle').innerHTML = '<i class="bi bi-pencil-square me-2"></i>编辑角色';
+                document.getElementById('roleDefId').value = id;
+                var def = window.allRoleDefs.find(function(d) { return d.id === id; });
+                if (def) {
+                    document.getElementById('roleDefName').value = def.name || '';
+                    document.getElementById('roleDefCode').value = def.code || '';
+                    document.getElementById('roleDefDescription').value = def.description || '';
+                    // 回填公司
+                    var companySel = document.getElementById('roleDefCompany');
+                    for (var i = 0; i < companySel.options.length; i++) {
+                        if (String(companySel.options[i].value) === String(def.company)) {
+                            companySel.selectedIndex = i;
+                            break;
+                        }
+                    }
+                    // 回填已有权限
+                    var existingPermIds = (def.permissions || []).map(function(p) { return p.id; });
+                    renderPermChecklist(existingPermIds);
+                }
+            }
         });
 }
 
@@ -241,12 +325,13 @@ async function saveRoleDef() {
     var name = document.getElementById('roleDefName').value.trim();
     var code = document.getElementById('roleDefCode').value.trim();
     var description = document.getElementById('roleDefDescription').value.trim();
+    var permIds = getSelectedPermIds();
 
     if (!companyId) { showToast('请选择公司', 'warning'); return; }
     if (!name) { showToast('请填写角色名称', 'warning'); return; }
     if (!code) { showToast('请填写角色代码', 'warning'); return; }
 
-    var payload = { company: parseInt(companyId), name: name, code: code, description: description };
+    var payload = { company: parseInt(companyId), name: name, code: code, description: description, permission_ids: permIds };
     var url = '/api/core/company-role-defs/';
     var method = 'POST';
 
