@@ -25,7 +25,7 @@ ALL_MODULES = {
         ('invoice',   ['read', 'create', 'update', 'delete']),
         ('wage',      ['read', 'create', 'update', 'submit', 'approve', 'pay', 'export']),
         ('report',    ['read', 'export']),
-        ('bank',      ['read', 'import', 'create', 'update', 'delete', 'reconcile', 'match', 'export', 'manage']),
+        ('bank',      ['read', 'import', 'create', 'update', 'delete']),
         ('company',   ['read', 'update', 'manage']),
         ('employee',  ['read', 'create', 'update', 'delete']),
         ('approval',  ['read', 'create', 'update', 'delete', 'approve', 'manage']),
