@@ -33,6 +33,7 @@ from .serializers import (
     NotificationSerializer,
     PermissionSerializer,
     PermissionListSerializer,
+    ModuleActionSerializer,
     PermissionAuditLogSerializer,
     LoginLogSerializer,
     UserCompanyRoleSerializer,
