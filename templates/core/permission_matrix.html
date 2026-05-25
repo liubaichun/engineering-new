@@ -15,7 +15,7 @@
 
 /* ── 左侧分类树 ─────────────────────────────────────────── */
 .category-tree {
-    width: 220px;
+    width: 200px;
     flex-shrink: 0;
     background: #fff;
     border-radius: 8px;
@@ -33,14 +33,12 @@
     color: #475569;
     flex-shrink: 0;
 }
-.tree-body {
-    flex: 1;
-    overflow-y: auto;
-}
+.tree-body { flex: 1; overflow-y: auto; }
+
 .tree-category {
     display: flex;
     align-items: center;
-    padding: 8px 14px;
+    padding: 7px 14px;
     cursor: pointer;
     user-select: none;
     transition: background 0.15s;
@@ -52,11 +50,11 @@
     font-size: 0.65rem;
     color: #94a3b8;
     transition: transform 0.2s;
-    width: 14px;
+    width: 12px;
     flex-shrink: 0;
 }
 .tree-cat-toggle.expanded { transform: rotate(90deg); }
-.tree-cat-icon { font-size: 0.9rem; }
+.tree-cat-icon { font-size: 0.85rem; }
 .tree-cat-name { flex: 1; font-size: 0.82rem; }
 .tree-cat-count {
     font-size: 0.7rem;
@@ -76,8 +74,10 @@
     flex-direction: column;
     overflow: hidden;
 }
-.panel-header {
-    padding: 10px 16px;
+
+/* 面板顶部：分类标题 + 公司下拉 */
+.panel-topbar {
+    padding: 8px 16px;
     background: #f8fafc;
     border-bottom: 1px solid #e2e8f0;
     display: flex;
@@ -86,28 +86,39 @@
     flex-shrink: 0;
     flex-wrap: wrap;
 }
-.panel-header-title {
-    font-size: 0.82rem;
+.panel-topbar .cat-title {
+    font-size: 0.85rem;
     font-weight: 600;
-    color: #334155;
-    flex: 1;
+    color: #1e293b;
 }
-.company-col-headers {
+.panel-topbar .cat-title .cat-icon { font-size: 0.9rem; margin-right: 4px; }
+.panel-topbar .cat-modules-count {
+    font-size: 0.75rem;
+    color: #94a3b8;
+}
+.company-select-wrap {
+    margin-left: auto;
     display: flex;
-    gap: 4px;
+    align-items: center;
+    gap: 6px;
 }
-.company-col-header {
-    width: 90px;
-    text-align: center;
-    font-size: 0.72rem;
-    font-weight: 500;
+.company-select-wrap label {
+    font-size: 0.75rem;
     color: #64748b;
-    background: #f1f5f9;
-    padding: 3px 6px;
-    border-radius: 4px;
-    flex-shrink: 0;
+    white-space: nowrap;
 }
+.company-select-wrap select {
+    font-size: 0.8rem;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    color: #334155;
+    cursor: pointer;
+}
+.company-select-wrap select:focus { border-color: #2563eb; outline: none; }
 
+/* 权限网格区 */
 .panel-body {
     flex: 1;
     overflow-y: auto;
@@ -148,23 +159,22 @@
     padding: 8px 16px;
     border-bottom: 1px solid #f8fafc;
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     gap: 12px;
 }
 .module-item:last-child { border-bottom: none; }
 .module-item:hover { background: #fafafa; }
+
 .module-info {
-    width: 200px;
+    width: 160px;
     flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
     padding-top: 2px;
 }
 .module-label {
     font-size: 0.82rem;
     font-weight: 600;
     color: #1e293b;
+    line-height: 1.4;
 }
 .module-name {
     font-size: 0.7rem;
@@ -176,31 +186,25 @@
 .action-row {
     display: flex;
     align-items: center;
-    gap: 4px;
     padding: 3px 0;
 }
 .action-label {
-    width: 72px;
+    width: 70px;
     font-size: 0.75rem;
     color: #64748b;
     flex-shrink: 0;
     text-align: right;
-    padding-right: 6px;
-}
-.company-perms {
-    display: flex;
-    gap: 4px;
-    flex-wrap: wrap;
+    padding-right: 8px;
+    line-height: 1.4;
 }
 .perm-cell {
-    width: 90px;
-    display: flex;
-    justify-content: center;
+    width: 26px;
+    text-align: center;
     flex-shrink: 0;
 }
 .perm-cell input[type="checkbox"] {
-    width: 15px;
-    height: 15px;
+    width: 16px;
+    height: 16px;
     cursor: pointer;
     accent-color: #2563eb;
 }
@@ -217,9 +221,6 @@
     line-height: 1.6;
 }
 .permission-matrix .hint strong { color: #64748b; }
-
-/* 全选重置按钮 */
-.btn-outline-danger { font-size: 0.75rem; padding: 2px 8px; }
 </style>
 {% endblock %}
 
@@ -256,9 +257,17 @@
 
         <!-- 右侧权限面板 -->
         <div class="permission-panel">
-            <div class="panel-header">
-                <div class="panel-header-title" id="panelTitle">← 请从左侧选择分类</div>
-                <div class="company-col-headers" id="companyColHeaders"></div>
+            <div class="panel-topbar">
+                <div class="cat-title" id="panelTitle">
+                    <span class="cat-icon">📂</span>
+                    <span class="cat-name-text">← 请选择分类</span>
+                </div>
+                <div class="company-select-wrap" id="companySelectWrap">
+                    <label>公司：</label>
+                    <select id="companySelect" onchange="onCompanyChange()">
+                        <option value="">— 选择公司 —</option>
+                    </select>
+                </div>
             </div>
             <div class="panel-body" id="panelBody">
                 <div class="text-center text-muted py-5" style="font-size:0.85rem;">
@@ -272,7 +281,7 @@
         <i class="bi bi-info-circle me-1"></i>
         <strong>操作说明：</strong>勾选 = 授权 | 取消 = 撤销 &nbsp;|&nbsp;
         <strong>橙色底色</strong> = 未保存 &nbsp;|&nbsp;
-        <strong>分类全选</strong> = 该分类全部模块全部公司全部动作授权
+        <strong>分类全选</strong> = 该分类全部模块全部动作授权
     </div>
 </div>
 {% endblock %}
@@ -280,6 +289,7 @@
 {% block scripts %}
 <script>
 let currentUserId = null;
+let currentCompanyId = null;
 let matrixData = null;
 let unsavedChanges = new Map(); // key: "${company_id}-${module_id}-${action_id}"
 let userList = [];
@@ -299,7 +309,12 @@ const CATEGORY_ORDER = [
     { key: 'repair',     label: '维修',      icon: '🔩' },
     { key: 'notifications', label: '通知',   icon: '🔔' },
     { key: 'workflows',  label: '运营',      icon: '⚡' },
+    { key: 'files',      label: '文件',      icon: '📂' },
 ];
+
+function getCategoryMeta(key) {
+    return CATEGORY_ORDER.find(c => c.key === key) || { label: key, icon: '📂' };
+}
 
 // ─── Init ────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -339,6 +354,7 @@ async function loadMatrix() {
         return;
     }
     currentUserId = parseInt(userId);
+    currentCompanyId = null;
     unsavedChanges.clear();
     document.getElementById('saveBtn').disabled = true;
 
@@ -350,36 +366,69 @@ async function loadMatrix() {
         if (!resp.ok) throw new Error(resp.status + ' ' + resp.statusText);
         matrixData = await resp.json();
         renderCategoryTree();
-        renderCompanyHeaders();
-        // 默认选中第一个分类
-        const firstCat = CATEGORY_ORDER.find(c => matrixData.modules.some(m => (m.category || 'other') === c.key))
-                       || { key: matrixData.modules[0]?.category || 'other', label: matrixData.modules[0]?.category || '其他', icon: '📂' };
-        selectCategory(firstCat.key);
+        renderCompanySelect();
+        document.getElementById('companySelect').selectedIndex = 0;
+        document.getElementById('panelBody').innerHTML =
+            '<div class="text-center text-muted py-5" style="font-size:0.85rem;"><i class="bi bi-building fs-4 d-block mb-2"></i>请选择公司</div>';
     } catch (e) {
         alert('加载权限矩阵失败: ' + e.message);
         console.error(e);
     }
 }
 
+// ─── 渲染公司下拉 ────────────────────────────────────────────────────
+function renderCompanySelect() {
+    const { companies } = matrixData;
+    const sel = document.getElementById('companySelect');
+    sel.innerHTML = '<option value="">— 选择公司 —</option>';
+    companies.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.textContent = c.name;
+        sel.appendChild(opt);
+    });
+}
+
+// ─── 公司切换 ────────────────────────────────────────────────────────
+function onCompanyChange() {
+    const sel = document.getElementById('companySelect');
+    currentCompanyId = sel.value ? parseInt(sel.value) : null;
+    if (!currentCompanyId) {
+        document.getElementById('panelBody').innerHTML =
+            '<div class="text-center text-muted py-5" style="font-size:0.85rem;"><i class="bi bi-building fs-4 d-block mb-2"></i>请选择公司</div>';
+        return;
+    }
+    // 默认选中第一个分类
+    const firstCatKey = getDefaultCategory();
+    if (firstCatKey) selectCategory(firstCatKey);
+}
+
+// ─── 默认选中的分类 ─────────────────────────────────────────────────
+function getDefaultCategory() {
+    if (!matrixData) return null;
+    const catsInUse = [...new Set(matrixData.modules.map(m => m.category || 'other'))];
+    return CATEGORY_ORDER.find(c => catsInUse.includes(c.key))?.key
+        || catsInUse[0]
+        || 'other';
+}
+
 // ─── 渲染左侧分类树 ─────────────────────────────────────────────────
 function renderCategoryTree() {
     const { modules } = matrixData;
-    const catsInUse = [...new Set(modules.map(m => m.category || 'other'))];
-
     let html = '';
     CATEGORY_ORDER.forEach(cat => {
         const catModules = modules.filter(m => (m.category || 'other') === cat.key);
         if (catModules.length === 0) return;
-
+        const meta = getCategoryMeta(cat.key);
         html += `<div class="tree-category" id="tree-cat-${cat.key}" onclick="selectCategory('${cat.key}')">
             <span class="tree-cat-toggle" id="tree-toggle-${cat.key}">▶</span>
-            <span class="tree-cat-icon">${cat.icon}</span>
-            <span class="tree-cat-name">${cat.label}</span>
+            <span class="tree-cat-icon">${meta.icon}</span>
+            <span class="tree-cat-name">${meta.label}</span>
             <span class="tree-cat-count">${catModules.length}</span>
         </div>`;
     });
-
     // 未分类的
+    const catsInUse = [...new Set(modules.map(m => m.category || 'other'))];
     const otherCats = catsInUse.filter(c => !CATEGORY_ORDER.some(o => o.key === c));
     otherCats.forEach(cat => {
         const catModules = modules.filter(m => (m.category || 'other') === cat);
@@ -390,54 +439,48 @@ function renderCategoryTree() {
             <span class="tree-cat-count">${catModules.length}</span>
         </div>`;
     });
-
     document.getElementById('categoryTree').innerHTML = html;
-}
-
-// ─── 渲染公司列头 ────────────────────────────────────────────────────
-function renderCompanyHeaders() {
-    const { companies } = matrixData;
-    let html = '';
-    companies.forEach(c => {
-        html += `<div class="company-col-header">${escapeHtml(c.name.replace('深圳市恒鑫兴智能', ''))}</div>`;
-    });
-    document.getElementById('companyColHeaders').innerHTML = html;
 }
 
 // ─── 选中分类 ───────────────────────────────────────────────────────
 function selectCategory(catKey) {
-    // 更新左侧树高亮
     document.querySelectorAll('.tree-category').forEach(el => el.classList.remove('active'));
     const catEl = document.getElementById('tree-cat-' + catKey);
     if (catEl) catEl.classList.add('active');
-
-    // 切换 chevron
-    document.querySelectorAll('.tree-cat-toggle').forEach(el => {
-        el.classList.remove('expanded');
-        el.textContent = '▶';
-    });
+    document.querySelectorAll('.tree-cat-toggle').forEach(el => { el.classList.remove('expanded'); el.textContent = '▶'; });
     const toggleEl = document.getElementById('tree-toggle-' + catKey);
-    if (toggleEl) {
-        toggleEl.classList.add('expanded');
-        toggleEl.textContent = '▶';
+    if (toggleEl) { toggleEl.classList.add('expanded'); toggleEl.textContent = '▶'; }
+
+    const meta = getCategoryMeta(catKey);
+    const catModules = matrixData.modules.filter(m => (m.category || 'other') === catKey);
+    document.querySelector('.cat-icon').textContent = meta.icon;
+    document.querySelector('.cat-name-text').textContent = meta.label;
+    document.querySelector('.cat-modules-count')?.remove();
+
+    const titleEl = document.getElementById('panelTitle');
+    const countSpan = document.createElement('span');
+    countSpan.className = 'cat-modules-count';
+    countSpan.textContent = `（${catModules.length}个模块）`;
+    titleEl.appendChild(countSpan);
+
+    if (!currentCompanyId) {
+        document.getElementById('panelBody').innerHTML =
+            '<div class="text-center text-muted py-5" style="font-size:0.85rem;"><i class="bi bi-building fs-4 d-block mb-2"></i>请选择公司</div>';
+        return;
     }
-
-    const catMeta = CATEGORY_ORDER.find(c => c.key === catKey) || { label: catKey, icon: '📂' };
-    document.getElementById('panelTitle').textContent = `${catMeta.icon} ${catMeta.label}（${matrixData.modules.filter(m => (m.category || 'other') === catKey).length}个模块）`;
-
     renderCategoryPanel(catKey);
 }
 
-// ─── 渲染分类权限面板 ────────────────────────────────────────────────
+// ─── 渲染分类权限面板（单公司视图）────────────────────────────────────
 function renderCategoryPanel(catKey) {
-    const { modules, companies, matrix } = matrixData;
+    const { modules, matrix } = matrixData;
     const catModules = modules.filter(m => (m.category || 'other') === catKey);
-    const catMeta = CATEGORY_ORDER.find(c => c.key === catKey) || { label: catKey, icon: '📂' };
+    const meta = getCategoryMeta(catKey);
 
-    let bodyHtml = `<div class="category-section">`;
-    bodyHtml += `<div class="category-section-header">
-        <span class="cat-icon">${catMeta.icon}</span>
-        <span class="cat-name">${catMeta.label}</span>
+    let html = `<div class="category-section">`;
+    html += `<div class="category-section-header">
+        <span class="cat-icon">${meta.icon}</span>
+        <span class="cat-name">${meta.label}</span>
         <button class="cat-checkall" onclick="checkAllCategory('${catKey}')">全选</button>
     </div>`;
 
@@ -446,44 +489,49 @@ function renderCategoryPanel(catKey) {
         if (actions.length === 0) return;
 
         const hasUnsaved = actions.some(act =>
-            companies.some(comp => unsavedChanges.has(`${comp.id}-${mod.id}-${act.id}`))
+            unsavedChanges.has(`${currentCompanyId}-${mod.id}-${act.id}`)
         );
 
-        bodyHtml += `<div class="module-item${hasUnsaved ? ' unsaved' : ''}" id="module-item-${mod.id}">`;
+        html += `<div class="module-item${hasUnsaved ? ' unsaved' : ''}" id="module-item-${mod.id}">`;
 
-        // 模块信息列
-        bodyHtml += `<div class="module-info">
-            <span class="module-label">${escapeHtml(mod.label)}</span>
-            <span class="module-name">${escapeHtml(mod.name)}</span>
+        // 模块信息
+        const displayLabel = mod.label || mod.name || mod.id;
+        const displayName = mod.label ? mod.name : '';
+        html += `<div class="module-info">
+            <div class="module-label">${escapeHtml(displayLabel)}</div>
+            ${displayName ? `<div class="module-name">${escapeHtml(displayName)}</div>` : ''}
         </div>`;
 
         // 动作列表
-        bodyHtml += `<div class="action-list">`;
-        actions.forEach((act, ai) => {
-            bodyHtml += `<div class="action-row" id="action-row-${mod.id}-${act.id}">`;
-            bodyHtml += `<div class="action-label">${escapeHtml(act.label)}</div>`;
-            bodyHtml += `<div class="company-perms">`;
-            companies.forEach(comp => {
-                const rec = matrix.find(r => r.user_id == currentUserId && r.company_id == comp.id && r.module_id == mod.id && r.action_id == act.id);
-                const granted = rec?.is_granted || false;
-                const key = `${comp.id}-${mod.id}-${act.id}`;
-                const changed = unsavedChanges.has(key);
-                const currentVal = changed ? unsavedChanges.get(key) : granted;
-                bodyHtml += `<div class="perm-cell">
+        html += `<div class="action-list">`;
+        actions.forEach(act => {
+            const rec = matrix.find(r =>
+                r.user_id == currentUserId &&
+                r.company_id == currentCompanyId &&
+                r.module_id == mod.id &&
+                r.action_id == act.id
+            );
+            const granted = rec?.is_granted || false;
+            const key = `${currentCompanyId}-${mod.id}-${act.id}`;
+            const changed = unsavedChanges.has(key);
+            const currentVal = changed ? unsavedChanges.get(key) : granted;
+            const displayActLabel = act.label || act.name || act.id;
+
+            html += `<div class="action-row">
+                <div class="action-label">${escapeHtml(displayActLabel)}</div>
+                <div class="perm-cell">
                     <input type="checkbox"
                         ${currentVal ? 'checked' : ''}
-                        onchange="togglePerm(${comp.id}, ${mod.id}, ${act.id}, this.checked)"
-                        title="${escapeHtml(comp.name)} / ${escapeHtml(mod.label)} / ${escapeHtml(act.label)}"
+                        onchange="togglePerm(${currentCompanyId}, ${mod.id}, ${act.id}, this.checked)"
+                        title="${escapeHtml(displayLabel)} / ${escapeHtml(displayActLabel)}"
                     >
-                </div>`;
-            });
-            bodyHtml += `</div></div>`;
+                </div>
+            </div>`;
         });
-        bodyHtml += `</div></div>`;
+        html += `</div></div>`;
     });
-
-    bodyHtml += `</div>`;
-    document.getElementById('panelBody').innerHTML = bodyHtml;
+    html += `</div>`;
+    document.getElementById('panelBody').innerHTML = html;
 }
 
 // ─── 切换单个权限 ────────────────────────────────────────────────────
@@ -491,39 +539,26 @@ function togglePerm(companyId, moduleId, actionId, value) {
     const key = `${companyId}-${moduleId}-${actionId}`;
     unsavedChanges.set(key, value);
     document.getElementById('saveBtn').disabled = false;
-
-    // 模块标记未保存
     const moduleEl = document.getElementById('module-item-' + moduleId);
-    if (moduleEl) moduleEl.classList.add('unsaved');
-
-    // 模块内所有动作都无变化时，取消模块未保存
-    const mod = matrixData.modules.find(m => m.id === moduleId);
-    if (mod) {
-        const allMatch = mod.actions.every(act => {
-            const k = `${companyId}-${moduleId}-${act.id}`;
-            return !unsavedChanges.has(k);
-        });
-        if (allMatch) {
-            const modEl = document.getElementById('module-item-' + moduleId);
-            if (modEl) modEl.classList.remove('unsaved');
-        }
+    if (moduleEl) {
+        const hasUnsaved = matrixData.modules.find(m => m.id === moduleId)
+            ?.actions.some(act => unsavedChanges.has(`${companyId}-${moduleId}-${act.id}`));
+        moduleEl.classList.toggle('unsaved', hasUnsaved);
     }
 }
 
 // ─── 全选当前分类 ────────────────────────────────────────────────────
 function checkAllCategory(catKey) {
-    const { modules, companies, matrix } = matrixData;
+    const { modules, matrix } = matrixData;
     const catModules = modules.filter(m => (m.category || 'other') === catKey);
     let changed = false;
     catModules.forEach(mod => {
         (mod.actions || []).forEach(act => {
-            companies.forEach(comp => {
-                const key = `${comp.id}-${mod.id}-${act.id}`;
-                if (!unsavedChanges.has(key) || unsavedChanges.get(key) !== true) {
-                    unsavedChanges.set(key, true);
-                    changed = true;
-                }
-            });
+            const key = `${currentCompanyId}-${mod.id}-${act.id}`;
+            if (!unsavedChanges.has(key) || unsavedChanges.get(key) !== true) {
+                unsavedChanges.set(key, true);
+                changed = true;
+            }
         });
     });
     if (changed) {
@@ -566,9 +601,8 @@ async function saveAll() {
             btn.innerHTML = '<i class="bi bi-save me-1"></i>保存修改';
             btn.disabled = true;
         }, 2000);
-
-        // 重新加载
         await loadMatrix();
+        document.getElementById('companySelect').value = currentCompanyId;
     } catch (e) {
         alert('保存失败: ' + e.message);
         console.error(e);
