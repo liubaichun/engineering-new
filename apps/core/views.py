@@ -1282,6 +1282,8 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 'name': m.name,
                 'label': m.label,
                 'icon': m.icon,
+                'category': m.category,     # 用于菜单分组折叠
+                'sort_order': m.sort_order,
                 'actions': [
                     {'id': a.id, 'name': a.name, 'label': a.label, 'action_group': a.action_group}
                     for a in m.actions.all().order_by('action_group', 'sort_order')
