@@ -1,9 +1,9 @@
 # GREEN ERP 权限体系规范文档
 
-> 版本：v4.0
-> 日期：2026-05-24
+> 版本：v6.0
+> 日期：2026-05-25
 > 状态：✅ 已实施 — UCP（UserCompanyPermission）单层架构 | ~~CompanyPermission~~ — 已由 UCP 实现
-> 更新：2026-05-24（Phase2 UCP完全接管，Phase1 RolePermission已废弃）
+> 更新：2026-05-25（V6 Phase完成：CompanyRolePermission模型+权限配置UI打通，角色分配流程正式生效）
 
 ---
 
@@ -302,11 +302,88 @@ action_perms = {
 
 ---
 
+## 六、CompanyRolePermission 权限配置体系（V6 Phase）
+
+### 6.1 数据模型
+
+```
+CompanyRole (公司角色定义)
+  ├─ permissions (M2M through CompanyRolePermission)
+  │    └─ CompanyRolePermission
+  │         ├─ company_role FK → CompanyRole
+  │         ├─ permission FK → Permission (153条活跃权限码)
+  │         └─ granted_by FK → User (nullable)
+  └─ company FK
+
+UserCompanyRole (用户角色分配)
+  ├─ user FK
+  ├─ company FK
+  └─ company_role FK → CompanyRole
+```
+
+**权限流向**：分配角色 → `_assign_role_to_ucp()` → 读取 `cr.permissions.all()` → 批量写入 UCP (source='role:N')
+
+### 6.2 关键改动（相比 V5 设计）
+
+| 项目 | V5 设计 | V6 实现 |
+|------|---------|---------|
+| CompanyRole 权限来源 | CompanyRolePermission（表存在但无模型） | ✅ 已添加 `CompanyRole.permissions` M2M |
+| 权限配置 UI | 有 checklist 但无保存逻辑 | ✅ `perform_update` 调用 `_sync_permissions` |
+| 数据清理 | menu_code 列+错误约束残留 | ✅ 迁移删除 |
+
+### 6.3 权限配置 UI 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/core/company-role-defs/` | GET | 列表 |
+| `/api/core/company-role-defs/` | POST | 创建角色（同时传 `permission_ids` 写入中间表） |
+| `/api/core/company-role-defs/{id}/` | PATCH | 更新角色权限（`_sync_permissions` 先删后插） |
+| `/api/core/permissions/` | GET | 返回全部 205 条 ModuleAction 作为权限选项 |
+
+### 6.4 角色分配完整流程
+
+```
+1. 管理员在 role_list.html 新建/编辑角色
+   → POST /api/core/company-role-defs/ { name, code, company, permission_ids: [1,2,3] }
+   → CompanyRolePermission 表写入记录
+
+2. 管理员给用户分配角色
+   → PUT /api/core/company-roles/{ucr_id}/ 或 POST /api/core/company-roles/
+   → UserCompanyRole.company_role 指向 CompanyRole
+
+3. _assign_role_to_ucp() 被调用
+   → cr.permissions.all() 读取 CompanyRolePermission
+   → 批量写入 UserCompanyPermission (source='role:{cr_id}', is_granted=True)
+
+4. 用户访问受保护 API
+   → RoleRequired._check_ucp() 查 UCP
+   → granted=True → 放行
+```
+
+### 6.5 数据库状态（2026-05-25 实测）
+
+| 表 | 记录数 | 说明 |
+|---|--------|------|
+| `core_company_role` | 4 | admin/staff/员工/测试角色 |
+| `core_permission` | 205 | 从 ModuleAction seed（已清除 menu_code 列） |
+| `core_company_role_permission` | 7 | 员工角色 × equipment 7条权限 |
+| `core_usercompanypermission` | ~49,151 | +7条新写入（role:2） |
+
+### 6.6 已废弃的 Phase1 表
+
+| 表 | 记录数 | 状态 |
+|---|--------|------|
+| `core_permission` 数据行 | 0 | ❌ 已清空，仅剩 schema |
+| `core_rolepermission` | 0 | ❌ 已清空 |
+| `core_userrole` | 少量 | 仅系统级身份标识，无权限校验作用 |
+
+---
+
 ## 七、变更记录
 
 | 日期 | 版本 | 变更内容 |
 |------|------|---------|
-| 2026-05-20 | v1.0 | 初稿建立（过时数据：193条问题） |
+| 2026-05-25 | v6.0 | CompanyRolePermission 模型+V6 Phase完成：角色权限配置 UI 正式打通，_assign_role_to_ucp() 可读取 cr.permissions.all()。seed 205条 Permission，清除 menu_code 残留列和错误约束。 |
 | 2026-05-22 | v2.0 | permission_registry 删除；CompanyPermission 方案草稿 |
 | 2026-05-22 | v3.0 | 全面实测重写：193条权限码100%在DB，action_perms无缺失 |
 | 2026-05-24 | **v4.0** | **Phase2 UCP完全接管：Permission/RolePermission数据清零，CompanyPermission方案删除（由UCP实现），新增VIEW_CATEGORY_MAP覆盖，激进精确路线（无兜底）** |
