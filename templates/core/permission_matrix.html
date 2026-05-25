@@ -427,9 +427,9 @@ function renderCategoryTree() {
             <span class="tree-cat-count">${catModules.length}</span>
         </div>`;
     });
-    // 未分类的
+    // 未分类的（排除 hidden 技术分类）
     const catsInUse = [...new Set(modules.map(m => m.category || 'other'))];
-    const otherCats = catsInUse.filter(c => !CATEGORY_ORDER.some(o => o.key === c));
+    const otherCats = catsInUse.filter(c => !CATEGORY_ORDER.some(o => o.key === c) && c !== 'hidden');
     otherCats.forEach(cat => {
         const catModules = modules.filter(m => (m.category || 'other') === cat);
         html += `<div class="tree-category" id="tree-cat-${cat}" onclick="selectCategory('${cat}')">
