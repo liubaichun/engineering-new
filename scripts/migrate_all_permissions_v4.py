@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 全量权限迁移 v4:
-1. 注册所有App Module + ModuleAction (Phase 1)
-2. 构建 (module_name, action_name) → (MA_id, module_id) 映射 (Phase 2)
-3. 翻译 UserCompanyRole × RolePermission → UCP (Phase 3a)
-4. 翻译 UserRole(系统级) × RolePermission → UCP (Phase 3b)
+1. 注册所有App Module + ModuleAction（Phase 1，仅业务模块，不含内部实现模型）
+2. 构建 (module_name, action_name) → (MA_id, module_id) 映射（Phase 2）
+3. 翻译 UserCompanyRole × RolePermission → UCP（Phase 3a）
+4. 翻译 UserRole（系统级）× RolePermission → UCP（Phase 3b）
 """
 import os, sys, django
 sys.path.insert(0, '/root/engineering-new')
@@ -18,6 +18,7 @@ from apps.core.models import (
 from collections import defaultdict
 
 ALL_MODULES = {
+    # finance 模块（已有 category）
     'finance': [
         ('income',    ['read', 'create', 'update', 'delete']),
         ('expense',   ['read', 'create', 'update', 'delete', 'approve']),
@@ -29,6 +30,7 @@ ALL_MODULES = {
         ('employee',  ['read', 'create', 'update', 'delete']),
         ('approval',  ['read', 'create', 'update', 'delete', 'approve', 'manage']),
     ],
+    # CRM 模块
     'crm': [
         ('client_source',       ['read', 'update']),
         ('contact',             ['create', 'delete', 'read', 'update']),
@@ -41,65 +43,44 @@ ALL_MODULES = {
         ('payment_plan',        ['read', 'update']),
         ('supplier',           ['create', 'delete', 'read', 'update']),
     ],
+    # 项目/任务模块
     'project': [
-        ('project',    ['create', 'delete', 'read', 'update']),
-        ('stage',      ['manage', 'read']),
-        ('task',       ['create', 'delete', 'manage', 'read', 'update']),
-        ('attachment', ['manage', 'read']),
+        ('project', ['create', 'delete', 'read', 'update']),
+        ('stage',   ['manage', 'read']),
     ],
     'task': [
-        ('task',               ['create', 'delete', 'read', 'update']),
-        ('activity',           ['read', 'update']),
-        ('attachment',         ['read', 'update']),
-        ('comment',            ['read', 'update']),
-        ('dependency',         ['read', 'update']),
-        ('flow_instance',      ['read', 'update']),
-        ('flow_node',          ['read', 'update']),
-        ('flow_template',      ['read', 'update']),
-        ('flowinstance',       ['read', 'update']),
-        ('flownodetemplate',  ['read', 'update']),
-        ('flowtemplate',       ['read', 'update']),
-        ('flowtransition',    ['read', 'update']),
-        ('stage_instance',     ['read', 'update']),
-        ('stageinstance',      ['read', 'update']),
-        ('taskstageinstance',  ['read', 'update']),
-        ('transition',         ['read', 'update']),
+        ('task',    ['create', 'delete', 'manage', 'read', 'update']),
     ],
+    # 审批模块
     'approval': [
-        ('flow',     ['create', 'delete', 'read', 'update', 'approve']),
-        ('node',     ['create', 'delete', 'read', 'update']),
         ('template', ['read', 'update', 'manage']),
     ],
+    # 采购模块
     'purchasing': [
         ('request', ['create', 'read', 'update', 'reject', 'approve']),
         ('order',   ['create', 'read', 'update', 'approve', 'reject']),
         ('receive', ['create', 'read', 'update']),
     ],
+    # 系统模块
     'system': [
         ('user',    ['create', 'delete', 'read', 'update']),
         ('role',    ['create', 'delete', 'read', 'update', 'manage']),
         ('setting', ['read', 'update', 'manage']),
-        ('log',     ['read']),
     ],
+    # 设备模块
     'equipment': [
         ('equipment', ['create', 'delete', 'read', 'update', 'repair', 'return', 'use']),
     ],
-    'bank': [
-        ('account',   ['create', 'delete', 'read', 'update', 'manage']),
-        ('statement', ['read', 'export', 'import', 'match', 'reconcile']),
-    ],
+    # 物料模块
     'material': [
         ('stock', ['read', 'update', 'delete']),
         ('usage', ['create', 'read']),
     ],
-    'files': [
-        ('file',     ['create', 'delete', 'read', 'update', 'download', 'upload']),
-        ('category', ['read', 'manage']),
-    ],
+    # 通知模块
     'notifications': [
         ('channel', ['create', 'delete', 'read', 'update']),
-        ('binding', ['read', 'manage']),
     ],
+    # 维修模块
     'repair': [
         ('repair_request', ['read', 'update', 'delete', 'approve']),
     ],
@@ -108,14 +89,14 @@ ALL_MODULES = {
 
 def register_modules():
     c_mod, c_act = 0, 0
-    for _, modules in ALL_MODULES.items():
+    for cat, modules in ALL_MODULES.items():
         for resource, actions in modules:
             mod_obj, mod_created = Module.objects.get_or_create(
-                name=resource, defaults={'label': resource}
+                name=resource, defaults={'label': resource, 'category': cat}
             )
             if mod_created:
                 c_mod += 1
-                print(f"  [Module] {resource}")
+                print(f"  [Module] {resource} (cat={cat})")
             for action in actions:
                 _, act_created = ModuleAction.objects.get_or_create(
                     module=mod_obj, name=action,
