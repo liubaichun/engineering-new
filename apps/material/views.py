@@ -42,12 +42,12 @@ class MaterialViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'material:stock:read',
-        'create': 'material:stock:create',
-        'stock_alerts': 'material:stock:read',
-        'export': 'material:stock:read',
-        'get_usage_logs': 'material:usage:read',
-        'record_usage': 'material:usage:create',
+        None: 'operations:material:read',
+        'create': 'operations:material:create',
+        'stock_alerts': 'operations:material:read',
+        'export': 'operations:material:read',
+        'get_usage_logs': 'operations:material:read',
+        'record_usage': 'operations:material:create',
     }
 
     def get_queryset(self):
@@ -167,15 +167,15 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'material:stock:read',
-        'create': 'material:stock:create',
-        'tree': 'material:stock:read',
-        'add_node': 'material:stock:update',
-        'remove_node': 'material:stock:update',
-        'update_node': 'material:stock:update',
-        'add_item': 'material:stock:update',
-        'remove_item': 'material:stock:update',
-        'update_item': 'material:stock:update',
+        None: 'operations:material:read',
+        'create': 'operations:material:create',
+        'tree': 'operations:material:read',
+        'add_node': 'operations:material:update',
+        'remove_node': 'operations:material:update',
+        'update_node': 'operations:material:update',
+        'add_item': 'operations:material:update',
+        'remove_item': 'operations:material:update',
+        'update_item': 'operations:material:update',
     }
 
     def get_queryset(self):

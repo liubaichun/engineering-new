@@ -105,7 +105,7 @@
                 <i class="bi bi-bar-chart"></i><span>财务报表</span>
             </a>
             {% endif %}
-            {% if request.user.is_superuser or 'finance:report:read' in user_menu_codes %}
+            {% if request.user.is_superuser or 'finance:budget:read' in user_menu_codes %}
             <a href="/finance/budgets/" class="nav-link {% if '/finance/budgets' in request.path %}active{% endif %}">
                 <i class="bi bi-graph-up-arrow"></i><span>预算管理</span>
             </a>

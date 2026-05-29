@@ -49,3 +49,19 @@ register_module(
         {'name': 'manage', 'label': '管理', 'sort_order': 5, 'bit_position': 12},
     ],
 )
+
+# 流程模板（任务看板子页面 — 流程模板配置）
+register_module(
+    name='flow_template',
+    label='流程模板',
+    icon='📋',
+    category='project',
+    description='业务流程模板配置',
+    sort_order=40,
+    actions=[
+        {'name': 'read', 'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete', 'label': '删除', 'sort_order': 4, 'bit_position': 3},
+    ],
+)

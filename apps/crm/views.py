@@ -2,6 +2,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
+import logging
 from .models import (
     Client,
     Contract,
@@ -27,6 +28,8 @@ from .serializers import (
 from rest_framework.permissions import IsAuthenticated
 from apps.core.permissions import RoleRequired, get_module_companies
 
+logger = logging.getLogger(__name__)
+
 
 class ClientSourceViewSet(viewsets.ModelViewSet):
     """客户来源管理"""
@@ -36,8 +39,8 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     # 使用 crm:client_source:* 格式，与 SupplierViewSet 保持一致
     action_perms = {
-        None: 'crm:client_source:read',
-        'create': 'crm:client_source:create',
+        None: 'crm:customer:read',
+        'create': 'crm:customer:create',
     }
     search_fields = ['name']
 
@@ -326,10 +329,10 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentPlanSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'crm:payment_plan:read',
-        'create': 'crm:payment_plan:create',
-        'mark_paid': 'crm:payment_plan:update',
-        'update_paid': 'crm:payment_plan:update',
+        None: 'crm:contract:read',
+        'create': 'crm:contract:create',
+        'mark_paid': 'crm:contract:update',
+        'update_paid': 'crm:contract:update',
     }
     filterset_fields = ['contract', 'status']
 
@@ -417,8 +420,8 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
     serializer_class = ContractChangeLogSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'crm:contract_change_log:read',
-        'create': 'crm:contract_change_log:create',
+        None: 'crm:contract:read',
+        'create': 'crm:contract:create',
     }
     filterset_fields = ['contract', 'change_type']
 
@@ -457,8 +460,8 @@ class ContactViewSet(viewsets.ModelViewSet):
     serializer_class = ContactSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'crm:contact:read',
-        'create': 'crm:contact:create',
+        None: 'crm:customer:read',
+        'create': 'crm:customer:create',
     }
     search_fields = ['name', 'phone', 'email']
     filterset_fields = ['client', 'is_primary']
@@ -490,9 +493,9 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
     serializer_class = FollowUpRecordSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'crm:followup:read',
-        'create': 'crm:followup:create',
-        'export': 'crm:followup:read',
+        None: 'crm:customer:read',
+        'create': 'crm:customer:create',
+        'export': 'crm:customer:read',
     }
     search_fields = ['content', 'next_plan']
     filterset_fields = ['contact', 'client', 'follow_type']

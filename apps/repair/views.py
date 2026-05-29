@@ -22,14 +22,14 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     queryset = RepairRequest.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'repair:repair_request:read',
-        'create': 'repair:repair_request:create',
-        'assign': 'repair:repair_request:update',
-        'start_repair': 'repair:repair_request:update',
-        'complete': 'repair:repair_request:update',
-        'accept': 'repair:repair_request:update',
-        'reject_acceptance': 'repair:repair_request:update',
-        'cancel': 'repair:repair_request:update',
+        None: 'operations:repair:read',
+        'create': 'operations:repair:create',
+        'assign': 'operations:repair:update',
+        'start_repair': 'operations:repair:update',
+        'complete': 'operations:repair:update',
+        'accept': 'operations:repair:update',
+        'reject_acceptance': 'operations:repair:update',
+        'cancel': 'operations:repair:update',
     }
 
     def get_serializer_class(self):
@@ -190,8 +190,8 @@ class RepairImageViewSet(viewsets.ModelViewSet):
     serializer_class = RepairImageSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'repair:repair_request:read',
-        'create': 'repair:repair_request:create',
+        None: 'operations:repair:read',
+        'create': 'operations:repair:create',
     }
 
     def get_queryset(self):
@@ -216,8 +216,8 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
     serializer_class = RepairSparePartSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'repair:repair_request:read',
-        'create': 'repair:repair_request:create',
+        None: 'operations:repair:read',
+        'create': 'operations:repair:create',
     }
 
     def get_queryset(self):

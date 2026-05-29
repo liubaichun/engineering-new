@@ -36,11 +36,11 @@ class FileCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = FileCategorySerializer
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'files:category:read',
-        'create': 'files:category:manage',
-        'update': 'files:category:manage',
-        'partial_update': 'files:category:manage',
-        'destroy': 'files:category:manage',
+        None: 'files:file:read',
+        'create': 'files:file:create',
+        'update': 'files:file:update',
+        'partial_update': 'files:file:update',
+        'destroy': 'files:file:delete',
     }
 
 
@@ -52,7 +52,7 @@ class CompanyFileViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'files:file:read',
-        'create': 'files:file:upload',
+        'create': 'files:file:create',
         'update': 'files:file:update',
         'partial_update': 'files:file:update',
         'destroy': 'files:file:delete',

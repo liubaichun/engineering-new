@@ -101,18 +101,18 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'approval:flow:read',
-        'create': 'approval:flow:create',
-        'submit': 'approval:flow:read',
-        'approve': 'approval:flow:approve',
-        'reject': 'approval:flow:approve',
-        'cancel': 'approval:flow:read',
-        'reject_to_requester': 'approval:flow:read',
-        'transfer': 'approval:flow:read',
-        'delegate': 'approval:flow:read',
-        'urge': 'approval:flow:read',
-        'withdraw': 'approval:flow:read',
-        'export': 'approval:flow:read',
+        None: 'approval:approval:read',
+        'create': 'approval:approval:create',
+        'submit': 'approval:approval:read',
+        'approve': 'approval:approval:approve',
+        'reject': 'approval:approval:approve',
+        'cancel': 'approval:approval:read',
+        'reject_to_requester': 'approval:approval:read',
+        'transfer': 'approval:approval:read',
+        'delegate': 'approval:approval:read',
+        'urge': 'approval:approval:read',
+        'withdraw': 'approval:approval:read',
+        'export': 'approval:approval:read',
     }
 
     def get_queryset(self):
@@ -424,18 +424,8 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         except Exception as e:
             return api_error(ErrorCode.INTERNAL_ERROR, f'委托失败：{str(e)}', status_code=500)
 
-        # 创建新的委托节点
+        # 创建新的委托节点（已有委托逻辑，暂不创建新节点）
         next_order = current_node.node_order + 1
-        new_node = ApprovalNode.objects.create(
-            flow=flow,
-            node_order=next_order,
-            approver=delegate_user,
-            status='pending',
-            node_type='delegate',
-            delegated_to=request.user,  # 记录委托给谁
-            comment=comment,
-            company_id=flow.company_id,
-        )
 
         flow.current_node_order = next_order
         try:
@@ -537,8 +527,8 @@ class ApprovalNodeViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'approval:node:read',
-        'create': 'approval:node:create',
+        None: 'approval:approval:read',
+        'create': 'approval:approval:create',
     }
 
     def get_queryset(self):
@@ -567,8 +557,8 @@ class ApprovalTemplateViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'approval:template:read',
-        'create': 'approval:template:create',
+        None: 'approval:approval:read',
+        'create': 'approval:approval:create',
     }
 
     def get_queryset(self):

@@ -42,15 +42,15 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     # action_perms: action 名精确匹配，未声明的 action 走 None 兜底
     # action 名对应 DRF ViewSet action 属性（标准 CRUD + 自定义 @action）
     action_perms = {
-        None: 'equipment:equipment:read',  # 默认：查看设备
-        'create': 'equipment:equipment:create',
-        'record_usage': 'equipment:equipment:use',  # 领用设备
-        'record_return': 'equipment:equipment:return',  # 归还设备
-        'record_repair': 'equipment:equipment:update',  # 记录维修
-        'get_usage_logs': 'equipment:equipment:read',
-        'get_repair_logs': 'equipment:equipment:read',
-        'linked_boms': 'equipment:equipment:read',
-        'export': 'equipment:equipment:read',
+        None: 'operations:equipment:read',  # 默认：查看设备
+        'create': 'operations:equipment:create',
+        'record_usage': 'operations:equipment:use',  # 领用设备
+        'record_return': 'operations:equipment:return',  # 归还设备
+        'record_repair': 'operations:equipment:update',  # 记录维修
+        'get_usage_logs': 'operations:equipment:read',
+        'get_repair_logs': 'operations:equipment:read',
+        'linked_boms': 'operations:equipment:read',
+        'export': 'operations:equipment:read',
     }
 
     def get_queryset(self):
@@ -223,8 +223,8 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'equipment:equipment:read',
-        'create': 'equipment:equipment:create',
+        None: 'operations:equipment:read',
+        'create': 'operations:equipment:create',
     }
 
     def get_queryset(self):
