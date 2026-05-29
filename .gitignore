@@ -20,3 +20,4 @@ node_modules/
 cookies.txt
 _tmp_archive/
 logs/
+staticfiles/

@@ -543,3 +543,23 @@ python manage.py logs --today --count 100       # 今天100条
 
 ### 备注
 - 124服务器仍有 Django 6.0.x 历史版本不一致问题，待后续统一
+
+## 2026-05-28 P3-9 前端资源优化 — CSS/JS外提 + WhiteNoise
+
+### 新增
+- `static/css/app.css`：约450行自定义CSS（提取自 `base.html` + `core/base.html`）
+- `static/js/app.js`：JS模块化重构（权限管理器 UserPermissionManager、Toast、工具函数）
+- `whitenoise==6.12.0`：生产环境静态文件服务 + 自动压缩/gzip
+- `STORAGES` 配置：staticfiles 使用 `CompressedManifestStaticFilesStorage`
+
+### 优化
+- `templates/base.html`：910行 → 445行（-51%），内联CSS/JS移至外部文件
+- `templates/core/base.html`：887行 → 422行（-52%），同上
+- 两模板 `<style>` 和 `<script>` 块替换为 `{% static %}` 引用 + `defer` 加载
+- 登录页等的独立内联样式保持不动（避免影响页面布局）
+
+### 验证
+- `collectstatic`：156个静态文件收集成功 ✅
+- `/static/css/app.css` HTTP 200 ✅
+- 登录页渲染正常 ✅
+- Django system check 0 issues ✅
