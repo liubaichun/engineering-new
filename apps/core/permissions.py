@@ -8,13 +8,18 @@
 - 裸动作码（'create': 'create'）禁止使用
 """
 
+from __future__ import annotations
+
 from functools import wraps
-from django.http import JsonResponse
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple, Union
+
+from django.http import JsonResponse, HttpRequest
 from rest_framework.permissions import BasePermission
+from rest_framework.request import Request
 
 
 # DRF 标准 action → 权限动作映射
-STANDARD_ACTION_MAP = {
+STANDARD_ACTION_MAP: Dict[str, str] = {
     'list': 'read',
     'retrieve': 'read',
     'create': 'create',
@@ -39,12 +44,12 @@ class RoleRequired(BasePermission):
     """
 
     # None 的 key 用于 action_perms 中表示未声明 action 的默认权限
-    _wildcard = None
+    _wildcard: Optional[None] = None
 
     # 标准 DRF action（自动映射，不需要在 action_perms 中显式声明）
-    _standard_actions = frozenset(STANDARD_ACTION_MAP.keys())
+    _standard_actions: FrozenSet[str] = frozenset(STANDARD_ACTION_MAP.keys())
 
-    def has_permission(self, request, view):
+    def has_permission(self, request: Request, view: Any) -> bool:
         if not request.user or not request.user.is_authenticated:
             return False
 
@@ -66,7 +71,7 @@ class RoleRequired(BasePermission):
 
         return True
 
-    def _user_has_perm_for_company(self, user, perm_code, request, view):
+    def _user_has_perm_for_company(self, user: Any, perm_code: str, request: Request, view: Any) -> bool:
         """
         检查用户在任意关联公司是否有指定权限（跨公司感知）。
 
@@ -105,7 +110,7 @@ class RoleRequired(BasePermission):
             .exists()
         )
 
-    def _resolve_action_perm(self, request, view):
+    def _resolve_action_perm(self, request: Request, view: Any) -> Optional[str]:
         """
         解析当前 action 对应的权限码。
 
@@ -143,7 +148,7 @@ class RoleRequired(BasePermission):
 
         return None
 
-    def _infer_perm_from_view(self, view, action):
+    def _infer_perm_from_view(self, view: Any, action: str) -> Optional[str]:
         """
         从 view 推断权限码（智能映射版）。
 
@@ -177,7 +182,7 @@ class RoleRequired(BasePermission):
         perm_action = STANDARD_ACTION_MAP.get(action, action)
         return f'{app_label}:{normalized_resource}:{perm_action}'
 
-    VIEW_CATEGORY_MAP = {
+    VIEW_CATEGORY_MAP: Dict[str, Tuple[str, str]] = {
         # core app → DB category 是 'system'（不是 'core'）
         'UserViewSet': ('system', 'user'),
         'CompanyRoleViewSet': ('system', 'role'),
@@ -210,11 +215,11 @@ class RoleRequired(BasePermission):
     }
 
     @staticmethod
-    def _normalize_resource(app_label, model_name):
+    def _normalize_resource(app_label: str, model_name: str) -> str:
         """资源名标准化：处理特殊命名"""
         # finance app 特殊资源名
         if app_label == 'finance':
-            mapping = {
+            mapping: Dict[str, str] = {
                 'companeysocialconfig': 'company',  # 拼写错误保留映射
                 'bankaccount': 'bank',
                 'employeecompany': 'employee',
@@ -230,7 +235,7 @@ class RoleRequired(BasePermission):
                 return mapping[model_name]
         return model_name
 
-    def _get_company_id(self, request, view):
+    def _get_company_id(self, request: Request, view: Any) -> Optional[int]:
         """从请求中提取 company_id"""
         # 1. URL query param ?company=1
         company_id = request.query_params.get('company')
@@ -257,25 +262,25 @@ class RoleRequired(BasePermission):
 class FinanceOnly(RoleRequired):
     """财务专用：仅 admin 和 finance 角色可访问"""
 
-    required_roles = ['admin', 'finance']
+    required_roles: List[str] = ['admin', 'finance']
 
 
 class ManagerOnly(RoleRequired):
     """管理层专用：admin / manager / finance"""
 
-    required_roles = ['admin', 'manager', 'finance']
+    required_roles: List[str] = ['admin', 'manager', 'finance']
 
 
 class AdminOnly(RoleRequired):
     """系统管理员：仅 admin 角色"""
 
-    required_roles = ['admin']
+    required_roles: List[str] = ['admin']
 
 
 # ─── 函数视图权限装饰器 ──────────────────────────────────────────────────────
 
 
-def require_perms(perm_code, required_roles=None):
+def require_perms(perm_code: str, required_roles: Optional[List[str]] = None) -> Callable:
     """
     函数视图权限装饰器，复刻 RoleRequired 的 UCP 校验链路。
 
@@ -292,9 +297,9 @@ def require_perms(perm_code, required_roles=None):
           无任何兜底，UCP 无记录则 403。
     """
 
-    def decorator(view_func):
+    def decorator(view_func: Callable) -> Callable:
         @wraps(view_func)
-        def wrapped(request, *args, **kwargs):
+        def wrapped(request: Any, *args: Any, **kwargs: Any) -> JsonResponse:
             user = request.user
             if not user or not user.is_authenticated:
                 return JsonResponse({'detail': '认证失败。'}, status=401)
@@ -324,7 +329,7 @@ def require_perms(perm_code, required_roles=None):
     return decorator
 
 
-def _resolve_company_id(request):
+def _resolve_company_id(request: Any) -> Optional[int]:
     """从 request 解析 company_id，优先 query_params 再 session"""
     company_id = None
     if hasattr(request, 'query_params'):
@@ -339,7 +344,7 @@ def _resolve_company_id(request):
     return None
 
 
-def _check_ucp(user, company_id, perm_code):
+def _check_ucp(user: Any, company_id: int, perm_code: str) -> bool:
     """检查用户在指定公司+权限码下是否有 UMP 授权（位掩码）"""
     from apps.core.models import UserModulePermission, ACTION_BITS
 
@@ -362,7 +367,7 @@ def _check_ucp(user, company_id, perm_code):
     )
 
 
-def get_module_companies(user, module_name, action='read'):
+def get_module_companies(user: Any, module_name: str, action: str = 'read') -> Optional[List[int]]:
     """
     返回用户对指定模块有 action 权限的所有公司 ID 列表。
 

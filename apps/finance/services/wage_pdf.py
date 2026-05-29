@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 """工资条 PDF 生成服务（基于 fpdf2 + Source Han Sans OTF）"""
 
+from __future__ import annotations
+
 import io
 from datetime import datetime
+from typing import Any, List, Optional, Union
 
 # OTF 中文字体路径（系统已安装）
 _OTF_REGULAR = '/tmp/shs/OTF/SimplifiedChinese/SourceHanSansSC-Regular.otf'
@@ -18,11 +21,11 @@ _WHITE = (255, 255, 255)
 _BLACK = (0, 0, 0)
 
 
-def _rgb(t):
+def _rgb(t: Any) -> Any:
     return t if isinstance(t, tuple) else t
 
 
-def _mkpdf(wage_record):
+def _mkpdf(wage_record: Any) -> Any:
     """构建 fpdf2 实例（内部用）"""
     from fpdf import FPDF
 
@@ -39,7 +42,7 @@ def _mkpdf(wage_record):
     taxable = float(wage_record.taxable_salary or 0)
     net = float(wage_record.net_salary or 0)
 
-    def f(v):
+    def f(v: Any) -> str:
         return f'¥ {float(v or 0):,.2f}'
 
     pdf = FPDF(format='A4', orientation='P', unit='mm')
@@ -103,7 +106,7 @@ def _mkpdf(wage_record):
     pdf.ln(6)
 
     # === 通用 Section 绘制 ===
-    def sec_hdr(title, rgb):
+    def sec_hdr(title: str, rgb: tuple) -> None:
         pdf.set_fill_color(*rgb)
         pdf.set_text_color(*_WHITE)
         pdf.set_font('NotoSC', 'B', 9)
@@ -111,7 +114,7 @@ def _mkpdf(wage_record):
         pdf.cell(190, 7, f'  {title}', fill=True, ln=True)
         pdf.set_text_color(*_BLACK)
 
-    def two_col_row(items):
+    def two_col_row(items: List[tuple]) -> None:
         """items: [(label, value), ...]，每两个一行"""
         for i in range(0, len(items), 2):
             pdf.set_x(10)
@@ -134,7 +137,7 @@ def _mkpdf(wage_record):
                 pdf.cell(95, 6, '')
             pdf.ln(6)
 
-    def total_bar(label, value_str, bg, fg=_BLACK, fs=10):
+    def total_bar(label: str, value_str: str, bg: tuple, fg: tuple = _BLACK, fs: int = 10) -> None:
         pdf.set_fill_color(*bg)
         pdf.set_x(10)
         pdf.set_text_color(*fg)
@@ -214,14 +217,14 @@ def _mkpdf(wage_record):
     return pdf
 
 
-def generate_wage_slip_pdf(wage_record):
+def generate_wage_slip_pdf(wage_record: Any) -> bytes:
     """生成单张工资条 PDF（返回 bytes）"""
     pdf = _mkpdf(wage_record)
     buf = io.BytesIO(pdf.output())
     return buf.getvalue()
 
 
-def merge_wage_pdfs(pdf_bytes_list):
+def merge_wage_pdfs(pdf_bytes_list: List[bytes]) -> bytes:
     """将多个 PDF bytes 合并为一个（返回 bytes）"""
     from PyPDF2 import PdfReader, PdfWriter
 

@@ -1,8 +1,12 @@
+from __future__ import annotations
+
+from typing import Any, List, Optional, Tuple
+
 # channels 通知路由所需的公司上下文服务
 from apps.core.models import UserCompanyPermission
 
 
-def get_active_company_id(user, request=None):
+def get_active_company_id(user: Any, request: Optional[Any] = None) -> Optional[int]:
     """
     获取用户当前操作的默认公司 ID。
 
@@ -83,7 +87,7 @@ def get_active_company_id(user, request=None):
     return None  # 用户没有任何 UCP
 
 
-def get_user_companies(user):
+def get_user_companies(user: Any) -> List[Tuple[int, str]]:
     """
     获取用户有权限的所有公司列表。
 
@@ -106,7 +110,7 @@ def get_user_companies(user):
     return [(r['company_id'], r['company__name']) for r in rows]
 
 
-def get_user_module_perm(user, company_id, module_name, action_name):
+def get_user_module_perm(user: Any, company_id: int, module_name: str, action_name: str) -> bool:
     """
     检查用户在指定公司对指定模块动作是否有权限。
 

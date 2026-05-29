@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 from rest_framework.authentication import SessionAuthentication
+from rest_framework.request import Request
 
 
 class CSRFExemptSessionAuthentication(SessionAuthentication):
@@ -15,7 +18,7 @@ class CSRFExemptSessionAuthentication(SessionAuthentication):
     面向外部的服务（如果将来有）应使用标准SessionAuthentication并强制CSRF。
     """
 
-    def enforce_csrf(self, request):
+    def enforce_csrf(self, request: Request) -> None:
         return  # 不进行CSRF检查
 
 
@@ -27,7 +30,7 @@ class SessionAuthExtension(OpenApiAuthenticationExtension):
     target_class = 'apps.core.auth.CSRFExemptSessionAuthentication'
     name = 'SessionAuth'
 
-    def get_security_definition(self, auto_schema):
+    def get_security_definition(self, auto_schema: object) -> dict:
         return {
             'type': 'apiKey',
             'in': 'cookie',

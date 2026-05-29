@@ -563,3 +563,25 @@ python manage.py logs --today --count 100       # 今天100条
 - `/static/css/app.css` HTTP 200 ✅
 - 登录页渲染正常 ✅
 - Django system check 0 issues ✅
+
+## 2026-05-28 P3-10 Type Hints — 24个核心文件补充类型注解
+
+### 范围
+
+| 层级 | 文件数 | 范围 |
+|:----|:-----:|:-----|
+| core 基础设施 | 10 | exceptions/auth/permissions/services/middleware/audit/export/import/throttling |
+| finance 业务逻辑 | 7 | wage_import/wage_pdf/wage_bank/bank_adapters/classification/tax_invoice/social |
+| 视图层 | 7 | auth/health/settings/user/role/permission/log/report views |
+
+### 规则
+- 所有 `def` 函数添加参数类型 + 返回类型注解
+- ViewSet 方法使用 `Request` → `Response`
+- 业务函数使用 `Optional`, `Dict`, `List`, `QuerySet` 等
+- `from __future__ import annotations` 避免循环引用
+- **不修改代码逻辑**，仅加注解
+
+### 验证
+- 24个文件全部 `py_compile` 通过 ✅
+- Django system check 0 issues ✅
+- Gunicorn 正常运行 ✅

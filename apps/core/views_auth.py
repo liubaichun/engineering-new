@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import logging
 from rest_framework import status, permissions
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny
 from drf_spectacular.utils import extend_schema
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
 from django.conf import settings
@@ -40,7 +43,7 @@ class PasswordResetRequestView(APIView):
         summary='请求密码重置',
         description='输入邮箱，发送重置链接（即使邮箱不存在也返回成功，防止暴力探测）',
     )
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         email = request.data.get('email', '').strip()
         if not email:
             return api_error(ErrorCode.VALIDATION_ERROR, '邮箱不能为空')
@@ -82,7 +85,7 @@ class PasswordResetConfirmView(APIView):
     authentication_classes = []
 
     @extend_schema(tags=['auth'], summary='确认密码重置', description='使用 uidb64/token 验证链接，设置新密码')
-    def post(self, request, uidb64, token):
+    def post(self, request: Request, uidb64: str, token: str) -> Response:
         new_password = request.data.get('new_password', '')
         confirm_password = request.data.get('confirm_password', '')
 
@@ -123,7 +126,7 @@ class RegisterView(APIView):
     authentication_classes = []
 
     @extend_schema(tags=['auth'], summary='用户注册', description='提交注册信息，管理员审批后账号生效')
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         # 关闭自助注册入口
         return Response(
             {'status': 'error', 'message': '注册入口已关闭，请联系系统管理员。'}, status=status.HTTP_403_FORBIDDEN
@@ -139,13 +142,13 @@ class LoginView(APIView):
     authentication_classes = []
 
     @extend_schema(tags=['auth'], summary='用户登录', description='POST username/password，返回会话Cookie')
-    def post(self, request):
+    def post(self, request: Request) -> str:
         x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
         if x_forwarded:
             return x_forwarded.split(',')[0].strip()
         return request.META.get('REMOTE_ADDR')
 
-    def _log_login(self, request, username, status, user=None, fail_reason=''):
+    def _log_login(self, request: Request, username: str, status: str, user=None, fail_reason: str = '') -> None:
         # 登录时从用户公司角色取默认公司（传 FK 实例而非 _id）
         company = None
         if user:
@@ -162,7 +165,7 @@ class LoginView(APIView):
             company=company,
         )
 
-    def post(self, request):
+    def post(self, request: Request) -> HttpResponse | JsonResponse:
         serializer = UserLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
@@ -209,7 +212,7 @@ class LogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     @extend_schema(tags=['auth'], summary='用户登出', description='清除会话Cookie')
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         logout(request)
         return Response({'status': 'success', 'message': '已退出登录'}, status=status.HTTP_200_OK)
 
@@ -219,7 +222,7 @@ class ChangePasswordView(APIView):
 
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         old_password = request.data.get('old_password')
         new_password = request.data.get('new_password') or request.data.get('new_password1')
         confirm_password = request.data.get('new_password2')
@@ -283,7 +286,7 @@ class CurrentUserView(APIView):
         summary='获取当前用户信息',
         description='返回当前登录用户的信息，包括用户名/邮箱/角色/公司/权限码列表',
     )
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         """GET /api/core/auth/user/ - 返回当前用户信息"""
         serializer = UserSerializer(request.user)
         return Response(
@@ -296,7 +299,7 @@ class CurrentUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
-    def put(self, request):
+    def put(self, request: Request) -> Response:
         serializer = UserSerializer(request.user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -307,7 +310,7 @@ class CurrentUserView(APIView):
             {'status': 'error', 'message': '更新失败', 'errors': serializer.errors}, status=status.HTTP_400_BAD_REQUEST
         )
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         """
         POST /api/core/auth/user/ - 切换公司
         请求体: {action: 'switch_company', company_id: int}
@@ -329,7 +332,7 @@ class CurrentUserView(APIView):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    def _switch_company(self, request, company_id):
+    def _switch_company(self, request: Request, company_id: int | str) -> Response:
         """切换当前活跃公司"""
         if not company_id:
             return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 不能为空')
@@ -368,7 +371,7 @@ class CurrentUserView(APIView):
             status=status.HTTP_200_OK,
         )
 
-    def _my_companies(self, request):
+    def _my_companies(self, request: Request) -> Response:
         """获取当前用户可访问的公司列表"""
         from apps.core.models import UserCompanyPermission
         from apps.finance.models import Company
@@ -397,7 +400,7 @@ class SwitchCompanyView(APIView):
 
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def post(self, request):
+    def post(self, request: Request) -> Response:
         company_id = request.data.get('company_id')
         if not company_id:
             return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 不能为空')
@@ -445,7 +448,7 @@ class MyPermissionsView(APIView):
 
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def _generate_codes_from_ump(self, user, company_id):
+    def _generate_codes_from_ump(self, user, company_id: int) -> set:
         """从 UserModulePermission 生成前端权限码（统一格式）"""
         from apps.core.models import UserModulePermission, ACTION_BITS
 
@@ -461,7 +464,7 @@ class MyPermissionsView(APIView):
                     codes.add(f'{perm.module.category}:{perm.module.name}:{action_name}')
         return codes
 
-    def get(self, request):
+    def get(self, request: Request) -> Response:
         user = request.user
         company_id = request.session.get('current_company_id')
         if not company_id:

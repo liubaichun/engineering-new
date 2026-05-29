@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import logging
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
+from rest_framework.request import Request
+from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models.query import QuerySet
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +29,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['created_at', 'status']
     ordering = ['-created_at']
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         queryset = LoginLog.objects.select_related('user')
         # 管理员看全部，普通用户只看自己的
         if not self.request.user.is_superuser:
@@ -38,7 +43,7 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
     @action(detail=False, methods=['get'])
-    def export(self, request):
+    def export(self, request: Request) -> Response:
         """导出登录日志 Excel"""
         queryset = self.get_queryset()
         records = queryset[:5000]
@@ -60,7 +65,7 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = ['created_at', 'action']
     ordering = ['-created_at']
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         queryset = OperationAuditLog.objects.select_related('user')
         user = self.request.user
 
@@ -98,7 +103,7 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
     @action(detail=False, methods=['get'])
-    def export(self, request):
+    def export(self, request: Request) -> Response:
         """导出审计日志 Excel"""
         queryset = self.get_queryset()
         records = queryset[:5000]  # 最多导出5000条

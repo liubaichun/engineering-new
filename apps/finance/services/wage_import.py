@@ -3,16 +3,18 @@
 支持 Excel（.xlsx）格式，一行一条工资记录
 """
 
+from __future__ import annotations
+
 import openpyxl
 from decimal import Decimal, InvalidOperation
-from typing import List, Dict, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 from io import BytesIO
 
 
 class WageImportError(Exception):
     """导入异常，可携带行号信息"""
 
-    def __init__(self, message, row=None, field=None):
+    def __init__(self, message: str, row: Optional[int] = None, field: Optional[str] = None) -> None:
         super().__init__(message)
         self.row = row
         self.field = field
@@ -57,7 +59,7 @@ COLUMN_MAP = {
 }
 
 
-def parse_decimal(value) -> Decimal:
+def parse_decimal(value: Any) -> Optional[Decimal]:
     """将单元格值转为 Decimal，失败返回 None"""
     if value is None or value == '':
         return Decimal('0')
@@ -72,7 +74,7 @@ def parse_decimal(value) -> Decimal:
         return None
 
 
-def parse_int(value) -> int:
+def parse_int(value: Any) -> Optional[int]:
     """将单元格值转为 int，失败返回 None"""
     if value is None or value == '':
         return None
@@ -89,7 +91,7 @@ def _normalize_header(cell_value: str) -> str:
     return str(cell_value).strip()
 
 
-def import_wage_excel(file_bytes: bytes, company_id: int, defaults: Dict = None) -> Tuple[List, List]:
+def import_wage_excel(file_bytes: bytes, company_id: int, defaults: Optional[Dict[str, Any]] = None) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """
     解析工资导入 Excel，返回 (成功记录列表, 错误列表)
 
@@ -170,7 +172,7 @@ def import_wage_excel(file_bytes: bytes, company_id: int, defaults: Dict = None)
     return records, errors
 
 
-def preview_wage_excel(file_bytes: bytes, company_id: int) -> Dict:
+def preview_wage_excel(file_bytes: bytes, company_id: int) -> Dict[str, Any]:
     """
     预览 Excel 内容，不入库。返回前 10 行数据 + 字段列表 + 错误提示。
     """

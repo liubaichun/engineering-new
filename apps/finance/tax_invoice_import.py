@@ -9,10 +9,13 @@
   | 金额 | 税率 | 税额 | 价税合计 | 发票来源 | 发票票种 | 发票状态 | 是否正数发票 | 发票风险等级 | 开票人 | 备注
 """
 
+from __future__ import annotations
+
 import datetime
 import io
 import re
 from decimal import Decimal
+from typing import Any, Dict, List, Optional, Tuple
 
 from django.db import transaction
 from openpyxl import load_workbook
@@ -27,7 +30,7 @@ from apps.finance.models import Company, Expense, Income
 # ─── 工具函数 ───────────────────────────────────────────────
 
 
-def _parse_date(value) -> datetime.date | None:
+def _parse_date(value: Any) -> Optional[datetime.date]:
     if value is None:
         return None
     if isinstance(value, datetime.datetime):
@@ -44,7 +47,7 @@ def _parse_date(value) -> datetime.date | None:
     return None
 
 
-def _parse_decimal(value) -> Decimal | None:
+def _parse_decimal(value: Any) -> Optional[Decimal]:
     if value is None or value == '':
         return None
     try:
@@ -56,7 +59,7 @@ def _parse_decimal(value) -> Decimal | None:
         return None
 
 
-def _cell(ws, row_num: int, col_idx: int):
+def _cell(ws: Any, row_num: int, col_idx: Optional[int]) -> Any:
     """安全读取单元格，col_idx 从 0 开始"""
     if col_idx is None:
         return None
@@ -66,7 +69,7 @@ def _cell(ws, row_num: int, col_idx: int):
         return None
 
 
-def _is_enterprise_name(name: str) -> bool:
+def _is_enterprise_name(name: Optional[str]) -> bool:
     """
     判断对方名称是否为企业（有正规税号/公司名）。
     过滤：税务局、国库、公积金管理中心、无名称等非企业。
@@ -116,7 +119,7 @@ def _is_enterprise_name(name: str) -> bool:
     return False
 
 
-def _is_government_or_special(name: str) -> bool:
+def _is_government_or_special(name: Optional[str]) -> bool:
     """判断是否为政府/事业单位"""
     if not name:
         return False
@@ -140,7 +143,7 @@ def _is_government_or_special(name: str) -> bool:
     return False
 
 
-def _classify_counterparty(name: str) -> str:
+def _classify_counterparty(name: Optional[str]) -> str:
     """分类：enterprise / government / individual"""
     if _is_government_or_special(name):
         return 'government'
@@ -149,7 +152,7 @@ def _classify_counterparty(name: str) -> str:
     return 'individual'
 
 
-def _classify_expense_category(summary: str, goods_name: str) -> str:
+def _classify_expense_category(summary: Optional[str], goods_name: Optional[str]) -> str:
     """
     根据摘要/商品名称自动分类 expense_category
     """
@@ -187,7 +190,7 @@ def _classify_expense_category(summary: str, goods_name: str) -> str:
     return '其他费用'
 
 
-def _classify_income_category(summary: str, goods_name: str) -> str:
+def _classify_income_category(summary: Optional[str], goods_name: Optional[str]) -> str:
     """根据摘要/商品名称自动分类收入类别"""
     text = f'{summary} {goods_name}'.lower()
     if '软件' in text or '维护' in text or '技术服务' in text or '开发' in text:
@@ -211,24 +214,24 @@ def _classify_income_category(summary: str, goods_name: str) -> str:
 
 
 class TaxInvoiceImportResult:
-    def __init__(self):
-        self.success_count = 0
-        self.error_count = 0
-        self.skipped_count = 0
-        self.errors = []
-        self.created_expense_ids = []
-        self.created_income_ids = []
-        self.skipped = []  # [(row, reason)]
+    def __init__(self) -> None:
+        self.success_count: int = 0
+        self.error_count: int = 0
+        self.skipped_count: int = 0
+        self.errors: List[Dict[str, Any]] = []
+        self.created_expense_ids: List[int] = []
+        self.created_income_ids: List[int] = []
+        self.skipped: List[Dict[str, Any]] = []  # [(row, reason)]
 
-    def add_error(self, row, field, msg, value=None):
+    def add_error(self, row: int, field: str, msg: str, value: Any = None) -> None:
         self.errors.append({'row': row, 'field': field, 'message': msg, 'value': str(value)[:50] if value else None})
         self.error_count += 1
 
-    def add_skipped(self, row, reason):
+    def add_skipped(self, row: int, reason: str) -> None:
         self.skipped.append({'row': row, 'reason': reason})
         self.skipped_count += 1
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         return {
             'success_count': self.success_count,
             'error_count': self.error_count,
@@ -240,7 +243,7 @@ class TaxInvoiceImportResult:
         }
 
 
-def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operator):
+def _import_tax_invoices_common(ws: Any, company: Company, invoice_type: str, operator: Any) -> TaxInvoiceImportResult:
     """
     通用发票导入逻辑。
 
@@ -255,7 +258,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         result.add_error(1, '表头', '文件格式错误，无法读取表头')
         return result
 
-    def get_col(name: str) -> int | None:
+    def get_col(name: str) -> Optional[int]:
         """找列索引，支持全角半角变体"""
         for h in headers:
             if h and name in str(h):

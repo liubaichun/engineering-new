@@ -3,12 +3,17 @@
 通过 class_prepared 信号自动拦截所有模型的 post_save/post_delete
 """
 
+from __future__ import annotations
+
 import json
 import threading
+from typing import Any, Optional, Set
+
 from django.db.models.signals import post_save, post_delete
+from django.db.models.base import Model
 
 # 已连接的模型，避免重复
-_connected_models = set()
+_connected_models: Set[tuple] = set()
 _local = threading.local()
 
 # 批量导入期间暂停审计（避免在 atomic 块内触发 on_commit 导致序列冲突）
@@ -16,7 +21,7 @@ _local = threading.local()
 _AUDIT_PAUSED = threading.local()
 
 
-def pause_audit():
+def pause_audit() -> None:
     """暂停当前线程的审计日志写入（可嵌套）"""
     stack = getattr(_AUDIT_PAUSED, 'stack', None)
     if stack is None:
@@ -24,25 +29,25 @@ def pause_audit():
     _AUDIT_PAUSED.stack.append(True)
 
 
-def resume_audit():
+def resume_audit() -> None:
     """恢复当前线程的审计日志写入（须与 pause_audit 配对）"""
     stack = getattr(_AUDIT_PAUSED, 'stack', None)
     if stack:
         stack.pop()
 
 
-def is_audit_paused():
+def is_audit_paused() -> bool:
     """当前线程审计是否被暂停"""
     stack = getattr(_AUDIT_PAUSED, 'stack', None)
     return stack is not None and len(stack) > 0
 
 
-def _get_request():
+def _get_request() -> Optional[object]:
     """从当前线程获取请求对象"""
     return getattr(_local, 'request', None)
 
 
-def _build_changes(instance, action):
+def _build_changes(instance: Model, action: str) -> str:
     """从模型实例提取变更内容"""
     try:
         fields = {}
@@ -71,7 +76,7 @@ def _build_changes(instance, action):
     return ''
 
 
-def _log_operation(instance, action, **kwargs):
+def _log_operation(instance: Model, action: str, **kwargs: Any) -> None:
     """实际写入 OperationAuditLog"""
     try:
         # 批量导入期间暂停审计，避免在 atomic 块内触发 on_commit 导致序列冲突
@@ -138,7 +143,7 @@ def _log_operation(instance, action, **kwargs):
             'company_id': company_id,
         }
 
-        def _write_audit():
+        def _write_audit() -> None:
             try:
                 OperationAuditLog.objects.create(**_audit_args)
             except Exception:
@@ -151,15 +156,15 @@ def _log_operation(instance, action, **kwargs):
         pass
 
 
-def _on_post_save(sender, instance, created, **kwargs):
+def _on_post_save(sender: type, instance: Model, created: bool, **kwargs: Any) -> None:
     _log_operation(instance, 'create' if created else 'update', **kwargs)
 
 
-def _on_post_delete(sender, instance, **kwargs):
+def _on_post_delete(sender: type, instance: Model, **kwargs: Any) -> None:
     _log_operation(instance, 'delete', **kwargs)
 
 
-def _connect_model_signals(model):
+def _connect_model_signals(model: type) -> None:
     """为一个 Model 连接审计信号"""
     key = (model._meta.app_label, model._meta.model_name)
     if key in _connected_models:
@@ -170,7 +175,7 @@ def _connect_model_signals(model):
     post_delete.connect(_on_post_delete, sender=model, dispatch_uid=f'{uid_prefix}_del')
 
 
-def _on_class_prepared(sender, **kwargs):
+def _on_class_prepared(sender: type, **kwargs: Any) -> None:
     """在任何 Model 类准备好时自动连接审计信号"""
     # 只有当模型有 _meta（正常模型）且非抽象时才连接
     model = sender
@@ -181,7 +186,7 @@ def _on_class_prepared(sender, **kwargs):
     _connect_model_signals(model)
 
 
-def autodiscover():
+def autodiscover() -> None:
     """
     启动时：
     1. 遍历已加载的所有 Model 连接信号
@@ -206,10 +211,10 @@ class AuditRequestMiddleware:
     放在 MIDDLEWARE 靠前位置
     """
 
-    def __init__(self, get_response):
+    def __init__(self, get_response: object) -> None:
         self.get_response = get_response
 
-    def __call__(self, request):
+    def __call__(self, request: object) -> object:
         _local.request = request
         try:
             response = self.get_response(request)

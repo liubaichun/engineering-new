@@ -1,6 +1,9 @@
+from __future__ import annotations
+
 from django.db.models import F, Q, Sum
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from django.db.models import Count
 from django.db.models.functions import TruncMonth
@@ -44,7 +47,7 @@ class ReportViewSet(viewsets.ViewSet):
         'invoice_chart': 'finance:report:read',
     }
 
-    def list(self, request):
+    def list(self, request: Request) -> Response:
         """财务报表首页 - 返回支持的报表类型"""
         return Response(
             {
@@ -59,7 +62,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def years(self, request):
+    def years(self, request: Request) -> Response:
         """返回所有有收支/发票数据的年份列表（供前端动态填充年份下拉框）"""
         from django.db.models.functions import ExtractYear
 
@@ -81,7 +84,7 @@ class ReportViewSet(viewsets.ViewSet):
         return Response({'years': all_years})
 
     @action(detail=False, methods=['get'])
-    def monthly(self, request):
+    def monthly(self, request: Request) -> Response:
         """月度报表 - 按公司+月份统计"""
         year = request.query_params.get('year')
         month = request.query_params.get('month')
@@ -174,7 +177,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def yearly(self, request):
+    def yearly(self, request: Request) -> Response:
         """年度报表 - 按公司+年份统计"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
@@ -257,7 +260,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def wage_summary(self, request):
+    def wage_summary(self, request: Request) -> Response:
         """
         工资汇总报表 - 从 WageRecord 表读取数据。
         社保公司部分 = 每人社保基数 × 23%（基数从个人扣款反推：扣款 / 10.3%）
@@ -380,7 +383,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def invoice_summary(self, request):
+    def invoice_summary(self, request: Request) -> Response:
         """发票汇总报表"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
@@ -473,7 +476,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def invoice_aging(self, request):
+    def invoice_aging(self, request: Request) -> Response:
         """发票账龄分析 — 按到期日(due_date)分析未付发票的账龄分布"""
         from django.db.models import Q, Sum
         from datetime import date, timedelta
@@ -564,7 +567,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def invoice_chart(self, request):
+    def invoice_chart(self, request: Request) -> Response:
         """发票统计图表数据 — 月度趋势、状态分布（供前端 Chart.js 使用）"""
         from django.db.models import Sum, Q
         from datetime import date
@@ -623,7 +626,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def revenue_expense_summary(self, request):
+    def revenue_expense_summary(self, request: Request) -> Response:
         """收支汇总表 - 各公司收入支出汇总"""
         year = request.query_params.get('year')
         company_id = request.query_params.get('company')
@@ -702,7 +705,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def related_party_balance(self, request):
+    def related_party_balance(self, request: Request) -> Response:
         """关联方往来余额表 — 各对手方当前未结清余额"""
         from apps.finance.models import RelatedPartyLedger
         from django.db.models import Sum, Q
@@ -763,7 +766,7 @@ class ReportViewSet(viewsets.ViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def related_party_detail(self, request):
+    def related_party_detail(self, request: Request) -> Response:
         """关联方往来明细账 — 指定对手方的完整交易记录"""
         from apps.finance.models import RelatedPartyLedger
 

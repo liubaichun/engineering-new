@@ -1,7 +1,12 @@
+from __future__ import annotations
+
 import logging
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
+from rest_framework.request import Request
+from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models.query import QuerySet
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +25,7 @@ class PermissionViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ModuleAction.objects.select_related('module').all().order_by('module__name', 'sort_order')
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type:
         if self.action == 'list':
             return PermissionListSerializer
         return ModuleActionSerializer
@@ -33,7 +38,7 @@ class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PermissionAuditLogSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         queryset = PermissionAuditLog.objects.select_related('user', 'target_user')
         # 过滤：操作人/目标用户/操作类型/角色
         target_user_id = self.request.query_params.get('target_user')
@@ -45,7 +50,7 @@ class PermissionAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
     @action(detail=False, methods=['get'])
-    def export(self, request):
+    def export(self, request: Request) -> Response:
         """导出权限审计日志 Excel"""
         from apps.core.export_excel import export_audit_logs, make_export_response
 

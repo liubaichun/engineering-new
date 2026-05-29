@@ -1,8 +1,12 @@
+from __future__ import annotations
+
 import logging
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
 from django.utils import timezone
+from django.db.models.query import QuerySet
 
 from apps.core.exceptions import api_error, ErrorCode
 
@@ -30,10 +34,10 @@ class UserViewSet(viewsets.ModelViewSet):
         'destroy': 'system:user:delete',
     }
 
-    def get_permissions(self):
+    def get_permissions(self) -> list:
         return [permissions.IsAuthenticated(), RoleRequired()]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         queryset = User.objects.all().prefetch_related(
             'company_roles__company',
             'company_roles__company_role',
@@ -57,7 +61,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-date_joined')
 
     @action(detail=True, methods=['post'])
-    def reset_password(self, request, pk=None):
+    def reset_password(self, request: Request, pk: int | None = None) -> Response:
         """重置用户密码（管理员操作）"""
         user = self.get_object()
         new_password = request.data.get('new_password')
@@ -76,7 +80,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({'status': 'success', 'message': '密码重置成功'}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=['post'])
-    def toggle_active(self, request, pk=None):
+    def toggle_active(self, request: Request, pk: int | None = None) -> Response:
         """切换用户启用状态"""
         user = self.get_object()
         user.is_active = not user.is_active
@@ -97,7 +101,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
+    def approve(self, request: Request, pk: int | None = None) -> Response:
         """批准用户注册 — 将 is_active 设为 True，自动建公司+分配公司管理员角色"""
         user = self.get_object()
         if user.is_active:
@@ -184,7 +188,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'])
-    def reject(self, request, pk=None):
+    def reject(self, request: Request, pk: int | None = None) -> Response:
         """拒绝用户注册 — 删除该用户账号"""
         user = self.get_object()
         if user.is_active:
@@ -206,7 +210,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=True, methods=['post'])
-    def approve_batch(self, request, pk=None):
+    def approve_batch(self, request: Request, pk: int | None = None) -> Response:
         """批量批准用户注册 — 自动建公司+分配公司管理员角色"""
         user_ids = request.data.get('user_ids', [])
         if not user_ids:
@@ -292,7 +296,7 @@ class UserViewSet(viewsets.ModelViewSet):
         )
 
     @action(detail=False, methods=['get'])
-    def export(self, request):
+    def export(self, request: Request) -> Response:
         """导出用户 Excel"""
         records = list(self.get_queryset())
         rows = []

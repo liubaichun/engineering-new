@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """公司上下文中间件 — 为每个请求注入 request.auth_company"""
 
 from django.utils.deprecation import MiddlewareMixin
@@ -11,9 +13,9 @@ class CompanyContextMiddleware(MiddlewareMixin):
     当前公司从 session['current_company_id'] 读取，用户可切换。
     """
 
-    def process_request(self, request):
-        request.auth_company = None
-        request.auth_company_role = None  # 已废弃，始终为 None
+    def process_request(self, request: object) -> None:
+        request.auth_company = None  # type: ignore[attr-defined]
+        request.auth_company_role = None  # type: ignore[attr-defined]  # 已废弃，始终为 None
 
         if not hasattr(request, 'user') or not request.user.is_authenticated:
             return
@@ -29,7 +31,7 @@ class CompanyContextMiddleware(MiddlewareMixin):
             if UserCompanyPermission.objects.filter(user=request.user, company_id=company_id, is_granted=True).exists():
                 try:
                     company = Company.objects.get(id=company_id)
-                    request.auth_company = company
+                    request.auth_company = company  # type: ignore[attr-defined]
                     return
                 except Company.DoesNotExist:
                     pass
@@ -45,11 +47,11 @@ class CompanyContextMiddleware(MiddlewareMixin):
         if first_ucp:
             try:
                 company = Company.objects.get(id=first_ucp.company_id)
-                request.auth_company = company
+                request.auth_company = company  # type: ignore[attr-defined]
                 request.session['current_company_id'] = first_ucp.company_id
             except Company.DoesNotExist:
                 pass
 
-        if request.auth_company:
+        if request.auth_company:  # type: ignore[attr-defined]
             if hasattr(request.user, 'company_id'):
-                request.user.company_id = request.auth_company.id
+                request.user.company_id = request.auth_company.id  # type: ignore[attr-defined]

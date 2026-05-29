@@ -3,13 +3,16 @@
 单Sheet，宽表结构：每个险种占3列（缴费工资/费率/应缴费额）× 2（单位/个人）。
 """
 
+from __future__ import annotations
+
 import io
 import re
 from decimal import Decimal, InvalidOperation
+from typing import Any, Dict, List, Optional, Tuple
 from openpyxl import load_workbook
 
 
-def _parse_decimal(value):
+def _parse_decimal(value: Any) -> Optional[Decimal]:
     """解析数值，兼容 None/空/带符号/带%的值"""
     if value is None or value == '':
         return None
@@ -52,7 +55,7 @@ INSURANCE_COLUMNS = [
 
 
 # 从 Row 1 的险种名称行找到各险种起始列
-def _find_insurance_columns(row1_headers):
+def _find_insurance_columns(row1_headers: List[Any]) -> Dict[str, int]:
     """根据 Row 1 的险种名称定位起始列"""
     COLUMNS_MAP = {}
     # 养老保险（单位）从第10列开始
@@ -63,7 +66,7 @@ def _find_insurance_columns(row1_headers):
     return COLUMNS_MAP
 
 
-def import_social_records(file_obj, company_id=None):
+def import_social_records(file_obj: Any, company_id: Optional[int] = None) -> Dict[str, Any]:
     """
     导入社保申报记录 Excel。
     返回 dict: {success, message, created, updated, errors}
@@ -300,7 +303,7 @@ def import_social_records(file_obj, company_id=None):
     }
 
 
-def _cell_raw(ws, row, col):
+def _cell_raw(ws: Any, row: int, col: int) -> Any:
     """读取单元格值（col 为 0索引）"""
     try:
         return ws.cell(row=row, column=col + 1).value

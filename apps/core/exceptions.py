@@ -19,6 +19,10 @@
     5000:       服务器内部错误
 """
 
+from __future__ import annotations
+
+from typing import Any, Optional
+
 from rest_framework.views import exception_handler as drf_exception_handler
 from rest_framework.response import Response
 from rest_framework import status as http_status
@@ -75,7 +79,13 @@ class AppException(Exception):
     default_message = '操作失败'
     default_http_status = http_status.HTTP_400_BAD_REQUEST
 
-    def __init__(self, message=None, code=None, detail=None, http_status_code=None):
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        code: Optional[int] = None,
+        detail: Any = None,
+        http_status_code: Optional[int] = None,
+    ) -> None:
         self.code = code or self.default_code
         self.message = message or self.default_message
         self.detail = detail
@@ -122,7 +132,12 @@ class InternalError(AppException):
 # ── 视图层错误响应辅助函数 ───────────────────────────
 
 
-def api_error(code, message, detail=None, status_code=http_status.HTTP_400_BAD_REQUEST):
+def api_error(
+    code: int,
+    message: str,
+    detail: Any = None,
+    status_code: int = http_status.HTTP_400_BAD_REQUEST,
+) -> Response:
     """
     视图函数中使用的快捷函数，返回统一格式的错误 Response。
 
@@ -136,22 +151,22 @@ def api_error(code, message, detail=None, status_code=http_status.HTTP_400_BAD_R
     return Response(body, status=status_code)
 
 
-def api_validation_error(message, detail=None):
+def api_validation_error(message: str, detail: Any = None) -> Response:
     """校验失败的快捷方式"""
     return api_error(ErrorCode.VALIDATION_ERROR, message, detail, status_code=http_status.HTTP_400_BAD_REQUEST)
 
 
-def api_not_found(message='资源不存在'):
+def api_not_found(message: str = '资源不存在') -> Response:
     """资源不存在的快捷方式"""
     return api_error(ErrorCode.NOT_FOUND, message, status_code=http_status.HTTP_404_NOT_FOUND)
 
 
-def api_permission_denied(message='权限不足'):
+def api_permission_denied(message: str = '权限不足') -> Response:
     """权限不足的快捷方式"""
     return api_error(ErrorCode.PERMISSION_DENIED, message, status_code=http_status.HTTP_403_FORBIDDEN)
 
 
-def api_server_error(message='服务器内部错误'):
+def api_server_error(message: str = '服务器内部错误') -> Response:
     """服务器错误的快捷方式"""
     return api_error(ErrorCode.INTERNAL_ERROR, message, status_code=http_status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -159,7 +174,7 @@ def api_server_error(message='服务器内部错误'):
 # ── DRF 统一异常处理器 ───────────────────────────────
 
 
-def unified_exception_handler(exc, context):
+def unified_exception_handler(exc: Exception, context: dict) -> Optional[Response]:
     """
     替换 DEFAULT_EXCEPTION_HANDLER，捕获所有异常并统一格式。
     注册到 settings: 'EXCEPTION_HANDLER': 'apps.core.exceptions.unified_exception_handler'

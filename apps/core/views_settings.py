@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import logging
 from rest_framework import viewsets, status, permissions, serializers
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
+from django.db.models.query import QuerySet
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +27,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     lookup_field = 'key'
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         queryset = SystemSetting.objects.all()
         category = self.request.query_params.get('category')
         if category == 'approval':
@@ -37,13 +41,13 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
         return queryset.order_by('key')
 
     @action(detail=False, methods=['get'])
-    def all_settings(self, request):
+    def all_settings(self, request: Request) -> Response:
         """获取所有系统参数的键值对字典 — GET /api/core/settings/all_settings/"""
         settings = {s.key: s.value for s in SystemSetting.objects.all()}
         return Response({'status': 'success', 'settings': settings}, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=['get'])
-    def health_check(self, request):
+    def health_check(self, request: Request) -> Response:
         """外部依赖健康检查 — GET /api/core/settings/health_check/"""
         try:
             # 逐步测试每个方法
@@ -84,8 +88,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-    def update(self, request, *args, **kwargs):
-        """PATCH /api/core/settings/{key}/ — 更新单个参数"""
+    def update(self, request: Request, *args, **kwargs) -> Response:
         instance = self.get_object()
         new_value = request.data.get('value')
         if new_value is None:
@@ -102,7 +105,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    def partial_update(self, request, *args, **kwargs):
+    def partial_update(self, request: Request, *args, **kwargs) -> Response:
         return self.update(request, *args, **kwargs)
 
 
@@ -113,7 +116,7 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
     serializer_class = FinanceCompanySerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         queryset = FinanceCompany.objects.all()
         status = self.request.query_params.get('status')
         if status:
@@ -121,7 +124,7 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-created_at')
 
     @action(detail=False, methods=['get'])
-    def active(self, request):
+    def active(self, request: Request) -> Response:
         """获取所有启用状态的公司"""
         companies = FinanceCompany.objects.filter(status='active').order_by('name')
         return Response(
@@ -147,32 +150,32 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     lookup_field = 'id'
 
-    def get_serializer_class(self):
+    def get_serializer_class(self) -> type:
         if self.action == 'list':
             return CompanyRoleDefListSerializer
         return CompanyRoleDefSerializer
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         qs = CompanyRole.objects.select_related('company')
         company_id = self.request.query_params.get('company_id')
         if company_id:
             qs = qs.filter(company_id=company_id)
         return qs.order_by('company__name', 'name')
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer) -> None:
         role = serializer.save()
         # 新建时若同时提交了 permission_ids，同步写入中间表
         perm_ids = self.request.data.get('permission_ids', [])
         if perm_ids:
             self._sync_permissions(role, perm_ids)
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer) -> None:
         role = serializer.save()
         perm_ids = self.request.data.get('permission_ids', [])
         if perm_ids is not None:  # None=未传，保留原值；[]=显式清空
             self._sync_permissions(role, perm_ids)
 
-    def perform_destroy(self, instance):
+    def perform_destroy(self, instance) -> None:
         # 检查是否已有用户分配了这个角色
         from .models import UserCompanyRole
 
@@ -180,7 +183,7 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError({'detail': '该角色已有用户分配，无法删除'})
         instance.delete()
 
-    def _sync_permissions(self, role, permission_ids):
+    def _sync_permissions(self, role, permission_ids: list) -> None:
         from django.db import transaction
         from .models import CompanyRolePermission, Permission
 

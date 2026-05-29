@@ -1,7 +1,11 @@
+from __future__ import annotations
+
 import logging
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
+from rest_framework.request import Request
 from rest_framework.response import Response
+from django.db.models.query import QuerySet
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +32,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
     serializer_class = CompanyRoleSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet:
         qs = UserCompanyRole.objects.select_related('user', 'company', 'assigned_by', 'company_role')
         company_id = self.request.query_params.get('company_id')
         user_id = self.request.query_params.get('user_id')
@@ -38,19 +42,19 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
             qs = qs.filter(user_id=user_id)
         return qs.order_by('-assigned_at')
 
-    def perform_create(self, serializer):
+    def perform_create(self, serializer) -> None:
         obj = serializer.save(assigned_by=self.request.user)
         self._assign_role_to_ucp(obj)
 
-    def perform_update(self, serializer):
+    def perform_update(self, serializer) -> None:
         obj = serializer.save()
         self._assign_role_to_ucp(obj)
 
-    def perform_destroy(self, instance):
+    def perform_destroy(self, instance) -> None:
         self._revoke_role_from_ucp(instance)
         instance.delete()
 
-    def _assign_role_to_ucp(self, ucr):
+    def _assign_role_to_ucp(self, ucr) -> None:
         """分配角色时：批量写入 UserCompanyPermission"""
         if not ucr.company_role:
             return
@@ -80,7 +84,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
                     },
                 )
 
-    def _revoke_role_from_ucp(self, ucr):
+    def _revoke_role_from_ucp(self, ucr) -> None:
         """移除角色时：删除该角色来源的 UCP 记录"""
         if not ucr.company_role:
             return
@@ -91,7 +95,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         ).delete()
 
     @action(detail=False, methods=['get'])
-    def roles_summary(self, request):
+    def roles_summary(self, request: Request) -> Response:
         """
         角色统计摘要 — 返回所有公司的角色分布。
         GET /api/core/company-roles/roles_summary/
@@ -117,7 +121,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         return Response({'status': 'success', 'summary': result})
 
     @action(detail=False, methods=['get'])
-    def available_roles(self, request):
+    def available_roles(self, request: Request) -> Response:
         """
         可用角色列表 — 返回当前用户在当前公司可分配的角色。
         GET /api/core/company-roles/available_roles/?company_id=X

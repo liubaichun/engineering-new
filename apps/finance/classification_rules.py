@@ -6,10 +6,12 @@
 所有函数均为查询时调用，不修改原始数据。
 """
 
-from decimal import Decimal
-from typing import Optional
+from __future__ import annotations
 
-from django.db.models import Sum
+from decimal import Decimal
+from typing import Any, Dict, List, Optional, Set
+
+from django.db.models import QuerySet, Sum
 from .models import (
     Account,
     Income,
@@ -21,14 +23,14 @@ from .models import (
 )
 
 
-def get_internal_company_names():
+def get_internal_company_names() -> Set[str]:
     """从 Company 表动态获取所有公司名称，用于排除内部转账"""
     from .models import Company
 
     return set(Company.objects.values_list('name', flat=True))
 
 
-def is_internal_company(name: str) -> bool:
+def is_internal_company(name: Optional[str]) -> bool:
     """判断是否为内部公司"""
     if not name:
         return False
@@ -192,7 +194,7 @@ def map_social_to_account() -> Optional[Account]:
     return get_account_by_code('5002-02')
 
 
-def get_social_total(company_id: int, year: int, month: Optional[int] = None) -> dict:
+def get_social_total(company_id: int, year: int, month: Optional[int] = None) -> Dict[str, Any]:
     """获取指定公司月份社保单位缴纳总额"""
     qs = SocialRecord.objects.filter(company_id=company_id, year_month__startswith=str(year))
     if month:
@@ -224,7 +226,7 @@ def get_social_total(company_id: int, year: int, month: Optional[int] = None) ->
 # ═══════════════════════════════════════════════════════════════════
 
 
-def map_invoice_to_account(invoice) -> Optional[Account]:
+def map_invoice_to_account(invoice: Any) -> Optional[Account]:
     """将 Invoice 映射到应收/应付科目
 
     - invoice.type='income'  → 1002 应收账款
@@ -237,7 +239,7 @@ def map_invoice_to_account(invoice) -> Optional[Account]:
     return None
 
 
-def get_invoice_ar_ap_total(company_id: int, year: int, status: str = 'pending') -> dict:
+def get_invoice_ar_ap_total(company_id: int, year: int, status: str = 'pending') -> Dict[str, Any]:
     """获取应收账款(AR)和应付账款(AP)汇总"""
     ar = Invoice.objects.filter(
         company_id=company_id,
@@ -287,7 +289,7 @@ def get_bank_balance(company_id: int) -> Decimal:
     return Decimal('0')
 
 
-def get_bank_account_balances(company_id: int) -> dict:
+def get_bank_account_balances(company_id: int) -> Dict[str, Any]:
     """获取各银行账户最新余额"""
     from .models import BankAccount
 
@@ -310,7 +312,7 @@ def get_bank_account_balances(company_id: int) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 
 
-def compute_trial_balance(company_id: int, year: int):
+def compute_trial_balance(company_id: int, year: int) -> List[Dict[str, Any]]:
     """计算指定公司年份的科目余额表（内存计算，不持久化）
 
     返回按 account_type 分组的科目余额列表，每项包含：

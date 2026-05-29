@@ -1,14 +1,16 @@
 """健康检查端点 — 验证系统依赖和服务状态"""
 
+from __future__ import annotations
+
 import os
 import shutil
 
-from django.http import JsonResponse
+from django.http import HttpRequest, JsonResponse
 from django.db import connection
 from django.conf import settings
 
 
-def health_check(request):
+def health_check(request: HttpRequest) -> JsonResponse:
     """健康检查：验证数据库 + 磁盘 + 整体状态"""
     result = {'status': 'ok', 'checks': {}}
     http_status = 200

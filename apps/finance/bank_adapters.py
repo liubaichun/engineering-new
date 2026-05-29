@@ -8,7 +8,7 @@ import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -43,15 +43,15 @@ class BankStatementAdapter(ABC):
     bank_name: str = ''
 
     @abstractmethod
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         raise NotImplementedError
 
     @abstractmethod
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         raise NotImplementedError
 
     # ── 通用解析工具 ──────────────────────────────────────────────
-    def _parse_date(self, value) -> Optional[datetime.date]:
+    def _parse_date(self, value: Any) -> Optional[datetime.date]:
         if value is None:
             return None
         if isinstance(value, datetime.datetime):
@@ -68,7 +68,7 @@ class BankStatementAdapter(ABC):
                 continue
         return None
 
-    def _parse_time(self, value) -> Optional[datetime.time]:
+    def _parse_time(self, value: Any) -> Optional[datetime.time]:
         if value is None:
             return None
         if isinstance(value, datetime.time):
@@ -83,7 +83,7 @@ class BankStatementAdapter(ABC):
                 continue
         return None
 
-    def _decimal(self, value) -> Optional[Decimal]:
+    def _decimal(self, value: Any) -> Optional[Decimal]:
         if value is None or str(value).strip() == '':
             return None
         try:
@@ -119,14 +119,14 @@ class ICBCAdapter(BankStatementAdapter):
     bank_code = 'ICBC'
     bank_name = '工商银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             return str(ws.cell(1, 1).value or '').strip() == '[HISTORYDETAIL]'
         except Exception:
             logger.exception('ICBCAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         # 动态查找表头行
         header_row = None
         for r in range(1, min(10, ws.max_row + 1)):
@@ -140,7 +140,7 @@ class ICBCAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
@@ -239,7 +239,7 @@ class CMBAdapter(BankStatementAdapter):
     bank_code = 'CMB'
     bank_name = '招商银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             # CMB v2.0 特征：Row5='对账单'(col2), Row6='接口版本' 2.0
             for row in range(1, 15):
@@ -255,7 +255,7 @@ class CMBAdapter(BankStatementAdapter):
             logger.exception('CMBAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         """
         只解析银行流水文件中实际有数据的11个字段：
         交易日、交易时间、借方金额、贷方金额、余额、摘要、流水号、
@@ -275,7 +275,7 @@ class CMBAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, name):
+        def get_col(row: int, name: str) -> Any:
             for variant in [
                 name,
                 name.replace('(', '（').replace(')', '）'),
@@ -347,7 +347,7 @@ class CCBAdapter(BankStatementAdapter):
     bank_code = 'CCB'
     bank_name = '建设银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             for row in range(1, min(10, ws.max_row + 1)):
                 for col in range(1, min(10, ws.max_column + 1)):
@@ -359,7 +359,7 @@ class CCBAdapter(BankStatementAdapter):
             logger.exception('CCBAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         # 找表头行
         header_row = None
         for r in range(1, min(20, ws.max_row + 1)):
@@ -373,17 +373,18 @@ class CCBAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
-                    return ws.cell(row, c).value
+                    val = ws.cell(row, c).value
+                    if val is not None:
+                        return val
             return None
 
         records = []
         for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
-                # 尝试找金额列（收入或支出）
                 income_val = self._decimal(get_col(row_idx, '贷方金额', '收入金额', '存入金额'))
                 expense_val = self._decimal(get_col(row_idx, '借方金额', '支出金额', '支取金额'))
 
@@ -435,7 +436,7 @@ class BOCAdapter(BankStatementAdapter):
     bank_code = 'BOC'
     bank_name = '中国银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             for row in range(1, min(10, ws.max_row + 1)):
                 for col in range(1, min(10, ws.max_column + 1)):
@@ -447,7 +448,7 @@ class BOCAdapter(BankStatementAdapter):
             logger.exception('BOCAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         header_row = None
         for r in range(1, min(20, ws.max_row + 1)):
             row_vals = [str(ws.cell(r, c).value or '') for c in range(1, ws.max_column + 1)]
@@ -460,7 +461,7 @@ class BOCAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
@@ -517,7 +518,7 @@ class ABCAdapter(BankStatementAdapter):
     bank_code = 'ABC'
     bank_name = '农业银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             for row in range(1, min(10, ws.max_row + 1)):
                 for col in range(1, min(10, ws.max_column + 1)):
@@ -529,7 +530,7 @@ class ABCAdapter(BankStatementAdapter):
             logger.exception('ABCAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         header_row = None
         for r in range(1, min(20, ws.max_row + 1)):
             row_vals = [str(ws.cell(r, c).value or '') for c in range(1, ws.max_column + 1)]
@@ -542,7 +543,7 @@ class ABCAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
@@ -599,7 +600,7 @@ class COMMAdapter(BankStatementAdapter):
     bank_code = 'COMM'
     bank_name = '交通银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             for row in range(1, min(10, ws.max_row + 1)):
                 for col in range(1, min(10, ws.max_column + 1)):
@@ -611,7 +612,7 @@ class COMMAdapter(BankStatementAdapter):
             logger.exception('COMMAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         header_row = None
         for r in range(1, min(20, ws.max_row + 1)):
             row_vals = [str(ws.cell(r, c).value or '') for c in range(1, ws.max_column + 1)]
@@ -624,7 +625,7 @@ class COMMAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
@@ -681,7 +682,7 @@ class PSBCAdapter(BankStatementAdapter):
     bank_code = 'PSBC'
     bank_name = '邮储银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         try:
             for row in range(1, min(10, ws.max_row + 1)):
                 for col in range(1, min(10, ws.max_column + 1)):
@@ -693,7 +694,7 @@ class PSBCAdapter(BankStatementAdapter):
             logger.exception('PSBCAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         header_row = None
         for r in range(1, min(20, ws.max_row + 1)):
             row_vals = [str(ws.cell(r, c).value or '') for c in range(1, ws.max_column + 1)]
@@ -706,7 +707,7 @@ class PSBCAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
@@ -757,18 +758,18 @@ class PSBCAdapter(BankStatementAdapter):
 class XlrdSheetWrapper:
     """将 xlrd sheet 适配为类似 openpyxl 的工作表接口，供各银行适配器使用。"""
 
-    def __init__(self, sheet):
+    def __init__(self, sheet: Any) -> None:
         self.sheet = sheet
         self.max_row = sheet.nrows
         self.max_column = sheet.ncols
 
-    def cell(self, row: int, col: int):
+    def cell(self, row: int, col: int) -> 'XlrdCell':
         """openpyxl 风格：row/col 从 1 开始"""
         return XlrdCell(self.sheet.cell_value(row - 1, col - 1))
 
 
 class XlrdCell:
-    def __init__(self, value):
+    def __init__(self, value: Any) -> None:
         self.value = value
 
 
@@ -791,7 +792,7 @@ class PingAnAdapter(BankStatementAdapter):
     bank_code = 'PINGAN'
     bank_name = '平安银行'
 
-    def detect(self, ws) -> bool:
+    def detect(self, ws: Any) -> bool:
         """
         平安银行专属标志：账号列以 '1500' 开头。
         检测前10行数据行，只要有一行账号符合即匹配。
@@ -820,7 +821,7 @@ class PingAnAdapter(BankStatementAdapter):
             logger.exception('PingAnAdapter.detect 失败')
             return False
 
-    def parse(self, ws) -> list[ParsedTransaction]:
+    def parse(self, ws: Any) -> List[ParsedTransaction]:
         # 动态查找表头行（平安银行文件表头在任意行）
         # 注意：ws.cell() requires 1-indexed rows; range indices are 0-indexed
         header_row = None
@@ -834,7 +835,7 @@ class PingAnAdapter(BankStatementAdapter):
         headers = [str(ws.cell(header_row + 1, c).value or '').strip() for c in range(1, ws.max_column + 1)]
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
-        def get_col(row, *names):
+        def get_col(row: int, *names: str) -> Any:
             for name in names:
                 c = col_idx.get(name)
                 if c:
@@ -907,7 +908,7 @@ class PingAnAdapter(BankStatementAdapter):
 
 
 # ─── 自动识别解析 ───────────────────────────────────────────────────────
-def detect_and_parse(file_content):
+def detect_and_parse(file_content: Any) -> Tuple[str, List[ParsedTransaction]]:
     """自动识别格式并解析，返回 (bank_code, transactions)
     支持 .xlsx (openpyxl) 和 .xls (xlrd) 两种格式。
     file_content 可以是 bytes（文件路径读取结果）或 BytesIO（Django InMemoryUploadedFile.read() 返回值）。
@@ -961,7 +962,7 @@ def detect_and_parse(file_content):
     )
 
 
-def parse_with_adapter(file_content, bank_code: str):
+def parse_with_adapter(file_content: Any, bank_code: str) -> List[ParsedTransaction]:
     """用指定银行适配器解析，支持 .xlsx / .xls"""
     # 数据库中平安银行用 PA，前端模板用 PINGAN，统一标准化
     bank_code = 'PINGAN' if bank_code == 'PA' else bank_code
@@ -996,7 +997,7 @@ def parse_with_adapter(file_content, bank_code: str):
     return adapters[bank_code].parse(ws)
 
 
-def detect_with_adapter(file_content, bank_code: str) -> bool:
+def detect_with_adapter(file_content: Any, bank_code: str) -> bool:
     """
     用指定银行的适配器检测文件格式是否匹配。
     返回 True=匹配，False=不匹配。

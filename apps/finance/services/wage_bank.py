@@ -3,13 +3,15 @@
 支持：工商银行(ICBC)、建设银行(CCB)、通用CSV格式
 """
 
-from typing import List
+from __future__ import annotations
+
+from typing import Any, List, Optional
 from io import StringIO
 
 
 # 工商银行批量转账格式（固定长度，每行200字节）
 # 格式说明：工行使用的是改良后的批量代发格式
-def generate_icbc_batch_file(records: List, company_name: str = '', account_no: str = '') -> bytes:
+def generate_icbc_batch_file(records: List[Any], company_name: str = '', account_no: str = '') -> bytes:
     """
     生成工商银行批量代发文本文件
 
@@ -50,7 +52,7 @@ def generate_icbc_batch_file(records: List, company_name: str = '', account_no: 
 
 
 # 建设银行批量转账格式（CSV，UTF-8）
-def generate_ccb_batch_file(records: List) -> bytes:
+def generate_ccb_batch_file(records: List[Any]) -> bytes:
     """
     生成建设银行批量代发CSV文件
 
@@ -83,7 +85,7 @@ def generate_ccb_batch_file(records: List) -> bytes:
 
 
 # 通用格式（适用于企业网银批量转账）
-def generate_generic_batch_file(records: List, bank_type: str = 'ICBC') -> bytes:
+def generate_generic_batch_file(records: List[Any], bank_type: str = 'ICBC') -> bytes:
     """
     生成通用代发文件，bank_type='ICBC' 使用工行格式，其他使用建行CSV格式
     """
@@ -93,7 +95,7 @@ def generate_generic_batch_file(records: List, bank_type: str = 'ICBC') -> bytes
         return generate_ccb_batch_file(records)
 
 
-def make_bank_export_response(content: bytes, filename: str, content_type: str = None) -> 'HttpResponse':
+def make_bank_export_response(content: bytes, filename: str, content_type: Optional[str] = None) -> 'HttpResponse':
     """生成HTTP响应用于文件下载"""
     from django.http import HttpResponse
 

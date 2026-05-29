@@ -3,11 +3,16 @@ Excel 导出工具 — 使用 openpyxl 生成专业格式的 .xlsx 文件
 支持：自动列宽、多表、样式（标题/金额/日期）、流式下载（大文件不爆内存）
 """
 
+from __future__ import annotations
+
 import io
 import datetime
+from typing import Any, Dict, List, Optional
+
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 
 
 # ─── 颜色常量 ──────────────────────────────────────────────────────────
@@ -35,11 +40,11 @@ THIN_BORDER = Border(
 )
 
 
-def _border():
+def _border() -> Border:
     return THIN_BORDER
 
 
-def _col_width(col_idx, header, sample_rows):
+def _col_width(col_idx: int, header: Any, sample_rows: List[list]) -> int:
     """根据表头和示例数据自动计算列宽"""
     max_len = len(str(header)) if header else 8
     for row in sample_rows[:10]:
@@ -51,7 +56,7 @@ def _col_width(col_idx, header, sample_rows):
 # ─── 核心导出函数 ──────────────────────────────────────────────────────
 
 
-def export_to_xlsx(sheets: list, filename: str = None) -> io.BytesIO:
+def export_to_xlsx(sheets: List[dict], filename: Optional[str] = None) -> io.BytesIO:
     """
     多表导出器。
     sheets: [
@@ -149,7 +154,7 @@ def export_to_xlsx(sheets: list, filename: str = None) -> io.BytesIO:
     return buf
 
 
-def _format_value(val, col_type):
+def _format_value(val: Any, col_type: str) -> Any:
     """将 Python 值格式化为 Excel 单元格的合理显示"""
     if val is None or val == '':
         return ''
@@ -185,9 +190,9 @@ def _format_value(val, col_type):
     return val
 
 
-def _status_color(val):
+def _status_color(val: str) -> str:
     """根据状态值返回适合的字体颜色"""
-    table = {
+    table: Dict[str, str] = {
         '已确认': '166534',
         'confirmed': '166534',
         'approved': '166534',
@@ -212,7 +217,7 @@ def _status_color(val):
 # ─── 专用导出函数 ────────────────────────────────────────────────────────
 
 
-def export_wage_records(records, company_name=''):
+def export_wage_records(records: List[Any], company_name: str = '') -> io.BytesIO:
     """导出工资单"""
     title = f'工资单 {company_name} {datetime.datetime.now().strftime("%Y年%m月")}'
     headers = [
@@ -278,7 +283,7 @@ def export_wage_records(records, company_name=''):
     return export_to_xlsx(wb_sheets, filename=f'工资单_{datetime.datetime.now().strftime("%Y%m%d")}.xlsx')
 
 
-def export_income_records(records):
+def export_income_records(records: List[Any]) -> io.BytesIO:
     """导出收入记录"""
     title = f'收入记录 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
@@ -344,7 +349,7 @@ def export_income_records(records):
     )
 
 
-def export_expense_records(records):
+def export_expense_records(records: List[Any]) -> io.BytesIO:
     """导出支出记录"""
     title = f'支出记录 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
@@ -410,7 +415,7 @@ def export_expense_records(records):
     )
 
 
-def export_invoices(records):
+def export_invoices(records: List[Any]) -> io.BytesIO:
     """导出发票"""
     title = f'发票管理 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
@@ -473,7 +478,7 @@ def export_invoices(records):
     )
 
 
-def export_employees(records):
+def export_employees(records: List[Any]) -> io.BytesIO:
     """导出员工"""
     title = f'员工花名册 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = ['ID', '姓名', '手机', '邮箱', '身份证', '入职日期', '部门', '岗位', '公司', '状态']
@@ -499,7 +504,7 @@ def export_employees(records):
     )
 
 
-def export_companies(records):
+def export_companies(records: List[Any]) -> io.BytesIO:
     """导出公司"""
     title = f'公司管理 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = ['ID', '公司名称', '公司代码', '地址', '联系人', '联系电话', '开户银行', '银行账号', '状态', '创建时间']
@@ -525,7 +530,7 @@ def export_companies(records):
     )
 
 
-def export_clients(records):
+def export_clients(records: List[Any]) -> io.BytesIO:
     """导出客户"""
     title = f'客户列表 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = ['ID', '客户名称', '联系人', '电话', '地址', '备注', '状态', '创建时间']
@@ -549,7 +554,7 @@ def export_clients(records):
     )
 
 
-def export_contracts(records):
+def export_contracts(records: List[Any]) -> io.BytesIO:
     """导出合同"""
     title = f'合同管理 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = ['ID', '合同编号', '客户', '合同名称', '金额(元)', '签署日期', '到期日期', '状态', '备注', '创建时间']
@@ -579,7 +584,7 @@ def export_contracts(records):
     )
 
 
-def export_projects(records):
+def export_projects(records: List[Any]) -> io.BytesIO:
     """导出项目"""
     title = f'项目列表 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
@@ -618,7 +623,7 @@ def export_projects(records):
     )
 
 
-def export_equipment(records):
+def export_equipment(records: List[Any]) -> io.BytesIO:
     """导出设备"""
     title = f'设备管理 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
@@ -678,7 +683,7 @@ def export_equipment(records):
     )
 
 
-def export_suppliers(records):
+def export_suppliers(records: List[Any]) -> io.BytesIO:
     """导出供应商"""
     title = f'供应商列表 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = ['ID', '编码', '名称', '联系人', '联系电话', '邮箱', '代理品牌', '合作状态', '地址', '备注', '创建时间']
@@ -705,7 +710,7 @@ def export_suppliers(records):
     )
 
 
-def export_audit_logs(logs):
+def export_audit_logs(logs: List[Any]) -> io.BytesIO:
     """导出审计日志"""
     title = f'操作审计日志 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = ['ID', '操作用户', '操作', '应用', '模型', '对象ID', '对象摘要', 'IP地址', '审批流ID', '操作时间']
@@ -745,7 +750,7 @@ def make_export_response(buf: io.BytesIO, filename: str) -> 'HttpResponse':
     return response
 
 
-def export_materials(records):
+def export_materials(records: List[Any]) -> io.BytesIO:
     """导出物料"""
     title = f'物料管理 {datetime.datetime.now().strftime("%Y年%m月%d日")}'
     headers = [
