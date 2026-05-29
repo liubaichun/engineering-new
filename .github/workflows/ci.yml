@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+env:
+  DJANGO_SETTINGS_MODULE: config.settings.dev
+  SECRET_KEY: ci-secret-key-not-for-production
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # 现有代码风格问题较多，先作为参考
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install ruff
+        run: pip install ruff
+      - name: Run ruff check
+        run: ruff check . --output-format=github
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: engineering_new
+          POSTGRES_USER: engineer
+          POSTGRES_PASSWORD: engineer123
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-django
+      - name: Run migrations
+        run: python manage.py migrate --run-syncdb
+      - name: Run tests
+        run: python -m pytest apps/ --nomigrations -v --no-header
