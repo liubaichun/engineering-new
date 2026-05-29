@@ -299,10 +299,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return api_error(ErrorCode.VALIDATION_ERROR, f'解析失败：{str(e)}')
 
         if not result.rows:
+            # 直接展示具体错误原因，不包裹"未识别到有效发票记录"
+            detail = result.errors[0]['message'] if result.errors else '文件解析后无有效数据'
             return Response(
                 {
                     'success': False,
-                    'message': f'未识别到有效发票记录（{result.error} 行错误）',
+                    'message': detail,
                     'errors': result.errors,
                 },
                 status=400,

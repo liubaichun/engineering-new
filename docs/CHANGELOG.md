@@ -585,3 +585,8 @@ python manage.py logs --today --count 100       # 今天100条
 - 24个文件全部 `py_compile` 通过 ✅
 - Django system check 0 issues ✅
 - Gunicorn 正常运行 ✅
+
+## 2026-05-29 发票导入错误提示优化
+
+### 修复
+- 删除"未识别到有效发票记录"误导性错误文案，改为直接显示 import_invoice 返回的具体原因（找不到发票号码列 / 所有行已存在 / 解析异常等）
