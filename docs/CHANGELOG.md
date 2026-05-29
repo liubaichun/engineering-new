@@ -1,5 +1,31 @@
 # 变更日志
 
+## 2026-05-29 P3-1 Settings 重构 — 目录包模式
+
+### 背景
+- `settings.py`（主力）与 `settings_pg.py`（实际在生产跑）两份配置不同步
+- 改一个忘另一个 → 永远不一致
+
+### 改进：三层目录包 `config/settings/`
+| 文件 | 作用 |
+|:----|:------|
+| `base.py` | **唯一的真相源** — 所有共享配置（中间件、APP、REST、SPECTACULAR、邮件等） |
+| `dev.py` | `from base import *` + 开发覆盖（DEBUG=True、数据库） |
+| `prod.py` | `from base import *` + 生产覆盖（CSRF_TRUSTED_ORIGINS、CONN_MAX_AGE、日志） |
+
+### 从根源解决问题
+- **删掉了 `settings_pg.py`** — 物理上只有一份配置，不可能不同步
+- `wsgi.py` → `config.settings.prod`，`manage.py` → `config.settings.dev`
+- 两边服务器代码完全一致，差异只通过 `.env` 控制
+- 预留 SaaS 扩展：`settings/saas.py`（导入 `from .saas import *` 即可）
+
+### 修复的问题
+- ✅ **CsrfViewMiddleware 进入中间件**（之前 settings_pg.py 缺失）
+- ✅ **SPECTACULAR_SETTINGS（21个API标签）进入生产配置**
+- ✅ **MEDIA_URL/MEDIA_ROOT 进入共享配置**
+- ✅ **数据库 CONN_MAX_AGE + CONN_HEALTH_CHECKS 进入生产配置**
+- ✅ **所有43个测试通过**
+
 ## 2026-05-29 P2-4 测试覆盖 — 建立测试基础设施
 
 ### 新增：测试框架 + 43个测试用例
