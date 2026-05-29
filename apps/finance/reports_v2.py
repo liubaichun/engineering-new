@@ -211,7 +211,7 @@ def ar_ap_aging_report(request):
 
         results = []
         for company in companies:
-            records = qs.filter(company=company)
+            records = qs.filter(company=company).order_by('due_date', 'id')
             buckets = {'bucket_1_30': 0, 'bucket_31_60': 0, 'bucket_61_90': 0, 'bucket_over_90': 0}
             details = []
             for rec in records:

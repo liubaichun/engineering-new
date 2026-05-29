@@ -161,7 +161,7 @@ def get_wage_total(company_id: int, year: int, month: Optional[int] = None) -> D
     """获取指定公司月份工资总额（应发合计 gross_salary）"""
     qs = WageRecord.objects.filter(
         company_id=company_id, year=year
-    )
+    ).order_by('employee_id')
     if month:
         qs = qs.filter(month=month)
 
@@ -283,7 +283,7 @@ def get_bank_account_balances(company_id: int) -> dict:
     """获取各银行账户最新余额"""
     from .models import BankAccount
     result = {}
-    accounts = BankAccount.objects.filter(company_id=company_id)
+    accounts = BankAccount.objects.filter(company_id=company_id).order_by('account_name')
     for acct in accounts:
         last = BankStatement.objects.filter(
             bank_account=acct
@@ -322,7 +322,8 @@ def compute_trial_balance(company_id: int, year: int):
     # 收入按科目聚合
     income_records = Income.objects.filter(
         company_id=company_id, date__year=year
-    ).exclude(customer__in=get_internal_company_names())
+    ).exclude(customer__in=get_internal_company_names())\
+        .order_by('date', 'id')
 
     income_by_account = {}
     for inc in income_records:
@@ -334,7 +335,8 @@ def compute_trial_balance(company_id: int, year: int):
     # 支出按科目聚合
     expense_records = Expense.objects.filter(
         company_id=company_id, expense_date__year=year
-    ).exclude(supplier__in=get_internal_company_names())
+    ).exclude(supplier__in=get_internal_company_names())\
+        .order_by('expense_date', 'id')
 
     expense_by_account = {}
     for exp in expense_records:
@@ -347,7 +349,7 @@ def compute_trial_balance(company_id: int, year: int):
     wage_total = Decimal('0')
     wage_records = WageRecord.objects.filter(
         company_id=company_id, year=year
-    )
+    ).order_by('employee_id')
     for wr in wage_records:
         wage_total += Decimal(str(wr.gross_salary or 0))
 

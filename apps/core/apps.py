@@ -48,13 +48,10 @@ class CoreConfig(AppConfig):
         from django.db.models.signals import post_migrate
         post_migrate.connect(_sync_modules_on_migrate, sender=self)
 
-        # 启动后立即同步模块到 DB（每次启动都跑）
-        try:
-            imported = auto_discover()
-            from apps.core.models import sync_modules_to_db
-            sync_modules_to_db()
-        except Exception:
-            pass  # 表不存在时跳过
+        # 启动后延迟同步模块到 DB（避免 AppConfig.ready() 中访问数据库的警告）
+        # 使用 post_migrate 信号处理首次同步；重启后首次请求时再同步一次
+        from django.core.signals import request_finished
+        request_finished.connect(_lazy_sync_modules, sender=self, weak=False)
 
 
 def _sync_modules_on_migrate(sender, **kwargs):
@@ -62,3 +59,15 @@ def _sync_modules_on_migrate(sender, **kwargs):
     from apps.core.models import sync_modules_to_db
     auto_discover()
     sync_modules_to_db()
+
+
+def _lazy_sync_modules(sender, **kwargs):
+    """首次请求完成后同步模块到 DB（之后断开，仅执行一次）"""
+    from django.core.signals import request_finished
+    request_finished.disconnect(_lazy_sync_modules, sender=sender)
+    try:
+        from apps.core.models import sync_modules_to_db
+        auto_discover()
+        sync_modules_to_db()
+    except Exception:
+        pass  # 表不存在或不可用时跳过
