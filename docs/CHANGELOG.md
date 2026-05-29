@@ -1,5 +1,21 @@
 # 变更日志
 
+## 2026-05-29 P2-3 大文件拆分完成
+
+### 重构：P2-3 大文件拆分（5个文件 → 37个文件）
+
+| 原文件 | 行数 | 拆分为 | 验证 |
+|:-------|:----:|:-------|:----:|
+| `apps/finance/models.py` | 1,269 | 11个 `models_*.py` | ✅ check --deploy + 浏览器 |
+| `apps/core/views.py` | 1,506 | 10个 `views_*.py` | ✅ check --deploy + login API |
+| `apps/tasks/views.py` | 1,268 | 4个 `views_*.py` | ✅ check --deploy |
+| `apps/channels/views.py` | 1,069 | 4个 `views_*.py` | ✅ check --deploy |
+| `apps/finance/reports_v2.py` | 1,023 | 8个 `reports_*.py` | ✅ check --deploy |
+
+**原则**：所有原文件保留为兼容重导出层，`from .models import X` 和 `from . import reports_v2` 等所有已有引用无需修改。
+
+**教训记录**：拆分大文件时使用 `git show HEAD~1:file` 而非 `cat` 以避免终端输出截断；每次拆完后需补充各文件的特定导入（如 views_auth.py 漏 `LoginLog` 和 `get_token` 导致500）。
+
 ## 2026-05-29 多租户SaaS设计 + 系统升级需求分析 v3.0
 
 ### 文档更新
