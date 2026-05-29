@@ -194,3 +194,17 @@
 ### 同步
 - [x] 43 服务器部署验证（HTTP 200）
 - [ ] 124 服务器待同步
+
+## 2026-05-29 — P2-8: 迁移文件清理 + 旧代码清理
+
+### 清理内容
+1. **Finance 迁移修复** — 重建 0028/0029 文件，修复0030依赖链，消除编号间隙
+2. **Core Phase1 权限系统清理** — 创建 0024 migration：
+   - RunPython 保护2条审计日志（role_id→role_name 数据迁移）
+   - 删除 core_role 表（7条废弃角色数据）
+   - SeparateDatabaseAndState 处理已手动删除的 core_rolepermission/core_userrole
+3. **Notifications 清理** — 0009 migration 状态同步已手动删除的5个模型
+4. **Repair 清理** — 0002 migration 状态同步已手动删除的索引
+5. **Core 005** — 状态同步已手动删除的 menu_code 列
+6. **死脚本清理** — 删除 4 个旧 Phase1 权限迁移脚本
+7. **Core admin.py** — 清理 UserRole 死注释
