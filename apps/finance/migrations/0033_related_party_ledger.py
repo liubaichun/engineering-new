@@ -11,7 +11,9 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterField(
+        # NOTE: 原为 AlterField，但 income_category 从未通过 migration 创建（仅生产库手动 ALTER TABLE 添加）。
+        # 改为 AddField 确保新部署/测试库能正确创建该字段。
+        migrations.AddField(
             model_name='income',
             name='income_category',
             field=models.CharField(blank=True, choices=[('main_business', '主营业务收入'), ('other_business', '其他业务收入'), ('non_operating', '营业外收入'), ('internal_transfer', '内部往来'), ('equity', '实收资本')], default='', help_text='收入科目分类：主营业务/其他业务/营业外收入/内部往来/实收资本', max_length=50, verbose_name='收入科目'),
