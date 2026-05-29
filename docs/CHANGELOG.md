@@ -301,6 +301,28 @@
 
 ---
 
+## 2026-05-29 半成品多租户代码清理
+
+### 清理内容
+
+| # | 操作 | 文件 | 说明 |
+|---|------|------|------|
+| 1 | 🗑️ 删除 | `apps/core/tenant_resolver.py` | 订阅/买断双模式死代码，80行全删，零引用 |
+| 2 | 🧹 删除配置 | `config/settings.py` + `settings_pg.py` | 移除 `TENANT_MODE` 配置和注释 |
+| 3 | 🔧 简化 | `apps/core/middleware.py` | 去掉 `_is_standalone()` 双模式判断，恢复为干净的UCP公司解析 |
+| 4 | 🧹 清理 | `config/urls.py` + `apps/core/views.py` | 移除 TENANT_MODE 条件分支，注册入口直接关闭 |
+| 5 | 🐛 修复 | `config/urls.py` | 删除 `tenant_resolver.resolve_company` 死引用（函数不存在，访问合同详情页会500） |
+
+### 验证
+
+| 检查项 | 43 | 124 |
+|:-------|:---|:----:|
+| python check | ✅ 0 issues | ✅ 0 issues |
+| makemigrations | ✅ No changes | ✅ No changes |
+| gunicorn | ✅ 运行中 | ✅ 运行中 |
+
+---
+
 ## 2026-05-29 P2 重要问题修复（Day 5 续）
 
 ### 修复内容
