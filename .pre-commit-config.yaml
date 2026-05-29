@@ -1,0 +1,26 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+        exclude: ^.*/migrations/|^.*/tests/|^venv/|^staticfiles/
+      - id: ruff-format
+        exclude: ^.*/migrations/|^.*/tests/|^venv/|^staticfiles/
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^.*/migrations/
+      - id: end-of-file-fixer
+        exclude: ^.*/migrations/
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: debug-statements
+      - id: check-added-large-files
+        args: [--maxkb=10240]  # 10MB
+      - id: name-tests-test
+        args: [--pytest-test-first]
+        exclude: ^tests/factories/
