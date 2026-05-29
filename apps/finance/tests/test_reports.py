@@ -161,4 +161,3 @@ class TestExpenseAggregation:
         cat_map = {c['expense_category']: c['total'] for c in categories}
         assert cat_map['办公费'] == Decimal('8000.00')
         assert cat_map['差旅费'] == Decimal('8000.00')
-

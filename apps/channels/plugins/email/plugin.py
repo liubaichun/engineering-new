@@ -2,6 +2,7 @@
 邮件渠道插件
 支持 SMTP 直发邮件（无需用户绑定 open_id）
 """
+
 import smtplib
 import logging
 from email.mime.text import MIMEText

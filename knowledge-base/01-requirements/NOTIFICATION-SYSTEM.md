@@ -151,7 +151,7 @@ Body: { "notify_contract": false, "notify_wage": true }
 ## 通知发送流程
 
 ```
-业务触发（cron/信号）→ notify_user() 
+业务触发（cron/信号）→ notify_user()
   → 遍历用户所有有效 NotifyBinding
   → 按 channel_type 调用对应发送函数
   → 飞书: send_feishu_message(app_id, app_secret, open_id, text)

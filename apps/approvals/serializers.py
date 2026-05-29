@@ -4,6 +4,7 @@ from .models import ApprovalFlow, ApprovalNode, ApprovalTemplate
 
 class ApprovalTemplateSerializer(serializers.ModelSerializer):
     """审批模板序列化器"""
+
     flow_type_display = serializers.CharField(source='get_flow_type_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
     node_count = serializers.SerializerMethodField()
@@ -15,10 +16,21 @@ class ApprovalTemplateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ApprovalTemplate
         fields = [
-            'id', 'name', 'code', 'flow_type', 'flow_type_display',
-            'description', 'nodes', 'conditions', 'is_active',
-            'created_by', 'created_by_name', 'node_count',
-            'created_at', 'updated_at', 'company_id'
+            'id',
+            'name',
+            'code',
+            'flow_type',
+            'flow_type_display',
+            'description',
+            'nodes',
+            'conditions',
+            'is_active',
+            'created_by',
+            'created_by_name',
+            'node_count',
+            'created_at',
+            'updated_at',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
@@ -29,6 +41,7 @@ class ApprovalTemplateSerializer(serializers.ModelSerializer):
 
 class ApprovalNodeSerializer(serializers.ModelSerializer):
     """审批节点序列化器"""
+
     approver_name = serializers.CharField(source='approver.username', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     node_type_display = serializers.CharField(source='get_node_type_display', read_only=True)
@@ -37,10 +50,21 @@ class ApprovalNodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = ApprovalNode
         fields = [
-            'id', 'flow', 'node_order', 'approver', 'approver_name',
-            'status', 'status_display', 'node_type', 'node_type_display',
-            'delegated_to', 'delegated_to_name',
-            'comment', 'assigned_at', 'decided_at', 'company_id'
+            'id',
+            'flow',
+            'node_order',
+            'approver',
+            'approver_name',
+            'status',
+            'status_display',
+            'node_type',
+            'node_type_display',
+            'delegated_to',
+            'delegated_to_name',
+            'comment',
+            'assigned_at',
+            'decided_at',
+            'company_id',
         ]
         read_only_fields = ['assigned_at']
 
@@ -54,6 +78,7 @@ class ApprovalNodeSerializer(serializers.ModelSerializer):
 
 class ApprovalFlowSerializer(serializers.ModelSerializer):
     """审批流序列化器"""
+
     nodes = ApprovalNodeSerializer(many=True, read_only=True)
     requester_name = serializers.SerializerMethodField()
 
@@ -65,7 +90,7 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
     requester_id = serializers.IntegerField(source='requester.id', read_only=True, allow_null=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     flow_type_display = serializers.CharField(source='get_flow_type_display', read_only=True)
-    
+
     # 关联对象信息（通过 expense_records 或 income_records 获取）
     expense_info = serializers.SerializerMethodField()
     income_info = serializers.SerializerMethodField()
@@ -97,10 +122,25 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
     class Meta:
         model = ApprovalFlow
         fields = [
-            'id', 'name', 'flow_type', 'flow_type_display', 'status', 'status_display',
-            'requester', 'requester_id', 'requester_name', 'amount', 'description',
-            'current_node_order', 'result_comment', 'decided_at',
-            'nodes', 'expense_info', 'income_info', 'created_at', 'updated_at',
+            'id',
+            'name',
+            'flow_type',
+            'flow_type_display',
+            'status',
+            'status_display',
+            'requester',
+            'requester_id',
+            'requester_name',
+            'amount',
+            'description',
+            'current_node_order',
+            'result_comment',
+            'decided_at',
+            'nodes',
+            'expense_info',
+            'income_info',
+            'created_at',
+            'updated_at',
             'company_id',
         ]
         read_only_fields = ['created_at', 'updated_at']

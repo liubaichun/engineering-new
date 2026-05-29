@@ -364,10 +364,10 @@ async function loadReport() {
     const company = document.getElementById('filterCompany').value;
     const year = document.getElementById('filterYear').value;
     const month = document.getElementById('filterMonth').value;
-    
+
     const content = document.getElementById('reportContent');
     content.innerHTML = '<div class="loading"><div class="spinner"></div><span>加载中...</span></div>';
-    
+
     let url = '';
     switch (currentReport) {
         case 'monthly':
@@ -422,7 +422,7 @@ async function loadReport() {
             content.innerHTML = '<div class="loading"><span>请选择一个报表类型查看</span></div>';
             return;
     }
-    
+
     try {
         const res = await fetch(url, { credentials: 'include' });
         const data = await res.json();
@@ -490,7 +490,7 @@ function renderIncomeExpenseReport(data, container) {
     const year = data.year || '';
     const month = data.month || '';
     const title = currentReport === 'monthly' ? `${year}年${month ? month + '月' : ''} 月度报表` : `${year}年 年度报表`;
-    
+
     let html = `
         <h5 class="mb-4"><i class="bi bi-table me-2"></i>${title}</h5>
         <div class="table-responsive">
@@ -507,7 +507,7 @@ function renderIncomeExpenseReport(data, container) {
                 </thead>
                 <tbody>
     `;
-    
+
     data.results?.forEach(r => {
         const balance = r.balance;
         const balanceClass = balance >= 0 ? 'balance-positive' : 'balance-negative';
@@ -522,7 +522,7 @@ function renderIncomeExpenseReport(data, container) {
             </tr>
         `;
     });
-    
+
     if (data.results?.length > 0) {
         html += `
             <tr class="summary-row">
@@ -535,9 +535,9 @@ function renderIncomeExpenseReport(data, container) {
             </tr>
         `;
     }
-    
+
     html += '</tbody></table></div>';
-    
+
     // 收入分类明细 — 从每个公司的 income_by_category 汇总
     if (data.results && data.results.length > 0 && data.results.some(r => r.income_by_category && Object.keys(r.income_by_category).length > 0)) {
         html += `
@@ -586,7 +586,7 @@ function renderWageReport(data, container) {
     const year = data.year || '';
     const month = data.month || '';
     const title = `${year}年${month ? month + '月' : ''} 工资汇总`;
-    
+
     let html = `
         <h5 class="mb-4"><i class="bi bi-wallet2 me-2"></i>${title}</h5>
         <p class="text-muted mb-3" style="font-size:0.85rem;">
@@ -615,7 +615,7 @@ function renderWageReport(data, container) {
                 </thead>
                 <tbody>
     `;
-    
+
     data.results?.forEach(r => {
         const personalTotal = (r.personal_si || 0) + (r.personal_hf || 0);
         const companyTotal = (r.company_si || 0) + (r.company_hf || 0);
@@ -634,7 +634,7 @@ function renderWageReport(data, container) {
             </tr>
         `;
     });
-    
+
     if (data.results?.length > 0) {
         const s = data.summary || {};
         html += `
@@ -652,7 +652,7 @@ function renderWageReport(data, container) {
             </tr>
         `;
     }
-    
+
     html += '</tbody></table></div>';
     container.innerHTML = html;
 }
@@ -660,7 +660,7 @@ function renderWageReport(data, container) {
 function renderInvoiceReport(data, container) {
     const year = data.year || '';
     const title = `${year}年 发票汇总`;
-    
+
     let html = `
         <h5 class="mb-4"><i class="bi bi-receipt me-2"></i>${title}</h5>
         <div class="table-responsive">
@@ -678,7 +678,7 @@ function renderInvoiceReport(data, container) {
                 </thead>
                 <tbody>
     `;
-    
+
     data.results?.forEach(r => {
         html += `
             <tr>
@@ -692,14 +692,14 @@ function renderInvoiceReport(data, container) {
             </tr>
         `;
     });
-    
+
     html += '</tbody></table></div>';
     container.innerHTML = html;
 }
 
 function renderInvoiceDimensionReport(data, container) {
     const title = data.title || '发票多维度汇总';
-    
+
     // 汇总行
     const s = data.summary || {};
     let html = `
@@ -776,22 +776,22 @@ function exportExcel() {
         showToast('请先加载报表数据', 'warning');
         return;
     }
-    
+
     const hasResults = currentReportData.results && Array.isArray(currentReportData.results);
     if (!hasResults && currentReport !== 'invoice_dimension') {
         showToast('请先加载报表数据', 'warning');
         return;
     }
-    
+
     const year = document.getElementById('filterYear').value;
     const month = document.getElementById('filterMonth').value;
     const company = document.getElementById('filterCompany');
     const companyName = company.options[company.selectedIndex]?.text || '全部';
-    
+
     let filename = '';
     let headers = [];
     let rows = [];
-    
+
     if (currentReport === 'monthly' || currentReport === 'yearly') {
         filename = `${year}年${month ? month + '月_' : ''}收支报表_${companyName}.xls`;
         headers = ['公司', '公司代码', '收入', '支出', '结余', '收入笔数', '支出笔数'];
@@ -841,19 +841,19 @@ function exportExcel() {
             ]);
         });
     }
-    
+
     // 生成XML格式的Excel文件
     let xml = '<xml version="1.0" encoding="UTF-8">';
     xml += '<ss:Workbook xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">';
     xml += '<ss:Worksheet ss:Name="Report"><ss:Table>';
-    
+
     // 表头
     xml += '<ss:Row>';
     headers.forEach(h => {
         xml += '<ss:Cell><ss:Data ss:Type="String">' + h + '</ss:Data></ss:Cell>';
     });
     xml += '</ss:Row>';
-    
+
     // 数据行
     rows.forEach(row => {
         xml += '<ss:Row>';
@@ -864,9 +864,9 @@ function exportExcel() {
         });
         xml += '</ss:Row>';
     });
-    
+
     xml += '</ss:Table></ss:Worksheet></ss:Workbook></xml>';
-    
+
     // 创建Blob并下载
     const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -877,7 +877,7 @@ function exportExcel() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     showToast('导出成功', 'success');
 }
 
@@ -1112,7 +1112,7 @@ function renderBudgetExecutionReport(data, container) {
             }
             html += `<tr><td>${escapeHtml(t.label)}</td><td class="text-danger fw-bold">¥${fmt(t.actual)}</td><td>¥${fmt(t.budget||0)}</td><td>${rateHtml}</td></tr>`;
         });
-        const totalRate = r.total_execution_rate !== null ? 
+        const totalRate = r.total_execution_rate !== null ?
             `<span class="badge bg-${r.total_execution_rate > 100 ? 'danger' : (r.total_execution_rate > 90 ? 'warning' : 'success')}">${parseFloat(r.total_execution_rate).toFixed(1)}%</span>` : '-';
         html += `<tr class="summary-row"><td>合计</td><td class="fw-bold">¥${fmt(r.total_actual)}</td><td class="fw-bold">¥${fmt(r.total_budget||0)}</td><td>${totalRate}</td></tr>`;
         html += `</tbody></table></div></div></div>`;
@@ -1308,9 +1308,9 @@ function renderRelatedPartyReport(data, container) {
     <thead class="table-light"><tr>
         <th>公司</th><th>对方名称</th><th>类型</th><th>累计借出</th><th>累计还款</th><th>净余额</th><th>状态</th>
     </tr></thead><tbody>`;
-    
+
     const activeRows = rows.filter(r => r.net_balance !== 0);
-    
+
     if (activeRows.length === 0) {
         html += `<tr><td colspan="7" class="text-center text-muted">暂无未结清往来</td></tr>`;
     } else {
@@ -1330,9 +1330,9 @@ function renderRelatedPartyReport(data, container) {
             </tr>`;
         });
     }
-    
+
     html += `</tbody></table></div>`;
-    
+
     const summary = data.summary || {};
     html += `<div class="row mt-3">
         <div class="col-md-3">
@@ -1368,13 +1368,13 @@ function renderRelatedPartyReport(data, container) {
             </div>
         </div>
     </div>`;
-    
+
     html += `<div class="alert alert-info mt-3 mb-0 py-2">
         <small><i class="bi bi-info-circle me-1"></i>
         正数余额=对方欠我们钱（应收）；负数余额=我们还欠对方钱（应付）。
         投资款（实收资本）不在此表展示。</small>
     </div>`;
-    
+
     container.innerHTML = html;
 }
 
@@ -1382,7 +1382,7 @@ function renderInvoiceAgingReport(data, container) {
     const results = data.results || [];
     const dateLabel = data.date || '';
     const invType = data.type || 'all';
-    
+
     let html = `
         <h5 class="mb-3"><i class="bi bi-clipboard-data me-2"></i>发票账龄分析
             <small class="text-muted ms-2">${dateLabel} | ${invType === 'income' ? '开出发票' : invType === 'expense' ? '收到发票' : '全部'}</small>
@@ -1401,23 +1401,23 @@ function renderInvoiceAgingReport(data, container) {
                     </tr>
                 </thead>
                 <tbody>`;
-    
+
     let grandTotal = {count: 0, amount: 0, b0: 0, b1: 0, b2: 0, b3: 0};
-    
+
     results.forEach(r => {
         const b = r.buckets || {};
         const b0 = b['0_30'] || {count:0, amount:0};
         const b1 = b['31_60'] || {count:0, amount:0};
         const b2 = b['61_90'] || {count:0, amount:0};
         const b3 = b['91_plus'] || {count:0, amount:0};
-        
+
         grandTotal.count += r.total_count || 0;
         grandTotal.amount += r.total || 0;
         grandTotal.b0 += b0.amount;
         grandTotal.b1 += b1.amount;
         grandTotal.b2 += b2.amount;
         grandTotal.b3 += b3.amount;
-        
+
         html += `<tr>
             <td><strong>${escapeHtml(r.company_name)}</strong></td>
             <td>${r.total_count}</td>
@@ -1428,7 +1428,7 @@ function renderInvoiceAgingReport(data, container) {
             <td>¥${formatNumber(b3.amount)}<br><small class="text-muted">${b3.count}笔</small></td>
         </tr>`;
     });
-    
+
     if (results.length > 1) {
         html += `<tr class="summary-row">
             <td><strong>合计</strong></td>
@@ -1440,16 +1440,16 @@ function renderInvoiceAgingReport(data, container) {
             <td>¥${formatNumber(grandTotal.b3)}</td>
         </tr>`;
     }
-    
+
     html += `</tbody></table></div>`;
-    
+
     const now = new Date();
     html += `<div class="alert alert-info mt-2 mb-0 py-2">
         <small><i class="bi bi-info-circle me-1"></i>
         基于 <b>${results.length}</b> 家公司的未付款发票（不含已作废），
         按到期日(due_date)计算账龄。截止日期：${dateLabel}</small>
     </div>`;
-    
+
     container.innerHTML = html;
 }
 </script>

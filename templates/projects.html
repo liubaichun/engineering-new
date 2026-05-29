@@ -374,7 +374,7 @@ async function loadProjects() {
     if (statusFilter) {
         url += '?status=' + statusFilter;
     }
-    
+
     try {
         var response = await fetch(url, { credentials: 'include' });
         var data = await response.json();
@@ -382,14 +382,14 @@ async function loadProjects() {
         updateStats(data.results || data);
     } catch (error) {
         console.error('加载项目失败:', error);
-        document.getElementById('projectList').innerHTML = 
+        document.getElementById('projectList').innerHTML =
             '<div class="col-12 empty-state"><i class="bi bi-exclamation-triangle"></i><p>加载失败，请重试</p></div>';
     }
 }
 
 function renderProjects(projects) {
     var container = document.getElementById('projectList');
-    
+
     if (!projects || projects.length === 0) {
         container.innerHTML = `
             <div class="col-12 empty-state">
@@ -405,7 +405,7 @@ function renderProjects(projects) {
         `;
         return;
     }
-    
+
     var html = '';
     projects.forEach(function(project) {
         var statusClass = project.status || 'draft';
@@ -413,7 +413,7 @@ function renderProjects(projects) {
         var startDate = project.start_date || '-';
         var endDate = project.end_date || '-';
         var ownerName = project.owner_name || '未指定';
-        
+
         html += `
             <div class="col-md-6 col-xl-4">
                 <div class="project-card" onclick="showProjectDetail(${project.id})">
@@ -458,7 +458,7 @@ function renderProjects(projects) {
             </div>
         `;
     });
-    
+
     html += `
         <div class="col-md-6 col-xl-4">
             <div class="project-card add-project-card" onclick="showProjectModal()">
@@ -467,14 +467,14 @@ function renderProjects(projects) {
             </div>
         </div>
     `;
-    
+
     container.innerHTML = html;
 }
 
 function updateStats(projects) {
     var total = projects.length;
     var active = projects.filter(function(p) { return p.status === 'active'; }).length;
-    document.getElementById('projectStats').innerHTML = 
+    document.getElementById('projectStats').innerHTML =
         '共 <strong>' + total + '</strong> 个项目' + (active > 0 ? '，<strong>' + active + '</strong> 个进行中' : '');
 }
 
@@ -505,9 +505,9 @@ async function loadUsers() {
 
 function showProjectModal(projectId) {
     currentProjectId = projectId;
-    document.getElementById('projectModalTitle').innerHTML = 
+    document.getElementById('projectModalTitle').innerHTML =
         projectId ? '<i class="bi bi-pencil me-2"></i>编辑项目' : '<i class="bi bi-plus-circle me-2"></i>新建项目';
-    
+
     if (projectId) {
         loadProjectData(projectId);
     } else {
@@ -532,7 +532,7 @@ async function loadProjectData(projectId) {
     try {
         var response = await fetch('/api/tasks/projects/' + projectId + '/', { credentials: 'include' });
         var project = await response.json();
-        
+
         document.getElementById('projectId').value = project.id;
         document.getElementById('projectName').value = project.name;
         document.getElementById('projectCode').value = project.code;
@@ -567,7 +567,7 @@ async function saveProject() {
     var startDate = document.getElementById('projectStartDate').value;
     var endDate = document.getElementById('projectEndDate').value;
     var progress = parseFloat(document.getElementById('projectProgress').value) || 0;
-    
+
     if (!name) {
         showToast('请输入项目名称', 'warning');
         return;
@@ -576,7 +576,7 @@ async function saveProject() {
         showToast('请输入项目代码', 'warning');
         return;
     }
-    
+
     var payload = {
         name: name,
         code: code,
@@ -589,14 +589,14 @@ async function saveProject() {
         progress: progress,
         viewer_ids: Array.from(document.getElementById('projectViewers').selectedOptions).map(function(opt) { return parseInt(opt.value); })
     };
-    
+
     var url = '/api/tasks/projects/';
     var method = 'POST';
     if (projectId) {
         url += projectId + '/';
         method = 'PATCH';
     }
-    
+
     try {
         var response = await fetch(url, {
             method: method,
@@ -606,12 +606,12 @@ async function saveProject() {
             credentials: 'include',
             body: JSON.stringify(payload)
         });
-        
+
         if (!response.ok) {
             var error = await response.json();
             throw new Error(error.code || error.detail || '保存失败');
         }
-        
+
         showToast(projectId ? '项目已更新' : '项目已创建', 'success');
         projectModal.hide();
         document.getElementById('projectModal').addEventListener('hidden.bs.modal', function handler() {
@@ -632,37 +632,37 @@ async function showProjectDetail(projectId) {
         return;
     }
     detailModal.show();
-    
+
     // 超时保护：10秒后强制结束加载
     var timeoutId = setTimeout(function() {
         if (document.getElementById('projectDetailBody').innerHTML.includes('spinner-border')) {
             console.error('showProjectDetail timeout, forcing UI update');
-            document.getElementById('projectDetailBody').innerHTML = 
+            document.getElementById('projectDetailBody').innerHTML =
                 '<p class="text-center text-danger py-5">加载超时，请刷新重试</p>';
         }
     }, 10000);
-    
+
     try {
         var response = await fetch('/api/tasks/projects/' + projectId + '/', { credentials: 'include' });
         if (!response.ok) throw new Error('项目加载失败: ' + response.status);
         var project = await response.json();
-        
+
         var tasksResponse = await fetch('/api/tasks/tasks/?project=' + projectId, { credentials: 'include' });
         if (!tasksResponse.ok) throw new Error('任务列表加载失败: ' + tasksResponse.status);
         var tasksData = await tasksResponse.json();
         var tasks = tasksData.results || tasksData;
-        
+
         clearTimeout(timeoutId);
-        
+
         var statusMap = { 'pending': '待开始', 'in_progress': '进行中', 'review': '审核中', 'completed': '已完成', 'cancelled': '已取消' };
         var priorityMap = { 'low': '低', 'medium': '中', 'high': '高', 'critical': '紧急' };
-        
+
         var tasksHtml = '';
         if (tasks.length === 0) {
             tasksHtml = '<p class="text-muted text-center py-3">暂无任务</p>';
         } else {
             tasks.forEach(function(task) {
-                var priorityBadge = task.priority === 'high' || task.priority === 'critical' ? 'bg-danger' : 
+                var priorityBadge = task.priority === 'high' || task.priority === 'critical' ? 'bg-danger' :
                                     task.priority === 'medium' ? 'bg-warning' : 'bg-secondary';
                 tasksHtml += `
                     <div class="d-flex align-items-center justify-content-between p-2 border-bottom" style="font-size:0.9rem;">
@@ -678,7 +678,7 @@ async function showProjectDetail(projectId) {
                 `;
             });
         }
-        
+
         document.getElementById('detailModalTitle').textContent = project.name || '项目详情';
         // 存入全局变量供甘特图Tab使用
         window._currentProjectTasks = tasks;
@@ -722,7 +722,7 @@ async function showProjectDetail(projectId) {
     } catch (error) {
         clearTimeout(timeoutId);
         console.error('加载项目详情失败:', error);
-        document.getElementById('projectDetailBody').innerHTML = 
+        document.getElementById('projectDetailBody').innerHTML =
             '<p class="text-center text-danger py-5">加载失败：' + escapeHtml(error.message) + '</p>';
     }
 }

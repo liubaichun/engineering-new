@@ -2,6 +2,7 @@
 Excel 批量导入工具 — 使用 openpyxl 解析导入文件
 支持：收入/支出/发票/工资 四个模块的批量导入
 """
+
 import io
 import datetime
 from openpyxl import load_workbook
@@ -10,11 +11,12 @@ from decimal import Decimal, InvalidOperation
 
 class ImportResult:
     """导入结果封装"""
+
     def __init__(self):
         self.success = 0
         self.error = 0
         self.errors = []  # [{row, message}]
-        self.rows = []    # 解析后的行数据字典
+        self.rows = []  # 解析后的行数据字典
 
     def add_error(self, row_num, msg):
         self.error += 1
@@ -25,7 +27,7 @@ class ImportResult:
             'success': self.success,
             'error': self.error,
             'errors': self.errors[:20],  # 最多返回20条错误
-            'rows': self.rows
+            'rows': self.rows,
         }
 
 
@@ -40,8 +42,6 @@ def parse_uploaded_file(file_obj, expected_headers=None):
         data = file_obj.read()
     else:
         data = file_obj
-
-
 
     wb = load_workbook(io.BytesIO(data), data_only=True)
     ws = wb.active
@@ -124,6 +124,7 @@ def parse_int(val):
 
 # ─── 收入导入 ────────────────────────────────────────────────────────
 
+
 def import_income(file_obj, company_id=None, operator=None):
     """
     导入收入记录。
@@ -135,21 +136,21 @@ def import_income(file_obj, company_id=None, operator=None):
     headers, all_rows = parse_uploaded_file(file_obj)
 
     # 找列索引（1-based）
-    col_amount   = match_header(headers, '金额', 'amount', '收入金额')
-    col_date     = match_header(headers, '日期', 'date', '收入日期')
-    col_company  = match_header(headers, '公司', 'company', '所属公司')
-    col_project  = match_header(headers, '项目', 'project', '所属项目')
-    col_source   = match_header(headers, '来源', 'source', '收入来源', '类别')
-    col_status   = match_header(headers, '状态', 'status')
-    col_desc     = match_header(headers, '备注', 'description', '描述', '说明')
+    col_amount = match_header(headers, '金额', 'amount', '收入金额')
+    col_date = match_header(headers, '日期', 'date', '收入日期')
+    col_company = match_header(headers, '公司', 'company', '所属公司')
+    col_project = match_header(headers, '项目', 'project', '所属项目')
+    col_source = match_header(headers, '来源', 'source', '收入来源', '类别')
+    col_status = match_header(headers, '状态', 'status')
+    col_desc = match_header(headers, '备注', 'description', '描述', '说明')
     col_operator = match_header(headers, '操作人', 'operator', '经办人')
     # ── 银行流水11字段扩展（可选列）───────────────────────────────
-    col_tx_time  = match_header(headers, '交易时间', 'time')
-    col_balance  = match_header(headers, '余额', 'balance')
-    col_cp_acc   = match_header(headers, '对手账号', '账号')
-    col_cp_bank  = match_header(headers, '对手开户行', '开户行')
-    col_tx_type  = match_header(headers, '交易类型')
-    col_summary  = match_header(headers, '摘要')
+    col_tx_time = match_header(headers, '交易时间', 'time')
+    col_balance = match_header(headers, '余额', 'balance')
+    col_cp_acc = match_header(headers, '对手账号', '账号')
+    col_cp_bank = match_header(headers, '对手开户行', '开户行')
+    col_tx_type = match_header(headers, '交易类型')
+    col_summary = match_header(headers, '摘要')
 
     if col_amount == -1:
         result.add_error(0, '未找到"金额"列，请确保 Excel 包含金额列')
@@ -158,21 +159,30 @@ def import_income(file_obj, company_id=None, operator=None):
         result.add_error(0, '未找到"日期"列，请确保 Excel 包含日期列')
         return result
 
-    from apps.finance.models import Income, Company
+    from apps.finance.models import Company
     from apps.tasks.models import Project
 
     # 缓存
     company_cache = {c.name: c.id for c in Company.objects.all()}
     project_cache = {p.name: p.id for p in Project.objects.all()}
     # 收入状态映射（confirmed → pending，保证非法值不写入 DB）
-    status_map = {'approved': 'approved', '已批准': 'approved', '待审批': 'pending',
-                  'pending': 'pending', 'rejected': 'rejected', '已拒绝': 'rejected',
-                  'confirmed': 'pending', '已确认': 'pending', '草稿': 'draft', 'draft': 'draft'}
+    status_map = {
+        'approved': 'approved',
+        '已批准': 'approved',
+        '待审批': 'pending',
+        'pending': 'pending',
+        'rejected': 'rejected',
+        '已拒绝': 'rejected',
+        'confirmed': 'pending',
+        '已确认': 'pending',
+        '草稿': 'draft',
+        'draft': 'draft',
+    }
 
     for i, row in enumerate(all_rows, start=2):
         try:
             amount = parse_number(row[col_amount] if col_amount >= 0 and col_amount < len(row) else None)
-            date   = parse_date(row[col_date] if col_date >= 0 and col_date < len(row) else None)
+            date = parse_date(row[col_date] if col_date >= 0 and col_date < len(row) else None)
 
             if not amount:
                 result.add_error(i, f'行{i}：金额无效')
@@ -181,8 +191,12 @@ def import_income(file_obj, company_id=None, operator=None):
                 result.add_error(i, f'行{i}：日期无效')
                 continue
 
-            company_name = row[col_company].strip() if col_company >= 0 and col_company < len(row) and row[col_company] else None
-            project_name = row[col_project].strip() if col_project >= 0 and col_project < len(row) and row[col_project] else None
+            company_name = (
+                row[col_company].strip() if col_company >= 0 and col_company < len(row) and row[col_company] else None
+            )
+            project_name = (
+                row[col_project].strip() if col_project >= 0 and col_project < len(row) and row[col_project] else None
+            )
             source = row[col_source] if col_source >= 0 and col_source < len(row) else None
             if source:
                 source = str(source).strip()
@@ -200,24 +214,36 @@ def import_income(file_obj, company_id=None, operator=None):
             if project_name:
                 project_id_val = project_cache.get(project_name)
 
-            result.rows.append({
-                'company': company_id_val,
-                'company_name': company_name,
-                'project': project_id_val,
-                'project_name': project_name,
-                'source': source or '',
-                'amount': float(amount),
-                'date': date,
-                'status': status,
-                'description': desc or '',
-                # ── 银行流水11字段扩展 ─────────────────────────────
-                'transaction_time': row[col_tx_time].strip() if col_tx_time >= 0 and col_tx_time < len(row) and row[col_tx_time] else '',
-                'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
-                'counterparty_account': row[col_cp_acc].strip() if col_cp_acc >= 0 and col_cp_acc < len(row) else '',
-                'counterparty_bank': row[col_cp_bank].strip() if col_cp_bank >= 0 and col_cp_bank < len(row) else '',
-                'transaction_type': row[col_tx_type].strip() if col_tx_type >= 0 and col_tx_type < len(row) and row[col_tx_type] else '',
-                'summary': row[col_summary].strip() if col_summary >= 0 and col_summary < len(row) and row[col_summary] else '',
-            })
+            result.rows.append(
+                {
+                    'company': company_id_val,
+                    'company_name': company_name,
+                    'project': project_id_val,
+                    'project_name': project_name,
+                    'source': source or '',
+                    'amount': float(amount),
+                    'date': date,
+                    'status': status,
+                    'description': desc or '',
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    'transaction_time': row[col_tx_time].strip()
+                    if col_tx_time >= 0 and col_tx_time < len(row) and row[col_tx_time]
+                    else '',
+                    'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
+                    'counterparty_account': row[col_cp_acc].strip()
+                    if col_cp_acc >= 0 and col_cp_acc < len(row)
+                    else '',
+                    'counterparty_bank': row[col_cp_bank].strip()
+                    if col_cp_bank >= 0 and col_cp_bank < len(row)
+                    else '',
+                    'transaction_type': row[col_tx_type].strip()
+                    if col_tx_type >= 0 and col_tx_type < len(row) and row[col_tx_type]
+                    else '',
+                    'summary': row[col_summary].strip()
+                    if col_summary >= 0 and col_summary < len(row) and row[col_summary]
+                    else '',
+                }
+            )
             result.success += 1
         except Exception as e:
             result.add_error(i, f'行{i} 解析异常：{str(e)}')
@@ -226,6 +252,7 @@ def import_income(file_obj, company_id=None, operator=None):
 
 
 # ─── 支出导入 ────────────────────────────────────────────────────────
+
 
 def import_expense(file_obj, company_id=None, operator=None):
     """
@@ -236,21 +263,21 @@ def import_expense(file_obj, company_id=None, operator=None):
     result = ImportResult()
     headers, all_rows = parse_uploaded_file(file_obj)
 
-    col_amount   = match_header(headers, '金额', 'amount', '支出金额')
-    col_date     = match_header(headers, '日期', 'date', '支出日期')
-    col_company  = match_header(headers, '公司', 'company', '所属公司')
-    col_type     = match_header(headers, '类型', 'type', '支出类型', '费用类型')
-    col_project  = match_header(headers, '项目', 'project', '所属项目')
-    col_payee    = match_header(headers, '供应商', '收款方', 'payee', '供应商/收款方')
-    col_status   = match_header(headers, '状态', 'status')
-    col_desc     = match_header(headers, '备注', 'description', '描述', '说明')
+    col_amount = match_header(headers, '金额', 'amount', '支出金额')
+    col_date = match_header(headers, '日期', 'date', '支出日期')
+    col_company = match_header(headers, '公司', 'company', '所属公司')
+    col_type = match_header(headers, '类型', 'type', '支出类型', '费用类型')
+    col_project = match_header(headers, '项目', 'project', '所属项目')
+    col_payee = match_header(headers, '供应商', '收款方', 'payee', '供应商/收款方')
+    col_status = match_header(headers, '状态', 'status')
+    col_desc = match_header(headers, '备注', 'description', '描述', '说明')
     # ── 银行流水11字段扩展（可选列）───────────────────────────────
-    col_tx_time  = match_header(headers, '交易时间', 'time')
-    col_balance  = match_header(headers, '余额', 'balance')
-    col_cp_acc   = match_header(headers, '对手账号', '账号')
-    col_cp_bank  = match_header(headers, '对手开户行', '开户行')
-    col_tx_type  = match_header(headers, '交易类型')
-    col_summary  = match_header(headers, '摘要', '摘要2')
+    col_tx_time = match_header(headers, '交易时间', 'time')
+    col_balance = match_header(headers, '余额', 'balance')
+    col_cp_acc = match_header(headers, '对手账号', '账号')
+    col_cp_bank = match_header(headers, '对手开户行', '开户行')
+    col_tx_type = match_header(headers, '交易类型')
+    col_summary = match_header(headers, '摘要', '摘要2')
 
     if col_amount == -1:
         result.add_error(0, '未找到"金额"列')
@@ -270,9 +297,18 @@ def import_expense(file_obj, company_id=None, operator=None):
     # 正向: expense→expense, advance→advance; 反向: 费用报销→expense, 预付款→advance
     type_choices = {}
     for k, label in raw_choices.items():
-        type_choices[k] = k          # expense→expense
-        type_choices[label] = k      # 费用报销→expense
-    status_map = {'approved': 'approved', '已批准': 'approved', '待审批': 'pending', 'pending': 'pending', 'draft': 'draft', '草稿': 'draft', 'rejected': 'rejected', '已拒绝': 'rejected'}
+        type_choices[k] = k  # expense→expense
+        type_choices[label] = k  # 费用报销→expense
+    status_map = {
+        'approved': 'approved',
+        '已批准': 'approved',
+        '待审批': 'pending',
+        'pending': 'pending',
+        'draft': 'draft',
+        '草稿': 'draft',
+        'rejected': 'rejected',
+        '已拒绝': 'rejected',
+    }
 
     def normalize_choice(val, mapping):
         if not val:
@@ -283,7 +319,7 @@ def import_expense(file_obj, company_id=None, operator=None):
     for i, row in enumerate(all_rows, start=2):
         try:
             amount = parse_number(row[col_amount] if col_amount >= 0 and col_amount < len(row) else None)
-            date   = parse_date(row[col_date] if col_date >= 0 and col_date < len(row) else None)
+            date = parse_date(row[col_date] if col_date >= 0 and col_date < len(row) else None)
 
             if not amount:
                 result.add_error(i, f'行{i}：金额无效')
@@ -296,30 +332,44 @@ def import_expense(file_obj, company_id=None, operator=None):
             company_name = company_name.strip() if company_name else None
             project_name = row[col_project] if col_project >= 0 and col_project < len(row) else None
             project_name = project_name.strip() if project_name else None
-            type_val     = row[col_type] if col_type >= 0 and col_type < len(row) else None
-            payee_val    = row[col_payee] if col_payee >= 0 and col_payee < len(row) else None
-            status_val   = row[col_status] if col_status >= 0 and col_status < len(row) else None
-            desc_val     = row[col_desc] if col_desc >= 0 and col_desc < len(row) else None
+            type_val = row[col_type] if col_type >= 0 and col_type < len(row) else None
+            payee_val = row[col_payee] if col_payee >= 0 and col_payee < len(row) else None
+            status_val = row[col_status] if col_status >= 0 and col_status < len(row) else None
+            desc_val = row[col_desc] if col_desc >= 0 and col_desc < len(row) else None
 
-            result.rows.append({
-                'company': company_cache.get(company_name) if company_name else None,
-                'company_name': company_name,
-                'expense_type': normalize_choice(type_val, type_choices) if 'type_choices' in dir() else (type_val or 'other'),
-                'project': project_cache.get(project_name) if project_name else None,
-                'project_name': project_name,
-                'amount': float(amount),
-                'date': date,
-                'supplier': str(payee_val).strip() if payee_val else '',
-                'status': status_map.get(str(status_val).strip(), 'draft') if status_val else 'draft',
-                'description': str(desc_val).strip() if desc_val else '',
-                # ── 银行流水11字段扩展 ─────────────────────────────
-                'transaction_time': row[col_tx_time].strip() if col_tx_time >= 0 and col_tx_time < len(row) and row[col_tx_time] else '',
-                'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
-                'counterparty_account': row[col_cp_acc].strip() if col_cp_acc >= 0 and col_cp_acc < len(row) else '',
-                'counterparty_bank': row[col_cp_bank].strip() if col_cp_bank >= 0 and col_cp_bank < len(row) else '',
-                'transaction_type': row[col_tx_type].strip() if col_tx_type >= 0 and col_tx_type < len(row) and row[col_tx_type] else '',
-                'summary': row[col_summary].strip() if col_summary >= 0 and col_summary < len(row) and row[col_summary] else '',
-            })
+            result.rows.append(
+                {
+                    'company': company_cache.get(company_name) if company_name else None,
+                    'company_name': company_name,
+                    'expense_type': normalize_choice(type_val, type_choices)
+                    if 'type_choices' in dir()
+                    else (type_val or 'other'),
+                    'project': project_cache.get(project_name) if project_name else None,
+                    'project_name': project_name,
+                    'amount': float(amount),
+                    'date': date,
+                    'supplier': str(payee_val).strip() if payee_val else '',
+                    'status': status_map.get(str(status_val).strip(), 'draft') if status_val else 'draft',
+                    'description': str(desc_val).strip() if desc_val else '',
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    'transaction_time': row[col_tx_time].strip()
+                    if col_tx_time >= 0 and col_tx_time < len(row) and row[col_tx_time]
+                    else '',
+                    'balance': parse_number(row[col_balance]) if col_balance >= 0 and col_balance < len(row) else None,
+                    'counterparty_account': row[col_cp_acc].strip()
+                    if col_cp_acc >= 0 and col_cp_acc < len(row)
+                    else '',
+                    'counterparty_bank': row[col_cp_bank].strip()
+                    if col_cp_bank >= 0 and col_cp_bank < len(row)
+                    else '',
+                    'transaction_type': row[col_tx_type].strip()
+                    if col_tx_type >= 0 and col_tx_type < len(row) and row[col_tx_type]
+                    else '',
+                    'summary': row[col_summary].strip()
+                    if col_summary >= 0 and col_summary < len(row) and row[col_summary]
+                    else '',
+                }
+            )
             result.success += 1
         except Exception as e:
             result.add_error(i, f'行{i} 解析异常：{str(e)}')
@@ -328,6 +378,7 @@ def import_expense(file_obj, company_id=None, operator=None):
 
 
 # ─── 工资导入 ────────────────────────────────────────────────────────
+
 
 def import_wage(file_obj, company_id=None):
     """
@@ -338,17 +389,17 @@ def import_wage(file_obj, company_id=None):
     result = ImportResult()
     headers, all_rows = parse_uploaded_file(file_obj)
 
-    col_name    = match_header(headers, '姓名', '员工姓名', 'name', '员工')
-    col_yyyymm  = match_header(headers, '年月', 'year_month', '月份', '工资月份')
+    col_name = match_header(headers, '姓名', '员工姓名', 'name', '员工')
+    col_yyyymm = match_header(headers, '年月', 'year_month', '月份', '工资月份')
     col_company = match_header(headers, '公司', 'company', '所属公司')
-    col_basic   = match_header(headers, '基本工资', 'basic_wage', '岗位工资')
-    col_overtime= match_header(headers, '加班费', 'overtime_wage', '加班工资')
-    col_bonus   = match_header(headers, '奖金', 'bonus', '绩效奖')
+    col_basic = match_header(headers, '基本工资', 'basic_wage', '岗位工资')
+    col_overtime = match_header(headers, '加班费', 'overtime_wage', '加班工资')
+    col_bonus = match_header(headers, '奖金', 'bonus', '绩效奖')
     col_soc_ins = match_header(headers, '社保', '养老保险', '个人社保', 'social_insurance')
     col_housing = match_header(headers, '公积金', '住房公租金', 'housing_fund', 'housing')
-    col_tax     = match_header(headers, '个税', '个人所得税', 'personal_income_tax', 'tax')
-    col_other   = match_header(headers, '其他扣款', 'other_deductions', '扣款')
-    col_net     = match_header(headers, '实发', '实发工资', 'net_salary', '税后工资')
+    col_tax = match_header(headers, '个税', '个人所得税', 'personal_income_tax', 'tax')
+    col_other = match_header(headers, '其他扣款', 'other_deductions', '扣款')
+    col_net = match_header(headers, '实发', '实发工资', 'net_salary', '税后工资')
 
     if col_name == -1:
         result.add_error(0, '未找到"姓名"列，请确保 Excel 包含员工姓名列')
@@ -360,7 +411,7 @@ def import_wage(file_obj, company_id=None):
         result.add_error(0, '未找到"公司"列')
         return result
 
-    from apps.finance.models import Employee, Company, WageRecord, EmployeeCompany
+    from apps.finance.models import Employee, Company, EmployeeCompany
 
     # 公司名简称→全称映射（解决 Excel 模板用简称但数据库用全称的问题）
     COMPANY_ALIAS_MAP = {
@@ -457,38 +508,42 @@ def import_wage(file_obj, company_id=None):
             employee_company = ec_cache.get((name, company_full_name)) if name and company_full_name else None
 
             def get_num(col):
-                if col < 0 or col >= len(row): return None
+                if col < 0 or col >= len(row):
+                    return None
                 return parse_number(row[col])
 
-            result.rows.append({
-                'employee': employee.id if employee else None,
-                'employee_company': employee_company.id if employee_company else None,
-                'employee_name': name,
-                'company': company_id_val,
-                'company_name': company_name,
-                'year_month': yyyymm,
-                'basic_wage': get_num(col_basic),
-                'overtime_wage': get_num(col_overtime),
-                'bonus': get_num(col_bonus),
-                'social_insurance_employee': get_num(col_soc_ins),
-                'housing_fund_employee': get_num(col_housing),
-                'personal_income_tax': get_num(col_tax),
-                'other_deductions': get_num(col_other),
-                'net_salary': get_num(col_net),
-            })
+            result.rows.append(
+                {
+                    'employee': employee.id if employee else None,
+                    'employee_company': employee_company.id if employee_company else None,
+                    'employee_name': name,
+                    'company': company_id_val,
+                    'company_name': company_name,
+                    'year_month': yyyymm,
+                    'basic_wage': get_num(col_basic),
+                    'overtime_wage': get_num(col_overtime),
+                    'bonus': get_num(col_bonus),
+                    'social_insurance_employee': get_num(col_soc_ins),
+                    'housing_fund_employee': get_num(col_housing),
+                    'personal_income_tax': get_num(col_tax),
+                    'other_deductions': get_num(col_other),
+                    'net_salary': get_num(col_net),
+                }
+            )
             result.success += 1
         except Exception as e:
             result.add_error(i, f'行{i} 解析异常：{str(e)}')
 
     return result
 
+
 # ─── 发票导入 ─────────────────────────────────────────────────────────
 
 # 税局导出文件中的发票号码表头变体（按优先级排序）
 INVOICE_NO_HEADERS = [
-    '数电发票号码',    # 标准税局导出（全量发票查询）
-    '全电发票号码',    # 旧版税局导出（2024年及以前）
-    '发票号码',        # 纸质发票或旧版导出
+    '数电发票号码',  # 标准税局导出（全量发票查询）
+    '全电发票号码',  # 旧版税局导出（2024年及以前）
+    '发票号码',  # 纸质发票或旧版导出
 ]
 
 
@@ -559,7 +614,7 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
         s = str(v).strip()
         for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d', '%Y/%m/%d', '%Y%m%d'):
             try:
-                return datetime.datetime.strptime(s[:10], fmt[:len(s)]).date()
+                return datetime.datetime.strptime(s[:10], fmt[: len(s)]).date()
             except ValueError:
                 pass
         return None
@@ -581,6 +636,7 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
 
     def resolve_company_by_tax(tax_id, default=None):
         from apps.finance.models import Company
+
         if not tax_id:
             return default
         company = Company.objects.filter(tax_id=str(tax_id).strip()).first()
@@ -594,10 +650,10 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
     # income（开出发票，我方是销方）→ 交易对手是购方
     # expense（收到发票，我方是购方）→ 交易对手是销方
     if invoice_type == 'income':
-        counterparty_field     = 'buyer_name'
+        counterparty_field = 'buyer_name'
         counterparty_tax_field = 'buyer_tax'
     else:
-        counterparty_field     = 'seller_name'
+        counterparty_field = 'seller_name'
         counterparty_tax_field = 'seller_tax'
 
     # ══════════════════════════════════════════════════════════════
@@ -625,18 +681,18 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
         c_invoice_code = col('发票代码')
         if c_invoice_code == c_invoice_no:
             c_invoice_code = -1
-        c_seller_name       = col('销方名称')
-        c_seller_tax        = col('销方识别号')
-        c_buyer_name        = col('购买方名称')
-        c_buyer_tax         = col('购方识别号')
-        c_date              = col('开票日期')
-        c_amount            = col('金额')
-        c_tax               = col('税额')
-        c_total             = col('价税合计')
-        c_status            = col('发票状态')
-        c_invoice_type_col  = col('发票票种')
-        c_issuer            = col('开票人')
-        c_remark            = col('备注')
+        c_seller_name = col('销方名称')
+        c_seller_tax = col('销方识别号')
+        c_buyer_name = col('购买方名称')
+        c_buyer_tax = col('购方识别号')
+        c_date = col('开票日期')
+        c_amount = col('金额')
+        c_tax = col('税额')
+        c_total = col('价税合计')
+        c_status = col('发票状态')
+        c_invoice_type_col = col('发票票种')
+        c_issuer = col('开票人')
+        c_remark = col('备注')
         # 税率列（仅信息汇总表才有）
         c_tax_rate = -1
         for i, h in enumerate(headers):
@@ -651,9 +707,11 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
         is_detail_sheet = has_tax_rate and has_line_items
 
         # 预读所有数据行
-        all_data_rows = [list(row) for row in ws.iter_rows(
-            min_row=header_row_idx + 1, values_only=True)
-            if not all(v is None for v in row)]
+        all_data_rows = [
+            list(row)
+            for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True)
+            if not all(v is None for v in row)
+        ]
 
         # ──────────────────────────────────────────────────────────
         # 信息汇总表模式：按发票号聚合明细行
@@ -669,14 +727,14 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
                     detail_map[inv_no] = {
                         'rows': [row],
                         'seller_name': get_val(row, c_seller_name),
-                        'seller_tax':  get_val(row, c_seller_tax),
-                        'buyer_name':  get_val(row, c_buyer_name),
-                        'buyer_tax':   get_val(row, c_buyer_tax),
-                        'date':        parse_date(get_val(row, c_date)),
-                        '票种':        get_val(row, c_invoice_type_col),
-                        'issuer':      get_val(row, c_issuer),
-                        'remark':      get_val(row, c_remark),
-                        'status_raw':  get_val(row, c_status),
+                        'seller_tax': get_val(row, c_seller_tax),
+                        'buyer_name': get_val(row, c_buyer_name),
+                        'buyer_tax': get_val(row, c_buyer_tax),
+                        'date': parse_date(get_val(row, c_date)),
+                        '票种': get_val(row, c_invoice_type_col),
+                        'issuer': get_val(row, c_issuer),
+                        'remark': get_val(row, c_remark),
+                        'status_raw': get_val(row, c_status),
                     }
                 else:
                     detail_map[inv_no]['rows'].append(row)
@@ -704,19 +762,17 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
                             total_amount = abs(float(raw_total))
                             total_tax = 0.0
 
-                    counterparty       = str(info[counterparty_field] or '').strip()
+                    counterparty = str(info[counterparty_field] or '').strip()
                     counterparty_tax_id = str(info[counterparty_tax_field] or '').strip()
                     issue_date = info['date']
 
                     # 公司匹配
                     if invoice_type == 'income':
-                        resolved_company_id = resolve_company_by_tax(
-                            info.get('seller_tax'), default=company_id)
+                        resolved_company_id = resolve_company_by_tax(info.get('seller_tax'), default=company_id)
                     else:
-                        resolved_company_id = resolve_company_by_tax(
-                            info.get('buyer_tax'), default=company_id)
+                        resolved_company_id = resolve_company_by_tax(info.get('buyer_tax'), default=company_id)
 
-                    inv_status     = map_status(info.get('status_raw'), invoice_type)
+                    inv_status = map_status(info.get('status_raw'), invoice_type)
                     inv_invoice_type = map_invoice_type(info.get('票种'))
 
                     # 税率
@@ -735,21 +791,21 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
                     # 备注拼接开票人
                     issuer = str(info.get('issuer') or '').strip()
                     remark_base = str(info.get('remark') or '').strip()
-                    remarks = (remark_base + (' | 开票人:' + issuer) if issuer else remark_base)
+                    remarks = remark_base + (' | 开票人:' + issuer) if issuer else remark_base
 
                     row_dict = {
-                        'invoice_no':          inv_no,
-                        'type':                invoice_type,
-                        'invoice_type':        inv_invoice_type,
-                        'amount':              round(total_amount, 2),
-                        'tax_amount':          abs(round(total_tax, 2)) if total_tax else None,
-                        'counterparty':        counterparty,
+                        'invoice_no': inv_no,
+                        'type': invoice_type,
+                        'invoice_type': inv_invoice_type,
+                        'amount': round(total_amount, 2),
+                        'tax_amount': abs(round(total_tax, 2)) if total_tax else None,
+                        'counterparty': counterparty,
                         'counterparty_tax_id': counterparty_tax_id,
-                        'issue_date':          issue_date,
-                        'status':              inv_status,
-                        'is_credited':         False,
-                        'company_id':          resolved_company_id or company_id,
-                        'remarks':             remarks,
+                        'issue_date': issue_date,
+                        'status': inv_status,
+                        'is_credited': False,
+                        'company_id': resolved_company_id or company_id,
+                        'remarks': remarks,
                     }
                     if tax_rate_val is not None:
                         row_dict['tax_rate'] = float(tax_rate_val)
@@ -787,18 +843,18 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
                     date_val = parse_date(get_val(row, c_date))
 
                     seller_name = str(get_val(row, c_seller_name) or '').strip()
-                    seller_tax  = str(get_val(row, c_seller_tax) or '').strip()
-                    buyer_name  = str(get_val(row, c_buyer_name) or '').strip()
-                    buyer_tax   = str(get_val(row, c_buyer_tax) or '').strip()
+                    seller_tax = str(get_val(row, c_seller_tax) or '').strip()
+                    buyer_name = str(get_val(row, c_buyer_name) or '').strip()
+                    buyer_tax = str(get_val(row, c_buyer_tax) or '').strip()
                     inv_type_raw = get_val(row, c_invoice_type_col)
-                    status_raw   = get_val(row, c_status)
-                    issuer_val   = str(get_val(row, c_issuer) or '').strip()
-                    remark_val   = str(get_val(row, c_remark) or '').strip()
+                    status_raw = get_val(row, c_status)
+                    issuer_val = str(get_val(row, c_issuer) or '').strip()
+                    remark_val = str(get_val(row, c_remark) or '').strip()
 
-                    inv_type_val  = map_invoice_type(inv_type_raw)
-                    status_val    = map_status(status_raw, invoice_type)
-                    remark_full   = (remark_val + (' | 开票人:' + issuer_val) if issuer_val else remark_val)
-                    counterparty  = seller_name if invoice_type == 'expense' else buyer_name
+                    inv_type_val = map_invoice_type(inv_type_raw)
+                    status_val = map_status(status_raw, invoice_type)
+                    remark_full = remark_val + (' | 开票人:' + issuer_val) if issuer_val else remark_val
+                    counterparty = seller_name if invoice_type == 'expense' else buyer_name
                     counterparty_tax_id = seller_tax if invoice_type == 'expense' else buyer_tax
 
                     # 公司匹配
@@ -824,18 +880,18 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
                         inv_no = raw_inv_no
 
                     row_dict = {
-                        'invoice_no':          inv_no,
-                        'type':                invoice_type,
-                        'invoice_type':        inv_type_val,
-                        'amount':              round(amount_val, 2),
-                        'tax_amount':          round(tax_val, 2) if tax_val is not None else None,
-                        'counterparty':        counterparty,
+                        'invoice_no': inv_no,
+                        'type': invoice_type,
+                        'invoice_type': inv_type_val,
+                        'amount': round(amount_val, 2),
+                        'tax_amount': round(tax_val, 2) if tax_val is not None else None,
+                        'counterparty': counterparty,
                         'counterparty_tax_id': counterparty_tax_id,
-                        'issue_date':          date_val,
-                        'status':              status_val,
-                        'is_credited':         False,
-                        'company_id':          resolved_company_id or company_id,
-                        'remarks':             remark_full,
+                        'issue_date': date_val,
+                        'status': status_val,
+                        'is_credited': False,
+                        'company_id': resolved_company_id or company_id,
+                        'remarks': remark_full,
                     }
                     if tax_rate_val is not None:
                         row_dict['tax_rate'] = float(tax_rate_val)

@@ -1,8 +1,8 @@
 # 通知系统优化方案 v4.0
 
-> **版本：** v4.0  
-> **日期：** 2026-05-28  
-> **参考：** NOTIFICATION-SYSTEM.md（原始设计）、NOTIFICATION-SYSTEM-UPGRADE.md（v2.0需求）  
+> **版本：** v4.0
+> **日期：** 2026-05-28
+> **参考：** NOTIFICATION-SYSTEM.md（原始设计）、NOTIFICATION-SYSTEM-UPGRADE.md（v2.0需求）
 
 ---
 

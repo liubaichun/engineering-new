@@ -4,6 +4,7 @@ from apps.core.models import User
 
 class Supplier(models.Model):
     """供应商模型"""
+
     STATUS_CHOICES = [
         ('active', '合作中'),
         ('inactive', '已停止'),
@@ -20,7 +21,9 @@ class Supplier(models.Model):
     remark = models.TextField('备注', blank=True, null=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
-    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_suppliers')
+    created_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_suppliers'
+    )
 
     class Meta:
         db_table = 'crm_supplier'
@@ -29,7 +32,7 @@ class Supplier(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.code} - {self.name}" if self.code else self.name
+        return f'{self.code} - {self.name}' if self.code else self.name
 
     def save(self, *args, **kwargs):
         if not self.code:

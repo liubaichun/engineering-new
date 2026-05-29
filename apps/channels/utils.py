@@ -3,10 +3,10 @@
 CNAS/CMA 要求：敏感凭证（app_secret/corp_secret/token 等）不得明文存储
 使用 Fernet（AEAD-AES-128-CBC）加密，密钥从环境变量 CHANNEL_CREDENTIAL_KEY 读取
 """
+
 import os
 import base64
 import hashlib
-import json
 import logging
 from typing import Dict, Any, List
 
@@ -45,9 +45,9 @@ def _get_fernet_key() -> bytes:
         key_source = getattr(settings, 'SECRET_KEY', None)
         if not key_source:
             logger.error(
-                "[安全警告] CHANNEL_CREDENTIAL_KEY 环境变量未设置，且 SECRET_KEY 缺失。"
-                "凭证加密将使用临时随机密钥，重启服务后已加密数据将无法解密。"
-                "请在生产环境设置 CHANNEL_CREDENTIAL_KEY 环境变量。"
+                '[安全警告] CHANNEL_CREDENTIAL_KEY 环境变量未设置，且 SECRET_KEY 缺失。'
+                '凭证加密将使用临时随机密钥，重启服务后已加密数据将无法解密。'
+                '请在生产环境设置 CHANNEL_CREDENTIAL_KEY 环境变量。'
             )
             key_source = 'engineering-unsafe-temp-key'
 
@@ -60,6 +60,7 @@ def _get_fernet_key() -> bytes:
 def _encrypt_value(plaintext: str) -> str:
     """对单个明文字符串进行 Fernet 加密，返回 __enc__:base64 格式"""
     from cryptography.fernet import Fernet
+
     f = Fernet(_get_fernet_key())
     ciphertext = f.encrypt(plaintext.encode('utf-8'))
     return ENC_PREFIX + base64.urlsafe_b64encode(ciphertext).decode('ascii')
@@ -68,9 +69,10 @@ def _encrypt_value(plaintext: str) -> str:
 def _decrypt_value(ciphertext_with_prefix: str) -> str:
     """解密 __enc__:base64 格式的密文，返回明文"""
     from cryptography.fernet import Fernet
+
     if not ciphertext_with_prefix.startswith(ENC_PREFIX):
         return ciphertext_with_prefix  # 非加密值直接返回
-    raw = ciphertext_with_prefix[len(ENC_PREFIX):]
+    raw = ciphertext_with_prefix[len(ENC_PREFIX) :]
     f = Fernet(_get_fernet_key())
     plaintext = f.decrypt(base64.urlsafe_b64decode(raw))
     return plaintext.decode('utf-8')
@@ -152,9 +154,9 @@ def _get_state_key() -> str:
     key = getattr(settings, 'SECRET_KEY', None)
     if not key:
         logger.error(
-            "[安全警告] CHANNEL_STATE_KEY 环境变量未设置，且 SECRET_KEY 缺失。"
-            "OAuth state 签名将使用临时密钥，存在会话固定攻击风险。"
-            "请在生产环境设置 CHANNEL_STATE_KEY 环境变量。"
+            '[安全警告] CHANNEL_STATE_KEY 环境变量未设置，且 SECRET_KEY 缺失。'
+            'OAuth state 签名将使用临时密钥，存在会话固定攻击风险。'
+            '请在生产环境设置 CHANNEL_STATE_KEY 环境变量。'
         )
         return 'engineering-unsafe-temp-state-key'
     return key
@@ -167,13 +169,9 @@ def make_oauth_state(user_id: int) -> str:
     有效期 10 分钟
     """
     timestamp = int(time.time())
-    raw = f"{user_id}.{timestamp}"
-    sig = hmac.new(
-        _get_state_key().encode('utf-8'),
-        raw.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()[:16]
-    return f"{raw}.{sig}"
+    raw = f'{user_id}.{timestamp}'
+    sig = hmac.new(_get_state_key().encode('utf-8'), raw.encode('utf-8'), hashlib.sha256).hexdigest()[:16]
+    return f'{raw}.{sig}'
 
 
 def verify_oauth_state(state: str) -> tuple[bool, int | None, str]:
@@ -182,36 +180,32 @@ def verify_oauth_state(state: str) -> tuple[bool, int | None, str]:
     Returns: (is_valid, user_id, error_reason)
     """
     if not state:
-        return False, None, "state 为空"
+        return False, None, 'state 为空'
 
     parts = state.split('.')
     if len(parts) != 3:
         # 兼容旧格式（纯 user_id 字符串）
         if state.isdigit():
-            return True, int(state), ""  # 旧格式不做过期校验，放行
-        return False, None, f"state 格式错误: {state[:50]}"
+            return True, int(state), ''  # 旧格式不做过期校验，放行
+        return False, None, f'state 格式错误: {state[:50]}'
 
     user_id_str, timestamp_str, sig = parts
 
     if not user_id_str.isdigit():
-        return False, None, "state user_id 非数字"
+        return False, None, 'state user_id 非数字'
 
     timestamp = int(timestamp_str)
     user_id = int(user_id_str)
 
     # 校验签名
-    raw = f"{user_id}.{timestamp}"
-    expected_sig = hmac.new(
-        _get_state_key().encode('utf-8'),
-        raw.encode('utf-8'),
-        hashlib.sha256
-    ).hexdigest()[:16]
+    raw = f'{user_id}.{timestamp}'
+    expected_sig = hmac.new(_get_state_key().encode('utf-8'), raw.encode('utf-8'), hashlib.sha256).hexdigest()[:16]
     if not hmac.compare_digest(sig, expected_sig):
-        return False, None, "state 签名不匹配（可能被篡改）"
+        return False, None, 'state 签名不匹配（可能被篡改）'
 
     # 校验时间戳是否过期
     age = int(time.time()) - timestamp
     if age > STATE_MAX_AGE_SECONDS:
-        return False, None, f"state 已过期（{age}秒 > {STATE_MAX_AGE_SECONDS}秒）"
+        return False, None, f'state 已过期（{age}秒 > {STATE_MAX_AGE_SECONDS}秒）'
 
-    return True, user_id, ""
+    return True, user_id, ''

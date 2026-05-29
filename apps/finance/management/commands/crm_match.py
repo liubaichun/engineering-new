@@ -10,6 +10,7 @@ CRM 自动匹配命令：将 Income/Expense 记录的客户/供应商名称与 C
     - Income.customer → crm.Client.name（精确匹配）
     - Expense.supplier → crm.Supplier.name（精确匹配）
 """
+
 from django.core.management.base import BaseCommand
 from apps.finance.models import Income, Expense
 from apps.crm.models import Client, Supplier
@@ -87,9 +88,7 @@ class Command(BaseCommand):
         # ── 3. CRM 中未在 Income/Expense 中出现的名称 ─────────────────────
         self.stdout.write('\n=== CRM 中未使用的客户名称 ===')
         used_client_names = set(
-            Income.objects.filter(client_ref__isnull=False)
-            .values_list('client_ref__name', flat=True)
-            .distinct()
+            Income.objects.filter(client_ref__isnull=False).values_list('client_ref__name', flat=True).distinct()
         )
         unused_clients = Client.objects.exclude(name__in=used_client_names)
         for c in unused_clients:
@@ -97,9 +96,7 @@ class Command(BaseCommand):
 
         self.stdout.write('\n=== CRM 中未使用的供应商名称 ===')
         used_supplier_names = set(
-            Expense.objects.filter(supplier_ref__isnull=False)
-            .values_list('supplier_ref__name', flat=True)
-            .distinct()
+            Expense.objects.filter(supplier_ref__isnull=False).values_list('supplier_ref__name', flat=True).distinct()
         )
         unused_suppliers = Supplier.objects.exclude(name__in=used_supplier_names)
         for s in unused_suppliers:

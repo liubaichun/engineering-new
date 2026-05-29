@@ -1,35 +1,14 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
+from django.db.models import Sum
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
+from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from .models import WageRecord, EmployeeCompany
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
     WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
+from .filters import WageRecordFilter
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
@@ -37,14 +16,12 @@ from apps.core.permissions import RoleRequired
 from .views_common import (
     SafePageNumberPagination,
     get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
 )
 
 
 class WageRecordViewSet(viewsets.ModelViewSet):
     """工资单视图集"""
+
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     queryset = WageRecord.objects.all()
@@ -78,7 +55,12 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         if cids is not None:
             qs = qs.filter(company_id__in=cids)
         return qs.select_related(
-            'company', 'approver', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
+            'company',
+            'approver',
+            'employee',
+            'employee_company',
+            'employee_company__company',
+            'employee_company__employee',
         ).prefetch_related('approval_flow')
 
     def _resolve_employee_company(self, emp_id, company_id=None):
@@ -114,6 +96,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.status = 'approved'
         wage_record.approver = request.user
         from django.utils import timezone
+
         wage_record.approved_at = timezone.now()
         try:
             wage_record.save(update_fields=['status', 'approver', 'approved_at'])
@@ -129,6 +112,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             return Response({'status': 'error', 'message': '只能发放已批准状态的工资单'}, status=400)
         wage_record.status = 'paid'
         from django.utils import timezone
+
         wage_record.paid_at = timezone.now()
         try:
             wage_record.save(update_fields=['status', 'paid_at'])
@@ -143,10 +127,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         # Bugfix: distinct() on values() with JOINed queryset 会导致 PostgreSQL
         # 把所有列加入DISTINCT考量（每行都不同）。必须显式 order_by('year')
         # 强制只对year字段DISTINCT。同时用values()先收窄列。
-        years = sorted(
-            qs.order_by('year').values_list('year', flat=True).distinct(),
-            reverse=True
-        )
+        years = sorted(qs.order_by('year').values_list('year', flat=True).distinct(), reverse=True)
         return Response({'years': list(years)})
 
     @action(detail=True, methods=['post'])
@@ -163,15 +144,15 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         # 根据系统设置决定是否触发审批流
         from apps.core.models import SystemSetting
+
         try:
-            trigger_approval = SystemSetting.objects.get(
-                key='wage_submit_creates_approval'
-            ).value == 'true'
+            trigger_approval = SystemSetting.objects.get(key='wage_submit_creates_approval').value == 'true'
         except SystemSetting.DoesNotExist:
             trigger_approval = False
 
         if trigger_approval:
             from apps.approvals.flow_builder import build_approval_flow
+
             gross = float(wage_record.gross_salary or 0)
             flow = build_approval_flow(
                 flow_type='wage',
@@ -263,19 +244,19 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             'paid': queryset.filter(status='paid').count(),
         }
 
-        return Response({
-            'count': count,
-            'total_gross': round(total_gross, 2),
-            'total_tax': round(total_tax, 2),
-            'total_net': round(total_net, 2),
-            'status_counts': status_counts,
-        })
+        return Response(
+            {
+                'count': count,
+                'total_gross': round(total_gross, 2),
+                'total_tax': round(total_tax, 2),
+                'total_net': round(total_net, 2),
+                'status_counts': status_counts,
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def dashboard(self, request):
         """工资仪表盘数据"""
-        from django.db.models import Sum, Count
-        from django.db.models.functions import TruncMonth
 
         year = request.query_params.get('year')
         month = request.query_params.get('month')
@@ -293,10 +274,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         # 本月工资
         now = timezone.now()
-        current_month_qs = self.get_queryset().filter(
-            year=now.year,
-            month=now.month
-        )
+        current_month_qs = self.get_queryset().filter(year=now.year, month=now.month)
         if company_id:
             current_month_qs = current_month_qs.filter(company_id=company_id)
 
@@ -312,28 +290,28 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         pending_count = queryset.filter(status='approved').count()
 
         # 逾期
-        overdue_qs = queryset.filter(status='approved', year__lt=now.year).exclude(
-            year=now.year, month__lte=now.month
-        )
+        overdue_qs = queryset.filter(status='approved', year__lt=now.year).exclude(year=now.year, month__lte=now.month)
         overdue_total = overdue_qs.aggregate(total=Sum('net_salary'))['total'] or 0
         overdue_count = overdue_qs.count()
 
-        return Response({
-            'current_total': float(current_total),
-            'current_count': current_count,
-            'paid_total': float(paid_total),
-            'paid_count': paid_count,
-            'pending_total': float(pending_total),
-            'pending_count': pending_count,
-            'overdue_total': float(overdue_total),
-            'overdue_count': overdue_count,
-        })
+        return Response(
+            {
+                'current_total': float(current_total),
+                'current_count': current_count,
+                'paid_total': float(paid_total),
+                'paid_count': paid_count,
+                'pending_total': float(pending_total),
+                'pending_count': pending_count,
+                'overdue_total': float(overdue_total),
+                'overdue_count': overdue_count,
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出工资单 Excel"""
         from apps.core.export_excel import export_wage_records, make_export_response
-        from apps.finance.models import WageRecord, EmployeeCompany
+
         queryset = self.get_queryset()
         year = request.GET.get('year')
         month = request.GET.get('month')
@@ -344,9 +322,11 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(month=int(month))
         if company_id:
             queryset = queryset.filter(company_id=int(company_id))
-        records = list(queryset.select_related(
-            'employee', 'company', 'employee_company', 'employee_company__company', 'employee_company__employee'
-        ))
+        records = list(
+            queryset.select_related(
+                'employee', 'company', 'employee_company', 'employee_company__company', 'employee_company__employee'
+            )
+        )
         buf = export_wage_records(records)
         return make_export_response(buf, f'工资单_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
@@ -355,9 +335,11 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         """生成单张工资条 PDF"""
         wage_record = self.get_object()
         from apps.finance.services.wage_pdf import generate_wage_slip_pdf
+
         pdf_bytes = generate_wage_slip_pdf(wage_record)
-        filename = f"工资条_{wage_record.employee_name}_{wage_record.year}年{wage_record.month}月.pdf"
+        filename = f'工资条_{wage_record.employee_name}_{wage_record.year}年{wage_record.month}月.pdf'
         from django.http import HttpResponse
+
         response = HttpResponse(pdf_bytes, content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
@@ -380,9 +362,11 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         if company_id:
             queryset = queryset.filter(company_id=int(company_id))
 
-        records = list(queryset.select_related(
-            'company', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
-        ))
+        records = list(
+            queryset.select_related(
+                'company', 'employee', 'employee_company', 'employee_company__company', 'employee_company__employee'
+            )
+        )
 
         if not records:
             return Response({'status': 'error', 'message': '没有找到符合条件的工资单'}, status=400)
@@ -399,9 +383,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         writer.write(output)
         output.seek(0)
 
-        period_str = f"{year or '全部'}-{month or '全部'}"
-        filename = f"工资条批量_{period_str}_{timezone.now().strftime('%Y%m%d')}.pdf"
+        period_str = f'{year or "全部"}-{month or "全部"}'
+        filename = f'工资条批量_{period_str}_{timezone.now().strftime("%Y%m%d")}.pdf'
         from django.http import HttpResponse
+
         response = HttpResponse(output.getvalue(), content_type='application/pdf')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
@@ -412,8 +397,9 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         GET ?year=&month=&company_id=&bank_type=ICBC|CCB|GENERIC
         """
         from apps.finance.services.wage_bank import (
-            generate_icbc_batch_file, generate_ccb_batch_file,
-            generate_generic_batch_file, make_bank_export_response
+            generate_icbc_batch_file,
+            generate_ccb_batch_file,
+            make_bank_export_response,
         )
 
         queryset = self.get_queryset().filter(status__in=['approved', 'paid'])
@@ -429,23 +415,21 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         if company_id:
             queryset = queryset.filter(company_id=int(company_id))
 
-        records = list(queryset.select_related(
-            'company', 'employee', 'employee_company'
-        ))
+        records = list(queryset.select_related('company', 'employee', 'employee_company'))
 
         if not records:
             return Response({'status': 'error', 'message': '没有符合条件的已审批工资单'}, status=400)
 
         company_name = records[0].company.name if records else ''
-        period_str = f"{year or '全部'}{month or '全部'}"
+        period_str = f'{year or "全部"}{month or "全部"}'
 
         if bank_type == 'ICBC':
             content = generate_icbc_batch_file(records, company_name)
-            filename = f"工行代发_{period_str}_{timezone.now().strftime('%Y%m%d')}.txt"
+            filename = f'工行代发_{period_str}_{timezone.now().strftime("%Y%m%d")}.txt'
             response = make_bank_export_response(content, filename, 'text/plain; charset=gbk')
         else:
             content = generate_ccb_batch_file(records)
-            filename = f"建行代发_{period_str}_{timezone.now().strftime('%Y%m%d')}.csv"
+            filename = f'建行代发_{period_str}_{timezone.now().strftime("%Y%m%d")}.csv'
             response = make_bank_export_response(content, filename, 'text/csv; charset=utf-8')
 
         return response
@@ -478,7 +462,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         Excel 格式：第1行表头，数据从第2行起，必需列：姓名
         """
         from apps.finance.services.wage_import import import_wage_excel, WageImportError
-        from apps.finance.models import WageRecord, Employee, EmployeeCompany
+        from apps.finance.models import WageRecord, EmployeeCompany
 
         file = request.FILES.get('file')
         if not file:
@@ -507,11 +491,14 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
 
         if not records:
-            return Response({
-                'success': False,
-                'message': 'Excel 中无有效数据行',
-                'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors]
-            }, status=400)
+            return Response(
+                {
+                    'success': False,
+                    'message': 'Excel 中无有效数据行',
+                    'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors],
+                },
+                status=400,
+            )
 
         created = 0
         skipped = []
@@ -520,16 +507,22 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             emp_name = rec.get('employee_name', '').strip()
             ec = None
             if company_id:
-                ec = EmployeeCompany.objects.filter(
-                    employee__name=emp_name, company_id=company_id
-                ).select_related('employee').order_by('-is_primary').first()
+                ec = (
+                    EmployeeCompany.objects.filter(employee__name=emp_name, company_id=company_id)
+                    .select_related('employee')
+                    .order_by('-is_primary')
+                    .first()
+                )
             if not ec:
-                ec = EmployeeCompany.objects.filter(
-                    employee__name=emp_name
-                ).select_related('employee').order_by('-is_primary').first()
+                ec = (
+                    EmployeeCompany.objects.filter(employee__name=emp_name)
+                    .select_related('employee')
+                    .order_by('-is_primary')
+                    .first()
+                )
 
             if not ec:
-                skipped.append(f"「{emp_name}」未找到对应员工")
+                skipped.append(f'「{emp_name}」未找到对应员工')
                 continue
 
             # 检查是否已存在
@@ -540,35 +533,40 @@ class WageRecordViewSet(viewsets.ModelViewSet):
                 month=rec.get('month'),
             ).exists()
             if existing:
-                skipped.append(f"「{emp_name}」{rec.get('year')}年{rec.get('month')}月工资记录已存在，跳过")
+                skipped.append(f'「{emp_name}」{rec.get("year")}年{rec.get("month")}月工资记录已存在，跳过')
                 continue
 
             # 构建工资记录（自动计算实发）
             from decimal import Decimal
+
             net = (
-                Decimal(str(rec.get('base_salary') or 0)) +
-                Decimal(str(rec.get('position_salary') or 0)) +
-                Decimal(str(rec.get('overtime_pay') or 0)) +
-                Decimal(str(rec.get('bonus') or 0)) +
-                Decimal(str(rec.get('commission') or 0)) +
-                Decimal(str(rec.get('meal_allowance') or 0)) +
-                Decimal(str(rec.get('transport_allowance') or 0)) +
-                Decimal(str(rec.get('communication_allowance') or 0)) +
-                Decimal(str(rec.get('other_allowance') or 0))
+                Decimal(str(rec.get('base_salary') or 0))
+                + Decimal(str(rec.get('position_salary') or 0))
+                + Decimal(str(rec.get('overtime_pay') or 0))
+                + Decimal(str(rec.get('bonus') or 0))
+                + Decimal(str(rec.get('commission') or 0))
+                + Decimal(str(rec.get('meal_allowance') or 0))
+                + Decimal(str(rec.get('transport_allowance') or 0))
+                + Decimal(str(rec.get('communication_allowance') or 0))
+                + Decimal(str(rec.get('other_allowance') or 0))
             ) - (
-                Decimal(str(rec.get('social_insurance') or 0)) +
-                Decimal(str(rec.get('housing_fund') or 0)) +
-                Decimal(str(rec.get('leave_deduction') or 0)) +
-                Decimal(str(rec.get('sick_leave_deduction') or 0)) +
-                Decimal(str(rec.get('other_deductions') or 0))
+                Decimal(str(rec.get('social_insurance') or 0))
+                + Decimal(str(rec.get('housing_fund') or 0))
+                + Decimal(str(rec.get('leave_deduction') or 0))
+                + Decimal(str(rec.get('sick_leave_deduction') or 0))
+                + Decimal(str(rec.get('other_deductions') or 0))
             )
 
             gross = (
-                Decimal(str(rec.get('base_salary') or 0)) + Decimal(str(rec.get('position_salary') or 0)) +
-                Decimal(str(rec.get('overtime_pay') or 0)) + Decimal(str(rec.get('bonus') or 0)) +
-                Decimal(str(rec.get('commission') or 0)) + Decimal(str(rec.get('meal_allowance') or 0)) +
-                Decimal(str(rec.get('transport_allowance') or 0)) +
-                Decimal(str(rec.get('communication_allowance') or 0)) + Decimal(str(rec.get('other_allowance') or 0))
+                Decimal(str(rec.get('base_salary') or 0))
+                + Decimal(str(rec.get('position_salary') or 0))
+                + Decimal(str(rec.get('overtime_pay') or 0))
+                + Decimal(str(rec.get('bonus') or 0))
+                + Decimal(str(rec.get('commission') or 0))
+                + Decimal(str(rec.get('meal_allowance') or 0))
+                + Decimal(str(rec.get('transport_allowance') or 0))
+                + Decimal(str(rec.get('communication_allowance') or 0))
+                + Decimal(str(rec.get('other_allowance') or 0))
             )
 
             WageRecord.objects.create(
@@ -601,17 +599,19 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             )
             created += 1
 
-        return Response({
-            'success': created > 0,
-            'message': f'成功导入 {created} 条工资记录' + (f'，跳过 {len(skipped)} 条' if skipped else ''),
-            'skipped': skipped[:20],
-            'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors],
-        })
+        return Response(
+            {
+                'success': created > 0,
+                'message': f'成功导入 {created} 条工资记录' + (f'，跳过 {len(skipped)} 条' if skipped else ''),
+                'skipped': skipped[:20],
+                'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors],
+            }
+        )
 
     @action(detail=False, methods=['post'])
     def calc(self, request):
         """工资自动计算接口"""
-        import re
+
         def calc_tax(taxable):
             if taxable <= 0:
                 return 0
@@ -646,19 +646,21 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             tax = calc_tax(taxable)
             net = gross - total_ded - tax
 
-            return Response({
-                'gross': round(gross, 2),
-                'social_insurance': round(social, 2),
-                'housing_fund': round(fund, 2),
-                'special_deduction': round(special_ded, 2),
-                'leave_deduction': round(leave_ded, 2),
-                'sick_leave_deduction': round(sick_ded, 2),
-                'other_deductions': round(other_ded, 2),
-                'total_deduction': round(total_ded, 2),
-                'taxable_salary': round(taxable, 2),
-                'tax': round(tax, 2),
-                'net_salary': round(net, 2),
-            })
+            return Response(
+                {
+                    'gross': round(gross, 2),
+                    'social_insurance': round(social, 2),
+                    'housing_fund': round(fund, 2),
+                    'special_deduction': round(special_ded, 2),
+                    'leave_deduction': round(leave_ded, 2),
+                    'sick_leave_deduction': round(sick_ded, 2),
+                    'other_deductions': round(other_ded, 2),
+                    'total_deduction': round(total_ded, 2),
+                    'taxable_salary': round(taxable, 2),
+                    'tax': round(tax, 2),
+                    'net_salary': round(net, 2),
+                }
+            )
         except Exception as e:
             return Response({'error': str(e)}, status=400)
 
@@ -666,7 +668,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
     def import_records(self, request):
         """批量导入工资单 Excel"""
         from apps.core.import_excel import import_wage
-        from apps.finance.models import WageRecord, Employee
+        from apps.finance.models import WageRecord
 
         file = request.FILES.get('file')
         if not file:
@@ -694,7 +696,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
                 # 如果传了员工姓名但找不到，提示警告（不阻断其他行）
                 if not employee_id and row_data.get('employee_name'):
-                    errors.append(f"第{i+2}行：员工「{row_data['employee_name']}」不存在，已跳过")
+                    errors.append(f'第{i + 2}行：员工「{row_data["employee_name"]}」不存在，已跳过')
                     continue
 
                 wr = WageRecord.objects.create(
@@ -715,18 +717,21 @@ class WageRecordViewSet(viewsets.ModelViewSet):
                 )
                 created += 1
             except Exception as e:
-                errors.append(f"第{i+2}行：{str(e)}")
+                errors.append(f'第{i + 2}行：{str(e)}')
 
-        return Response({
-            'success': created > 0,
-            'message': f'成功导入 {created} 条工资记录' + (f'，失败 {len(errors)} 条' if errors else ''),
-            'errors': errors[:20],
-        })
+        return Response(
+            {
+                'success': created > 0,
+                'message': f'成功导入 {created} 条工资记录' + (f'，失败 {len(errors)} 条' if errors else ''),
+                'errors': errors[:20],
+            }
+        )
 
     @action(detail=False, methods=['post'])
     def send_wage_slip_email(self, request):
         """发送工资条邮件（参数: wage_id 单条 或 year+month+company_id 批量）"""
         from apps.core.wage_email_service import send_wage_slip_email, send_wage_slip_batch
+
         wage_id = request.data.get('wage_id')
         year = request.data.get('year')
         month = request.data.get('month')
@@ -736,17 +741,18 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             dry_run = False
         if wage_id:
             from apps.finance.models import WageRecord
+
             try:
-                record = WageRecord.objects.select_related('company', 'employee', 'employee_company__employee').get(id=wage_id)
+                record = WageRecord.objects.select_related('company', 'employee', 'employee_company__employee').get(
+                    id=wage_id
+                )
             except WageRecord.DoesNotExist:
                 return Response({'success': False, 'message': f'工资记录 ID={wage_id} 不存在'}, status=404)
             ok, msg = send_wage_slip_email(record, dry_run=dry_run)
             return Response({'success': ok, 'message': msg, 'wage_id': wage_id})
         elif year and month:
             result = send_wage_slip_batch(
-                year=int(year), month=int(month),
-                company_id=int(company_id) if company_id else None,
-                dry_run=dry_run
+                year=int(year), month=int(month), company_id=int(company_id) if company_id else None, dry_run=dry_run
             )
             return Response({'success': True, **result})
         else:

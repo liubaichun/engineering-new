@@ -1,16 +1,10 @@
 from rest_framework import viewsets, serializers, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired, get_module_companies
-from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from datetime import timedelta
-from django.db.models import Q
-from apps.core.serializers import UserSerializer
-from apps.finance.models import Company
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,6 +12,7 @@ User = get_user_model()
 
 from .models import Task, Project
 from .flow_engine import FlowEngine
+
 
 class TaskSerializer(serializers.ModelSerializer):
     project_name = serializers.CharField(source='project.name', read_only=True)
@@ -35,19 +30,35 @@ class TaskSerializer(serializers.ModelSerializer):
             return None
         full = obj.reporter.get_full_name()
         return full if full else obj.reporter.username
+
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     flow_instance = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Task
         fields = [
-            'id', 'title', 'code', 'description', 'project', 'project_name',
-            'priority', 'priority_display', 'status', 'status_display',
-            'assignee', 'assignee_name', 'assignee_username',
-            'reporter', 'reporter_name',
-            'due_date', 'completed_at', 'created_at', 'updated_at',
-            'flow_instance', 'company_id'
+            'id',
+            'title',
+            'code',
+            'description',
+            'project',
+            'project_name',
+            'priority',
+            'priority_display',
+            'status',
+            'status_display',
+            'assignee',
+            'assignee_name',
+            'assignee_username',
+            'reporter',
+            'reporter_name',
+            'due_date',
+            'completed_at',
+            'created_at',
+            'updated_at',
+            'flow_instance',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'completed_at', 'assignee']
 
@@ -60,12 +71,12 @@ class TaskSerializer(serializers.ModelSerializer):
         try:
             return User.objects.get(username=value)
         except User.DoesNotExist:
-            raise serializers.ValidationError("用户不存在: %s" % value)
+            raise serializers.ValidationError('用户不存在: %s' % value)
 
     def get_flow_instance(self, obj):
         if not hasattr(obj, 'flow_instance') or obj.flow_instance is None:
             return None
-        
+
         instance = obj.flow_instance
         result = {
             'template_name': instance.template.name if instance.template else None,
@@ -73,13 +84,10 @@ class TaskSerializer(serializers.ModelSerializer):
             'current_node_status': None,
             'current_node_assignee': None,
         }
-        
+
         # Get stage instance status for current node
         if instance.current_node:
-            stage_instance = TaskStageInstance.objects.filter(
-                task=obj,
-                node_template=instance.current_node
-            ).first()
+            stage_instance = TaskStageInstance.objects.filter(task=obj, node_template=instance.current_node).first()
             if stage_instance:
                 # Map stage status to card display status: pending/in_progress → same, approved → completed
                 stage_status = stage_instance.status
@@ -90,27 +98,31 @@ class TaskSerializer(serializers.ModelSerializer):
                 else:
                     result['current_node_status'] = stage_status
                 result['current_node_assignee'] = stage_instance.assignee.username if stage_instance.assignee else None
-        
+
         return result
 
 
 class TaskCreateSerializer(serializers.ModelSerializer):
     company_id = serializers.IntegerField(read_only=True)
-    project = serializers.PrimaryKeyRelatedField(
-        queryset=Project.objects.all(),
-        required=False, allow_null=True
-    )
+    project = serializers.PrimaryKeyRelatedField(queryset=Project.objects.all(), required=False, allow_null=True)
     assignee = serializers.SlugRelatedField(
-        queryset=User.objects.all(), slug_field='username',
-        required=False, allow_null=True
+        queryset=User.objects.all(), slug_field='username', required=False, allow_null=True
     )
 
     class Meta:
         model = Task
         fields = [
-            'id', 'title', 'code', 'description', 'project',
-            'priority', 'status', 'assignee', 'reporter', 'due_date',
-            'company_id'
+            'id',
+            'title',
+            'code',
+            'description',
+            'project',
+            'priority',
+            'status',
+            'assignee',
+            'reporter',
+            'due_date',
+            'company_id',
         ]
 
     def create(self, validated_data):
@@ -118,9 +130,9 @@ class TaskCreateSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 
-
 class TaskViewSet(viewsets.ModelViewSet):
     """任务视图集"""
+
     queryset = Task.objects.all()
     search_fields = ['code', 'title', 'description']
     list_filter_fields = ['status', 'priority', 'project', 'assignee']
@@ -137,7 +149,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         'start_flow': 'project:task:update',
         'flow_info': 'project:task:read',
     }
-    
+
     def get_serializer_class(self):
         if self.action == 'create':
             return TaskCreateSerializer
@@ -148,12 +160,14 @@ class TaskViewSet(viewsets.ModelViewSet):
         # 发送任务创建通知
         try:
             from apps.tasks.notification_service import notify_task_created
+
             notify_task_created(instance, created_by=self.request.user)
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_created failed: {e}')
         return instance
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -162,7 +176,9 @@ class TaskViewSet(viewsets.ModelViewSet):
             cids = get_module_companies(user, 'task')
             if cids is not None:
                 queryset = queryset.filter(project__company_id__in=cids)
-        queryset = queryset.select_related('project', 'assignee', 'reporter').prefetch_related('flow_instance__template', 'flow_instance__current_node')
+        queryset = queryset.select_related('project', 'assignee', 'reporter').prefetch_related(
+            'flow_instance__template', 'flow_instance__current_node'
+        )
         project_id = self.request.query_params.get('project', None)
         if project_id:
             queryset = queryset.filter(project_id=project_id)
@@ -175,22 +191,20 @@ class TaskViewSet(viewsets.ModelViewSet):
         created_month = self.request.query_params.get('created_month', None)
         if created_month:
             import datetime
+
             year = int(self.request.query_params.get('year', datetime.date.today().year))
             queryset = queryset.filter(created_at__month=int(created_month), created_at__year=year)
         created_date = self.request.query_params.get('created_date', None)
         if created_date:
             queryset = queryset.filter(created_at__date=created_date)
         return queryset
-    
+
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
         """开始任务"""
         task = self.get_object()
         if task.status != 'pending':
-            return Response(
-                {'error': '只有待开始的任务才能开始'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '只有待开始的任务才能开始'}, status=status.HTTP_400_BAD_REQUEST)
         task.status = 'in_progress'
         try:
             task.save()
@@ -199,22 +213,21 @@ class TaskViewSet(viewsets.ModelViewSet):
         # 发送任务开始通知
         try:
             from apps.tasks.notification_service import notify_task_started
+
             notify_task_started(task, started_by=request.user)
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_started failed: {e}')
         serializer = self.get_serializer(task)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
         """完成任务"""
         task = self.get_object()
         if task.status not in ['pending', 'in_progress']:
-            return Response(
-                {'error': '当前状态不允许完成'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '当前状态不允许完成'}, status=status.HTTP_400_BAD_REQUEST)
         task.status = 'completed'
         task.completed_at = timezone.now()
         try:
@@ -224,13 +237,15 @@ class TaskViewSet(viewsets.ModelViewSet):
         # 发送任务完成通知
         try:
             from apps.tasks.notification_service import notify_task_completed
+
             notify_task_completed(task, completed_by=request.user)
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_completed failed: {e}')
         serializer = self.get_serializer(task)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['post'])
     def start_flow(self, request, pk=None):
         """为任务启动流程"""
@@ -238,86 +253,82 @@ class TaskViewSet(viewsets.ModelViewSet):
         template_id = request.data.get('template')
 
         if not template_id:
-            return Response(
-                {'error': '请提供流程模板ID'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '请提供流程模板ID'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             template = FlowTemplate.objects.get(id=template_id)
         except FlowTemplate.DoesNotExist:
-            return Response(
-                {'error': '流程模板不存在'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '流程模板不存在'}, status=status.HTTP_400_BAD_REQUEST)
 
         # 检查是否已有流程实例
         if TaskFlowInstance.objects.filter(task=task).exists():
-            return Response(
-                {'error': '任务已有流程实例'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '任务已有流程实例'}, status=status.HTTP_400_BAD_REQUEST)
 
         engine = FlowEngine(task)
         instance = engine.start_flow(template, started_by=request.user)
 
-        return Response({
-            'id': instance.id,
-            'status': instance.status,
-            'current_node': instance.current_node.name if instance.current_node else None,
-            'message': '流程已启动'
-        })
-    
+        return Response(
+            {
+                'id': instance.id,
+                'status': instance.status,
+                'current_node': instance.current_node.name if instance.current_node else None,
+                'message': '流程已启动',
+            }
+        )
+
     @action(detail=True, methods=['get'])
     def flow_info(self, request, pk=None):
         """获取任务的流程信息"""
         task = self.get_object()
-        
+
         if not hasattr(task, 'flow_instance'):
-            return Response({
-                'has_flow': False,
-                'message': '任务未启动流程'
-            })
-        
+            return Response({'has_flow': False, 'message': '任务未启动流程'})
+
         engine = FlowEngine(task)
         engine.instance = task.flow_instance
         progress = engine.get_flow_progress()
-        
-        return Response({
-            'has_flow': True,
-            'instance_id': task.flow_instance.id,
-            'status': task.flow_instance.status,
-            'status_display': task.flow_instance.status_display,
-            'template_name': task.flow_instance.template.name if task.flow_instance.template else None,
-            'current_node': task.flow_instance.current_node.name if task.flow_instance.current_node else None,
-            'progress': progress
-        })
 
-
+        return Response(
+            {
+                'has_flow': True,
+                'instance_id': task.flow_instance.id,
+                'status': task.flow_instance.status,
+                'status_display': task.flow_instance.status_display,
+                'template_name': task.flow_instance.template.name if task.flow_instance.template else None,
+                'current_node': task.flow_instance.current_node.name if task.flow_instance.current_node else None,
+                'progress': progress,
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出任务 Excel"""
         from apps.core.export_excel import export_to_xlsx, make_export_response
         from django.utils import timezone
+
         records = list(self.get_queryset().select_related('project', 'assignee', 'reporter'))
         rows = []
         for task in records:
-            rows.append([
-                task.code or '',
-                task.title or '',
-                task.get_status_display() if hasattr(task, 'get_status_display') else str(task.status),
-                task.get_priority_display() if hasattr(task, 'get_priority_display') else str(task.priority),
-                task.project.name if task.project else '',
-                task.assignee.username if task.assignee else '',
-                task.reporter.username if task.reporter else '',
-                str(task.due_date or ''),
-                str(task.created_at or ''),
-            ])
-        buf = export_to_xlsx([{
-            'title': '任务清单',
-            'headers': ['编号', '标题', '状态', '优先级', '项目', '负责人', '报告人', '截止日期', '创建时间'],
-            'rows': rows,
-        }])
+            rows.append(
+                [
+                    task.code or '',
+                    task.title or '',
+                    task.get_status_display() if hasattr(task, 'get_status_display') else str(task.status),
+                    task.get_priority_display() if hasattr(task, 'get_priority_display') else str(task.priority),
+                    task.project.name if task.project else '',
+                    task.assignee.username if task.assignee else '',
+                    task.reporter.username if task.reporter else '',
+                    str(task.due_date or ''),
+                    str(task.created_at or ''),
+                ]
+            )
+        buf = export_to_xlsx(
+            [
+                {
+                    'title': '任务清单',
+                    'headers': ['编号', '标题', '状态', '优先级', '项目', '负责人', '报告人', '截止日期', '创建时间'],
+                    'rows': rows,
+                }
+            ]
+        )
         return make_export_response(buf, '任务_{}.xlsx'.format(timezone.now().strftime('%Y%m%d')))
-

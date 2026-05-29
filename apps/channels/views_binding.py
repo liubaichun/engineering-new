@@ -5,18 +5,18 @@ from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-from .models import ChannelPlugin, ChannelBinding, NotificationLog, ChannelAuditLog
+from .models import ChannelPlugin, ChannelBinding, NotificationLog
 from .base import ChannelRegistry
-from apps.core.services import get_active_company_id
+
 
 class BindingQRCodeView(APIView):
     """获取绑定二维码URL"""
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -30,6 +30,7 @@ class BindingQRCodeView(APIView):
         callback_url = request.build_absolute_uri(f'/api/channels/bind/callback/{channel.id}/')
         # OAuth state：带签名+时间戳，防会话固定攻击（10分钟有效期）
         from apps.channels.utils import make_oauth_state
+
         oauth_state = make_oauth_state(request.user.id)
 
         # 加载对应插件
@@ -41,26 +42,30 @@ class BindingQRCodeView(APIView):
 
         # 对于不需要OAuth的渠道（如微信PushPlus），直接返回配置提示
         if not binding_url:
-            return Response({
-                'binding_mode': 'manual',
+            return Response(
+                {
+                    'binding_mode': 'manual',
+                    'channel_id': channel.id,
+                    'channel_type': channel.channel_type,
+                    'channel_name': channel.get_channel_type_display(),
+                    'message': '该渠道需要手动配置，请在下方填入您的推送标识',
+                }
+            )
+
+        return Response(
+            {
+                'binding_mode': 'oauth',
+                'binding_url': binding_url,
                 'channel_id': channel.id,
                 'channel_type': channel.channel_type,
                 'channel_name': channel.get_channel_type_display(),
-                'message': '该渠道需要手动配置，请在下方填入您的推送标识',
-            })
-
-        return Response({
-            'binding_mode': 'oauth',
-            'binding_url': binding_url,
-            'channel_id': channel.id,
-            'channel_type': channel.channel_type,
-            'channel_name': channel.get_channel_type_display(),
-        })
-
+            }
+        )
 
 
 class BindingCallbackView(APIView):
     """处理渠道OAuth回调"""
+
     permission_classes = [AllowAny]
 
     def get(self, request, channel_id):
@@ -68,16 +73,18 @@ class BindingCallbackView(APIView):
 
         # 验证 OAuth state（防会话固定攻击）
         from apps.channels.utils import verify_oauth_state
+
         state = request.GET.get('state')
-        valid, user_id, error_reason = verify_oauth_state(state) if state else (False, None, "state 为空")
+        valid, user_id, error_reason = verify_oauth_state(state) if state else (False, None, 'state 为空')
 
         if not valid:
             write_audit_log(
-                'oauth_callback_fail', request,
+                'oauth_callback_fail',
+                request,
                 channel=channel,
                 detail={'error': f'state 校验失败: {error_reason}', 'state': str(state)[:50] if state else ''},
                 result='failure',
-                error_message=f'state 校验失败: {error_reason}'
+                error_message=f'state 校验失败: {error_reason}',
             )
             return Response({'error': f'OAuth state 校验失败: {error_reason}'}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -102,33 +109,35 @@ class BindingCallbackView(APIView):
                             'platform_user_info': result.get('user_info', {}),
                             'status': 'active',
                             'is_active': True,
-                        }
+                        },
                     )
                 except User.DoesNotExist:
                     pass
 
             write_audit_log(
-                'oauth_callback_success', request,
-                channel=channel, binding=binding,
+                'oauth_callback_success',
+                request,
+                channel=channel,
+                binding=binding,
                 detail={'open_id': result.get('open_id', ''), 'user_id': user_id},
-                result='success'
+                result='success',
             )
 
-            html = f"""
+            html = """
 <!DOCTYPE html>
 <html lang="zh">
 <head>
     <meta charset="UTF-8">
     <title>绑定成功</title>
     <style>
-        body {{ font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }}
-        .card {{ background: white; border-radius: 12px; padding: 48px 40px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.1); max-width: 400px; }}
-        .icon {{ width: 72px; height: 72px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }}
-        .icon svg {{ width: 40px; height: 40px; fill: white; }}
-        h2 {{ color: #1f2937; margin: 0 0 12px; font-size: 24px; }}
-        p {{ color: #6b7280; margin: 0 0 32px; font-size: 15px; }}
-        a {{ display: inline-block; background: #10b981; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 500; }}
-        a:hover {{ background: #059669; }}
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f5f5; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }
+        .card { background: white; border-radius: 12px; padding: 48px 40px; text-align: center; box-shadow: 0 4px 24px rgba(0,0,0,0.1); max-width: 400px; }
+        .icon { width: 72px; height: 72px; background: #10b981; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; }
+        .icon svg { width: 40px; height: 40px; fill: white; }
+        h2 { color: #1f2937; margin: 0 0 12px; font-size: 24px; }
+        p { color: #6b7280; margin: 0 0 32px; font-size: 15px; }
+        a { display: inline-block; background: #10b981; color: white; padding: 12px 32px; border-radius: 8px; text-decoration: none; font-weight: 500; }
+        a:hover { background: #059669; }
     </style>
 </head>
 <body>
@@ -146,11 +155,12 @@ class BindingCallbackView(APIView):
 
         # OAuth 失败
         write_audit_log(
-            'oauth_callback_fail', request,
+            'oauth_callback_fail',
+            request,
             channel=channel,
             detail={'error': result.get('error', '')},
             result='failure',
-            error_message=result.get('error', '未知错误')
+            error_message=result.get('error', '未知错误'),
         )
 
         html = f"""
@@ -184,9 +194,9 @@ class BindingCallbackView(APIView):
         return HttpResponse(html)
 
 
-
 class WebhookView(APIView):
     """接收各渠道的Webhook回调"""
+
     permission_classes = [AllowAny]
 
     def post(self, request, channel_id):
@@ -195,11 +205,12 @@ class WebhookView(APIView):
         plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
         if not plugin:
             write_audit_log(
-                'webhook_received', request,
+                'webhook_received',
+                request,
                 channel=channel,
                 detail={'received': True, 'plugin_found': False},
                 result='failure',
-                error_message='不支持的渠道类型'
+                error_message='不支持的渠道类型',
             )
             return Response({'error': '不支持的渠道类型'}, status=400)
 
@@ -209,11 +220,12 @@ class WebhookView(APIView):
             verify_result = plugin.verify_webhook_signature(request, channel)
             if not verify_result.get('valid', False):
                 write_audit_log(
-                    'webhook_received', request,
+                    'webhook_received',
+                    request,
                     channel=channel,
                     detail={'received': True, 'signature_valid': False, 'ip': get_client_ip(request)},
                     result='failure',
-                    error_message='验签失败: ' + str(verify_result.get('error', ''))
+                    error_message='验签失败: ' + str(verify_result.get('error', '')),
                 )
                 return Response({'error': '验签失败'}, status=401)
 
@@ -225,7 +237,8 @@ class WebhookView(APIView):
         if result is not None:
             notification_log_status = 'delivered'
             write_audit_log(
-                'webhook_received', request,
+                'webhook_received',
+                request,
                 channel=channel,
                 detail={
                     'title': result.get('title', ''),
@@ -233,15 +246,16 @@ class WebhookView(APIView):
                     'open_id': result.get('open_id', ''),
                     'ip': get_client_ip(request),
                 },
-                result='success'
+                result='success',
             )
         else:
             write_audit_log(
-                'webhook_received', request,
+                'webhook_received',
+                request,
                 channel=channel,
                 detail={'received': True, 'handled': False},
                 result='failure',
-                error_message='该渠道不支持Webhook处理'
+                error_message='该渠道不支持Webhook处理',
             )
             return Response({'error': '该渠道不支持Webhook处理'}, status=400)
 
@@ -261,42 +275,51 @@ class WebhookView(APIView):
         return Response({'challenge': request.GET.get('challenge', '')})
 
 
-
 class BindingListCreateView(APIView):
     """绑定列表、创建、删除"""
+
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
         """获取绑定列表
         staff 可查看所有绑定；普通用户只能查看自己的
         """
         if request.user.is_staff and request.query_params.get('all') == '1':
-            bindings = ChannelBinding.objects.filter(is_active=True).select_related('user', 'channel').order_by('-bound_at')
+            bindings = (
+                ChannelBinding.objects.filter(is_active=True).select_related('user', 'channel').order_by('-bound_at')
+            )
         else:
-            bindings = ChannelBinding.objects.filter(user=request.user, is_active=True).select_related('user', 'channel').order_by('-bound_at')
+            bindings = (
+                ChannelBinding.objects.filter(user=request.user, is_active=True)
+                .select_related('user', 'channel')
+                .order_by('-bound_at')
+            )
 
-        data = [{
-            'id': b.id,
-            'user_id': b.user.id,
-            'user_name': b.user.username,
-            'channel_id': b.channel.id,
-            'channel': {
-                'id': b.channel.id,
-                'app_name': b.channel.app_name,
-                'channel_type': b.channel.channel_type,
-                'channel_name': b.channel.get_channel_type_display(),
-            },
-            'platform_open_id': b.platform_open_id,
-            'platform_user_info': b.platform_user_info,
-            'status': b.status,
-            'bound_at': b.bound_at,
-        } for b in bindings]
+        data = [
+            {
+                'id': b.id,
+                'user_id': b.user.id,
+                'user_name': b.user.username,
+                'channel_id': b.channel.id,
+                'channel': {
+                    'id': b.channel.id,
+                    'app_name': b.channel.app_name,
+                    'channel_type': b.channel.channel_type,
+                    'channel_name': b.channel.get_channel_type_display(),
+                },
+                'platform_open_id': b.platform_open_id,
+                'platform_user_info': b.platform_user_info,
+                'status': b.status,
+                'bound_at': b.bound_at,
+            }
+            for b in bindings
+        ]
 
         return Response(data)
-    
+
     def post(self, request):
         """手动绑定（适用于微信PushPlus等不需要OAuth的渠道）
-        
+
         admin 可为任意用户创建绑定；普通用户只能绑定自己。
         """
         channel_id = request.data.get('channel_id')
@@ -309,7 +332,9 @@ class BindingListCreateView(APIView):
             try:
                 target_user = User.objects.get(id=target_user_id)
             except User.DoesNotExist:
-                return Response({'error': f'用户不存在: target_user_id={target_user_id}'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {'error': f'用户不存在: target_user_id={target_user_id}'}, status=status.HTTP_400_BAD_REQUEST
+                )
         else:
             target_user = request.user
 
@@ -326,30 +351,35 @@ class BindingListCreateView(APIView):
                 'platform_user_info': {'bind_mode': 'manual', 'created_by': request.user.username},
                 'status': 'active',
                 'is_active': True,
-            }
+            },
         )
 
         write_audit_log(
-            'bind_create', request,
-            channel=channel, binding=binding,
+            'bind_create',
+            request,
+            channel=channel,
+            binding=binding,
             detail={
                 'channel_id': channel.id,
                 'binding_id': binding.id,
                 'platform_open_id': open_id,
                 'bind_mode': 'manual',
             },
-            result='success'
+            result='success',
         )
 
-        return Response({
-            'id': binding.id,
-            'channel_id': channel.id,
-            'channel_type': channel.channel_type,
-            'channel_name': channel.get_channel_type_display(),
-            'platform_open_id': open_id,
-            'status': 'active',
-            'bound_at': binding.bound_at,
-        }, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
+        return Response(
+            {
+                'id': binding.id,
+                'channel_id': channel.id,
+                'channel_type': channel.channel_type,
+                'channel_name': channel.get_channel_type_display(),
+                'platform_open_id': open_id,
+                'status': 'active',
+                'bound_at': binding.bound_at,
+            },
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK,
+        )
 
     def delete(self, request):
         """解除绑定"""
@@ -360,14 +390,16 @@ class BindingListCreateView(APIView):
         binding = get_object_or_404(ChannelBinding, id=binding_id, user=request.user)
 
         write_audit_log(
-            'bind_delete', request,
-            channel=binding.channel, binding=binding,
+            'bind_delete',
+            request,
+            channel=binding.channel,
+            binding=binding,
             detail={
                 'channel_id': binding.channel_id,
                 'binding_id': binding.id,
                 'platform_open_id': binding.platform_open_id,
             },
-            result='success'
+            result='success',
         )
 
         binding.is_active = False
@@ -377,4 +409,3 @@ class BindingListCreateView(APIView):
             return Response({'error': f'解除绑定失败：{str(e)}'}, status=500)
 
         return Response({'message': '解除绑定成功'})
-

@@ -1,15 +1,11 @@
 from rest_framework import viewsets, serializers, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired, get_module_companies
-from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from datetime import timedelta
-from django.db.models import Q
-from apps.core.serializers import UserSerializer
 from apps.finance.models import Company
 import logging
 
@@ -18,11 +14,11 @@ User = get_user_model()
 
 from .models import Project
 
+
 class ProjectSerializer(serializers.ModelSerializer):
     owner_name = serializers.SerializerMethodField()
     owner = serializers.SlugRelatedField(
-        queryset=User.objects.all(), slug_field='username',
-        required=False, allow_null=True
+        queryset=User.objects.all(), slug_field='username', required=False, allow_null=True
     )
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     is_owner = serializers.SerializerMethodField()
@@ -30,13 +26,10 @@ class ProjectSerializer(serializers.ModelSerializer):
     computed_progress = serializers.SerializerMethodField()
     company_id = serializers.IntegerField(required=False, allow_null=True)
     company = serializers.SlugRelatedField(
-        queryset=Company.objects.all(), slug_field='name',
-        required=False, allow_null=True
+        queryset=Company.objects.all(), slug_field='name', required=False, allow_null=True
     )
     viewer_names = serializers.SerializerMethodField()
-    viewer_ids = serializers.ListField(
-        child=serializers.IntegerField(), write_only=True, required=False, default=list
-    )
+    viewer_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False, default=list)
 
     def get_owner_name(self, obj):
         if not obj.owner:
@@ -67,12 +60,29 @@ class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
         fields = [
-            'id', 'name', 'code', 'description', 'status', 'status_display',
-            'owner', 'owner_name', 'start_date', 'end_date', 'progress',
-            'budget', 'company', 'company_name', 'company_id',
-            'approval_flow', 'approval_status',
-            'created_at', 'updated_at', 'is_owner', 'computed_progress',
-            'viewer_names', 'viewer_ids'
+            'id',
+            'name',
+            'code',
+            'description',
+            'status',
+            'status_display',
+            'owner',
+            'owner_name',
+            'start_date',
+            'end_date',
+            'progress',
+            'budget',
+            'company',
+            'company_name',
+            'company_id',
+            'approval_flow',
+            'approval_status',
+            'created_at',
+            'updated_at',
+            'is_owner',
+            'computed_progress',
+            'viewer_names',
+            'viewer_ids',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -98,13 +108,14 @@ class ProjectSerializer(serializers.ModelSerializer):
                 instance.save(update_fields=['company'])
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).exception(f'更新项目公司关联失败: {e}')
         return instance
 
 
-
 class ProjectViewSet(viewsets.ModelViewSet):
     """项目视图集"""
+
     queryset = Project.objects.all()
     serializer_class = ProjectSerializer
     search_fields = ['code', 'name', 'description']
@@ -122,7 +133,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         'gantt_data': 'project:project:read',
         'gantt_all': 'project:project:read',
     }
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
@@ -134,9 +145,8 @@ class ProjectViewSet(viewsets.ModelViewSet):
             else:
                 # 无公司归属时，退回到个人项目
                 from django.db.models import Q
-                queryset = queryset.filter(
-                    Q(owner=user) | Q(viewers=user)
-                )
+
+                queryset = queryset.filter(Q(owner=user) | Q(viewers=user))
         queryset = queryset.prefetch_related('viewers')
         status_filter = self.request.query_params.get('status', None)
         if status_filter:
@@ -144,6 +154,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         created_month = self.request.query_params.get('created_month', None)
         if created_month:
             import datetime
+
             year = int(self.request.query_params.get('year', datetime.date.today().year))
             queryset = queryset.filter(created_at__month=int(created_month), created_at__year=year)
         created_date = self.request.query_params.get('created_date', None)
@@ -155,6 +166,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         try:
             from apps.tasks.notification_service import notify_project_created
+
             notify_project_created(instance, self.request.user)
         except Exception:
             pass
@@ -182,6 +194,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """导出项目 Excel"""
         from apps.core.export_excel import export_projects, make_export_response
         from django.utils import timezone as tz
+
         queryset = self.get_queryset()
         records = queryset.select_related('owner', 'company')
         buf = export_projects(list(records))
@@ -190,9 +203,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def submit_approval(self, request, pk=None):
         """提交项目立项审批"""
-        from apps.approvals.models import ApprovalFlow
         from apps.approvals.flow_builder import build_approval_flow
-        from django.utils import timezone
 
         project = self.get_object()
         if project.approval_status not in ('', 'draft', 'rejected', 'cancelled'):
@@ -223,15 +234,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
         # 通知审批人（有新的项目立项审批）
         try:
             from apps.core.email_service import notify_approval_created
+
             notify_approval_created(flow)
         except Exception:
             pass
 
-        return Response({
-            'message': '立项审批已提交',
-            'flow_id': flow.id,
-            'approval_status': project.approval_status,
-        })
+        return Response(
+            {
+                'message': '立项审批已提交',
+                'flow_id': flow.id,
+                'approval_status': project.approval_status,
+            }
+        )
 
     @action(detail=True, methods=['post'])
     def activate(self, request, pk=None):
@@ -265,63 +279,80 @@ class ProjectViewSet(viewsets.ModelViewSet):
         }
 
         # 任务条
-        task_bars = [{
-            'id': f'task-{t.id}',
-            'name': t.title,
-            'type': 'task',
-            'parent': f'project-{project.id}',
-            'start': getattr(t, 'start_date', None).isoformat() if getattr(t, 'start_date', None) else (t.due_date - timedelta(days=7)).isoformat() if t.due_date else None,
-            'end': t.due_date.isoformat() if t.due_date else None,
-            'progress': 100 if t.status == 'completed' else 0,
-            'status': t.status,
-            'assignee': t.assignee.username if t.assignee else None,
-            'priority': t.priority,
-        } for t in tasks if t.due_date]
+        task_bars = [
+            {
+                'id': f'task-{t.id}',
+                'name': t.title,
+                'type': 'task',
+                'parent': f'project-{project.id}',
+                'start': getattr(t, 'start_date', None).isoformat()
+                if getattr(t, 'start_date', None)
+                else (t.due_date - timedelta(days=7)).isoformat()
+                if t.due_date
+                else None,
+                'end': t.due_date.isoformat() if t.due_date else None,
+                'progress': 100 if t.status == 'completed' else 0,
+                'status': t.status,
+                'assignee': t.assignee.username if t.assignee else None,
+                'priority': t.priority,
+            }
+            for t in tasks
+            if t.due_date
+        ]
 
-        return Response({
-            'project': project_bar,
-            'tasks': task_bars,
-            'project_name': project.name,
-            'today': timezone.now().isoformat(),
-        })
+        return Response(
+            {
+                'project': project_bar,
+                'tasks': task_bars,
+                'project_name': project.name,
+                'today': timezone.now().isoformat(),
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def gantt_all(self, request):
         """全部项目的甘特图数据"""
         from datetime import timedelta
-        projects = Project.objects.filter(
-            status__in=['active', 'completed']
-        ).prefetch_related('tasks').select_related('owner')
+
+        projects = (
+            Project.objects.filter(status__in=['active', 'completed']).prefetch_related('tasks').select_related('owner')
+        )
 
         bars = []
         for p in projects:
             if not p.start_date and not p.end_date and not p.tasks.exists():
                 continue
-            bars.append({
-                'id': f'project-{p.id}',
-                'name': p.name,
-                'type': 'project',
-                'start': p.start_date.isoformat() if p.start_date else None,
-                'end': p.end_date.isoformat() if p.end_date else None,
-                'progress': float(p.progress or 0),
-                'status': p.status,
-                'owner': p.owner.username if p.owner else None,
-            })
+            bars.append(
+                {
+                    'id': f'project-{p.id}',
+                    'name': p.name,
+                    'type': 'project',
+                    'start': p.start_date.isoformat() if p.start_date else None,
+                    'end': p.end_date.isoformat() if p.end_date else None,
+                    'progress': float(p.progress or 0),
+                    'status': p.status,
+                    'owner': p.owner.username if p.owner else None,
+                }
+            )
             for t in p.tasks.all():
                 if not t.due_date:
                     continue
-                bars.append({
-                    'id': f'task-{t.id}',
-                    'name': t.title,
-                    'type': 'task',
-                    'parent': f'project-{p.id}',
-                    'start': getattr(t, 'start_date', None).isoformat() if getattr(t, 'start_date', None) else (t.due_date - timedelta(days=7)).isoformat() if t.due_date else None,
-                    'end': t.due_date.isoformat(),
-                    'progress': 100 if t.status == 'completed' else 0,
-                    'status': t.status,
-                    'assignee': t.assignee.username if t.assignee else None,
-                    'priority': t.priority,
-                })
+                bars.append(
+                    {
+                        'id': f'task-{t.id}',
+                        'name': t.title,
+                        'type': 'task',
+                        'parent': f'project-{p.id}',
+                        'start': getattr(t, 'start_date', None).isoformat()
+                        if getattr(t, 'start_date', None)
+                        else (t.due_date - timedelta(days=7)).isoformat()
+                        if t.due_date
+                        else None,
+                        'end': t.due_date.isoformat(),
+                        'progress': 100 if t.status == 'completed' else 0,
+                        'status': t.status,
+                        'assignee': t.assignee.username if t.assignee else None,
+                        'priority': t.priority,
+                    }
+                )
         return Response(bars)
-
-

@@ -2,12 +2,15 @@
 FlowEngine - 工作流引擎
 负责执行流程模板，管理工作流实例
 """
-from datetime import datetime
+
 from django.utils import timezone
 from apps.tasks.models import (
-    Task, FlowTemplate, FlowNodeTemplate,
-    TaskStageInstance, TaskFlowInstance,
-    StageActivity, FlowTransition
+    FlowTemplate,
+    FlowNodeTemplate,
+    TaskStageInstance,
+    TaskFlowInstance,
+    StageActivity,
+    FlowTransition,
 )
 
 
@@ -72,9 +75,11 @@ class FlowEngine:
         # 通知第一个阶段的处理人
         try:
             from apps.tasks.notification_service import notify_flow_started
+
             notify_flow_started(self.task, stage_instance, started_by)
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f'[FlowEngine] notify_flow_started failed: {e}')
 
         return instance
@@ -86,12 +91,14 @@ class FlowEngine:
 
         if node.assignee_type == 'user':
             from apps.core.models import User
+
             try:
                 return User.objects.get(id=int(node.assignee_value))
             except (User.DoesNotExist, ValueError):
                 return None
         elif node.assignee_type == 'role':
             from apps.core.models import User
+
             return User.objects.filter(roles__code=node.assignee_value).first()
 
         return None
@@ -111,9 +118,7 @@ class FlowEngine:
 
         # 找到当前节点实例
         current = TaskStageInstance.objects.filter(
-            task=self.task,
-            node_template=node_template,
-            status__in=['pending', 'in_progress']
+            task=self.task, node_template=node_template, status__in=['pending', 'in_progress']
         ).first()
 
         if not current:
@@ -136,10 +141,11 @@ class FlowEngine:
         )
 
         # 获取下一节点
-        next_node = FlowNodeTemplate.objects.filter(
-            template=self.template,
-            order__gt=node_template.order
-        ).order_by('order').first()
+        next_node = (
+            FlowNodeTemplate.objects.filter(template=self.template, order__gt=node_template.order)
+            .order_by('order')
+            .first()
+        )
 
         # 记录流转
         FlowTransition.objects.create(
@@ -170,9 +176,11 @@ class FlowEngine:
             # 通知下一阶段处理人
             try:
                 from apps.tasks.notification_service import notify_stage_completed
+
                 notify_stage_completed(self.task, current, next_instance, action, actor)
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).warning(f'[FlowEngine] notify_stage_completed failed: {e}')
 
             return {
@@ -193,9 +201,11 @@ class FlowEngine:
             # 通知流程完成
             try:
                 from apps.tasks.notification_service import notify_flow_completed
+
                 notify_flow_completed(self.task, actor)
             except Exception as e:
                 import logging
+
                 logging.getLogger(__name__).warning(f'[FlowEngine] notify_flow_completed failed: {e}')
 
             return {
@@ -213,10 +223,7 @@ class FlowEngine:
         instances = TaskStageInstance.objects.filter(task=self.task).select_related('node_template')
 
         if not instances.exists():
-            return {
-                'has_flow': False,
-                'message': '该任务没有运行中的流程'
-            }
+            return {'has_flow': False, 'message': '该任务没有运行中的流程'}
 
         current = instances.filter(status__in=['pending', 'in_progress']).first()
         completed = instances.filter(status='approved')
@@ -233,12 +240,9 @@ class FlowEngine:
             'current_node': current.node_template.name if current else None,
             'current_status': current.status if current else None,
             'current_assignee': current.assignee.username if current and current.assignee else None,
-            'completed_nodes': [
-                {'name': i.node_template.name, 'completed_at': i.completed_at}
-                for i in completed
-            ],
+            'completed_nodes': [{'name': i.node_template.name, 'completed_at': i.completed_at} for i in completed],
             'total_nodes': instances.count(),
-            'completed_count': completed.count()
+            'completed_count': completed.count(),
         }
 
     def get_flow_progress(self):

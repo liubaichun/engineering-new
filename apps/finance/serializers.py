@@ -1,5 +1,16 @@
 from rest_framework import serializers
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
+from .models import (
+    Company,
+    Income,
+    Expense,
+    WageRecord,
+    Invoice,
+    Employee,
+    CompanySocialConfig,
+    EmployeeCompany,
+    SocialRecord,
+    Budget,
+)
 from .models_bank import BankAccount, BankStatement
 from apps.core.models import UserCompanyRole
 
@@ -18,13 +29,9 @@ def validate_company_access(serializer, attrs, field_name='company'):
         val = attrs.get(field_name)
         if val:
             company_id = getattr(val, 'id', val)
-            has_access = UserCompanyRole.objects.filter(
-                user=user, company_id=company_id
-            ).exists()
+            has_access = UserCompanyRole.objects.filter(user=user, company_id=company_id).exists()
             if not has_access:
-                raise serializers.ValidationError(
-                    {field_name: f'无权操作该公司(ID={company_id})'}
-                )
+                raise serializers.ValidationError({field_name: f'无权操作该公司(ID={company_id})'})
     return attrs
 
 
@@ -42,13 +49,9 @@ class CompanyAccessValidatorMixin:
         if user and not user.is_superuser:
             company_id = getattr(value, 'id', value)
             if company_id:
-                has_access = UserCompanyRole.objects.filter(
-                    user=user, company_id=company_id
-                ).exists()
+                has_access = UserCompanyRole.objects.filter(user=user, company_id=company_id).exists()
                 if not has_access:
-                    raise serializers.ValidationError(
-                        f'无权操作该公司(ID={company_id})'
-                    )
+                    raise serializers.ValidationError(f'无权操作该公司(ID={company_id})')
         return value
 
 
@@ -63,6 +66,7 @@ def _mask(value, prefix=6, suffix=4, placeholder='****'):
 
 class MaskedCharField(serializers.CharField):
     """自动脱敏字段：写入时存完整值，读取时返回脱敏值"""
+
     def __init__(self, prefix=6, suffix=4, **kwargs):
         self._mask_prefix = prefix
         self._mask_suffix = suffix
@@ -83,21 +87,32 @@ _phone = lambda **kw: MaskedCharField(prefix=3, suffix=4, **kw)
 
 class CompanySerializer(serializers.ModelSerializer):
     """公司序列化器"""
+
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
         model = Company
         fields = [
-            'id', 'name', 'code', 'status', 'status_display',
-            'contact_person', 'contact_phone', 'address',
-            'tax_id', 'bank_name', 'bank_account',
-            'remark', 'created_at'
+            'id',
+            'name',
+            'code',
+            'status',
+            'status_display',
+            'contact_person',
+            'contact_phone',
+            'address',
+            'tax_id',
+            'bank_name',
+            'bank_account',
+            'remark',
+            'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
 
 class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer):
     """收入序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
     operator_name = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
@@ -113,25 +128,54 @@ class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer)
     class Meta:
         model = Income
         fields = [
-            'id', 'company', 'company_name', 'amount', 'date', 'source',
-            'source_display', 'income_category', 'income_category_display', 'status', 'status_display',
-            'project', 'project_name',
-            'customer', 'client_ref', 'client_ref_name', 'description', 'attachment', 'operator',
-            'operator_name', 'approval_flow', 'approval_status',
+            'id',
+            'company',
+            'company_name',
+            'amount',
+            'date',
+            'source',
+            'source_display',
+            'income_category',
+            'income_category_display',
+            'status',
+            'status_display',
+            'project',
+            'project_name',
+            'customer',
+            'client_ref',
+            'client_ref_name',
+            'description',
+            'attachment',
+            'operator',
+            'operator_name',
+            'approval_flow',
+            'approval_status',
             'bank_statement',
             # ── 银行流水11字段扩展 ────────────────────────────────────────
-            'transaction_time', 'balance',
-            'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary',
-            'created_at', 'updated_at'
+            'transaction_time',
+            'balance',
+            'counterparty_account',
+            'counterparty_bank',
+            'transaction_type',
+            'summary',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = [
-            'id', 'operator', 'operator_name', 'approval_flow', 'approval_status',
-            'created_at', 'updated_at',
+            'id',
+            'operator',
+            'operator_name',
+            'approval_flow',
+            'approval_status',
+            'created_at',
+            'updated_at',
             # 银行流水来源字段，人工录入不填
-            'transaction_time', 'balance',
-            'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary',
+            'transaction_time',
+            'balance',
+            'counterparty_account',
+            'counterparty_bank',
+            'transaction_type',
+            'summary',
         ]
 
     def get_approval_status(self, obj) -> str | None:
@@ -146,14 +190,11 @@ class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer)
         if obj.source in ('bank_import', '网银'):
             return '网银'
         # 中文来源值也显示为网银（如IBPS对公提回贷记/代发工资等）
-        if obj.source and any(k in obj.source for k in ['IBPS', '代发', '转账', '提回', '贷记', '借记', '网银', '电子']):
+        if obj.source and any(
+            k in obj.source for k in ['IBPS', '代发', '转账', '提回', '贷记', '借记', '网银', '电子']
+        ):
             return '网银'
-        source_map = {
-            'contract': '合同收入',
-            'project': '项目收入',
-            'service': '服务收入',
-            'other': '其他'
-        }
+        source_map = {'contract': '合同收入', 'project': '项目收入', 'service': '服务收入', 'other': '其他'}
         return source_map.get(obj.source, obj.source or '网银')
 
     def get_bank_statement(self, obj) -> list:
@@ -167,84 +208,117 @@ class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer)
         return income
 
 
-
 class ExpenseSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer):
-        """支出序列化器"""
-        company_name = serializers.CharField(source='company.name', read_only=True)
-        project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
-        operator_name = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
-        expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
-        date = serializers.SerializerMethodField()
-        expense_date = serializers.DateField(help_text='支出日期', required=False, allow_null=True)
-        approval_status = serializers.SerializerMethodField()
-        status_display = serializers.CharField(source='get_status_display', read_only=True)
-        bank_statement = serializers.SerializerMethodField()
-        source_display = serializers.SerializerMethodField()
-        # CRM 标准化：关联供应商
-        supplier_ref_name = serializers.CharField(source='supplier_ref.name', read_only=True, allow_null=True)
+    """支出序列化器"""
 
-        class Meta:
-            model = Expense
-            fields = [
-                'id', 'company', 'company_name', 'amount', 'expense_type', 'expense_type_display',
-                'date', 'expense_date', 'expense_category', 'source', 'source_display', 'project', 'project_name',
-                'supplier', 'supplier_ref', 'supplier_ref_name', 'note', 'description', 'attachment', 'operator',
-                'operator_name', 'approval_flow', 'approval_status', 'status', 'status_display',
-                'bank_statement',
-                # ── 银行流水11字段扩展 ────────────────────────────────────────
-                'transaction_time', 'balance',
-                'counterparty_account', 'counterparty_bank',
-                'transaction_type', 'summary',
-                'created_at', 'updated_at'
-            ]
-            read_only_fields = [
-                'id', 'operator', 'operator_name', 'approval_status',
-                'transaction_time', 'balance',
-                'counterparty_account', 'counterparty_bank',
-                'transaction_type', 'summary',
-                'created_at', 'updated_at'
-            ]
+    company_name = serializers.CharField(source='company.name', read_only=True)
+    project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
+    operator_name = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
+    expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
+    date = serializers.SerializerMethodField()
+    expense_date = serializers.DateField(help_text='支出日期', required=False, allow_null=True)
+    approval_status = serializers.SerializerMethodField()
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+    bank_statement = serializers.SerializerMethodField()
+    source_display = serializers.SerializerMethodField()
+    # CRM 标准化：关联供应商
+    supplier_ref_name = serializers.CharField(source='supplier_ref.name', read_only=True, allow_null=True)
 
-        def get_source_display(self, obj) -> str:
-            if obj.source in ('bank_import', '网银'):
-                return '网银'
-            return obj.source or '网银'
+    class Meta:
+        model = Expense
+        fields = [
+            'id',
+            'company',
+            'company_name',
+            'amount',
+            'expense_type',
+            'expense_type_display',
+            'date',
+            'expense_date',
+            'expense_category',
+            'source',
+            'source_display',
+            'project',
+            'project_name',
+            'supplier',
+            'supplier_ref',
+            'supplier_ref_name',
+            'note',
+            'description',
+            'attachment',
+            'operator',
+            'operator_name',
+            'approval_flow',
+            'approval_status',
+            'status',
+            'status_display',
+            'bank_statement',
+            # ── 银行流水11字段扩展 ────────────────────────────────────────
+            'transaction_time',
+            'balance',
+            'counterparty_account',
+            'counterparty_bank',
+            'transaction_type',
+            'summary',
+            'created_at',
+            'updated_at',
+        ]
+        read_only_fields = [
+            'id',
+            'operator',
+            'operator_name',
+            'approval_status',
+            'transaction_time',
+            'balance',
+            'counterparty_account',
+            'counterparty_bank',
+            'transaction_type',
+            'summary',
+            'created_at',
+            'updated_at',
+        ]
 
-        def get_approval_status(self, obj) -> str | None:
-            try:
-                if obj.approval_flow_id and obj.approval_flow:
-                    return obj.approval_flow.status
-            except Exception:
-                pass
-            return None
+    def get_source_display(self, obj) -> str:
+        if obj.source in ('bank_import', '网银'):
+            return '网银'
+        return obj.source or '网银'
 
-        def get_date(self, obj) -> str | None:
-            if obj.date:
-                return obj.date.isoformat()
-            return None
+    def get_approval_status(self, obj) -> str | None:
+        try:
+            if obj.approval_flow_id and obj.approval_flow:
+                return obj.approval_flow.status
+        except Exception:
+            pass
+        return None
 
-        def get_bank_statement(self, obj) -> list:
-            """反向追溯：关联的银行流水摘要"""
-            stmts = obj.matched_statements.all()
-            return BankStatementSerializer(stmts, many=True).data
+    def get_date(self, obj) -> str | None:
+        if obj.date:
+            return obj.date.isoformat()
+        return None
 
-        def create(self, validated_data):
-            expense_date = validated_data.pop('expense_date', None)
-            if expense_date:
-                validated_data['date'] = expense_date
-            expense = super().create(validated_data)
-            return expense
+    def get_bank_statement(self, obj) -> list:
+        """反向追溯：关联的银行流水摘要"""
+        stmts = obj.matched_statements.all()
+        return BankStatementSerializer(stmts, many=True).data
 
-        def update(self, instance, validated_data):
-            expense_date = validated_data.pop('expense_date', None)
-            if expense_date:
-                instance.date = expense_date
-                instance.expense_date = expense_date
-            return super().update(instance, validated_data)
+    def create(self, validated_data):
+        expense_date = validated_data.pop('expense_date', None)
+        if expense_date:
+            validated_data['date'] = expense_date
+        expense = super().create(validated_data)
+        return expense
+
+    def update(self, instance, validated_data):
+        expense_date = validated_data.pop('expense_date', None)
+        if expense_date:
+            instance.date = expense_date
+            instance.expense_date = expense_date
+        return super().update(instance, validated_data)
 
 
 class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer):
     """工资单序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     approver_name = serializers.CharField(source='approver.username', read_only=True, allow_null=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
@@ -277,38 +351,75 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
     class Meta:
         model = WageRecord
         fields = [
-            'id', 'company', 'company_name',
-            'employee', 'employee_company', 'employee_company_display',
-            'employee_name', 'employee_code', 'employee_phone',
-            'employee_bank_card', 'department_name',
+            'id',
+            'company',
+            'company_name',
+            'employee',
+            'employee_company',
+            'employee_company_display',
+            'employee_name',
+            'employee_code',
+            'employee_phone',
+            'employee_bank_card',
+            'department_name',
             'bank_card',
             # 应发项目
-            'base_salary', 'position_salary', 'overtime_pay', 'bonus',
-            'commission', 'meal_allowance', 'transport_allowance',
-            'communication_allowance', 'other_allowance',
+            'base_salary',
+            'position_salary',
+            'overtime_pay',
+            'bonus',
+            'commission',
+            'meal_allowance',
+            'transport_allowance',
+            'communication_allowance',
+            'other_allowance',
             # 社保公积金
-            'social_insurance', 'housing_fund',
+            'social_insurance',
+            'housing_fund',
             # 其他扣款
-            'leave_days', 'leave_deduction',
-            'sick_leave_days', 'sick_leave_deduction',
+            'leave_days',
+            'leave_deduction',
+            'sick_leave_days',
+            'sick_leave_deduction',
             'late_times',
-            'employee_loan_repayment', 'other_loan', 'other_deductions',
+            'employee_loan_repayment',
+            'other_loan',
+            'other_deductions',
             # 专项附加扣除
-            'children_education', 'continuing_education', 'serious_illness',
-            'housing_loan', 'housing_rent', 'elderly_support', 'infant_care',
+            'children_education',
+            'continuing_education',
+            'serious_illness',
+            'housing_loan',
+            'housing_rent',
+            'elderly_support',
+            'infant_care',
             # 计算项
-            'gross_salary', 'total_deduction', 'taxable_salary',
-            'tax', 'cumulative_tax', 'prior_cumulative_tax', 'net_salary',
+            'gross_salary',
+            'total_deduction',
+            'taxable_salary',
+            'tax',
+            'cumulative_tax',
+            'prior_cumulative_tax',
+            'net_salary',
             # 基本信息
-            'year', 'month', 'month_display',
-            'department', 'position', 'status', 'status_display',
-            'approver', 'approver_name', 'approved_at', 'paid_at',
-            'approval_flow', 'approval_flow_id',
-            'remarks', 'created_at', 'updated_at'
+            'year',
+            'month',
+            'month_display',
+            'department',
+            'position',
+            'status',
+            'status_display',
+            'approver',
+            'approver_name',
+            'approved_at',
+            'paid_at',
+            'approval_flow',
+            'approval_flow_id',
+            'remarks',
+            'created_at',
+            'updated_at',
         ]
-        read_only_fields = [
-            'id', 'approver', 'approved_at', 'paid_at', 'created_at', 'updated_at'
-        ]
+        read_only_fields = ['id', 'approver', 'approved_at', 'paid_at', 'created_at', 'updated_at']
 
     # 计算字段（gross_salary, total_deduction, taxable_salary, tax, cumulative_tax, net_salary）
     # 由模型save()重新计算，前端传入的值会被忽略
@@ -417,9 +528,7 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
         gross = float(attrs.get('gross_salary') or 0)
         net = float(attrs.get('net_salary') or 0)
         if net > gross > 0:
-            raise serializers.ValidationError({
-                'net_salary': f'实发工资({net})不能大于应发工资({gross})'
-            })
+            raise serializers.ValidationError({'net_salary': f'实发工资({net})不能大于应发工资({gross})'})
         # 如果传了 employee_company，自动用其关联的 employee 和 employee_name 填充
         ec = attrs.get('employee_company')
         if ec:
@@ -435,6 +544,7 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
 
 class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer):
     """发票序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
     project_id = serializers.IntegerField(source='project.id', read_only=True, allow_null=True)
@@ -450,18 +560,43 @@ class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
     class Meta:
         model = Invoice
         fields = [
-            'id', 'invoice_no', 'type', 'type_display', 'amount',
-            'invoice_type', 'invoice_type_display', 'tax_rate', 'tax_amount',
-            'counterparty', 'is_credited', 'is_credited_display',
+            'id',
+            'invoice_no',
+            'type',
+            'type_display',
+            'amount',
+            'invoice_type',
+            'invoice_type_display',
+            'tax_rate',
+            'tax_amount',
+            'counterparty',
+            'is_credited',
+            'is_credited_display',
             'credited_period',
-            'counterparty_tax_id', 'counterparty_bank',
-            'project', 'project_id', 'project_name', 'company', 'company_name',
-            'status', 'status_display', 'issue_date', 'due_date',
-            'payment_date', 'matched_bank_statement',
-            'remarks', 'created_at', 'updated_at',
-            'matched_bank_statement', 'matched_bank_statement_name',
-            'attachment', 'attachment_name',
-            'red_invoice_for', 'red_invoice_for_no', 'has_red_invoices', 'is_negative',
+            'counterparty_tax_id',
+            'counterparty_bank',
+            'project',
+            'project_id',
+            'project_name',
+            'company',
+            'company_name',
+            'status',
+            'status_display',
+            'issue_date',
+            'due_date',
+            'payment_date',
+            'matched_bank_statement',
+            'remarks',
+            'created_at',
+            'updated_at',
+            'matched_bank_statement',
+            'matched_bank_statement_name',
+            'attachment',
+            'attachment_name',
+            'red_invoice_for',
+            'red_invoice_for_no',
+            'has_red_invoices',
+            'is_negative',
         ]
         extra_kwargs = {
             'invoice_no': {'required': False},
@@ -508,6 +643,7 @@ class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
 
 class EmployeeCompanySerializer(serializers.ModelSerializer):
     """员工-公司关联序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     employee_name = serializers.CharField(source='employee.name', read_only=True)
     status_display = serializers.SerializerMethodField()
@@ -515,10 +651,19 @@ class EmployeeCompanySerializer(serializers.ModelSerializer):
     class Meta:
         model = EmployeeCompany
         fields = [
-            'id', 'employee', 'employee_name', 'company', 'company_name',
-            'department', 'position', 'is_primary',
-            'hire_date', 'leave_date', 'status', 'status_display',
-            'created_at'
+            'id',
+            'employee',
+            'employee_name',
+            'company',
+            'company_name',
+            'department',
+            'position',
+            'is_primary',
+            'hire_date',
+            'leave_date',
+            'status',
+            'status_display',
+            'created_at',
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -528,6 +673,7 @@ class EmployeeCompanySerializer(serializers.ModelSerializer):
 
 class EmployeeSerializer(serializers.ModelSerializer):
     """员工序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     has_social_insurance_display = serializers.SerializerMethodField()
@@ -538,21 +684,46 @@ class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = [
-            'id', 'code', 'name', 'id_card', 'phone', 'bank_card', 'bank_name',
-            'department', 'position', 'company', 'company_name',
-            'hire_date', 'leave_date', 'status', 'status_display',
-            'has_social_insurance', 'has_social_insurance_display',
-            'has_housing_fund', 'has_housing_fund_display',
-            'social_insurance_deduction', 'housing_fund_deduction',
-            'housing_fund_employee', 'housing_fund_company',
-            'base_salary', 'position_salary',
-            'meal_allowance', 'transport_allowance', 'communication_allowance', 'other_allowance',
-            'leave_deduction_per_day', 'late_deduction_per_time',
-            'employee_loan_repayment', 'other_fixed_deduction',
-            'email', 'emergency_contact', 'emergency_phone',
+            'id',
+            'code',
+            'name',
+            'id_card',
+            'phone',
+            'bank_card',
+            'bank_name',
+            'department',
+            'position',
+            'company',
+            'company_name',
+            'hire_date',
+            'leave_date',
+            'status',
+            'status_display',
+            'has_social_insurance',
+            'has_social_insurance_display',
+            'has_housing_fund',
+            'has_housing_fund_display',
+            'social_insurance_deduction',
+            'housing_fund_deduction',
+            'housing_fund_employee',
+            'housing_fund_company',
+            'base_salary',
+            'position_salary',
+            'meal_allowance',
+            'transport_allowance',
+            'communication_allowance',
+            'other_allowance',
+            'leave_deduction_per_day',
+            'late_deduction_per_time',
+            'employee_loan_repayment',
+            'other_fixed_deduction',
+            'email',
+            'emergency_contact',
+            'emergency_phone',
             'remarks',
             'companies',
-            'created_at', 'updated_at'
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = ['id', 'code', 'created_at', 'updated_at']
 
@@ -582,31 +753,39 @@ class EmployeeSerializer(serializers.ModelSerializer):
                     max_num = max(max_num, num)
                 except (ValueError, IndexError):
                     pass
-            validated_data['code'] = f'YG-{(max_num+1):04d}'
+            validated_data['code'] = f'YG-{(max_num + 1):04d}'
         return super().create(validated_data)
 
 
 class CompanySocialConfigSerializer(serializers.ModelSerializer):
     """公司社保公积金配置序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
 
     class Meta:
         model = CompanySocialConfig
         fields = [
-            'id', 'company', 'company_name',
+            'id',
+            'company',
+            'company_name',
             'social_base',
-            'pension_rate_employee', 'pension_rate_company',
-            'medical_rate_employee', 'medical_rate_company',
-            'unemployment_rate_employee', 'unemployment_rate_company',
+            'pension_rate_employee',
+            'pension_rate_company',
+            'medical_rate_employee',
+            'medical_rate_company',
+            'unemployment_rate_employee',
+            'unemployment_rate_company',
             'injury_rate_company',
             'housing_fund_base',
-            'housing_fund_rate_employee', 'housing_fund_rate_company',
+            'housing_fund_rate_employee',
+            'housing_fund_rate_company',
         ]
         read_only_fields = ['id']
 
 
 class SocialRecordSerializer(serializers.ModelSerializer):
     """社保申报记录序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     employee_name = serializers.SerializerMethodField()
     employee_code = serializers.SerializerMethodField(allow_null=True)
@@ -618,27 +797,49 @@ class SocialRecordSerializer(serializers.ModelSerializer):
     class Meta:
         model = SocialRecord
         fields = [
-            'id', 'company', 'company_name',
-            'employee', 'employee_name', 'employee_code', 'id_card',
+            'id',
+            'company',
+            'company_name',
+            'employee',
+            'employee_name',
+            'employee_code',
+            'id_card',
             'year_month',
             # 分险种明细
-            'pension_employee', 'pension_company',
-            'pension_bup_employee', 'pension_bup_company',
-            'medical_employee', 'medical_company',
-            'unemployment_employee', 'unemployment_company',
-            'injury_company', 'birth_company',
-            'housing_fund_employee', 'housing_fund_company',
+            'pension_employee',
+            'pension_company',
+            'pension_bup_employee',
+            'pension_bup_company',
+            'medical_employee',
+            'medical_company',
+            'unemployment_employee',
+            'unemployment_company',
+            'injury_company',
+            'birth_company',
+            'housing_fund_employee',
+            'housing_fund_company',
             # 合计
-            'total_employee', 'total_company', 'total',
-            'social_total_employee', 'social_total_company',
+            'total_employee',
+            'total_company',
+            'total',
+            'social_total_employee',
+            'social_total_company',
             # 核销
-            'is_reconciled', 'is_reconciled_display', 'reconciled_at',
+            'is_reconciled',
+            'is_reconciled_display',
+            'reconciled_at',
             # 其他
-            'remark', 'created_at', 'updated_at',
+            'remark',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = [
-            'id', 'total_employee', 'total_company', 'total',
-            'created_at', 'updated_at',
+            'id',
+            'total_employee',
+            'total_company',
+            'total',
+            'created_at',
+            'updated_at',
         ]
 
     # 脱敏字段
@@ -658,17 +859,27 @@ class SocialRecordSerializer(serializers.ModelSerializer):
         return None
 
     def get_social_total_employee(self, obj) -> float:
-        return float(obj.pension_employee or 0) + float(obj.pension_bup_employee or 0) + \
-               float(obj.medical_employee or 0) + float(obj.unemployment_employee or 0)
+        return (
+            float(obj.pension_employee or 0)
+            + float(obj.pension_bup_employee or 0)
+            + float(obj.medical_employee or 0)
+            + float(obj.unemployment_employee or 0)
+        )
 
     def get_social_total_company(self, obj) -> float:
-        return float(obj.pension_company or 0) + float(obj.pension_bup_company or 0) + \
-               float(obj.medical_company or 0) + float(obj.unemployment_company or 0) + \
-               float(obj.injury_company or 0) + float(obj.birth_company or 0)
+        return (
+            float(obj.pension_company or 0)
+            + float(obj.pension_bup_company or 0)
+            + float(obj.medical_company or 0)
+            + float(obj.unemployment_company or 0)
+            + float(obj.injury_company or 0)
+            + float(obj.birth_company or 0)
+        )
 
 
 class BankStatementSerializer(serializers.ModelSerializer):
     """银行流水序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     bank_account_name = serializers.CharField(source='bank_account.account_name', read_only=True, default='')
     direction_display = serializers.CharField(source='get_direction_display', read_only=True)
@@ -679,17 +890,31 @@ class BankStatementSerializer(serializers.ModelSerializer):
     class Meta:
         model = BankStatement
         fields = [
-            'id', 'company', 'company_name',
-            'bank_account', 'bank_account_name',
-            'transaction_date', 'transaction_time',
-            'direction', 'direction_display',
-            'amount', 'balance',
-            'counterparty_name', 'counterparty_account', 'counterparty_bank',
-            'summary', 'usage',
-            'matched_income', 'matched_expense',
-            'matched_income_amount', 'matched_expense_amount',
-            'reconcile_status', 'reconcile_status_display',
-            'source_bank', 'import_batch', 'created_at',
+            'id',
+            'company',
+            'company_name',
+            'bank_account',
+            'bank_account_name',
+            'transaction_date',
+            'transaction_time',
+            'direction',
+            'direction_display',
+            'amount',
+            'balance',
+            'counterparty_name',
+            'counterparty_account',
+            'counterparty_bank',
+            'summary',
+            'usage',
+            'matched_income',
+            'matched_expense',
+            'matched_income_amount',
+            'matched_expense_amount',
+            'reconcile_status',
+            'reconcile_status_display',
+            'source_bank',
+            'import_batch',
+            'created_at',
         ]
 
     def get_matched_income_amount(self, obj) -> str:
@@ -705,6 +930,7 @@ class BankStatementSerializer(serializers.ModelSerializer):
 
 class BankAccountSerializer(serializers.ModelSerializer):
     """银行账户序列化器"""
+
     bank_display = serializers.CharField(source='get_bank_code_display', read_only=True)
     company_name = serializers.CharField(source='company.name', read_only=True)
     statement_count = serializers.SerializerMethodField()
@@ -712,10 +938,17 @@ class BankAccountSerializer(serializers.ModelSerializer):
     class Meta:
         model = BankAccount
         fields = [
-            'id', 'company', 'company_name',
-            'bank_code', 'bank_display', 'bank_name',
-            'account_no', 'account_name', 'is_active',
-            'created_at', 'statement_count',
+            'id',
+            'company',
+            'company_name',
+            'bank_code',
+            'bank_display',
+            'bank_name',
+            'account_no',
+            'account_name',
+            'is_active',
+            'created_at',
+            'statement_count',
         ]
         read_only_fields = ['created_at']
 
@@ -728,6 +961,7 @@ class BankAccountSerializer(serializers.ModelSerializer):
 
 class BudgetSerializer(serializers.ModelSerializer):
     """预算序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True, allow_null=True)
@@ -735,9 +969,18 @@ class BudgetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Budget
         fields = [
-            'id', 'company', 'company_name', 'year', 'month',
-            'expense_type', 'expense_type_display',
-            'budget_amount', 'note', 'created_by', 'created_by_name',
-            'created_at', 'updated_at',
+            'id',
+            'company',
+            'company_name',
+            'year',
+            'month',
+            'expense_type',
+            'expense_type_display',
+            'budget_amount',
+            'note',
+            'created_by',
+            'created_by_name',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_by_name', 'created_at', 'updated_at']

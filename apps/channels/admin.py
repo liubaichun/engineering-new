@@ -1,6 +1,7 @@
 """
 通知渠道管理后台
 """
+
 from django.contrib import admin
 from .models import ChannelPlugin, ChannelBinding, NotificationLog, ChannelAuditLog
 
@@ -11,20 +12,12 @@ class ChannelPluginAdmin(admin.ModelAdmin):
     list_filter = ['channel_type', 'connection_mode', 'is_active', 'company']
     search_fields = ['plugin_name', 'app_name', 'company__name']
     readonly_fields = ['created_at', 'updated_at']
-    
+
     fieldsets = (
-        ('基本信息', {
-            'fields': ('company', 'channel_type', 'plugin_name', 'app_name')
-        }),
-        ('连接配置', {
-            'fields': ('connection_mode', 'pairing_mode')
-        }),
-        ('凭证配置', {
-            'fields': ('config',)
-        }),
-        ('状态', {
-            'fields': ('is_active', 'created_at', 'updated_at')
-        }),
+        ('基本信息', {'fields': ('company', 'channel_type', 'plugin_name', 'app_name')}),
+        ('连接配置', {'fields': ('connection_mode', 'pairing_mode')}),
+        ('凭证配置', {'fields': ('config',)}),
+        ('状态', {'fields': ('is_active', 'created_at', 'updated_at')}),
     )
 
 
@@ -52,11 +45,22 @@ class ChannelAuditLogAdmin(admin.ModelAdmin):
     渠道审计日志 — 只读，不可修改，不可删除
     CNAS/CMA 要求：审计日志须防篡改
     """
+
     list_display = ['created_at', 'user', 'action', 'channel', 'result', 'error_message']
     list_filter = ['action', 'result', 'created_at', 'channel__channel_type']
     search_fields = ['user__username', 'error_message', 'detail']
-    readonly_fields = ['user', 'user_ip', 'user_agent', 'channel', 'binding',
-                       'action', 'detail', 'result', 'error_message', 'created_at']
+    readonly_fields = [
+        'user',
+        'user_ip',
+        'user_agent',
+        'channel',
+        'binding',
+        'action',
+        'detail',
+        'result',
+        'error_message',
+        'created_at',
+    ]
     date_hierarchy = 'created_at'
 
     def has_add_permission(self, request):

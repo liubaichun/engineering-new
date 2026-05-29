@@ -1,16 +1,10 @@
 from rest_framework import viewsets, serializers, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired, get_module_companies
-from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.contrib.auth import get_user_model
-from datetime import timedelta
-from django.db.models import Q
-from apps.core.serializers import UserSerializer
-from apps.finance.models import Company
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,20 +12,29 @@ User = get_user_model()
 
 from .models import FlowTemplate, FlowNodeTemplate, TaskStageInstance, StageActivity, FlowTransition, TaskFlowInstance
 
+
 class FlowTemplateSerializer(serializers.ModelSerializer):
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     node_count = serializers.SerializerMethodField()
     company_id = serializers.IntegerField(required=False, allow_null=True)
-    
+
     class Meta:
         model = FlowTemplate
         fields = [
-            'id', 'name', 'code', 'type', 'type_display',
-            'description', 'is_active', 'node_count', 'company_id',
-            'created_at', 'updated_at'
+            'id',
+            'name',
+            'code',
+            'type',
+            'type_display',
+            'description',
+            'is_active',
+            'node_count',
+            'company_id',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
-    
+
     def get_node_count(self, obj):
         return obj.nodes.count()
 
@@ -41,14 +44,25 @@ class FlowNodeTemplateSerializer(serializers.ModelSerializer):
     node_type_display = serializers.CharField(source='get_node_type_display', read_only=True)
     assignee_type_display = serializers.CharField(source='get_assignee_type_display', read_only=True)
     company_id = serializers.IntegerField(required=False, allow_null=True)
-    
+
     class Meta:
         model = FlowNodeTemplate
         fields = [
-            'id', 'template', 'template_name', 'name', 'code',
-            'node_type', 'node_type_display', 'description',
-            'assignee_type', 'assignee_type_display', 'assignee_value',
-            'order', 'timeout_hours', 'created_at', 'company_id'
+            'id',
+            'template',
+            'template_name',
+            'name',
+            'code',
+            'node_type',
+            'node_type_display',
+            'description',
+            'assignee_type',
+            'assignee_type_display',
+            'assignee_value',
+            'order',
+            'timeout_hours',
+            'created_at',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -60,14 +74,26 @@ class TaskStageInstanceSerializer(serializers.ModelSerializer):
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     assignee_name = serializers.CharField(source='assignee.username', read_only=True, allow_null=True)
     company_id = serializers.IntegerField(required=False, allow_null=True)
-    
+
     class Meta:
         model = TaskStageInstance
         fields = [
-            'id', 'task', 'task_code', 'task_title',
-            'node_template', 'node_template_name', 'status', 'status_display',
-            'assignee', 'assignee_name', 'started_at', 'completed_at',
-            'remark', 'created_at', 'updated_at', 'company_id'
+            'id',
+            'task',
+            'task_code',
+            'task_title',
+            'node_template',
+            'node_template_name',
+            'status',
+            'status_display',
+            'assignee',
+            'assignee_name',
+            'started_at',
+            'completed_at',
+            'remark',
+            'created_at',
+            'updated_at',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
@@ -77,13 +103,22 @@ class StageActivitySerializer(serializers.ModelSerializer):
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     actor_name = serializers.CharField(source='actor.username', read_only=True, allow_null=True)
     company_id = serializers.IntegerField(required=False, allow_null=True)
-    
+
     class Meta:
         model = StageActivity
         fields = [
-            'id', 'stage_instance', 'stage_instance_name', 'action', 'action_display',
-            'actor', 'actor_name', 'comment', 'from_status', 'to_status', 'created_at',
-            'company_id'
+            'id',
+            'stage_instance',
+            'stage_instance_name',
+            'action',
+            'action_display',
+            'actor',
+            'actor_name',
+            'comment',
+            'from_status',
+            'to_status',
+            'created_at',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -94,13 +129,23 @@ class FlowTransitionSerializer(serializers.ModelSerializer):
     to_node_name = serializers.CharField(source='to_node.name', read_only=True, allow_null=True)
     actor_name = serializers.CharField(source='actor.username', read_only=True, allow_null=True)
     company_id = serializers.IntegerField(required=False, allow_null=True)
-    
+
     class Meta:
         model = FlowTransition
         fields = [
-            'id', 'task', 'task_code', 'from_node', 'from_node_name',
-            'to_node', 'to_node_name', 'actor', 'actor_name',
-            'action', 'remark', 'created_at', 'company_id'
+            'id',
+            'task',
+            'task_code',
+            'from_node',
+            'from_node_name',
+            'to_node',
+            'to_node_name',
+            'actor',
+            'actor_name',
+            'action',
+            'remark',
+            'created_at',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at']
 
@@ -114,27 +159,39 @@ class TaskFlowInstanceSerializer(serializers.ModelSerializer):
     started_by_name = serializers.CharField(source='started_by.username', read_only=True, allow_null=True)
     flow_progress = serializers.SerializerMethodField()
     company_id = serializers.IntegerField(required=False, allow_null=True)
-    
+
     class Meta:
         model = TaskFlowInstance
         fields = [
-            'id', 'task', 'task_code', 'task_title',
-            'template', 'template_name', 'current_node', 'current_node_name',
-            'status', 'status_display', 'started_by', 'started_by_name',
-            'started_at', 'completed_at', 'flow_progress', 'created_at',
-            'company_id'
+            'id',
+            'task',
+            'task_code',
+            'task_title',
+            'template',
+            'template_name',
+            'current_node',
+            'current_node_name',
+            'status',
+            'status_display',
+            'started_by',
+            'started_by_name',
+            'started_at',
+            'completed_at',
+            'flow_progress',
+            'created_at',
+            'company_id',
         ]
         read_only_fields = ['id', 'created_at']
-    
+
     def get_flow_progress(self, obj):
         engine = FlowEngine(obj.task)
         engine.instance = obj
         return engine.get_flow_progress()
 
 
-
 class FlowTemplateViewSet(viewsets.ModelViewSet):
     """流程模板视图集"""
+
     queryset = FlowTemplate.objects.all()
     serializer_class = FlowTemplateSerializer
     search_fields = ['code', 'name']
@@ -171,6 +228,7 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
 
 class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
     """流程节点模板视图集"""
+
     queryset = FlowNodeTemplate.objects.all()
     serializer_class = FlowNodeTemplateSerializer
     search_fields = ['code', 'name']
@@ -198,6 +256,7 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
 
 class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     """任务阶段实例视图集"""
+
     queryset = TaskStageInstance.objects.all()
     serializer_class = TaskStageInstanceSerializer
     list_filter_fields = ['status', 'task', 'node_template', 'assignee']
@@ -211,7 +270,7 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
         'approve': 'task:stage_instance:update',
         'reject': 'task:stage_instance:update',
     }
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         # 多租户隔离：基于模块级权限过滤可见公司下的阶段实例
@@ -227,23 +286,20 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
         if my_assignments and self.request.user.is_authenticated:
             queryset = queryset.filter(assignee=self.request.user)
         return queryset
-    
+
     @action(detail=True, methods=['post'])
     def start(self, request, pk=None):
         """开始阶段"""
         instance = self.get_object()
         if instance.status != 'pending':
-            return Response(
-                {'error': '只有待处理的阶段才能开始'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '只有待处理的阶段才能开始'}, status=status.HTTP_400_BAD_REQUEST)
         instance.status = 'in_progress'
         instance.started_at = timezone.now()
         try:
             instance.save()
         except Exception as e:
             return Response({'error': f'开始阶段失败：{str(e)}'}, status=500)
-        
+
         StageActivity.objects.create(
             stage_instance=instance,
             action='start',
@@ -252,26 +308,23 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             to_status='in_progress',
             company_id=instance.company_id,
         )
-        
+
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['post'])
     def approve(self, request, pk=None):
         """批准阶段"""
         instance = self.get_object()
         if instance.status not in ['pending', 'in_progress']:
-            return Response(
-                {'error': '当前状态不允许批准'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '当前状态不允许批准'}, status=status.HTTP_400_BAD_REQUEST)
         instance.status = 'approved'
         instance.completed_at = timezone.now()
         try:
             instance.save()
         except Exception as e:
             return Response({'error': f'批准阶段失败：{str(e)}'}, status=500)
-        
+
         remark = request.data.get('remark', '')
         StageActivity.objects.create(
             stage_instance=instance,
@@ -282,26 +335,23 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             to_status='approved',
             company_id=instance.company_id,
         )
-        
+
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
-    
+
     @action(detail=True, methods=['post'])
     def reject(self, request, pk=None):
         """拒绝阶段"""
         instance = self.get_object()
         if instance.status not in ['pending', 'in_progress']:
-            return Response(
-                {'error': '当前状态不允许拒绝'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '当前状态不允许拒绝'}, status=status.HTTP_400_BAD_REQUEST)
         instance.status = 'rejected'
         instance.completed_at = timezone.now()
         try:
             instance.save()
         except Exception as e:
             return Response({'error': f'拒绝阶段失败：{str(e)}'}, status=500)
-        
+
         remark = request.data.get('remark', '')
         StageActivity.objects.create(
             stage_instance=instance,
@@ -312,13 +362,14 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             to_status='rejected',
             company_id=instance.company_id,
         )
-        
+
         serializer = self.get_serializer(instance)
         return Response(serializer.data)
 
 
 class StageActivityViewSet(viewsets.ModelViewSet):
     """阶段活动记录视图集"""
+
     queryset = StageActivity.objects.all()
     serializer_class = StageActivitySerializer
     list_filter_fields = ['action', 'stage_instance', 'actor']
@@ -329,7 +380,7 @@ class StageActivityViewSet(viewsets.ModelViewSet):
         None: 'task:activity:read',
         'create': 'task:activity:create',
     }
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         stage_instance_id = self.request.query_params.get('stage_instance', None)
@@ -345,6 +396,7 @@ class StageActivityViewSet(viewsets.ModelViewSet):
 
 class FlowTransitionViewSet(viewsets.ModelViewSet):
     """流程流转记录视图集"""
+
     queryset = FlowTransition.objects.all()
     serializer_class = FlowTransitionSerializer
     list_filter_fields = ['task', 'action']
@@ -355,7 +407,7 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
         None: 'task:transition:read',
         'create': 'task:transition:create',
     }
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         task_id = self.request.query_params.get('task', None)
@@ -379,6 +431,7 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
 
 class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
     """任务流程实例视图集"""
+
     queryset = TaskFlowInstance.objects.all()
     serializer_class = TaskFlowInstanceSerializer
     list_filter_fields = ['status', 'task', 'template']
@@ -393,7 +446,7 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         'reject_node': 'task:flow_instance:update',
         'progress': 'task:flow_instance:read',
     }
-    
+
     def get_queryset(self):
         queryset = super().get_queryset()
         task_id = self.request.query_params.get('task', None)
@@ -408,16 +461,13 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
             if cids is not None:
                 queryset = queryset.filter(company_id__in=cids)
         return queryset
-    
+
     @action(detail=True, methods=['post'])
     def start_flow(self, request, pk=None):
         """为任务启动流程"""
         instance = self.get_object()
         if instance.status != 'pending':
-            return Response(
-                {'error': '流程已启动或已完成'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '流程已启动或已完成'}, status=status.HTTP_400_BAD_REQUEST)
 
         engine = FlowEngine(instance.task)
         engine.start_flow(instance.template, started_by=request.user)
@@ -431,70 +481,53 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         """批准当前节点"""
         instance = self.get_object()
         if instance.status != 'running':
-            return Response(
-                {'error': '流程未在运行'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '流程未在运行'}, status=status.HTTP_400_BAD_REQUEST)
 
         engine = FlowEngine(instance.task)
         engine.instance = instance
 
         if not instance.current_node:
-            return Response(
-                {'error': '当前没有节点'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '当前没有节点'}, status=status.HTTP_400_BAD_REQUEST)
 
         remark = request.data.get('remark', '')
-        result = engine.complete_node(
-            instance.current_node,
-            action='approve',
-            actor=request.user,
-            comment=remark
-        )
+        result = engine.complete_node(instance.current_node, action='approve', actor=request.user, comment=remark)
 
         instance.refresh_from_db()
-        return Response({
-            'success': True,
-            'message': result.get('message', '审批完成'),
-            'current_node': instance.current_node.name if instance.current_node else None,
-            'status': instance.status
-        })
+        return Response(
+            {
+                'success': True,
+                'message': result.get('message', '审批完成'),
+                'current_node': instance.current_node.name if instance.current_node else None,
+                'status': instance.status,
+            }
+        )
 
     @action(detail=True, methods=['post'])
     def reject_node(self, request, pk=None):
         """拒绝当前节点"""
         instance = self.get_object()
         if instance.status != 'running':
-            return Response(
-                {'error': '流程未在运行'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '流程未在运行'}, status=status.HTTP_400_BAD_REQUEST)
 
         engine = FlowEngine(instance.task)
         engine.instance = instance
 
         if not instance.current_node:
-            return Response(
-                {'error': '当前没有节点'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({'error': '当前没有节点'}, status=status.HTTP_400_BAD_REQUEST)
 
         remark = request.data.get('remark', '')
-        result = engine.reject_node(
-            instance.current_node,
-            actor=request.user,
-            comment=remark
-        )
+        result = engine.reject_node(instance.current_node, actor=request.user, comment=remark)
 
         instance.refresh_from_db()
-        return Response({
-            'success': True,
-            'message': result.get('message', '已拒绝'),
-            'current_node': instance.current_node.name if instance.current_node else None,
-            'status': instance.status
-        })
-    
+        return Response(
+            {
+                'success': True,
+                'message': result.get('message', '已拒绝'),
+                'current_node': instance.current_node.name if instance.current_node else None,
+                'status': instance.status,
+            }
+        )
+
     @action(detail=True, methods=['get'])
     def progress(self, request, pk=None):
         """获取流程进度"""
@@ -502,5 +535,3 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         engine = FlowEngine(instance.task)
         engine.instance = instance
         return Response(engine.get_flow_progress())
-
-

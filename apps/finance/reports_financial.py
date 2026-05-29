@@ -1,19 +1,13 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
-import re
 
-from django.db.models import Sum, Count, Q, F
 from django.utils import timezone
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
-from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
+from apps.finance.models import Company
 
 
 @api_view(['GET'])
@@ -24,7 +18,7 @@ def income_statement_report(request):
     基于科目余额表计算层级利润表
     API: GET /api/finance/reports/p3/income-statement/?company=X&year=2026
     """
-    from .classification_rules import compute_trial_balance, get_internal_company_names
+    from .classification_rules import compute_trial_balance
 
     params = parse_date_range(request)
     year = params['year'] or timezone.now().year
@@ -39,16 +33,23 @@ def income_statement_report(request):
     # 逐公司计算
     company_results = []
     totals = {
-        'revenue': 0.0, 'revenue_main': 0.0, 'revenue_other': 0.0,
+        'revenue': 0.0,
+        'revenue_main': 0.0,
+        'revenue_other': 0.0,
         'revenue_non_op': 0.0,
         'cost': 0.0,
         'tax_surcharge': 0.0,
         'admin_expense': 0.0,
-        'wage_expense': 0.0, 'social_expense': 0.0,
-        'office_expense': 0.0, 'travel_expense': 0.0,
-        'entertainment_expense': 0.0, 'comm_expense': 0.0,
-        'marketing_expense': 0.0, 'rd_expense': 0.0,
-        'tax_expense': 0.0, 'other_expense': 0.0,
+        'wage_expense': 0.0,
+        'social_expense': 0.0,
+        'office_expense': 0.0,
+        'travel_expense': 0.0,
+        'entertainment_expense': 0.0,
+        'comm_expense': 0.0,
+        'marketing_expense': 0.0,
+        'rd_expense': 0.0,
+        'tax_expense': 0.0,
+        'other_expense': 0.0,
         'non_op_expense': 0.0,
         'total_expense': 0.0,
         'profit': 0.0,
@@ -95,7 +96,18 @@ def income_statement_report(request):
         rd_exp = expense_by_code.get('5002-08', 0.0)
         tax_exp = expense_by_code.get('5002-09', 0.0)
         other_exp = expense_by_code.get('5002-10', 0.0)
-        admin_exp = wage_exp + social_exp + office_exp + travel_exp + ent_exp + comm_exp + mkt_exp + rd_exp + tax_exp + other_exp
+        admin_exp = (
+            wage_exp
+            + social_exp
+            + office_exp
+            + travel_exp
+            + ent_exp
+            + comm_exp
+            + mkt_exp
+            + rd_exp
+            + tax_exp
+            + other_exp
+        )
 
         total_expense = cost + tax_surcharge + admin_exp + non_op_expense
         profit = revenue + revenue_non_op - total_expense
@@ -138,14 +150,15 @@ def income_statement_report(request):
     else:
         totals_row = company_results[0] if company_results else totals
 
-    return Response({
-        'report': 'income_statement',
-        'title': f'{year}年 利润表（会计科目版）',
-        'params': {'year': year, 'company_id': company_id},
-        'summary': totals_row,
-        'details': company_results,
-    })
-
+    return Response(
+        {
+            'report': 'income_statement',
+            'title': f'{year}年 利润表（会计科目版）',
+            'params': {'year': year, 'company_id': company_id},
+            'summary': totals_row,
+            'details': company_results,
+        }
+    )
 
 
 @api_view(['GET'])
@@ -234,15 +247,17 @@ def balance_sheet_report(request):
         totals['total_liabilities'] += total_liabilities
         totals['total_equity'] += total_equity
 
-    return Response({
-        'report': 'balance_sheet',
-        'title': f'{year}年 资产负债表（会计科目版）',
-        'params': {'year': year, 'company_id': company_id},
-        'summary': {
-            'total_assets': round(totals['total_assets'], 2),
-            'total_liabilities': round(totals['total_liabilities'], 2),
-            'total_equity': round(totals['total_equity'], 2),
-            'liabilities_plus_equity': round(totals['total_liabilities'] + totals['total_equity'], 2),
-        },
-        'details': company_results,
-    })
+    return Response(
+        {
+            'report': 'balance_sheet',
+            'title': f'{year}年 资产负债表（会计科目版）',
+            'params': {'year': year, 'company_id': company_id},
+            'summary': {
+                'total_assets': round(totals['total_assets'], 2),
+                'total_liabilities': round(totals['total_liabilities'], 2),
+                'total_equity': round(totals['total_equity'], 2),
+                'liabilities_plus_equity': round(totals['total_liabilities'] + totals['total_equity'], 2),
+            },
+            'details': company_results,
+        }
+    )

@@ -3,8 +3,9 @@ repos:
     rev: v0.11.0
     hooks:
       - id: ruff
-        args: [--fix]
+        args: [--fix, --exit-non-zero-on-fix]
         exclude: ^.*/migrations/|^.*/tests/|^venv/|^staticfiles/
+        verbose: true  # 报告但不阻塞
       - id: ruff-format
         exclude: ^.*/migrations/|^.*/tests/|^venv/|^staticfiles/
 

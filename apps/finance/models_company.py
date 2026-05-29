@@ -1,9 +1,9 @@
 from django.db import models
-from django.utils import timezone
 
 
 class Company(models.Model):
     """公司模型"""
+
     STATUS_CHOICES = [
         ('active', '启用'),
         ('inactive', '停用'),

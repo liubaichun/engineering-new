@@ -152,7 +152,7 @@
             </table>
         </div>
     </div>
-    
+
     <!-- 分页 -->
     <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
@@ -355,12 +355,12 @@ async function loadMaterials() {
     const category = document.getElementById('filterCategory').value;
     const search = document.getElementById('filterSearch').value;
     const stockAlert = document.getElementById('filterStockAlert').checked;
-    
+
     let url = `/api/material/?page=${currentPage}&page_size=${pageSize}`;
     if (category) url += `&category=${category}`;
     if (search) url += `&search=${encodeURIComponent(search)}`;
     if (stockAlert) url += `&stock_alert=1`;
-    
+
     try {
         const response = await fetch(url, { credentials: 'include' });
         if (response.ok) {
@@ -425,7 +425,7 @@ function renderPagination(data) {
     const totalPages = Math.ceil(data.count / pageSize);
     document.getElementById('recordCount').textContent = data.count;
     document.getElementById('paginationInfo').textContent = `显示 ${((currentPage - 1) * pageSize) + 1}-${Math.min(currentPage * pageSize, data.count)} 条，共 ${data.count} 条`;
-    
+
     let html = '';
     if (currentPage > 1) html += `<li class="page-item"><a class="page-link" href="javascript:void(0)" onclick="goToPage(${currentPage - 1})">上一页</a></li>`;
     const start = Math.max(1, currentPage - 2);

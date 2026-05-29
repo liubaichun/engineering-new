@@ -6,10 +6,9 @@ from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from .models import Material, MaterialUsageLog, MaterialBOM, MaterialBOMNode, MaterialBOMNode
+from .models import Material, MaterialBOM, MaterialBOMNode
 from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialBOMSerializer
 from .serializers import MaterialBOMDetailSerializer, MaterialBOMNodeSerializer, MaterialBOMTreeSerializer
-from .serializers import MaterialBOMNodeSerializer
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +31,7 @@ class MaterialFilter(FilterSet):
 
 class MaterialViewSet(viewsets.ModelViewSet):
     """物料视图集"""
+
     queryset = Material.objects.all()
     serializer_class = MaterialSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -65,7 +65,8 @@ class MaterialViewSet(viewsets.ModelViewSet):
         if project and hasattr(user, 'company_id') and user.company_id:
             if project.company_id != user.company_id:
                 from django.core.exceptions import PermissionDenied
-                raise PermissionDenied("无权在此项目下创建物料")
+
+                raise PermissionDenied('无权在此项目下创建物料')
         if company_id and not serializer.validated_data.get('company_id'):
             serializer.save(created_by=user if user.is_authenticated else None, company_id=company_id)
         else:
@@ -83,6 +84,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
         """导出物料 Excel"""
         from apps.core.export_excel import export_materials, make_export_response
         from django.utils import timezone as tz
+
         records = list(self.get_queryset().select_related('supplier'))
         buf = export_materials(records)
         return make_export_response(buf, f'物料_{tz.now().strftime("%Y%m%d")}.xlsx')
@@ -105,9 +107,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                material = (Material.objects
-                            .select_for_update()
-                            .get(pk=material_id))
+                material = Material.objects.select_for_update().get(pk=material_id)
 
                 if material.stock < quantity:
                     return Response({'error': '库存不足'}, status=400)
@@ -120,18 +120,23 @@ class MaterialViewSet(viewsets.ModelViewSet):
                     return Response({'error': f'出库失败（保存物料库存失败）：{str(e)}'}, status=500)
 
                 logger.info(
-                    "[物料出库] material_id=%s, quantity=%s, before_stock=%s, "
-                    "after_stock=%s, user=%s, project=%s",
-                    material_id, quantity, before_stock, material.stock,
-                    request.user, project_id
+                    '[物料出库] material_id=%s, quantity=%s, before_stock=%s, after_stock=%s, user=%s, project=%s',
+                    material_id,
+                    quantity,
+                    before_stock,
+                    material.stock,
+                    request.user,
+                    project_id,
                 )
 
-                serializer = MaterialUsageLogSerializer(data={
-                    'material': material_id,
-                    'project': project_id,
-                    'quantity': quantity,
-                    'remark': remark,
-                })
+                serializer = MaterialUsageLogSerializer(
+                    data={
+                        'material': material_id,
+                        'project': project_id,
+                        'quantity': quantity,
+                        'remark': remark,
+                    }
+                )
                 if not serializer.is_valid():
                     return Response(serializer.errors, status=400)
 
@@ -149,6 +154,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
 
 class MaterialBOMViewSet(viewsets.ModelViewSet):
     """物料BOM清单管理"""
+
     queryset = MaterialBOM.objects.all()
     serializer_class = MaterialBOMSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -176,9 +182,9 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             return qs
         if hasattr(user, 'company_id') and user.company_id:
             return qs.filter(
-                models.Q(company_id=user.company_id) |
-                models.Q(material__company_id=user.company_id) |
-                models.Q(material__project__company_id=user.company_id)
+                models.Q(company_id=user.company_id)
+                | models.Q(material__company_id=user.company_id)
+                | models.Q(material__project__company_id=user.company_id)
             )
         return qs.none()
 
@@ -191,7 +197,9 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
         user = self.request.user
         company_id = getattr(user, 'company_id', None)
         if company_id and not serializer.validated_data.get('company_id'):
-            serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None, company_id=company_id)
+            serializer.save(
+                created_by=self.request.user if self.request.user.is_authenticated else None, company_id=company_id
+            )
         else:
             serializer.save(created_by=self.request.user if self.request.user.is_authenticated else None)
 
@@ -278,14 +286,16 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     def add_item(self, request, pk=None):
         """向BOM添加子件（旧兼容接口，使用MaterialBOMNode）"""
         bom = self.get_object()
-        serializer = MaterialBOMNodeSerializer(data={
-            'bom': bom.id,
-            'child_material': request.data.get('child_material'),
-            'quantity': request.data.get('quantity', 1),
-            'unit': request.data.get('unit', '个'),
-            'sequence': request.data.get('sequence', 0),
-            'remark': request.data.get('remark', ''),
-        })
+        serializer = MaterialBOMNodeSerializer(
+            data={
+                'bom': bom.id,
+                'child_material': request.data.get('child_material'),
+                'quantity': request.data.get('quantity', 1),
+                'unit': request.data.get('unit', '个'),
+                'sequence': request.data.get('sequence', 0),
+                'remark': request.data.get('remark', ''),
+            }
+        )
         if serializer.is_valid():
             company_id = getattr(self.request.user, 'company_id', None)
             save_kwargs = {}

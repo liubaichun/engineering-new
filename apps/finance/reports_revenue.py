@@ -1,19 +1,14 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
+
 import re
 
-from django.db.models import Sum, Count, Q, F
-from django.utils import timezone
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
-from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
+from apps.finance.models import Income, Expense
 
 
 @api_view(['GET'])
@@ -37,37 +32,38 @@ def customer_revenue_report(request):
             continue
         # CRM 标准化：优先使用关联的 CRM Client 名称
         customer_name = inc.client_ref.name if inc.client_ref_id and inc.client_ref else (inc.customer or '（未指定）')
-        key = f"{inc.company.name} / {customer_name}"
+        key = f'{inc.company.name} / {customer_name}'
         if key not in global_stats:
             global_stats[key] = {
                 'company': inc.company.name,
                 'customer': customer_name,
                 'client_ref_id': inc.client_ref_id,
-                'total': 0.0, 'count': 0
+                'total': 0.0,
+                'count': 0,
             }
         global_stats[key]['total'] += float(inc.amount or 0)
         global_stats[key]['count'] += 1
 
     ranked = sorted(global_stats.items(), key=lambda x: x[1]['total'], reverse=True)[:limit]
-    results = [
-        {'rank': r + 1, 'key': k, **v}
-        for r, (k, v) in enumerate(ranked)
-    ]
+    results = [{'rank': r + 1, 'key': k, **v} for r, (k, v) in enumerate(ranked)]
 
-    return Response({
-        'report': 'customer_revenue',
-        'title': '客户收入排行',
-        'params': params,
-        'global_ranking': results,
-        'internal_transfers': internal_stats,
-        'summary': {
-            'total_revenue': sum(x['total'] for x in results),
-            'customer_count': len(results),
+    return Response(
+        {
+            'report': 'customer_revenue',
+            'title': '客户收入排行',
+            'params': params,
+            'global_ranking': results,
+            'internal_transfers': internal_stats,
+            'summary': {
+                'total_revenue': sum(x['total'] for x in results),
+                'customer_count': len(results),
+            },
         }
-    })
+    )
 
 
 # ─── 4. 供应商支出报表 ──────────────────────────────────────────────────
+
 
 @api_view(['GET'])
 @require_perms('finance:report:read')
@@ -87,14 +83,11 @@ def supplier_expense_report(request):
     # 【P2-2 修复】从 CRM Supplier 拉取真实供应商名单（含 counterparty_type）
     try:
         from apps.crm.models import Supplier as CRMSupplier
-        real_suppliers = set(
-            CRMSupplier.objects.filter(status='active')
-            .values_list('name', flat=True)
-        )
+
+        real_suppliers = set(CRMSupplier.objects.filter(status='active').values_list('name', flat=True))
         # 个人类型供应商（HR报销等场景）
         individual_suppliers = set(
-            CRMSupplier.objects.filter(counterparty_type='individual', status='active')
-            .values_list('name', flat=True)
+            CRMSupplier.objects.filter(counterparty_type='individual', status='active').values_list('name', flat=True)
         )
     except Exception:
         real_suppliers = set()
@@ -103,14 +96,13 @@ def supplier_expense_report(request):
     # 从 Employee 表识别人名（员工报销场景：供应商名是员工姓名）
     try:
         from apps.finance.models import Employee
-        employee_names = set(
-            Employee.objects.values_list('name', flat=True)
-        )
+
+        employee_names = set(Employee.objects.values_list('name', flat=True))
     except Exception:
         employee_names = set()
 
-    enterprise_stats = {}   # 企业供应商
-    individual_stats = {}   # 个人/员工供应商
+    enterprise_stats = {}  # 企业供应商
+    individual_stats = {}  # 个人/员工供应商
     personal_stats = {'total': 0.0, 'count': 0, 'types': {}}  # 无供应商名（内部转账等）
 
     for exp in exp_qs.select_related('company', 'project', 'supplier_ref'):
@@ -124,8 +116,7 @@ def supplier_expense_report(request):
         if not supplier:
             personal_stats['total'] += amount
             personal_stats['count'] += 1
-            personal_stats['types'][exp_type] = \
-                personal_stats['types'].get(exp_type, 0.0) + amount
+            personal_stats['types'][exp_type] = personal_stats['types'].get(exp_type, 0.0) + amount
             continue
 
         # 识别人名（员工姓名匹配）或 counterparty_type=individual
@@ -142,46 +133,38 @@ def supplier_expense_report(request):
                 'supplier': supplier,
                 'supplier_ref_id': supplier_ref_id,
                 'is_individual': is_individual,
-                'total': 0.0, 'count': 0,
+                'total': 0.0,
+                'count': 0,
                 'types': {},
             }
         bucket[supplier]['total'] += amount
         bucket[supplier]['count'] += 1
-        bucket[supplier]['types'][exp_type] = \
-            bucket[supplier]['types'].get(exp_type, 0.0) + amount
+        bucket[supplier]['types'][exp_type] = bucket[supplier]['types'].get(exp_type, 0.0) + amount
 
     # 企业供应商排名
-    ranked_enterprise = sorted(
-        enterprise_stats.items(), key=lambda x: x[1]['total'], reverse=True
-    )[:limit]
+    ranked_enterprise = sorted(enterprise_stats.items(), key=lambda x: x[1]['total'], reverse=True)[:limit]
 
     # 个人/员工供应商单独列表（不参与企业排名）
-    ranked_individual = sorted(
-        individual_stats.items(), key=lambda x: x[1]['total'], reverse=True
-    )
+    ranked_individual = sorted(individual_stats.items(), key=lambda x: x[1]['total'], reverse=True)
 
-    results = [
-        {'rank': r + 1, **v}
-        for r, (k, v) in enumerate(ranked_enterprise)
-    ]
+    results = [{'rank': r + 1, **v} for r, (k, v) in enumerate(ranked_enterprise)]
 
-    return Response({
-        'report': 'supplier_expense',
-        'title': '供应商支出报表',
-        'params': params,
-        'results': results,
-        'individual_results': [
-            {'rank': r + 1, **v}
-            for r, (k, v) in enumerate(ranked_individual)
-        ],
-        'personal_payments': personal_stats,
-        'summary': {
-            'total_expense': sum(r['total'] for r in results),
-            'supplier_count': len(results),
-            'individual_count': len(ranked_individual),
-            'personal_count': personal_stats['count'],
+    return Response(
+        {
+            'report': 'supplier_expense',
+            'title': '供应商支出报表',
+            'params': params,
+            'results': results,
+            'individual_results': [{'rank': r + 1, **v} for r, (k, v) in enumerate(ranked_individual)],
+            'personal_payments': personal_stats,
+            'summary': {
+                'total_expense': sum(r['total'] for r in results),
+                'supplier_count': len(results),
+                'individual_count': len(ranked_individual),
+                'personal_count': personal_stats['count'],
+            },
         }
-    })
+    )
 
 
 # ─── 5. 税费汇总表 ─────────────────────────────────────────────────────

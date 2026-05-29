@@ -2,6 +2,7 @@
 工资批量导入服务
 支持 Excel（.xlsx）格式，一行一条工资记录
 """
+
 import openpyxl
 from decimal import Decimal, InvalidOperation
 from typing import List, Dict, Tuple
@@ -10,6 +11,7 @@ from io import BytesIO
 
 class WageImportError(Exception):
     """导入异常，可携带行号信息"""
+
     def __init__(self, message, row=None, field=None):
         super().__init__(message)
         self.row = row
@@ -120,7 +122,7 @@ def import_wage_excel(file_bytes: bytes, company_id: int, defaults: Dict = None)
     required = ['employee_name']
     missing = [f for f in required if f not in col_index]
     if missing:
-        raise WageImportError(f"缺少必需列：{', '.join(missing)}")
+        raise WageImportError(f'缺少必需列：{", ".join(missing)}')
 
     records = []
     errors = []
@@ -145,7 +147,7 @@ def import_wage_excel(file_bytes: bytes, company_id: int, defaults: Dict = None)
                 elif field == 'employee_name':
                     val = str(raw_val).strip() if raw_val else ''
                     if not val:
-                        raise WageImportError("员工姓名为空", row=row_num, field='employee_name')
+                        raise WageImportError('员工姓名为空', row=row_num, field='employee_name')
                 elif field in ('leave_days', 'sick_leave_days'):
                     val = parse_int(raw_val)
                     record[field] = val if val is not None else 0

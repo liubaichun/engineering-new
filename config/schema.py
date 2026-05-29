@@ -2,6 +2,7 @@
 drf-spectacular postprocessing hooks for GREEN enterprise system.
 Auto-generates Chinese summaries for all API endpoints that lack them.
 """
+
 import re
 
 
@@ -47,30 +48,58 @@ ACTION_SUMMARY_MAP = {
 
 # 资源名 → 中文映射（按URL路径最后一段）
 RESOURCE_LABEL_MAP = {
-    'users': '用户', 'roles': '角色', 'permissions': '权限',
-    'companies': '公司', 'settings': '设置',
-    'login-logs': '登录日志', 'operation-audit-logs': '操作日志',
+    'users': '用户',
+    'roles': '角色',
+    'permissions': '权限',
+    'companies': '公司',
+    'settings': '设置',
+    'login-logs': '登录日志',
+    'operation-audit-logs': '操作日志',
     'operation-audits': '操作审计',
-    'notifications': '通知', 'user-roles': '用户角色', 'role-permissions': '角色权限',
-    'projects': '项目', 'tasks': '任务',
-    'flow-templates': '审批模板', 'flow-nodes': '审批节点',
-    'flow-instances': '审批实例', 'flow-transitions': '审批流转',
-    'stage-instances': '阶段实例', 'stage-activities': '阶段活动',
-    'incomes': '收入', 'expenses': '支出', 'invoices': '发票',
-    'wages': '工资', 'ar-ap': '应收应付', 'reports': '报表',
-    'social-configs': '社保配置', 'employee-companies': '员工公司',
+    'notifications': '通知',
+    'user-roles': '用户角色',
+    'role-permissions': '角色权限',
+    'projects': '项目',
+    'tasks': '任务',
+    'flow-templates': '审批模板',
+    'flow-nodes': '审批节点',
+    'flow-instances': '审批实例',
+    'flow-transitions': '审批流转',
+    'stage-instances': '阶段实例',
+    'stage-activities': '阶段活动',
+    'incomes': '收入',
+    'expenses': '支出',
+    'invoices': '发票',
+    'wages': '工资',
+    'ar-ap': '应收应付',
+    'reports': '报表',
+    'social-configs': '社保配置',
+    'employee-companies': '员工公司',
     'employees': '员工',
-    'clients': '客户', 'suppliers': '供应商', 'contracts': '合同',
+    'clients': '客户',
+    'suppliers': '供应商',
+    'contracts': '合同',
     'sources': '客户来源',
-    'flows': '审批流', 'nodes': '审批节点', 'templates': '审批模板',
-    'channels': '通知渠道', 'bindings': '通知绑定',
-    'equipment': '设备', 'material': '物料',
-    'categories': '分类', 'files': '文件',
+    'flows': '审批流',
+    'nodes': '审批节点',
+    'templates': '审批模板',
+    'channels': '通知渠道',
+    'bindings': '通知绑定',
+    'equipment': '设备',
+    'material': '物料',
+    'categories': '分类',
+    'files': '文件',
     # 导入相关
-    'import': '导入', 'bank-import': '银行导入', 'preview': '预览',
-    'confirm': '确认', 'import-clients': '客户导入', 'import-suppliers': '供应商导入',
-    'import-contracts': '合同导入', 'import-invoices': '发票导入',
-    'import-incomes': '收入导入', 'import-expenses': '支出导入',
+    'import': '导入',
+    'bank-import': '银行导入',
+    'preview': '预览',
+    'confirm': '确认',
+    'import-clients': '客户导入',
+    'import-suppliers': '供应商导入',
+    'import-contracts': '合同导入',
+    'import-invoices': '发票导入',
+    'import-incomes': '收入导入',
+    'import-expenses': '支出导入',
 }
 
 
@@ -97,8 +126,21 @@ def _resource_label(path: str) -> str:
 def _custom_action_in_path(path: str) -> str:
     """从URL路径中检测真正的嵌套自定义动作（approve, reject, export 等，非标准HTTP方法）"""
     segments = [s for s in path.strip('/').split('/') if s]
-    http_methods = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
-                    'get', 'post', 'put', 'patch', 'delete', 'options', 'head'}
+    http_methods = {
+        'list',
+        'retrieve',
+        'create',
+        'update',
+        'partial_update',
+        'destroy',
+        'get',
+        'post',
+        'put',
+        'patch',
+        'delete',
+        'options',
+        'head',
+    }
     for seg in segments:
         seg = re.sub(r'\{[^}]+\}', '', seg)  # 去掉 {id} 等
         if seg in ACTION_SUMMARY_MAP and seg not in http_methods:
@@ -116,8 +158,21 @@ def _build_summary(method: str, operation: dict, resource: str, path: str = '') 
     if operation_id:
         parts = re.split(r'[_\.]', operation_id)
         # 遍历所有非末尾、非HTTP动词的 parts，找 MAP 中最长匹配的 action
-        http_like = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy',
-                     'get', 'post', 'put', 'patch', 'delete', 'options', 'head'}
+        http_like = {
+            'list',
+            'retrieve',
+            'create',
+            'update',
+            'partial_update',
+            'destroy',
+            'get',
+            'post',
+            'put',
+            'patch',
+            'delete',
+            'options',
+            'head',
+        }
         for part in parts:
             # 优先匹配完整的复合 action（reject_to_requester, approve_batch 等）
             if part in ACTION_SUMMARY_MAP and part not in http_like:
@@ -136,7 +191,7 @@ def _build_summary(method: str, operation: dict, resource: str, path: str = '') 
             # 避免 "月度报表报表"：如果 action 以 resource 结尾，直接用 action
             if resource and best_action.endswith(resource):
                 return best_action
-            return f"{best_action}{resource}"
+            return f'{best_action}{resource}'
 
     # 2. 从URL路径检测嵌套自定义动作（operationId 搞不定的边缘情况）
     if path:
@@ -144,17 +199,17 @@ def _build_summary(method: str, operation: dict, resource: str, path: str = '') 
         if custom_action:
             if resource and custom_action.endswith(resource):
                 return custom_action
-            return f"{custom_action}{resource}"
+            return f'{custom_action}{resource}'
 
     # 3. 从自定义action字段推导
     action = operation.get('action', '')
     if action in ACTION_SUMMARY_MAP:
-        return f"{ACTION_SUMMARY_MAP[action]}{resource}"
+        return f'{ACTION_SUMMARY_MAP[action]}{resource}'
 
     # 4. 回退到HTTP方法
     method_map = {'get': '获取', 'post': '创建', 'put': '完整更新', 'patch': '部分更新', 'delete': '删除'}
     method_label = method_map.get(method.lower(), method.upper())
-    return f"{method_label}{resource}"
+    return f'{method_label}{resource}'
 
 
 def autogenerate_chinese_summary(result, generator, **kwargs):
@@ -187,8 +242,10 @@ def autogenerate_chinese_summary(result, generator, **kwargs):
 
     except Exception:
         import sys
-        sys.stderr.write("[autogenerate_chinese_summary hook] error, skipping\n")
+
+        sys.stderr.write('[autogenerate_chinese_summary hook] error, skipping\n')
         import traceback
+
         traceback.print_exc(file=sys.stderr)
 
     return result

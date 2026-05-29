@@ -20,6 +20,7 @@
 用法：
     python manage.py init_approval_templates [--force]
 """
+
 from django.core.management.base import BaseCommand
 from apps.approvals.models import ApprovalTemplate
 from django.contrib.auth import get_user_model
@@ -45,8 +46,14 @@ class Command(BaseCommand):
                 'flow_type': 'expense',
                 'conditions': {'min_amount': 0, 'max_amount': 5000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
                 ],
                 'description': '小额支出，主管一级审批即可',
             },
@@ -56,10 +63,22 @@ class Command(BaseCommand):
                 'flow_type': 'expense',
                 'conditions': {'min_amount': 5000, 'max_amount': 20000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
                 ],
                 'description': '中等金额，主管+财务两级审批',
             },
@@ -69,12 +88,30 @@ class Command(BaseCommand):
                 'flow_type': 'expense',
                 'conditions': {'min_amount': 20000, 'max_amount': 50000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
-                    {'node_order': 3, 'approver_type': 'department_head', 'approver_id': None,
-                     'timeout_hours': 72, 'node_type': 'single', 'description': '总监审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
+                    {
+                        'node_order': 3,
+                        'approver_type': 'department_head',
+                        'approver_id': None,
+                        'timeout_hours': 72,
+                        'node_type': 'single',
+                        'description': '总监审批',
+                    },
                 ],
                 'description': '较大金额，主管+财务+总监三级审批',
             },
@@ -84,14 +121,38 @@ class Command(BaseCommand):
                 'flow_type': 'expense',
                 'conditions': {'min_amount': 50000, 'max_amount': 100000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
-                    {'node_order': 3, 'approver_type': 'department_head', 'approver_id': None,
-                     'timeout_hours': 72, 'node_type': 'single', 'description': '总监审批'},
-                    {'node_order': 4, 'approver_type': 'manager', 'approver_id': None,
-                     'timeout_hours': 96, 'node_type': 'single', 'description': '总经理审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
+                    {
+                        'node_order': 3,
+                        'approver_type': 'department_head',
+                        'approver_id': None,
+                        'timeout_hours': 72,
+                        'node_type': 'single',
+                        'description': '总监审批',
+                    },
+                    {
+                        'node_order': 4,
+                        'approver_type': 'manager',
+                        'approver_id': None,
+                        'timeout_hours': 96,
+                        'node_type': 'single',
+                        'description': '总经理审批',
+                    },
                 ],
                 'description': '大额支出，四级审批',
             },
@@ -101,16 +162,46 @@ class Command(BaseCommand):
                 'flow_type': 'expense',
                 'conditions': {'min_amount': 100000, 'max_amount': None},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
-                    {'node_order': 3, 'approver_type': 'department_head', 'approver_id': None,
-                     'timeout_hours': 72, 'node_type': 'single', 'description': '总监审批'},
-                    {'node_order': 4, 'approver_type': 'manager', 'approver_id': None,
-                     'timeout_hours': 96, 'node_type': 'single', 'description': '总经理审批'},
-                    {'node_order': 5, 'approver_type': 'board', 'approver_id': None,
-                     'timeout_hours': 168, 'node_type': 'single', 'description': '董事会审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
+                    {
+                        'node_order': 3,
+                        'approver_type': 'department_head',
+                        'approver_id': None,
+                        'timeout_hours': 72,
+                        'node_type': 'single',
+                        'description': '总监审批',
+                    },
+                    {
+                        'node_order': 4,
+                        'approver_type': 'manager',
+                        'approver_id': None,
+                        'timeout_hours': 96,
+                        'node_type': 'single',
+                        'description': '总经理审批',
+                    },
+                    {
+                        'node_order': 5,
+                        'approver_type': 'board',
+                        'approver_id': None,
+                        'timeout_hours': 168,
+                        'node_type': 'single',
+                        'description': '董事会审批',
+                    },
                 ],
                 'description': '超大额支出，五级审批（董事会）',
             },
@@ -124,8 +215,14 @@ class Command(BaseCommand):
                 'flow_type': 'income',
                 'conditions': {'min_amount': 0, 'max_amount': 5000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
                 ],
                 'description': '小额收入，直接确认',
             },
@@ -135,10 +232,22 @@ class Command(BaseCommand):
                 'flow_type': 'income',
                 'conditions': {'min_amount': 5000, 'max_amount': 50000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
                 ],
                 'description': '中等金额，主管+财务两级审批',
             },
@@ -148,12 +257,30 @@ class Command(BaseCommand):
                 'flow_type': 'income',
                 'conditions': {'min_amount': 50000, 'max_amount': None},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
-                    {'node_order': 3, 'approver_type': 'department_head', 'approver_id': None,
-                     'timeout_hours': 72, 'node_type': 'single', 'description': '总监审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
+                    {
+                        'node_order': 3,
+                        'approver_type': 'department_head',
+                        'approver_id': None,
+                        'timeout_hours': 72,
+                        'node_type': 'single',
+                        'description': '总监审批',
+                    },
                 ],
                 'description': '大额收入，三级审批',
             },
@@ -167,8 +294,14 @@ class Command(BaseCommand):
                 'flow_type': 'wage',
                 'conditions': {'min_amount': 0, 'max_amount': 10000},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
                 ],
                 'description': '普通工资，主管审批',
             },
@@ -178,10 +311,22 @@ class Command(BaseCommand):
                 'flow_type': 'wage',
                 'conditions': {'min_amount': 10000, 'max_amount': None},
                 'nodes': [
-                    {'node_order': 1, 'approver_type': 'admin', 'approver_id': None,
-                     'timeout_hours': 24, 'node_type': 'single', 'description': '主管审批'},
-                    {'node_order': 2, 'approver_type': 'specific_user', 'approver_id': admin_user.id if admin_user else None,
-                     'timeout_hours': 48, 'node_type': 'single', 'description': '财务复核'},
+                    {
+                        'node_order': 1,
+                        'approver_type': 'admin',
+                        'approver_id': None,
+                        'timeout_hours': 24,
+                        'node_type': 'single',
+                        'description': '主管审批',
+                    },
+                    {
+                        'node_order': 2,
+                        'approver_type': 'specific_user',
+                        'approver_id': admin_user.id if admin_user else None,
+                        'timeout_hours': 48,
+                        'node_type': 'single',
+                        'description': '财务复核',
+                    },
                 ],
                 'description': '高额工资，主管+财务审批',
             },
@@ -202,7 +347,7 @@ class Command(BaseCommand):
                     'description': tpl['description'],
                     'is_active': True,
                     'created_by': admin_user,
-                }
+                },
             )
             if is_new:
                 created += 1
@@ -211,6 +356,6 @@ class Command(BaseCommand):
                 updated += 1
                 self.stdout.write(f'[更新] {obj.code} - {obj.name}')
 
-        self.stdout.write(self.style.SUCCESS(
-            f'\n完成！新建 {created} 个模板，更新 {updated} 个模板，共 {len(all_templates)} 个'
-        ))
+        self.stdout.write(
+            self.style.SUCCESS(f'\n完成！新建 {created} 个模板，更新 {updated} 个模板，共 {len(all_templates)} 个')
+        )

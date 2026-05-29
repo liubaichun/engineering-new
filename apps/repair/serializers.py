@@ -15,8 +15,7 @@ class RepairSparePartSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RepairSparePart
-        fields = ['id', 'request', 'material', 'material_name', 'material_code',
-                  'quantity', 'unit_price', 'remark']
+        fields = ['id', 'request', 'material', 'material_name', 'material_code', 'quantity', 'unit_price', 'remark']
 
 
 class RepairRequestListSerializer(serializers.ModelSerializer):
@@ -31,12 +30,30 @@ class RepairRequestListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RepairRequest
-        fields = ['id', 'request_no', 'equipment', 'equipment_name', 'equipment_code',
-                  'reporter', 'reporter_name', 'company', 'company_name',
-                  'priority', 'priority_display', 'status', 'status_display',
-                  'fault_time', 'assigned_at', 'completed_at', 'accepted_at',
-                  'assigned_to', 'assigned_to_name', 'repair_cost',
-                  'created_by_name', 'created_at']
+        fields = [
+            'id',
+            'request_no',
+            'equipment',
+            'equipment_name',
+            'equipment_code',
+            'reporter',
+            'reporter_name',
+            'company',
+            'company_name',
+            'priority',
+            'priority_display',
+            'status',
+            'status_display',
+            'fault_time',
+            'assigned_at',
+            'completed_at',
+            'accepted_at',
+            'assigned_to',
+            'assigned_to_name',
+            'repair_cost',
+            'created_by_name',
+            'created_at',
+        ]
 
 
 class RepairRequestDetailSerializer(serializers.ModelSerializer):
@@ -56,19 +73,55 @@ class RepairRequestDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RepairRequest
-        fields = ['id', 'request_no', 'equipment', 'equipment_name', 'equipment_code',
-                  'equipment_location', 'reporter', 'reporter_name', 'reporter_phone',
-                  'company', 'company_name', 'project', 'project_name',
-                  'fault_description', 'fault_time', 'priority', 'priority_display',
-                  'status', 'status_display', 'assigned_to', 'assigned_to_name',
-                  'assigned_at', 'completed_at', 'accepted_at', 'acceptance_result',
-                  'repair_cost', 'repair_company', 'solution', 'remark',
-                  'created_by', 'created_by_name', 'created_at', 'updated_at',
-                  'images', 'spare_parts']
+        fields = [
+            'id',
+            'request_no',
+            'equipment',
+            'equipment_name',
+            'equipment_code',
+            'equipment_location',
+            'reporter',
+            'reporter_name',
+            'reporter_phone',
+            'company',
+            'company_name',
+            'project',
+            'project_name',
+            'fault_description',
+            'fault_time',
+            'priority',
+            'priority_display',
+            'status',
+            'status_display',
+            'assigned_to',
+            'assigned_to_name',
+            'assigned_at',
+            'completed_at',
+            'accepted_at',
+            'acceptance_result',
+            'repair_cost',
+            'repair_company',
+            'solution',
+            'remark',
+            'created_by',
+            'created_by_name',
+            'created_at',
+            'updated_at',
+            'images',
+            'spare_parts',
+        ]
 
 
 class RepairRequestCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = RepairRequest
-        fields = ['equipment', 'reporter', 'company', 'project', 'fault_description',
-                  'fault_time', 'priority', 'remark']
+        fields = [
+            'equipment',
+            'reporter',
+            'company',
+            'project',
+            'fault_description',
+            'fault_time',
+            'priority',
+            'remark',
+        ]

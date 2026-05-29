@@ -51,10 +51,8 @@ urlpatterns = [
     path('auth/user/', CurrentUserView.as_view(), name='current-user'),
     path('auth/switch-company/', SwitchCompanyView.as_view(), name='switch-company'),
     path('switch_company/', SwitchCompanyView.as_view(), name='switch-company-old'),
-    
     # 健康检查
     path('health/', health_check, name='health'),
-
     # API路由
     path('', include(router.urls)),
 ]

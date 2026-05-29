@@ -6,6 +6,7 @@
 code 格式：category:resource:action（如 finance:wage:read）
 来源：UserModulePermission（位掩码）→ 遍历所有 bit 生成
 """
+
 from .models import UserModulePermission, ACTION_BITS
 
 
@@ -17,6 +18,7 @@ def menu_permissions(request):
         if request.user.is_superuser:
             # 超级管理员拥有所有模块的所有 action code
             from .models import Module, ModuleAction
+
             for module in Module.objects.filter(is_active=True):
                 for action in ModuleAction.objects.filter(module=module):
                     menu_codes.append(f'{module.category}:{module.name}:{action.name}')

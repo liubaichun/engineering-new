@@ -43,8 +43,9 @@ class Equipment(models.Model):
         'tasks.Project',
         verbose_name='关联项目',
         on_delete=models.SET_NULL,
-        blank=True, null=True,
-        related_name='equipments'
+        blank=True,
+        null=True,
+        related_name='equipments',
     )
     remarks = models.TextField('备注', blank=True, default='')
     company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
@@ -65,7 +66,7 @@ class Equipment(models.Model):
         ordering = ['-created_at']
 
     def __str__(self):
-        return f"{self.code} - {self.name}"
+        return f'{self.code} - {self.name}'
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -90,18 +91,10 @@ class EquipmentUsageLog(models.Model):
         ('return', '归还'),
     ]
 
-    equipment = models.ForeignKey(
-        Equipment,
-        verbose_name='设备',
-        on_delete=models.CASCADE,
-        related_name='usage_logs'
-    )
+    equipment = models.ForeignKey(Equipment, verbose_name='设备', on_delete=models.CASCADE, related_name='usage_logs')
     action = models.CharField('操作类型', max_length=20, choices=ACTION_CHOICES)
     user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        verbose_name='操作用户',
-        on_delete=models.SET_NULL,
-        null=True, blank=True
+        settings.AUTH_USER_MODEL, verbose_name='操作用户', on_delete=models.SET_NULL, null=True, blank=True
     )
     quantity = models.IntegerField('数量', default=1)
     purpose = models.CharField('用途', max_length=500, blank=True, default='')
@@ -110,8 +103,9 @@ class EquipmentUsageLog(models.Model):
         settings.AUTH_USER_MODEL,
         verbose_name='经办人',
         on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='equipment_operations'
+        null=True,
+        blank=True,
+        related_name='equipment_operations',
     )
     operated_at = models.DateTimeField('操作时间', auto_now_add=True)
     remarks = models.TextField('备注', blank=True, default='')
@@ -123,18 +117,13 @@ class EquipmentUsageLog(models.Model):
         ordering = ['-operated_at']
 
     def __str__(self):
-        return f"{self.equipment.name} - {self.get_action_display()}"
+        return f'{self.equipment.name} - {self.get_action_display()}'
 
 
 class EquipmentRepairLog(models.Model):
     """设备维修记录"""
 
-    equipment = models.ForeignKey(
-        Equipment,
-        verbose_name='设备',
-        on_delete=models.CASCADE,
-        related_name='repair_logs'
-    )
+    equipment = models.ForeignKey(Equipment, verbose_name='设备', on_delete=models.CASCADE, related_name='repair_logs')
     repair_date = models.DateField('维修日期')
     description = models.TextField('故障描述')
     result = models.TextField('维修结果', blank=True, default='')
@@ -145,8 +134,9 @@ class EquipmentRepairLog(models.Model):
         settings.AUTH_USER_MODEL,
         verbose_name='经办人',
         on_delete=models.SET_NULL,
-        null=True, blank=True,
-        related_name='equipment_repairs'
+        null=True,
+        blank=True,
+        related_name='equipment_repairs',
     )
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
@@ -157,23 +147,17 @@ class EquipmentRepairLog(models.Model):
         ordering = ['-repair_date']
 
     def __str__(self):
-        return f"{self.equipment.name} - {self.repair_date}"
+        return f'{self.equipment.name} - {self.repair_date}'
 
 
 class EquipmentBOMRelation(models.Model):
     """设备关联物料BOM（多对多 through 表）"""
 
     equipment = models.ForeignKey(
-        Equipment,
-        verbose_name='设备',
-        on_delete=models.CASCADE,
-        related_name='bom_relations'
+        Equipment, verbose_name='设备', on_delete=models.CASCADE, related_name='bom_relations'
     )
     material_bom = models.ForeignKey(
-        'material.MaterialBOM',
-        verbose_name='物料BOM',
-        on_delete=models.CASCADE,
-        related_name='equipment_relations'
+        'material.MaterialBOM', verbose_name='物料BOM', on_delete=models.CASCADE, related_name='equipment_relations'
     )
     quantity = models.DecimalField('数量', max_digits=12, decimal_places=4, default=1)
     remark = models.CharField('备注', max_length=500, blank=True, default='')
@@ -188,4 +172,4 @@ class EquipmentBOMRelation(models.Model):
         unique_together = ['equipment', 'material_bom']
 
     def __str__(self):
-        return f"{self.equipment.name} - {self.material_bom.name}"
+        return f'{self.equipment.name} - {self.material_bom.name}'

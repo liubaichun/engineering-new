@@ -1,19 +1,13 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
-import re
 
-from django.db.models import Sum, Count, Q, F
 from django.utils import timezone
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
-from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
+from apps.finance.models import Company, Invoice
 
 
 @api_view(['GET'])
@@ -27,10 +21,14 @@ def ar_ap_aging_report(request):
         if not due_date:
             return 'unknown'
         days = (today - due_date).days
-        if days <= 30: return 'bucket_1_30'
-        elif days <= 60: return 'bucket_31_60'
-        elif days <= 90: return 'bucket_61_90'
-        else: return 'bucket_over_90'
+        if days <= 30:
+            return 'bucket_1_30'
+        elif days <= 60:
+            return 'bucket_31_60'
+        elif days <= 90:
+            return 'bucket_61_90'
+        else:
+            return 'bucket_over_90'
 
     def build_arap(qs, name_field):
         companies = Company.objects.all()
@@ -43,7 +41,12 @@ def ar_ap_aging_report(request):
             buckets = {'bucket_1_30': 0, 'bucket_31_60': 0, 'bucket_61_90': 0, 'bucket_over_90': 0}
             details = []
             for rec in records:
-                due = getattr(rec, 'due_date', None) or getattr(rec, 'issue_date', None) or getattr(rec, 'date', None) or today
+                due = (
+                    getattr(rec, 'due_date', None)
+                    or getattr(rec, 'issue_date', None)
+                    or getattr(rec, 'date', None)
+                    or today
+                )
                 bucket = age_bucket(due)
                 amount = float(getattr(rec, 'amount', 0) or 0)
                 tax_amount = float(getattr(rec, 'tax_amount', 0) or 0) if hasattr(rec, 'tax_amount') else 0
@@ -51,17 +54,26 @@ def ar_ap_aging_report(request):
                 if bucket in buckets:
                     buckets[bucket] += amount_with_tax
                 name = getattr(rec, name_field, '') or ''
-                details.append({
-                    'id': rec.id, 'name': str(name), 'amount': amount_with_tax,
-                    'due_date': str(due), 'days': (today - due).days if due else 0,
-                    'bucket': bucket,
-                })
+                details.append(
+                    {
+                        'id': rec.id,
+                        'name': str(name),
+                        'amount': amount_with_tax,
+                        'due_date': str(due),
+                        'days': (today - due).days if due else 0,
+                        'bucket': bucket,
+                    }
+                )
             total = sum(buckets.values())
-            results.append({
-                'company_id': company.id, 'company_name': company.name,
-                'total': total, 'buckets': buckets,
-                'details': sorted(details, key=lambda x: x['days'], reverse=True)[:30],
-            })
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'total': total,
+                    'buckets': buckets,
+                    'details': sorted(details, key=lambda x: x['days'], reverse=True)[:30],
+                }
+            )
         return results
 
     ar_qs = Invoice.objects.filter(type='income', status='pending')
@@ -77,19 +89,21 @@ def ar_ap_aging_report(request):
     ar_results = build_arap(ar_qs, 'counterparty')
     ap_results = build_arap(ap_qs, 'counterparty')
 
-    return Response({
-        'report': 'ar_ap_aging',
-        'title': '应收应付账龄分析',
-        'as_of_date': str(today),
-        'params': params,
-        'accounts_receivable': ar_results,
-        'accounts_payable': ap_results,
-        'summary': {
-            'total_ar': sum(r['total'] for r in ar_results),
-            'total_ap': sum(r['total'] for r in ap_results),
-            'net_position': sum(r['total'] for r in ar_results) - sum(r['total'] for r in ap_results),
+    return Response(
+        {
+            'report': 'ar_ap_aging',
+            'title': '应收应付账龄分析',
+            'as_of_date': str(today),
+            'params': params,
+            'accounts_receivable': ar_results,
+            'accounts_payable': ap_results,
+            'summary': {
+                'total_ar': sum(r['total'] for r in ar_results),
+                'total_ap': sum(r['total'] for r in ap_results),
+                'net_position': sum(r['total'] for r in ar_results) - sum(r['total'] for r in ap_results),
+            },
         }
-    })
+    )
 
 
 # ─── 3. 客户收入排行 ────────────────────────────────────────────────────

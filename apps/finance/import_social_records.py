@@ -2,6 +2,7 @@
 社保申报记录导入函数 - 适配深圳社保局「社保费申报明细」格式。
 单Sheet，宽表结构：每个险种占3列（缴费工资/费率/应缴费额）× 2（单位/个人）。
 """
+
 import io
 import re
 from decimal import Decimal, InvalidOperation
@@ -31,23 +32,24 @@ def _parse_decimal(value):
 # 每个险种占6列：单位缴费工资、单位费率、单位应缴、个人缴费工资、个人费率、个人应缴
 INSURANCE_COLUMNS = [
     # 养老
-    ('pension_company',         'basic_pension_company',      9,  10, 11),
-    ('pension_employee',        'basic_pension_employee',     12, 13, 14),
+    ('pension_company', 'basic_pension_company', 9, 10, 11),
+    ('pension_employee', 'basic_pension_employee', 12, 13, 14),
     # 医疗
-    ('medical_company',         'basic_medical_company',      15, 16, 17),
-    ('medical_employee',        'basic_medical_employee',     18, 19, 20),
+    ('medical_company', 'basic_medical_company', 15, 16, 17),
+    ('medical_employee', 'basic_medical_employee', 18, 19, 20),
     # 生育
-    ('maternity_company',       'maternity_company',          21, 22, 23),
-    ('maternity_employee',     'maternity_employee',         None, None, None),
+    ('maternity_company', 'maternity_company', 21, 22, 23),
+    ('maternity_employee', 'maternity_employee', None, None, None),
     # 工伤
-    ('injury_company',          'injury_company',             25, 26, 27),
-    ('injury_employee',        'injury_employee',            None, None, None),
+    ('injury_company', 'injury_company', 25, 26, 27),
+    ('injury_employee', 'injury_employee', None, None, None),
     # 失业
-    ('unemployment_company',   'unemployment_company',       33, 34, 35),
-    ('unemployment_employee', 'unemployment_employee',     36, 37, 38),
+    ('unemployment_company', 'unemployment_company', 33, 34, 35),
+    ('unemployment_employee', 'unemployment_employee', 36, 37, 38),
     # 地方补充养老（单位）
-    ('pension_local_company',  'local_pension_company',      39, 40, 41),
+    ('pension_local_company', 'local_pension_company', 39, 40, 41),
 ]
+
 
 # 从 Row 1 的险种名称行找到各险种起始列
 def _find_insurance_columns(row1_headers):
@@ -55,8 +57,8 @@ def _find_insurance_columns(row1_headers):
     COLUMNS_MAP = {}
     # 养老保险（单位）从第10列开始
     if len(row1_headers) > 10:
-        COLUMNS_MAP['pension_company']         = 9   # 0-indexed
-        COLUMNS_MAP['basic_pension_company']    = 10
+        COLUMNS_MAP['pension_company'] = 9  # 0-indexed
+        COLUMNS_MAP['basic_pension_company'] = 10
         COLUMNS_MAP['basic_pension_amount_company'] = 11
     return COLUMNS_MAP
 
@@ -115,7 +117,7 @@ def import_social_records(file_obj, company_id=None):
 
         # 费款所属期格式化为 YYYY-MM
         if len(year_month) >= 6:
-            year_month = f"{year_month[:4]}-{year_month[4:6]}"
+            year_month = f'{year_month[:4]}-{year_month[4:6]}'
         else:
             year_month = None
 
@@ -124,17 +126,17 @@ def import_social_records(file_obj, company_id=None):
         # 缴费工资统一在 col[8]，各险种不重复
         data = {
             # 养老单位 col[10]（col[9]是费率16%，所以col[10]=764.0）
-            'pension_company_amount':      _parse_decimal(_cell_raw(ws, row_num, 10)),
+            'pension_company_amount': _parse_decimal(_cell_raw(ws, row_num, 10)),
             # 养老个人 col[12]（col[11]是费率8%）
-            'pension_employee_amount':    _parse_decimal(_cell_raw(ws, row_num, 12)),
+            'pension_employee_amount': _parse_decimal(_cell_raw(ws, row_num, 12)),
             # 医疗单位 col[14]（col[13]是费率6%）
-            'medical_company_amount':     _parse_decimal(_cell_raw(ws, row_num, 14)),
+            'medical_company_amount': _parse_decimal(_cell_raw(ws, row_num, 14)),
             # 医疗个人 col[18]（col[17]是费率2%）
-            'medical_employee_amount':    _parse_decimal(_cell_raw(ws, row_num, 18)),
+            'medical_employee_amount': _parse_decimal(_cell_raw(ws, row_num, 18)),
             # 生育 col[20]（col[19]是费率0.5%）
-            'maternity_company_amount':    _parse_decimal(_cell_raw(ws, row_num, 20)),
+            'maternity_company_amount': _parse_decimal(_cell_raw(ws, row_num, 20)),
             # 工伤 col[26]（col[25]是费率0.4%）
-            'injury_company_amount':      _parse_decimal(_cell_raw(ws, row_num, 26)),
+            'injury_company_amount': _parse_decimal(_cell_raw(ws, row_num, 26)),
             # 失业单位 col[34]（col[33]是费率0.8%）
             'unemployment_company_amount': _parse_decimal(_cell_raw(ws, row_num, 34)),
             # 失业个人 col[36]（col[35]是费率0.2%）
@@ -142,20 +144,22 @@ def import_social_records(file_obj, company_id=None):
             # 地补养老单位 col[38]（col[37]是费率1%）
             'local_pension_company_amount': _parse_decimal(_cell_raw(ws, row_num, 38)),
             # 缴费工资（用于参考/稽核）
-            'pension_wage':                _parse_decimal(_cell_raw(ws, row_num, 8)),
-            'medical_wage':               _parse_decimal(_cell_raw(ws, row_num, 8)),
+            'pension_wage': _parse_decimal(_cell_raw(ws, row_num, 8)),
+            'medical_wage': _parse_decimal(_cell_raw(ws, row_num, 8)),
         }
 
-        records_to_save.append({
-            'seq': seq_val,
-            'name': name,
-            'id_card': id_card,
-            'year_month': year_month,
-            'total_receivable': total_receivable,
-            'total_employee': total_employee,
-            'total_company': total_company,
-            **data
-        })
+        records_to_save.append(
+            {
+                'seq': seq_val,
+                'name': name,
+                'id_card': id_card,
+                'year_month': year_month,
+                'total_receivable': total_receivable,
+                'total_employee': total_employee,
+                'total_company': total_company,
+                **data,
+            }
+        )
 
     if not records_to_save:
         return {'success': False, 'message': '未能从文件中识别到有效数据行，请检查文件格式'}
@@ -167,6 +171,7 @@ def import_social_records(file_obj, company_id=None):
     actual_company_id = company_id
     if not actual_company_id:
         from apps.finance.models import Company
+
         sheet_name = ws.title or ''
         m = re.match(r'^(.+?)_社保费申报明细', sheet_name)
         if m:
@@ -181,10 +186,7 @@ def import_social_records(file_obj, company_id=None):
                 if comp:
                     actual_company_id = comp.id
         if not actual_company_id:
-            return {
-                'success': False,
-                'message': f'未能从文件Sheet名「{sheet_name}」识别到公司，请手动选择公司后重试'
-            }
+            return {'success': False, 'message': f'未能从文件Sheet名「{sheet_name}」识别到公司，请手动选择公司后重试'}
 
     created = 0
     updated = 0
@@ -197,18 +199,18 @@ def import_social_records(file_obj, company_id=None):
 
         # --- 脏数据检测：仅工伤>0且其他险种全部为0 → 跳过（非在职人员） ---
         other_total = (
-            float(rec['pension_company_amount'] or 0) +
-            float(rec['pension_employee_amount'] or 0) +
-            float(rec['medical_company_amount'] or 0) +
-            float(rec['medical_employee_amount'] or 0) +
-            float(rec['maternity_company_amount'] or 0) +
-            float(rec['unemployment_company_amount'] or 0) +
-            float(rec['unemployment_employee_amount'] or 0) +
-            float(rec['local_pension_company_amount'] or 0)
+            float(rec['pension_company_amount'] or 0)
+            + float(rec['pension_employee_amount'] or 0)
+            + float(rec['medical_company_amount'] or 0)
+            + float(rec['medical_employee_amount'] or 0)
+            + float(rec['maternity_company_amount'] or 0)
+            + float(rec['unemployment_company_amount'] or 0)
+            + float(rec['unemployment_employee_amount'] or 0)
+            + float(rec['local_pension_company_amount'] or 0)
         )
         injury_only = float(rec['injury_company_amount'] or 0)
         if injury_only > 0 and other_total == 0:
-            skipped_dirty.append(f"{rec['name']}({rec['id_card']}): 仅工伤¥{injury_only}")
+            skipped_dirty.append(f'{rec["name"]}({rec["id_card"]}): 仅工伤¥{injury_only}')
             continue
 
         # 查找员工
@@ -227,10 +229,9 @@ def import_social_records(file_obj, company_id=None):
                     housing_fund_company = float(employee.housing_fund_company or 0)
                 else:
                     from apps.finance.models import WageRecord
+
                     wr = WageRecord.objects.filter(
-                        employee=employee,
-                        year=rec['year_month'][:4],
-                        month=rec['year_month'][5:7]
+                        employee=employee, year=rec['year_month'][:4], month=rec['year_month'][5:7]
                     ).first()
                     if wr and wr.housing_fund:
                         housing_fund_employee = float(wr.housing_fund)
@@ -248,13 +249,13 @@ def import_social_records(file_obj, company_id=None):
 
             float_vals = {
                 'name': rec['name'],
-                'pension_company':     float(rec['pension_company_amount'] or 0),
-                'pension_employee':     float(rec['pension_employee_amount'] or 0),
-                'medical_company':      float(rec['medical_company_amount'] or 0),
-                'medical_employee':     float(rec['medical_employee_amount'] or 0),
-                'pension_bup_company':  float(rec['local_pension_company_amount'] or 0),
-                'birth_company':        float(rec['maternity_company_amount'] or 0),
-                'injury_company':      float(rec['injury_company_amount'] or 0),
+                'pension_company': float(rec['pension_company_amount'] or 0),
+                'pension_employee': float(rec['pension_employee_amount'] or 0),
+                'medical_company': float(rec['medical_company_amount'] or 0),
+                'medical_employee': float(rec['medical_employee_amount'] or 0),
+                'pension_bup_company': float(rec['local_pension_company_amount'] or 0),
+                'birth_company': float(rec['maternity_company_amount'] or 0),
+                'injury_company': float(rec['injury_company_amount'] or 0),
                 'unemployment_company': float(rec['unemployment_company_amount'] or 0),
                 'unemployment_employee': float(rec['unemployment_employee_amount'] or 0),
                 'housing_fund_employee': housing_fund_employee,
@@ -267,24 +268,21 @@ def import_social_records(file_obj, company_id=None):
                 obj, is_new = SocialRecord.objects.update_or_create(
                     employee=employee,
                     year_month=rec['year_month'],
-                    defaults={
-                        'company_id': actual_company_id, 'id_card': rec['id_card'],
-                        **float_vals
-                    }
+                    defaults={'company_id': actual_company_id, 'id_card': rec['id_card'], **float_vals},
                 )
             else:
                 obj, is_new = SocialRecord.objects.update_or_create(
                     company_id=actual_company_id,
                     id_card=rec['id_card'],
                     year_month=rec['year_month'],
-                    defaults={**float_vals, 'employee': None, 'id_card': rec['id_card']}
+                    defaults={**float_vals, 'employee': None, 'id_card': rec['id_card']},
                 )
             if is_new:
                 created += 1
             else:
                 updated += 1
         except Exception as e:
-            errors.append(f"员工 {rec['name']}({rec['id_card']}): {str(e)}")
+            errors.append(f'员工 {rec["name"]}({rec["id_card"]}): {str(e)}')
 
     msg = f'导入完成，共处理 {len(records_to_save)} 条员工记录'
     if skipped_dirty:
@@ -298,7 +296,7 @@ def import_social_records(file_obj, company_id=None):
         'created': created,
         'updated': updated,
         'skipped_dirty': skipped_dirty,
-        'errors': errors[:50]  # 最多返回50条
+        'errors': errors[:50],  # 最多返回50条
     }
 
 

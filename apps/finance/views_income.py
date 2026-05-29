@@ -1,34 +1,15 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
+from django.db.models import Sum
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from .models import Income
 from .serializers import (
-    CompanySerializer,
     IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
+from .filters import IncomeFilter
 from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
@@ -37,14 +18,12 @@ from apps.core.permissions import RoleRequired
 from .views_common import (
     SafePageNumberPagination,
     get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
 )
 
 
 class IncomeViewSet(viewsets.ModelViewSet):
     """收入视图集"""
+
     queryset = Income.objects.all()
     serializer_class = IncomeSerializer
     pagination_class = SafePageNumberPagination
@@ -119,7 +98,9 @@ class IncomeViewSet(viewsets.ModelViewSet):
         """取消确认收入"""
         income = self.get_object()
         if income.status != 'approved':
-            return Response({'status': 'error', 'message': f'当前状态不允许取消确认（状态：{income.status}）'}, status=400)
+            return Response(
+                {'status': 'error', 'message': f'当前状态不允许取消确认（状态：{income.status}）'}, status=400
+            )
         income.status = 'pending'
         try:
             income.save(update_fields=['status'])
@@ -133,39 +114,40 @@ class IncomeViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
 
         # 按状态统计
-        pending_total = queryset.filter(status='pending').aggregate(
-            total=Sum('amount')
-        )['total'] or 0
-        confirmed_total = queryset.filter(status__in=('approved', 'received')).aggregate(
-            total=Sum('amount')
-        )['total'] or 0
+        pending_total = queryset.filter(status='pending').aggregate(total=Sum('amount'))['total'] or 0
+        confirmed_total = (
+            queryset.filter(status__in=('approved', 'received')).aggregate(total=Sum('amount'))['total'] or 0
+        )
         total_count = queryset.count()
         pending_count = queryset.filter(status='pending').count()
         confirmed_count = queryset.filter(status__in=('approved', 'received')).count()
 
         # 按月份统计
-        monthly_stats = queryset.annotate(
-            month=TruncMonth('date')
-        ).values('month').annotate(
-            total=Sum('amount')
-        ).order_by('-month')[:12]
+        monthly_stats = (
+            queryset.annotate(month=TruncMonth('date'))
+            .values('month')
+            .annotate(total=Sum('amount'))
+            .order_by('-month')[:12]
+        )
 
-        return Response({
-            'total_count': total_count,
-            'pending_count': pending_count,
-            'confirmed_count': confirmed_count,
-            'pending_total': float(pending_total),
-            'confirmed_total': float(confirmed_total),
-            'monthly_stats': [
-                {'month': str(item['month']), 'total': float(item['total'])}
-                for item in monthly_stats
-            ]
-        })
+        return Response(
+            {
+                'total_count': total_count,
+                'pending_count': pending_count,
+                'confirmed_count': confirmed_count,
+                'pending_total': float(pending_total),
+                'confirmed_total': float(confirmed_total),
+                'monthly_stats': [
+                    {'month': str(item['month']), 'total': float(item['total'])} for item in monthly_stats
+                ],
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出收入 Excel"""
         from apps.core.export_excel import export_income_records, make_export_response
+
         queryset = self.get_queryset()
         company_id = request.GET.get('company_id')
         date_start = request.GET.get('date_start')
@@ -185,7 +167,6 @@ class IncomeViewSet(viewsets.ModelViewSet):
         """批量导入收入 Excel"""
         from apps.core.import_excel import import_income
         from apps.finance.models import Income
-        import io
 
         file = request.FILES.get('file')
         if not file:
@@ -204,6 +185,7 @@ class IncomeViewSet(viewsets.ModelViewSet):
         errors = []
         user = request.user
         import datetime as dt
+
         for i, row_data in enumerate(result.rows):
             try:
                 # 解析交易时间（字符串 → time对象）
@@ -237,10 +219,12 @@ class IncomeViewSet(viewsets.ModelViewSet):
                 if float(income.amount or 0) >= 5000 and not income.approval_flow_id:
                     self._trigger_approval_flow(income, user)
             except Exception as e:
-                errors.append(f"第{i+2}行：{str(e)}")
+                errors.append(f'第{i + 2}行：{str(e)}')
 
-        return Response({
-            'success': created > 0,
-            'message': f'成功导入 {created} 条记录' + (f'，失败 {len(errors)} 条' if errors else ''),
-            'errors': errors[:20],
-        })
+        return Response(
+            {
+                'success': created > 0,
+                'message': f'成功导入 {created} 条记录' + (f'，失败 {len(errors)} 条' if errors else ''),
+                'errors': errors[:20],
+            }
+        )

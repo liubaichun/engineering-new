@@ -1,10 +1,17 @@
 from django.urls import path, include
 from config.routers import IntegerPkRouter
 from .views import (
-    ProjectViewSet, TaskViewSet, FlowTemplateViewSet,
-    FlowNodeTemplateViewSet, TaskStageInstanceViewSet,
-    StageActivityViewSet, FlowTransitionViewSet, TaskFlowInstanceViewSet,
-    TaskCommentViewSet, TaskAttachmentViewSet, TaskDependencyViewSet
+    ProjectViewSet,
+    TaskViewSet,
+    FlowTemplateViewSet,
+    FlowNodeTemplateViewSet,
+    TaskStageInstanceViewSet,
+    StageActivityViewSet,
+    FlowTransitionViewSet,
+    TaskFlowInstanceViewSet,
+    TaskCommentViewSet,
+    TaskAttachmentViewSet,
+    TaskDependencyViewSet,
 )
 
 router = IntegerPkRouter()

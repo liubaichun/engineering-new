@@ -1,50 +1,23 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
+from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from .models import Company
+from .models_bank import BankAccount
 from .serializers import (
     CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
+from .filters import CompanyFilter
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
-from .views_common import (
-    SafePageNumberPagination,
-    get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
-)
 
 
 class CompanyViewSet(viewsets.ModelViewSet):
     """公司视图集"""
+
     queryset = Company.objects.all()
     serializer_class = CompanySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -62,6 +35,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save()
+
     search_fields = ['name', 'code', 'contact_person', 'contact_phone']
     ordering_fields = ['name', 'code', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
@@ -78,13 +52,16 @@ class CompanyViewSet(viewsets.ModelViewSet):
         """获取公司的银行账户列表"""
         company = self.get_object()
         accounts = BankAccount.objects.filter(company=company, is_active=True)
-        data = [{
-            'id': a.id,
-            'bank_code': a.bank_code,
-            'bank_name': a.bank_name,
-            'account_no': a.account_no,
-            'account_name': a.account_name,
-        } for a in accounts]
+        data = [
+            {
+                'id': a.id,
+                'bank_code': a.bank_code,
+                'bank_name': a.bank_name,
+                'account_no': a.account_no,
+                'account_name': a.account_name,
+            }
+            for a in accounts
+        ]
         return Response({'bank_accounts': data})
 
     @action(detail=True, methods=['post'])
@@ -113,6 +90,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
     def export(self, request):
         """导出公司 Excel"""
         from apps.core.export_excel import export_companies, make_export_response
+
         queryset = self.get_queryset()
         buf = export_companies(list(queryset.all()))
         return make_export_response(buf, f'公司_{timezone.now().strftime("%Y%m%d")}.xlsx')

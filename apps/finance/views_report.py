@@ -1,50 +1,22 @@
-import functools
 from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
-from rest_framework import viewsets, filters, permissions
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
+from django.db.models import Count
 from django.db.models.functions import TruncMonth
-from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
-from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
-)
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
+from .models import Company, Income, Expense, WageRecord, Invoice
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
 from .views_common import (
-    SafePageNumberPagination,
     get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
 )
 
 
 class ReportViewSet(viewsets.ViewSet):
     """财务报表视图集"""
+
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -63,25 +35,25 @@ class ReportViewSet(viewsets.ViewSet):
 
     def list(self, request):
         """财务报表首页 - 返回支持的报表类型"""
-        return Response({
-            'reports': [
-                {'key': 'monthly', 'name': '月度报表', 'description': '按月份统计各公司收支情况'},
-                {'key': 'yearly', 'name': '年度报表', 'description': '按年份统计各公司收支情况'},
-                {'key': 'wage_summary', 'name': '工资汇总', 'description': '按公司/月份汇总工资支出'},
-                {'key': 'invoice_summary', 'name': '发票汇总', 'description': '按公司统计发票情况'},
-            {'key': 'invoice_aging', 'name': '发票账龄', 'description': '未付发票按到期日账龄分析'},
-            ]
-        })
+        return Response(
+            {
+                'reports': [
+                    {'key': 'monthly', 'name': '月度报表', 'description': '按月份统计各公司收支情况'},
+                    {'key': 'yearly', 'name': '年度报表', 'description': '按年份统计各公司收支情况'},
+                    {'key': 'wage_summary', 'name': '工资汇总', 'description': '按公司/月份汇总工资支出'},
+                    {'key': 'invoice_summary', 'name': '发票汇总', 'description': '按公司统计发票情况'},
+                    {'key': 'invoice_aging', 'name': '发票账龄', 'description': '未付发票按到期日账龄分析'},
+                ]
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def years(self, request):
         """返回所有有收支/发票数据的年份列表（供前端动态填充年份下拉框）"""
         from django.db.models.functions import ExtractYear
+
         income_years = (
-            Income.objects.annotate(y=ExtractYear('date'))
-            .values_list('y', flat=True)
-            .distinct()
-            .exclude(y=None)
+            Income.objects.annotate(y=ExtractYear('date')).values_list('y', flat=True).distinct().exclude(y=None)
         )
         expense_years = (
             Expense.objects.annotate(y=ExtractYear('expense_date'))
@@ -90,11 +62,9 @@ class ReportViewSet(viewsets.ViewSet):
             .exclude(y=None)
         )
         from .models import Invoice
+
         invoice_years = (
-            Invoice.objects.annotate(y=ExtractYear('issue_date'))
-            .values_list('y', flat=True)
-            .distinct()
-            .exclude(y=None)
+            Invoice.objects.annotate(y=ExtractYear('issue_date')).values_list('y', flat=True).distinct().exclude(y=None)
         )
         all_years = sorted(set(list(income_years) + list(expense_years) + list(invoice_years)), reverse=True)
         return Response({'years': all_years})
@@ -133,8 +103,16 @@ class ReportViewSet(viewsets.ViewSet):
         internal_names = list(Company.objects.values_list('name', flat=True))
         results = []
         for company in companies:
-            inc_qs = Income.objects.filter(company=company).exclude(customer__in=internal_names).exclude(income_category__in=['internal_transfer', 'equity'])
-            exp_qs = Expense.objects.filter(company=company).exclude(supplier__in=internal_names).exclude(expense_type__in=['internal_transfer', 'agency'])
+            inc_qs = (
+                Income.objects.filter(company=company)
+                .exclude(customer__in=internal_names)
+                .exclude(income_category__in=['internal_transfer', 'equity'])
+            )
+            exp_qs = (
+                Expense.objects.filter(company=company)
+                .exclude(supplier__in=internal_names)
+                .exclude(expense_type__in=['internal_transfer', 'agency'])
+            )
             if year:
                 inc_qs = inc_qs.filter(date__year=year)
                 exp_qs = exp_qs.filter(date__year=year)
@@ -148,39 +126,41 @@ class ReportViewSet(viewsets.ViewSet):
             expense_count = exp_qs.count()
 
             # 【P1-3】收入按科目分类
-            income_by_cat = inc_qs.values('income_category').annotate(
-                total=Sum('amount')
-            ).order_by()
+            income_by_cat = inc_qs.values('income_category').annotate(total=Sum('amount')).order_by()
             income_categories = {}
             for item in income_by_cat:
                 cat = item['income_category'] or 'unclassified'
                 income_categories[cat] = float(item['total'])
 
-            results.append({
-                'company_id': company.id,
-                'company_name': company.name,
-                'company_code': company.code,
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'company_code': company.code,
+                    'year': int(year) if year else None,
+                    'month': int(month) if month else None,
+                    'total_income': float(total_income),
+                    'total_expense': float(total_expense),
+                    'balance': float(total_income) - float(total_expense),
+                    'income_count': income_count,
+                    'expense_count': expense_count,
+                    'income_by_category': income_categories,
+                }
+            )
+
+        return Response(
+            {
                 'year': int(year) if year else None,
                 'month': int(month) if month else None,
-                'total_income': float(total_income),
-                'total_expense': float(total_expense),
-                'balance': float(total_income) - float(total_expense),
-                'income_count': income_count,
-                'expense_count': expense_count,
-                'income_by_category': income_categories,
-            })
-
-        return Response({
-            'year': int(year) if year else None,
-            'month': int(month) if month else None,
-            'company_id': int(company_id) if company_id else None,
-            'results': results,
-            'summary': {
-                'total_income': sum(r['total_income'] for r in results),
-                'total_expense': sum(r['total_expense'] for r in results),
-                'total_balance': sum(r['balance'] for r in results),
+                'company_id': int(company_id) if company_id else None,
+                'results': results,
+                'summary': {
+                    'total_income': sum(r['total_income'] for r in results),
+                    'total_expense': sum(r['total_expense'] for r in results),
+                    'total_balance': sum(r['balance'] for r in results),
+                },
             }
-        })
+        )
 
     @action(detail=False, methods=['get'])
     def yearly(self, request):
@@ -211,8 +191,16 @@ class ReportViewSet(viewsets.ViewSet):
         internal_names = list(Company.objects.values_list('name', flat=True))
         results = []
         for company in companies:
-            inc_qs = Income.objects.filter(company=company).exclude(customer__in=internal_names).exclude(income_category__in=['internal_transfer', 'equity'])
-            exp_qs = Expense.objects.filter(company=company).exclude(supplier__in=internal_names).exclude(expense_type__in=['internal_transfer', 'agency'])
+            inc_qs = (
+                Income.objects.filter(company=company)
+                .exclude(customer__in=internal_names)
+                .exclude(income_category__in=['internal_transfer', 'equity'])
+            )
+            exp_qs = (
+                Expense.objects.filter(company=company)
+                .exclude(supplier__in=internal_names)
+                .exclude(expense_type__in=['internal_transfer', 'agency'])
+            )
             if year:
                 inc_qs = inc_qs.filter(date__year=year)
                 exp_qs = exp_qs.filter(date__year=year)
@@ -229,31 +217,33 @@ class ReportViewSet(viewsets.ViewSet):
             for item in income_by_cat:
                 income_categories[item['income_category'] or 'unclassified'] = float(item['total'])
 
-            results.append({
-                'company_id': company.id,
-                'company_name': company.name,
-                'company_code': company.code,
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'company_code': company.code,
+                    'year': int(year) if year else None,
+                    'total_income': float(total_income),
+                    'total_expense': float(total_expense),
+                    'balance': float(total_income) - float(total_expense),
+                    'income_count': income_count,
+                    'expense_count': expense_count,
+                    'income_by_category': income_categories,
+                }
+            )
+
+        return Response(
+            {
                 'year': int(year) if year else None,
-                'total_income': float(total_income),
-                'total_expense': float(total_expense),
-                'balance': float(total_income) - float(total_expense),
-                'income_count': income_count,
-                'expense_count': expense_count,
-                'income_by_category': income_categories,
-            })
-
-        return Response({
-            'year': int(year) if year else None,
-            'company_id': int(company_id) if company_id else None,
-            'results': results,
-            'summary': {
-                'total_income': sum(r['total_income'] for r in results),
-                'total_expense': sum(r['total_expense'] for r in results),
-                'total_balance': sum(r['balance'] for r in results),
+                'company_id': int(company_id) if company_id else None,
+                'results': results,
+                'summary': {
+                    'total_income': sum(r['total_income'] for r in results),
+                    'total_expense': sum(r['total_expense'] for r in results),
+                    'total_balance': sum(r['balance'] for r in results),
+                },
             }
-        })
-
-    
+        )
 
     @action(detail=False, methods=['get'])
     def wage_summary(self, request):
@@ -297,7 +287,7 @@ class ReportViewSet(viewsets.ViewSet):
             total_net = wr_q.aggregate(t=Sum('net_salary'))['t'] or 0
             total_tax = wr_q.aggregate(t=Sum('tax'))['t'] or 0
             total_emp_si = wr_q.aggregate(t=Sum('social_insurance'))['t'] or 0  # 个人社保扣款合计
-            total_hf = wr_q.aggregate(t=Sum('housing_fund'))['t'] or 0          # 个人公积金扣款合计
+            total_hf = wr_q.aggregate(t=Sum('housing_fund'))['t'] or 0  # 个人公积金扣款合计
             record_count = wr_q.count()
 
             # ═══════════════════════════════════════════════════════════════════
@@ -308,22 +298,31 @@ class ReportViewSet(viewsets.ViewSet):
             # ═══════════════════════════════════════════════════════════════════
 
             # ── 个人部分（全部从 WageRecord，单一来源） ──
-            personal_si = float(total_emp_si)           # 个人社保扣款
-            personal_hf = float(total_hf)                # 个人公积金扣款
+            personal_si = float(total_emp_si)  # 个人社保扣款
+            personal_hf = float(total_hf)  # 个人公积金扣款
 
             # ── 公司部分 ──
             from apps.finance.models import SocialRecord
-            ym_filter = f"{year}-{int(month):02d}" if year and month else (str(year) if year else '')
+
+            ym_filter = f'{year}-{int(month):02d}' if year and month else (str(year) if year else '')
             sr_q = SocialRecord.objects.filter(company=company)
             if ym_filter:
                 sr_q = sr_q.filter(year_month__startswith=ym_filter)
 
             # 公司社保（不含公积金，只从 SocialRecord 读）
-            company_si = float(sr_q.aggregate(
-                t=Sum(F('pension_company') + F('pension_bup_company') +
-                      F('medical_company') + F('unemployment_company') +
-                      F('injury_company') + F('birth_company'))
-            )['t'] or 0)
+            company_si = float(
+                sr_q.aggregate(
+                    t=Sum(
+                        F('pension_company')
+                        + F('pension_bup_company')
+                        + F('medical_company')
+                        + F('unemployment_company')
+                        + F('injury_company')
+                        + F('birth_company')
+                    )
+                )['t']
+                or 0
+            )
 
             # 公司公积金 = 个人公积金（政策1:1，不依赖 SocialRecord）
             company_hf = personal_hf
@@ -331,39 +330,43 @@ class ReportViewSet(viewsets.ViewSet):
             # 公司总承担 = 应发合计 + 公司社保 + 公司公积金
             company_total_cost = round(float(total_gross) + company_si + company_hf, 2)
 
-            results.append({
-                'company_id': company.id,
-                'company_name': company.name,
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'year': int(year) if year else None,
+                    'month': int(month) if month else None,
+                    'employee_count': len({wr.employee_id for wr in wr_q}),
+                    'total_gross': float(total_gross),
+                    'personal_si': personal_si,  # 个人社保（WageRecord）
+                    'personal_hf': personal_hf,  # 个人公积金（WageRecord）
+                    'company_si': round(company_si, 2),  # 公司社保（SocialRecord）
+                    'company_hf': round(company_hf, 2),  # 公司公积金（1:1匹配）
+                    'total_tax': float(total_tax),
+                    'total_net': float(total_net),
+                    'company_total_cost': company_total_cost,  # 公司总承担
+                }
+            )
+
+        return Response(
+            {
                 'year': int(year) if year else None,
                 'month': int(month) if month else None,
-                'employee_count': len({wr.employee_id for wr in wr_q}),
-                'total_gross': float(total_gross),
-                'personal_si': personal_si,                    # 个人社保（WageRecord）
-                'personal_hf': personal_hf,                    # 个人公积金（WageRecord）
-                'company_si': round(company_si, 2),            # 公司社保（SocialRecord）
-                'company_hf': round(company_hf, 2),            # 公司公积金（1:1匹配）
-                'total_tax': float(total_tax),
-                'total_net': float(total_net),
-                'company_total_cost': company_total_cost,      # 公司总承担
-            })
-
-        return Response({
-            'year': int(year) if year else None,
-            'month': int(month) if month else None,
-            'company_id': int(company_id) if company_id else None,
-            'results': results,
-            'summary': {
-                'total_employees': sum(r['employee_count'] for r in results),
-                'total_gross': sum(r['total_gross'] for r in results),
-                'total_personal_si': sum(r['personal_si'] for r in results),
-                'total_personal_hf': sum(r['personal_hf'] for r in results),
-                'total_company_si': round(sum(r['company_si'] for r in results), 2),
-                'total_company_hf': round(sum(r['company_hf'] for r in results), 2),
-                'total_tax': sum(r['total_tax'] for r in results),
-                'total_net': sum(r['total_net'] for r in results),
-                'company_total_cost': round(sum(r['company_total_cost'] for r in results), 2),
+                'company_id': int(company_id) if company_id else None,
+                'results': results,
+                'summary': {
+                    'total_employees': sum(r['employee_count'] for r in results),
+                    'total_gross': sum(r['total_gross'] for r in results),
+                    'total_personal_si': sum(r['personal_si'] for r in results),
+                    'total_personal_hf': sum(r['personal_hf'] for r in results),
+                    'total_company_si': round(sum(r['company_si'] for r in results), 2),
+                    'total_company_hf': round(sum(r['company_hf'] for r in results), 2),
+                    'total_tax': sum(r['total_tax'] for r in results),
+                    'total_net': sum(r['total_net'] for r in results),
+                    'company_total_cost': round(sum(r['company_total_cost'] for r in results), 2),
+                },
             }
-        })
+        )
 
     @action(detail=False, methods=['get'])
     def invoice_summary(self, request):
@@ -415,17 +418,19 @@ class ReportViewSet(viewsets.ViewSet):
             # 有效发票总额（不含作废）
             valid_amount = qs.exclude(status='cancelled').aggregate(total=Sum('amount'))['total'] or 0
 
-            results.append({
-                'company_id': company.id,
-                'company_name': company.name,
-                'year': int(year) if year else None,
-                'issued_count': issued_count,
-                'pending_count': pending_count,
-                'paid_count': paid_count,
-                'cancelled_count': cancelled_count,
-                'cancelled_amount': float(cancelled_amount),
-                'total_amount': float(valid_amount),
-            })
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'year': int(year) if year else None,
+                    'issued_count': issued_count,
+                    'pending_count': pending_count,
+                    'paid_count': paid_count,
+                    'cancelled_count': cancelled_count,
+                    'cancelled_amount': float(cancelled_amount),
+                    'total_amount': float(valid_amount),
+                }
+            )
 
         # 顶层聚合（供 stat 卡片直接使用）
         # 查询所有符合条件的发票（包含 NULL company_id），再按公司分组
@@ -443,21 +448,23 @@ class ReportViewSet(viewsets.ViewSet):
         total_tax = all_filtered.aggregate(total=Sum('tax_amount'))['total'] or 0
         net_amount = total_amount - total_tax
 
-        return Response({
-            'year': int(year) if year else None,
-            'company_id': int(company_id) if company_id else None,
-            'type': invoice_type,
-            'results': results,
-            'total_count': total_count,
-            'total_amount': float(total_amount),
-            'total_tax': float(total_tax),
-            'net_amount': float(net_amount),
-        })
+        return Response(
+            {
+                'year': int(year) if year else None,
+                'company_id': int(company_id) if company_id else None,
+                'type': invoice_type,
+                'results': results,
+                'total_count': total_count,
+                'total_amount': float(total_amount),
+                'total_tax': float(total_tax),
+                'net_amount': float(net_amount),
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def invoice_aging(self, request):
         """发票账龄分析 — 按到期日(due_date)分析未付发票的账龄分布"""
-        from django.db.models import Q, Sum, Case, When, IntegerField, Value
+        from django.db.models import Q, Sum
         from datetime import date, timedelta
         from apps.finance.models import Company
 
@@ -509,42 +516,47 @@ class ReportViewSet(viewsets.ViewSet):
 
             b0 = bucket_qs('0-30天', Q(due_date__gte=today))
             b1 = bucket_qs('31-60天', Q(due_date__lt=today, due_date__gte=today - timedelta(days=60)))
-            b2 = bucket_qs('61-90天', Q(due_date__lt=today - timedelta(days=60), due_date__gte=today - timedelta(days=90)))
+            b2 = bucket_qs(
+                '61-90天', Q(due_date__lt=today - timedelta(days=60), due_date__gte=today - timedelta(days=90))
+            )
             b3 = bucket_qs('90+天', Q(due_date__lt=today - timedelta(days=90)))
 
-            results.append({
-                'company_id': company.id,
-                'company_name': company.name,
-                'total': float(total),
-                'total_count': qs.count(),
-                'buckets': {
-                    '0_30': b0,
-                    '31_60': b1,
-                    '61_90': b2,
-                    '91_plus': b3,
-                },
-            })
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'total': float(total),
+                    'total_count': qs.count(),
+                    'buckets': {
+                        '0_30': b0,
+                        '31_60': b1,
+                        '61_90': b2,
+                        '91_plus': b3,
+                    },
+                }
+            )
 
             buckets['0_30'] += b0['amount']
             buckets['31_60'] += b1['amount']
             buckets['61_90'] += b2['amount']
             buckets['91_plus'] += b3['amount']
 
-        return Response({
-            'date': today.isoformat(),
-            'company_id': int(company_id) if company_id else None,
-            'type': inv_type,
-            'results': results,
-            'grand_total': float(grand_total),
-            'grand_buckets': buckets,
-        })
+        return Response(
+            {
+                'date': today.isoformat(),
+                'company_id': int(company_id) if company_id else None,
+                'type': inv_type,
+                'results': results,
+                'grand_total': float(grand_total),
+                'grand_buckets': buckets,
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def invoice_chart(self, request):
         """发票统计图表数据 — 月度趋势、状态分布（供前端 Chart.js 使用）"""
-        from django.db.models import Count, Sum, Q
-        from django.db.models.functions import TruncMonth
-        from datetime import date, timedelta, datetime
+        from django.db.models import Sum, Q
+        from datetime import date
 
         year = request.query_params.get('year', str(date.today().year))
         company_id = request.query_params.get('company')
@@ -579,29 +591,25 @@ class ReportViewSet(viewsets.ViewSet):
             m['total_tax'] = float(m['total_tax'] or 0)
 
         # 2. 状态分布
-        status_dist = list(
-            qs.values('status')
-            .annotate(count=Count('id'), amount=Sum('amount'))
-            .order_by('status')
-        )
+        status_dist = list(qs.values('status').annotate(count=Count('id'), amount=Sum('amount')).order_by('status'))
         for s in status_dist:
             s['amount'] = float(s['amount'] or 0)
 
         # 3. 公司分布
         company_dist = list(
-            qs.values('company__name')
-            .annotate(count=Count('id'), amount=Sum('amount'))
-            .order_by('-amount')[:10]
+            qs.values('company__name').annotate(count=Count('id'), amount=Sum('amount')).order_by('-amount')[:10]
         )
         for c in company_dist:
             c['amount'] = float(c['amount'] or 0)
 
-        return Response({
-            'year': year,
-            'monthly': monthly,
-            'status_distribution': status_dist,
-            'company_distribution': company_dist,
-        })
+        return Response(
+            {
+                'year': year,
+                'monthly': monthly,
+                'status_distribution': status_dist,
+                'company_distribution': company_dist,
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def revenue_expense_summary(self, request):
@@ -632,7 +640,11 @@ class ReportViewSet(viewsets.ViewSet):
         internal_names = list(Company.objects.values_list('name', flat=True))
         results = []
         for company in companies:
-            income_qs = Income.objects.filter(company=company).exclude(customer__in=internal_names).exclude(income_category__in=['internal_transfer', 'equity'])
+            income_qs = (
+                Income.objects.filter(company=company)
+                .exclude(customer__in=internal_names)
+                .exclude(income_category__in=['internal_transfer', 'equity'])
+            )
             expense_qs = Expense.objects.filter(company=company).exclude(supplier__in=internal_names)
 
             if year:
@@ -649,122 +661,137 @@ class ReportViewSet(viewsets.ViewSet):
             wage_expense = float(wr_q.aggregate(t=Sum('gross_salary'))['t'] or 0)
             other_expense = float(total_expense) - wage_expense
 
-            results.append({
-                'company_id': company.id,
-                'company_name': company.name,
-                'company_code': company.code,
-                'year': int(year) if year else None,
-                'total_income': float(total_income),
-                'total_expense': float(total_expense),
-                'wage_expense': wage_expense,
-                'other_expense': other_expense,
-                'balance': float(total_income) - float(total_expense),
-            })
+            results.append(
+                {
+                    'company_id': company.id,
+                    'company_name': company.name,
+                    'company_code': company.code,
+                    'year': int(year) if year else None,
+                    'total_income': float(total_income),
+                    'total_expense': float(total_expense),
+                    'wage_expense': wage_expense,
+                    'other_expense': other_expense,
+                    'balance': float(total_income) - float(total_expense),
+                }
+            )
 
-        return Response({
-            'year': int(year) if year else None,
-            'company_id': int(company_id) if company_id else None,
-            'results': results,
-            'summary': {
-                'total_income': sum(r['total_income'] for r in results),
-                'total_expense': sum(r['total_expense'] for r in results),
-                'total_wage': sum(r['wage_expense'] for r in results),
-                'total_other_expense': sum(r['other_expense'] for r in results),
-                'total_balance': sum(r['balance'] for r in results),
+        return Response(
+            {
+                'year': int(year) if year else None,
+                'company_id': int(company_id) if company_id else None,
+                'results': results,
+                'summary': {
+                    'total_income': sum(r['total_income'] for r in results),
+                    'total_expense': sum(r['total_expense'] for r in results),
+                    'total_wage': sum(r['wage_expense'] for r in results),
+                    'total_other_expense': sum(r['other_expense'] for r in results),
+                    'total_balance': sum(r['balance'] for r in results),
+                },
             }
-        })
+        )
 
     @action(detail=False, methods=['get'])
     def related_party_balance(self, request):
         """关联方往来余额表 — 各对手方当前未结清余额"""
         from apps.finance.models import RelatedPartyLedger
         from django.db.models import Sum, Q
-        
+
         company_id = request.query_params.get('company')
-        
+
         # 多租户过滤
         user_company_ids = get_user_companies(request.user)
         qs = RelatedPartyLedger.objects.all()
-        
+
         if company_id:
             qs = qs.filter(company_id=company_id)
         elif user_company_ids is not None:
             qs = qs.filter(company_id__in=user_company_ids)
-        
+
         # 按对手方汇总未结清余额
-        balance = qs.values('company__name', 'counterparty', 'counterparty_type')\
+        balance = (
+            qs.values('company__name', 'counterparty', 'counterparty_type')
             .annotate(
                 total_lend=Sum('amount', filter=Q(direction='lend_out')),
                 total_repay=Sum('amount', filter=Q(direction='repay')),
                 total_lend_in=Sum('amount', filter=Q(direction='lend_in')),
                 active_count=Sum('amount', filter=Q(status='active')),
-            ).order_by('company__name', 'counterparty')
-        
+            )
+            .order_by('company__name', 'counterparty')
+        )
+
         results = []
         for row in balance:
             lend = float(row['total_lend'] or 0)
             repay = float(row['total_repay'] or 0)
             lend_in = float(row['total_lend_in'] or 0)
             net_balance = lend - repay  # 正 = 对方欠我们，负 = 我们欠对方
-            
-            results.append({
-                'company': row['company__name'],
-                'counterparty': row['counterparty'],
-                'type': row['counterparty_type'],
-                'total_lend': lend,
-                'total_repay': repay,
-                'total_lend_in': lend_in,
-                'net_balance': net_balance,
-                'status': 'settled' if net_balance <= 0 else 'active',
-            })
-        
-        return Response({
-            'report': 'related_party_balance',
-            'results': results,
-            'summary': {
-                'total_receivable': sum(r['net_balance'] for r in results if r['net_balance'] > 0),
-                'total_payable': abs(sum(r['net_balance'] for r in results if r['net_balance'] < 0)),
-                'active_count': sum(1 for r in results if r['status'] == 'active'),
+
+            results.append(
+                {
+                    'company': row['company__name'],
+                    'counterparty': row['counterparty'],
+                    'type': row['counterparty_type'],
+                    'total_lend': lend,
+                    'total_repay': repay,
+                    'total_lend_in': lend_in,
+                    'net_balance': net_balance,
+                    'status': 'settled' if net_balance <= 0 else 'active',
+                }
+            )
+
+        return Response(
+            {
+                'report': 'related_party_balance',
+                'results': results,
+                'summary': {
+                    'total_receivable': sum(r['net_balance'] for r in results if r['net_balance'] > 0),
+                    'total_payable': abs(sum(r['net_balance'] for r in results if r['net_balance'] < 0)),
+                    'active_count': sum(1 for r in results if r['status'] == 'active'),
+                },
             }
-        })
+        )
 
     @action(detail=False, methods=['get'])
     def related_party_detail(self, request):
         """关联方往来明细账 — 指定对手方的完整交易记录"""
         from apps.finance.models import RelatedPartyLedger
-        
+
         company_id = request.query_params.get('company')
         counterparty = request.query_params.get('counterparty', '')
-        
+
         qs = RelatedPartyLedger.objects.select_related('company')
-        
+
         if company_id:
             qs = qs.filter(company_id=company_id)
         if counterparty:
             qs = qs.filter(counterparty__icontains=counterparty)
-        
+
         qs = qs.order_by('company', 'transaction_date', 'id')
-        
+
         results = []
         for entry in qs:
-            results.append({
-                'id': entry.id,
-                'company': entry.company.name,
-                'counterparty': entry.counterparty,
-                'type': entry.counterparty_type,
-                'direction': entry.direction,
-                'direction_display': entry.get_direction_display(),
-                'amount': float(entry.amount),
-                'balance': float(entry.balance),
-                'date': str(entry.transaction_date),
-                'description': entry.description,
-                'status': entry.status,
-                'status_display': entry.get_status_display(),
-                'group_id': entry.group_id,
-            })
-        
-        return Response({
-            'report': 'related_party_detail',
-            'results': results,
-            'total_count': len(results),
-        })
+            results.append(
+                {
+                    'id': entry.id,
+                    'company': entry.company.name,
+                    'counterparty': entry.counterparty,
+                    'type': entry.counterparty_type,
+                    'direction': entry.direction,
+                    'direction_display': entry.get_direction_display(),
+                    'amount': float(entry.amount),
+                    'balance': float(entry.balance),
+                    'date': str(entry.transaction_date),
+                    'description': entry.description,
+                    'status': entry.status,
+                    'status_display': entry.get_status_display(),
+                    'group_id': entry.group_id,
+                }
+            )
+
+        return Response(
+            {
+                'report': 'related_party_detail',
+                'results': results,
+                'total_count': len(results),
+            }
+        )

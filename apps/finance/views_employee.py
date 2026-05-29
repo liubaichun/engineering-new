@@ -1,50 +1,22 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from .models import Employee, EmployeeCompany
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
     EmployeeSerializer,
-    CompanySocialConfigSerializer,
     EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
-from .views_common import (
-    SafePageNumberPagination,
-    get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
-)
 
 
 class EmployeeFilter(FilterSet):
     """员工筛选器"""
+
     company = NumberFilter(field_name='company_id')
     department = CharFilter(field_name='department')
     status = CharFilter(field_name='status')
@@ -52,8 +24,11 @@ class EmployeeFilter(FilterSet):
     class Meta:
         model = Employee
         fields = ['company', 'department', 'status']
+
+
 class EmployeeViewSet(viewsets.ModelViewSet):
     """员工视图集"""
+
     queryset = Employee.objects.all().prefetch_related('company_links__company').order_by('-created_at')
     serializer_class = EmployeeSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -93,24 +68,18 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 emp.save(update_fields=['company'])
             except Exception as e:
                 logger.error(f'员工 {emp.id} 公司关联失败：{e}')
-            EmployeeCompany.objects.create(
-                employee=emp,
-                company_id=user.company_id,
-                is_primary=True,
-                status='active'
-            )
+            EmployeeCompany.objects.create(employee=emp, company_id=user.company_id, is_primary=True, status='active')
         elif emp.company_id:
             # 如果 serializer 带了 company，也创建关联
             EmployeeCompany.objects.get_or_create(
-                employee=emp,
-                company=emp.company,
-                defaults={'is_primary': True, 'status': 'active'}
+                employee=emp, company=emp.company, defaults={'is_primary': True, 'status': 'active'}
             )
 
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出员工花名册 Excel"""
         from apps.core.export_excel import export_employees, make_export_response
+
         queryset = self.get_queryset()
         records = queryset.select_related('company')
         buf = export_employees(list(records))
@@ -154,8 +123,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = self.get_object()
         employee.company_links.all().update(status='active', leave_date=None)
         return Response({'status': 'success', 'message': '员工已重新启用'})
+
+
 class EmployeeCompanyViewSet(viewsets.ModelViewSet):
     """员工-公司关联视图集（支持多公司任职）"""
+
     queryset = EmployeeCompany.objects.all().select_related('employee', 'company')
     serializer_class = EmployeeCompanySerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -181,6 +153,6 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         ec = serializer.save()
         if ec.is_primary:
-            EmployeeCompany.objects.filter(
-                employee=ec.employee, is_primary=True
-            ).exclude(id=ec.id).update(is_primary=False)
+            EmployeeCompany.objects.filter(employee=ec.employee, is_primary=True).exclude(id=ec.id).update(
+                is_primary=False
+            )

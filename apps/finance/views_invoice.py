@@ -1,35 +1,14 @@
-import functools
 from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
+from django_filters.rest_framework import DjangoFilterBackend
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from .models import Invoice
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
     InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
+from .filters import InvoiceFilter
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
@@ -37,14 +16,12 @@ from apps.core.permissions import RoleRequired
 from .views_common import (
     SafePageNumberPagination,
     get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
 )
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     """发票视图集"""
+
     queryset = Invoice.objects.all()
     serializer_class = InvoiceSerializer
     pagination_class = SafePageNumberPagination
@@ -134,6 +111,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     def years(self, request):
         """返回数据库中实际存在的发票年份列表"""
         from django.db.models.functions import ExtractYear
+
         years = (
             self.get_queryset()
             .annotate(year=ExtractYear('issue_date'))
@@ -167,8 +145,6 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if date_max:
             queryset = queryset.filter(issue_date__lte=date_max)
 
-        from django.db.models import Sum, F
-
         total_count = queryset.count()
 
         # 含税金额 = amount + tax_amount（合计）
@@ -178,17 +154,20 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         # 不含税金额 = amount 合计
         net_amount = queryset.aggregate(total=Sum('amount'))['total'] or 0
 
-        return Response({
-            'total_count': total_count,
-            'total_amount': float(gross),          # 含税金额
-            'total_tax': float(total_tax),          # 税金
-            'net_amount': float(net_amount),        # 不含税金额
-        })
+        return Response(
+            {
+                'total_count': total_count,
+                'total_amount': float(gross),  # 含税金额
+                'total_tax': float(total_tax),  # 税金
+                'net_amount': float(net_amount),  # 不含税金额
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出发票 Excel"""
         from apps.core.export_excel import export_invoices, make_export_response
+
         queryset = self.get_queryset()
         company_id = request.GET.get('company_id')
         invoice_type = request.GET.get('type')
@@ -232,6 +211,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if not statement_id:
             return Response({'success': False, 'message': '缺少 statement_id'}, status=400)
         from apps.finance.models import BankStatement
+
         try:
             stmt = BankStatement.objects.get(id=statement_id, company_id=invoice.company_id)
         except BankStatement.DoesNotExist:
@@ -259,11 +239,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     def statement_candidates(self, request, pk=None):
         invoice = self.get_object()
         from apps.finance.models import BankStatement
-        candidates = BankStatement.objects.filter(
-            company_id=invoice.company_id,
-            status='unmatched'
-        ).order_by('-transaction_date')[:50]
+
+        candidates = BankStatement.objects.filter(company_id=invoice.company_id, status='unmatched').order_by(
+            '-transaction_date'
+        )[:50]
         from apps.finance.serializers import BankStatementSerializer
+
         return Response(BankStatementSerializer(candidates, many=True).data)
 
     @action(detail=True, methods=['post'])
@@ -311,24 +292,30 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
         try:
             from apps.core.import_excel import import_invoice
+
             result = import_invoice(file, invoice_type=invoice_type, company_id=company_id)
         except Exception as e:
             return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
 
         if not result.rows:
-            return Response({
-                'success': False,
-                'message': f'未识别到有效发票记录（{result.error} 行错误）',
-                'errors': result.errors
-            }, status=400)
+            return Response(
+                {
+                    'success': False,
+                    'message': f'未识别到有效发票记录（{result.error} 行错误）',
+                    'errors': result.errors,
+                },
+                status=400,
+            )
 
         created = 0
         errors = []
         skipped = 0
         # 预查已有发票号避免逐条查询
-        existing_nos = set(Invoice.objects.filter(
-            invoice_no__in=[r['invoice_no'] for r in result.rows if r.get('invoice_no')]
-        ).values_list('invoice_no', flat=True))
+        existing_nos = set(
+            Invoice.objects.filter(
+                invoice_no__in=[r['invoice_no'] for r in result.rows if r.get('invoice_no')]
+            ).values_list('invoice_no', flat=True)
+        )
         for row_data in result.rows:
             inv_no = row_data.get('invoice_no', '')
             if inv_no in existing_nos:
@@ -337,23 +324,44 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 continue
             try:
                 # 只取 Invoice 模型已知的字段，避免传入多余字段
-                safe_fields = {'invoice_no', 'type', 'invoice_type', 'amount', 'tax_rate',
-                               'tax_amount', 'counterparty', 'counterparty_tax_id',
-                               'counterparty_bank', 'company_id', 'issue_date', 'status',
-                               'is_credited', 'credited_period', 'due_date', 'payment_date', 'remarks',
-                               'red_invoice_for', 'attachment'}
+                safe_fields = {
+                    'invoice_no',
+                    'type',
+                    'invoice_type',
+                    'amount',
+                    'tax_rate',
+                    'tax_amount',
+                    'counterparty',
+                    'counterparty_tax_id',
+                    'counterparty_bank',
+                    'company_id',
+                    'issue_date',
+                    'status',
+                    'is_credited',
+                    'credited_period',
+                    'due_date',
+                    'payment_date',
+                    'remarks',
+                    'red_invoice_for',
+                    'attachment',
+                }
                 clean = {k: v for k, v in row_data.items() if k in safe_fields}
                 obj = Invoice.objects.create(**clean)
 
                 # 红冲发票：自动匹配原始发票
                 if float(obj.amount or 0) < 0 and not obj.red_invoice_for:
-                    orig = Invoice.objects.filter(
-                        counterparty__exact=obj.counterparty,
-                        amount__exact=abs(float(obj.amount)),
-                        type=obj.type,
-                        company_id=obj.company_id,
-                        red_invoice_for__isnull=True,
-                    ).exclude(id=obj.id).order_by('issue_date').first()
+                    orig = (
+                        Invoice.objects.filter(
+                            counterparty__exact=obj.counterparty,
+                            amount__exact=abs(float(obj.amount)),
+                            type=obj.type,
+                            company_id=obj.company_id,
+                            red_invoice_for__isnull=True,
+                        )
+                        .exclude(id=obj.id)
+                        .order_by('issue_date')
+                        .first()
+                    )
                     if orig:
                         obj.red_invoice_for = orig
                         obj.status = 'cancelled'
@@ -362,7 +370,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
                 existing_nos.add(obj.invoice_no)
                 created += 1
             except Exception as e:
-                errors.append({'row': 0, 'message': f"发票号{inv_no}: {str(e)}"})
+                errors.append({'row': 0, 'message': f'发票号{inv_no}: {str(e)}'})
 
         msg_parts = [f'成功 {created} 条']
         if skipped:
@@ -370,10 +378,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if errors:
             msg_parts.append(f'失败 {len(errors)} 条')
 
-        return Response({
-            'success': True,
-            'message': '导入完成：' + '，'.join(msg_parts),
-            'errors': (result.errors + errors)[:20],
-            'created': created,
-            'skipped': skipped,
-        })
+        return Response(
+            {
+                'success': True,
+                'message': '导入完成：' + '，'.join(msg_parts),
+                'errors': (result.errors + errors)[:20],
+                'created': created,
+                'skipped': skipped,
+            }
+        )

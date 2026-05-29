@@ -1,22 +1,14 @@
 import logging
-from rest_framework import viewsets, filters, status, permissions, serializers
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from apps.core.auth import CSRFExemptSessionAuthentication
-from drf_spectacular.utils import extend_schema
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-from .models import CompanyRole, UserCompanyRole, CompanyRolePermission, Permission
-from .serializers import CompanyRoleSerializer, UserCompanyRoleSerializer
-from apps.core.permissions import RoleRequired, get_module_companies
+from .models import UserCompanyRole
+from .serializers import CompanyRoleSerializer
+from apps.core.permissions import RoleRequired
+
 
 class CompanyRoleViewSet(viewsets.ModelViewSet):
     """
@@ -30,6 +22,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
     PATCH /api/core/company-roles/{id}/             → 更新角色
     DELETE /api/core/company-roles/{id}/             → 删除（并清理UCP）
     """
+
     queryset = UserCompanyRole.objects.select_related('user', 'company', 'assigned_by', 'company_role')
     serializer_class = CompanyRoleSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -62,11 +55,11 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
             return
         from django.db import transaction
         from apps.core.models import UserCompanyPermission, ModuleAction
+
         with transaction.atomic():
             # 先删除该角色之前可能存在的UCP记录（避免重复）
             UserCompanyPermission.objects.filter(
-                user=ucr.user, company=ucr.company,
-                source=f'role:{ucr.company_role.id}'
+                user=ucr.user, company=ucr.company, source=f'role:{ucr.company_role.id}'
             ).delete()
             # 批量写入
             for perm in ucr.company_role.permissions.all():
@@ -75,13 +68,15 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
                 if not ma:
                     continue
                 UserCompanyPermission.objects.update_or_create(
-                    user=ucr.user, company=ucr.company,
-                    module=ma.module, action=ma,
+                    user=ucr.user,
+                    company=ucr.company,
+                    module=ma.module,
+                    action=ma,
                     defaults={
                         'is_granted': True,
                         'source': f'role:{ucr.company_role.id}',
                         'granted_by': ucr.assigned_by,
-                    }
+                    },
                 )
 
     def _revoke_role_from_ucp(self, ucr):
@@ -89,9 +84,9 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         if not ucr.company_role:
             return
         from apps.core.models import UserCompanyPermission
+
         UserCompanyPermission.objects.filter(
-            user=ucr.user, company=ucr.company,
-            source=f'role:{ucr.company_role.id}'
+            user=ucr.user, company=ucr.company, source=f'role:{ucr.company_role.id}'
         ).delete()
 
     @action(detail=False, methods=['get'])
@@ -101,21 +96,23 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         GET /api/core/company-roles/roles_summary/
         """
         from django.db.models import Count
+
         summary = (
-            UserCompanyRole.objects
-            .values('company__id', 'company__name', 'company_role__id', 'company_role__name')
+            UserCompanyRole.objects.values('company__id', 'company__name', 'company_role__id', 'company_role__name')
             .annotate(count=Count('id'))
             .order_by('company__name', 'company_role__name')
         )
         result = []
         for item in summary:
-            result.append({
-                'company_id': item['company__id'],
-                'company_name': item['company__name'],
-                'company_role_id': item['company_role__id'],
-                'company_role_name': item['company_role__name'] or '未分配',
-                'count': item['count'],
-            })
+            result.append(
+                {
+                    'company_id': item['company__id'],
+                    'company_name': item['company__name'],
+                    'company_role_id': item['company_role__id'],
+                    'company_role_name': item['company_role__name'] or '未分配',
+                    'count': item['count'],
+                }
+            )
         return Response({'status': 'success', 'summary': result})
 
     @action(detail=False, methods=['get'])
@@ -125,6 +122,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         GET /api/core/company-roles/available_roles/?company_id=X
         """
         from apps.finance.models import Company
+
         company_id = request.query_params.get('company_id')
         if not company_id:
             return Response({'status': 'success', 'roles': []})
@@ -133,10 +131,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         except Company.DoesNotExist:
             return Response({'status': 'error', 'message': '公司不存在'}, status=404)
         roles = company.company_roles.filter(is_active=True)
-        return Response({
-            'status': 'success',
-            'roles': [{'id': r.id, 'name': r.name, 'code': r.code} for r in roles]
-        })
+        return Response({'status': 'success', 'roles': [{'id': r.id, 'name': r.name, 'code': r.code} for r in roles]})
 
 
 # ── 用户公司权限矩阵 ──────────────────────────────────────────────────────────

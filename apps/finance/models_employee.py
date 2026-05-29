@@ -1,10 +1,9 @@
-from decimal import Decimal
 from django.db import models
-from django.conf import settings
 
 
 class Employee(models.Model):
     """员工信息表（独立于系统User，工资管理专用）"""
+
     EMPLOYEE_STATUS_CHOICES = [
         ('active', '在职'),
         ('probation', '试用期'),
@@ -21,12 +20,7 @@ class Employee(models.Model):
     department = models.CharField('部门(主公司)', max_length=50, blank=True, default='')
     position = models.CharField('职位(主公司)', max_length=50, blank=True, default='')
     company = models.ForeignKey(
-        'Company',
-        verbose_name='主公司',
-        on_delete=models.PROTECT,
-        related_name='employees',
-        blank=True,
-        null=True
+        'Company', verbose_name='主公司', on_delete=models.PROTECT, related_name='employees', blank=True, null=True
     )
     hire_date = models.DateField('入职日期', blank=True, null=True)
     leave_date = models.DateField('离职日期', blank=True, null=True)
@@ -61,7 +55,7 @@ class Employee(models.Model):
         ordering = ['code', 'name']
 
     def __str__(self):
-        return f"{self.code} - {self.name}" if self.code else self.name
+        return f'{self.code} - {self.name}' if self.code else self.name
 
     def save(self, *args, **kwargs):
         if not self.code:
@@ -80,18 +74,11 @@ class Employee(models.Model):
 
 class EmployeeCompany(models.Model):
     """员工-公司关联表（支持一个员工属于多家公司）"""
+
     employee = models.ForeignKey(
-        'Employee',
-        verbose_name='员工',
-        on_delete=models.PROTECT,
-        related_name='company_links'
+        'Employee', verbose_name='员工', on_delete=models.PROTECT, related_name='company_links'
     )
-    company = models.ForeignKey(
-        'Company',
-        verbose_name='公司',
-        on_delete=models.PROTECT,
-        related_name='employee_links'
-    )
+    company = models.ForeignKey('Company', verbose_name='公司', on_delete=models.PROTECT, related_name='employee_links')
     department = models.CharField('部门', max_length=50, blank=True, default='')
     position = models.CharField('职位', max_length=50, blank=True, default='')
     is_primary = models.BooleanField('主职', default=False, help_text='每员工只能有一个主职')
@@ -108,12 +95,12 @@ class EmployeeCompany(models.Model):
         ordering = ['-is_primary', 'company__name']
 
     def __str__(self):
-        return f"{self.employee.name}@{self.company.name}({self.department}/{self.position})"
+        return f'{self.employee.name}@{self.company.name}({self.department}/{self.position})'
 
     def save(self, *args, **kwargs):
         # 自动取消其他主职标记，同员工只能有一个主职
         if self.is_primary:
-            EmployeeCompany.objects.filter(
-                employee=self.employee, is_primary=True
-            ).exclude(id=self.id).update(is_primary=False)
+            EmployeeCompany.objects.filter(employee=self.employee, is_primary=True).exclude(id=self.id).update(
+                is_primary=False
+            )
         super().save(*args, **kwargs)

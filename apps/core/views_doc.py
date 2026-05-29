@@ -1,24 +1,27 @@
 import os
 import re
 from django.conf import settings
-from django.http import HttpResponse, Http404
+from django.http import Http404
 from django.views.generic import TemplateView
 
 
 def markdown_to_html(content):
     """将 Markdown 转换为基本 HTML"""
     import markdown
+
     md = markdown.Markdown(extensions=['tables', 'fenced_code'])
     return md.convert(content)
 
 
 class DocPageView(TemplateView):
     """渲染 docs/ 目录下的 Markdown 文档"""
+
     template_name = 'doc_page.html'
 
     def get_doc_file(self, doc_name):
         """根据文档名查找文件（doc_name 支持 - 和 _ 两种分隔符）"""
         import re
+
         # 规范化 doc_name：压缩连续分隔符 + 统一小写
         def norm(s):
             return re.sub(r'[-_]+', '_', s).lower()
@@ -53,7 +56,7 @@ class DocPageView(TemplateView):
         doc_name = kwargs.get('doc_name', '')
         doc_path = self.get_doc_file(doc_name)
         if not doc_path:
-            raise Http404(f"文档不存在: {doc_name}")
+            raise Http404(f'文档不存在: {doc_name}')
         with open(doc_path, 'r', encoding='utf-8') as f:
             raw = f.read()
         # 提取标题

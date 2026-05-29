@@ -11,11 +11,11 @@ Crontab 配置（每小时第5分）：
     TaskStageInstance.status='pending' 且已超时（started_at + timeout_hours < now）
     且最近24小时内未发过同类通知
 """
+
 import logging
 from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone as dj_timezone
-from django.db.models import Q
 
 from apps.tasks.models import TaskStageInstance
 
@@ -27,10 +27,7 @@ class Command(BaseCommand):
     help = '检测任务阶段超时并发送外部渠道通知'
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            '--dry-run', action='store_true',
-            help='仅打印，不实际发送通知'
-        )
+        parser.add_argument('--dry-run', action='store_true', help='仅打印，不实际发送通知')
 
     def handle(self, *args, **options):
         dry = options['dry_run']
@@ -67,19 +64,22 @@ class Command(BaseCommand):
 
             title = f'⏰ 任务阶段超时：{task_title}'
             content = [
-                f'您负责的任务阶段已超时',
+                '您负责的任务阶段已超时',
                 f'任务：「{task_title}」',
                 f'阶段：{stage_name}',
                 f'要求完成时间：{timeout_hours} 小时',
                 f'已超时：{hours_overdue} 小时',
-                f'请尽快处理！',
+                '请尽快处理！',
             ]
 
             if dry:
-                self.stdout.write(f'  [超时] {task_title}/{stage_name} -> {stage.assignee.username} (已超时{hours_overdue}h)')
+                self.stdout.write(
+                    f'  [超时] {task_title}/{stage_name} -> {stage.assignee.username} (已超时{hours_overdue}h)'
+                )
             else:
                 try:
                     from apps.tasks.notification_service import notify_stage_timeout
+
                     notify_stage_timeout(stage)
                     self.stdout.write(f'  [通知] {task_title}/{stage_name} -> {stage.assignee.username}')
                 except Exception as e:

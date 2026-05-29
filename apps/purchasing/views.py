@@ -4,18 +4,31 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum, Count, F
-from datetime import datetime
 from apps.core.permissions import RoleRequired, get_module_companies
-from .models import PurchaseRequest, PurchaseRequestItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceive, PurchaseReceiveItem
+from .models import (
+    PurchaseRequest,
+    PurchaseRequestItem,
+    PurchaseOrder,
+    PurchaseOrderItem,
+    PurchaseReceive,
+    PurchaseReceiveItem,
+)
 from .serializers import (
-    PurchaseRequestListSerializer, PurchaseRequestDetailSerializer, PurchaseRequestItemSerializer,
-    PurchaseOrderListSerializer, PurchaseOrderDetailSerializer, PurchaseOrderItemSerializer,
-    PurchaseReceiveListSerializer, PurchaseReceiveDetailSerializer, PurchaseReceiveItemSerializer,
+    PurchaseRequestListSerializer,
+    PurchaseRequestDetailSerializer,
+    PurchaseRequestItemSerializer,
+    PurchaseOrderListSerializer,
+    PurchaseOrderDetailSerializer,
+    PurchaseOrderItemSerializer,
+    PurchaseReceiveListSerializer,
+    PurchaseReceiveDetailSerializer,
+    PurchaseReceiveItemSerializer,
 )
 
 
 class PurchaseRequestViewSet(viewsets.ModelViewSet):
     """采购申请 CRUD"""
+
     queryset = PurchaseRequest.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -36,9 +49,9 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         return PurchaseRequestDetailSerializer
 
     def get_queryset(self):
-        qs = PurchaseRequest.objects.select_related(
-            'applicant', 'company', 'project', 'created_by'
-        ).prefetch_related('items')
+        qs = PurchaseRequest.objects.select_related('applicant', 'company', 'project', 'created_by').prefetch_related(
+            'items'
+        )
         user = self.request.user
         if user.is_authenticated and not user.is_superuser:
             cids = get_module_companies(user, 'purchase_request')
@@ -52,13 +65,8 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # 自动生成单号
         today = timezone.now().strftime('%Y%m%d')
-        count_today = PurchaseRequest.objects.filter(
-            request_no__startswith=f'PR{today}'
-        ).count()
-        serializer.save(
-            request_no=f'PR{today}{str(count_today + 1).zfill(4)}',
-            created_by=self.request.user
-        )
+        count_today = PurchaseRequest.objects.filter(request_no__startswith=f'PR{today}').count()
+        serializer.save(request_no=f'PR{today}{str(count_today + 1).zfill(4)}', created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
@@ -108,17 +116,22 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         by_status = qs.values('status').annotate(count=Count('id'), total=Sum('total_amount'))
         monthly_qs = month_qs
         monthly_by_status = monthly_qs.values('status').annotate(count=Count('id'), total=Sum('total_amount'))
-        return Response({
-            'total_count': qs.count(),
-            'total_amount': float(qs.aggregate(t=Sum('total_amount'))['t'] or 0),
-            'monthly_count': monthly_qs.count(),
-            'monthly_amount': float(monthly_qs.aggregate(t=Sum('total_amount'))['t'] or 0),
-            'by_status': [{'status': s['status'], 'count': s['count'], 'total': float(s['total'] or 0)} for s in by_status],
-        })
+        return Response(
+            {
+                'total_count': qs.count(),
+                'total_amount': float(qs.aggregate(t=Sum('total_amount'))['t'] or 0),
+                'monthly_count': monthly_qs.count(),
+                'monthly_amount': float(monthly_qs.aggregate(t=Sum('total_amount'))['t'] or 0),
+                'by_status': [
+                    {'status': s['status'], 'count': s['count'], 'total': float(s['total'] or 0)} for s in by_status
+                ],
+            }
+        )
 
 
 class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     """采购申请明细"""
+
     queryset = PurchaseRequestItem.objects.all()
     serializer_class = PurchaseRequestItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -162,14 +175,13 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
         self._update_request_total(request)
 
     def _update_request_total(self, purchase_request):
-        total = purchase_request.items.aggregate(
-            total=Sum(F('estimated_unit_price') * F('quantity'))
-        )['total'] or 0
+        total = purchase_request.items.aggregate(total=Sum(F('estimated_unit_price') * F('quantity')))['total'] or 0
         PurchaseRequest.objects.filter(pk=purchase_request.pk).update(total_amount=total)
 
 
 class PurchaseOrderViewSet(viewsets.ModelViewSet):
     """采购订单 CRUD"""
+
     queryset = PurchaseOrder.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -208,13 +220,8 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         today = timezone.now().strftime('%Y%m%d')
-        count_today = PurchaseOrder.objects.filter(
-            order_no__startswith=f'PO{today}'
-        ).count()
-        serializer.save(
-            order_no=f'PO{today}{str(count_today + 1).zfill(4)}',
-            created_by=self.request.user
-        )
+        count_today = PurchaseOrder.objects.filter(order_no__startswith=f'PO{today}').count()
+        serializer.save(order_no=f'PO{today}{str(count_today + 1).zfill(4)}', created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
@@ -260,17 +267,22 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         month_qs = qs.filter(created_at__year=now.year, created_at__month=now.month)
         by_status = qs.values('status').annotate(count=Count('id'), total=Sum('actual_amount'))
         monthly_by_status = month_qs.values('status').annotate(count=Count('id'), total=Sum('actual_amount'))
-        return Response({
-            'total_count': qs.count(),
-            'total_amount': float(qs.aggregate(t=Sum('actual_amount'))['t'] or 0),
-            'monthly_count': month_qs.count(),
-            'monthly_amount': float(month_qs.aggregate(t=Sum('actual_amount'))['t'] or 0),
-            'by_status': [{'status': s['status'], 'count': s['count'], 'total': float(s['total'] or 0)} for s in by_status],
-        })
+        return Response(
+            {
+                'total_count': qs.count(),
+                'total_amount': float(qs.aggregate(t=Sum('actual_amount'))['t'] or 0),
+                'monthly_count': month_qs.count(),
+                'monthly_amount': float(month_qs.aggregate(t=Sum('actual_amount'))['t'] or 0),
+                'by_status': [
+                    {'status': s['status'], 'count': s['count'], 'total': float(s['total'] or 0)} for s in by_status
+                ],
+            }
+        )
 
 
 class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     """采购订单明细"""
+
     queryset = PurchaseOrderItem.objects.all()
     serializer_class = PurchaseOrderItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -326,6 +338,7 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
 
 class PurchaseReceiveViewSet(viewsets.ModelViewSet):
     """采购入库 CRUD"""
+
     queryset = PurchaseReceive.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -357,13 +370,8 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         today = timezone.now().strftime('%Y%m%d')
-        count_today = PurchaseReceive.objects.filter(
-            receive_no__startswith=f'GR{today}'
-        ).count()
-        serializer.save(
-            receive_no=f'GR{today}{str(count_today + 1).zfill(4)}',
-            created_by=self.request.user
-        )
+        count_today = PurchaseReceive.objects.filter(receive_no__startswith=f'GR{today}').count()
+        serializer.save(receive_no=f'GR{today}{str(count_today + 1).zfill(4)}', created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -376,6 +384,7 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
 
 class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
     """采购入库明细"""
+
     queryset = PurchaseReceiveItem.objects.all()
     serializer_class = PurchaseReceiveItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]

@@ -4,10 +4,12 @@
 各环境仅需覆盖差异项（如 DEBUG、DATABASES、CSRF_TRUSTED_ORIGINS 等），
 新增公共配置请加在此文件。
 """
+
 import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
+
 
 # ── 从 .env 文件读取（如存在） ──────────────────────────────
 def _load_env():
@@ -20,6 +22,7 @@ def _load_env():
                     key, val = line.split('=', 1)
                     os.environ.setdefault(key.strip(), val.strip())
 
+
 _load_env()
 
 # ── Django 核心 ──────────────────────────────────────────
@@ -31,11 +34,7 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 CSRF_COOKIE_SECURE = False  # 内部系统；部署 HTTPS 后改为 True
 CSRF_COOKIE_HTTPONLY = False  # 允许前端 JS 读取 token（配合 csrftoken cookie）
 
-ALLOWED_HOSTS = [
-    h.strip()
-    for h in os.environ.get('ALLOWED_HOSTS', '*').split(',')
-    if h.strip()
-]
+ALLOWED_HOSTS = [h.strip() for h in os.environ.get('ALLOWED_HOSTS', '*').split(',') if h.strip()]
 
 # ── 已安装应用 ────────────────────────────────────────────
 INSTALLED_APPS = [
@@ -82,7 +81,7 @@ MIDDLEWARE = [
 ]
 
 # ── Session ───────────────────────────────────────────────
-SESSION_COOKIE_AGE = 60 * 60 * 24 * 30   # 30 天
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 天
 SESSION_COOKIE_NAME = 'engineering_sessionid'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
@@ -133,11 +132,7 @@ MEDIA_ROOT = BASE_DIR / 'company_files'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # ── CORS ──────────────────────────────────────────────────
-CORS_ALLOWED_ORIGINS = [
-    h.strip()
-    for h in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
-    if h.strip()
-]
+CORS_ALLOWED_ORIGINS = [h.strip() for h in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',') if h.strip()]
 
 # ── 默认公司（无 session 时降级用） ─────────────────────
 DEFAULT_COMPANY_ID = os.environ.get('DEFAULT_COMPANY_ID', None)
@@ -165,7 +160,7 @@ REST_FRAMEWORK = {
 # ── API 文档 ──────────────────────────────────────────────
 SPECTACULAR_SETTINGS = {
     'TITLE': '企业信息化管理系统 API',
-    'DESCRIPTION': '''
+    'DESCRIPTION': """
 GREEN 企业信息化管理系统 RESTful API
 
 ## 认证说明
@@ -180,7 +175,7 @@ GREEN 企业信息化管理系统 RESTful API
 ## 数据格式
 - 请求：`Content-Type: application/json`，POST/PATCH body 为 JSON
 - 响应：分页格式 `{ "count": N, "next": "...", "previous": "...", "results": [...] }`
-    ''',
+    """,
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'TAGS': [

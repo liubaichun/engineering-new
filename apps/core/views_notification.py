@@ -1,16 +1,7 @@
 import logging
-from rest_framework import viewsets, filters, status, permissions, serializers
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from apps.core.auth import CSRFExemptSessionAuthentication
-from drf_spectacular.utils import extend_schema
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +12,7 @@ from apps.core.permissions import RoleRequired
 
 class NotificationViewSet(viewsets.ModelViewSet):
     """通知消息视图集"""
+
     queryset = Notification.objects.all()
     serializer_class = NotificationSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]

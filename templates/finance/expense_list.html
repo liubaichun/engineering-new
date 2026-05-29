@@ -539,12 +539,12 @@ async function loadExpenses(page) {
 
 function renderExpenses(expenses) {
     const tbody = document.getElementById('expenseTableBody');
-    
+
     if (!expenses || expenses.length === 0) {
         tbody.innerHTML = `<tr><td colspan="11" class="text-center text-muted py-4">暂无数据</td></tr>`;
         return;
     }
-    
+
     const typeMap = {
         'salary': '工资薪酬',
         'main_cost': '主营业务成本',
@@ -737,12 +737,12 @@ async function saveExpense() {
     const supplier = document.getElementById('expenseSupplier').value;
     const project = document.getElementById('expenseProject').value;
     const note = document.getElementById('expenseNote').value;
-    
+
     if (!company || !expense_type || !amount || !expense_date) {
         showToast('请填写必填项', 'warning');
         return;
     }
-    
+
     const data = {
         company: parseInt(company),
         expense_type: expense_type,
@@ -752,22 +752,22 @@ async function saveExpense() {
         project: project ? parseInt(project) : null,
         note: note
     };
-    
+
     try {
         const url = id ? `/api/finance/expenses/${id}/` : '/api/finance/expenses/';
         const method = id ? 'PUT' : 'POST';
-        
+
         const response = await fetch(url, {
             method: method,
             credentials: 'include',
             headers: {
                 'Content-Type': 'application/json',
-            
+
                 'X-CSRFToken': getCookie('csrftoken'),
             },
             body: JSON.stringify(data)
         });
-        
+
         if (response.ok) {
             showToast(id ? '支出更新成功' : '支出创建成功', 'success');
             expenseModal.hide();
@@ -825,7 +825,7 @@ async function saveLinkProject() {
 
 async function confirmDelete() {
     const id = document.getElementById('deleteExpenseId').value;
-    
+
     try {
         const response = await fetch(`/api/finance/expenses/${id}/`, {
             method: 'DELETE',
@@ -834,7 +834,7 @@ async function confirmDelete() {
                 'X-CSRFToken': getCookie('csrftoken'),
             },
         });
-        
+
         if (response.ok) {
             showToast('支出删除成功', 'success');
             deleteModal.hide();

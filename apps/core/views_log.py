@@ -1,16 +1,7 @@
 import logging
-from rest_framework import viewsets, filters, status, permissions, serializers
+from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from apps.core.auth import CSRFExemptSessionAuthentication
-from drf_spectacular.utils import extend_schema
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +16,7 @@ from apps.core.export_excel import export_audit_logs, make_export_response
 
 class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
     """登录日志视图集（仅读）"""
+
     queryset = LoginLog.objects.all()
     serializer_class = LoginLogSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -45,11 +37,9 @@ class LoginLogViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(status=status_filter)
         return queryset
 
-
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出登录日志 Excel"""
-        from apps.core.export_excel import export_audit_logs, make_export_response
         queryset = self.get_queryset()
         records = queryset[:5000]
         buf = export_audit_logs(list(records))
@@ -61,6 +51,7 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     操作审计日志视图集（仅读）
     支持按 app_label / action / username / date_from / date_to 筛选
     """
+
     queryset = OperationAuditLog.objects.all()
     serializer_class = OperationAuditLogSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -109,7 +100,6 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出审计日志 Excel"""
-        from apps.core.export_excel import export_audit_logs, make_export_response
         queryset = self.get_queryset()
         records = queryset[:5000]  # 最多导出5000条
         buf = export_audit_logs(list(records))

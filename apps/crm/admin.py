@@ -22,8 +22,17 @@ class SupplierAdmin(admin.ModelAdmin):
 
 @admin.register(Contract)
 class ContractAdmin(admin.ModelAdmin):
-    list_display = ['contract_no', 'name', 'counterparty_type', 'client', 'supplier',
-                    'amount', 'status', 'sign_date', 'expire_date']
+    list_display = [
+        'contract_no',
+        'name',
+        'counterparty_type',
+        'client',
+        'supplier',
+        'amount',
+        'status',
+        'sign_date',
+        'expire_date',
+    ]
     list_filter = ['status', 'counterparty_type']
     search_fields = ['contract_no', 'name']
     readonly_fields = ['contract_no', 'created_at', 'updated_at']

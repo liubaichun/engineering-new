@@ -1,5 +1,15 @@
 from rest_framework import serializers
-from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog, Opportunity
+from .models import (
+    Client,
+    Contract,
+    Supplier,
+    ClientSource,
+    Contact,
+    FollowUpRecord,
+    PaymentPlan,
+    ContractChangeLog,
+    Opportunity,
+)
 
 
 class ClientSourceSerializer(serializers.ModelSerializer):
@@ -11,15 +21,33 @@ class ClientSourceSerializer(serializers.ModelSerializer):
 
 class SupplierSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
-    counterparty_type_display = serializers.CharField(source='get_counterparty_type_display', read_only=True, default='')
+    counterparty_type_display = serializers.CharField(
+        source='get_counterparty_type_display', read_only=True, default=''
+    )
 
     class Meta:
         model = Supplier
-        fields = ['id', 'code', 'name', 'contact_person', 'contact_phone',
-                  'contact_email', 'brands', 'status', 'address', 'remark',
-                  'counterparty_type', 'counterparty_type_display',
-                  'tax_id', 'bank_account', 'bank_name',
-                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        fields = [
+            'id',
+            'code',
+            'name',
+            'contact_person',
+            'contact_phone',
+            'contact_email',
+            'brands',
+            'status',
+            'address',
+            'remark',
+            'counterparty_type',
+            'counterparty_type_display',
+            'tax_id',
+            'bank_account',
+            'bank_name',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
+        ]
         read_only_fields = ['code', 'created_by']
 
     def create(self, validated_data):
@@ -45,17 +73,36 @@ class ClientSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     category_display = serializers.CharField(source='get_category_display', read_only=True)
     source_name = serializers.CharField(source='source.name', read_only=True)
-    counterparty_type_display = serializers.CharField(source='get_counterparty_type_display', read_only=True, default='')
+    counterparty_type_display = serializers.CharField(
+        source='get_counterparty_type_display', read_only=True, default=''
+    )
 
     class Meta:
         model = Client
-        fields = ['id', 'code', 'name', 'category', 'category_display',
-                  'contact_person', 'contact_phone', 'contact_email',
-                  'address', 'remark', 'is_active',
-                  'source', 'source_name',
-                  'counterparty_type', 'counterparty_type_display',
-                  'tax_id', 'bank_account', 'bank_name',
-                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        fields = [
+            'id',
+            'code',
+            'name',
+            'category',
+            'category_display',
+            'contact_person',
+            'contact_phone',
+            'contact_email',
+            'address',
+            'remark',
+            'is_active',
+            'source',
+            'source_name',
+            'counterparty_type',
+            'counterparty_type_display',
+            'tax_id',
+            'bank_account',
+            'bank_name',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
+        ]
         read_only_fields = ['code', 'created_by']
 
     def create(self, validated_data):
@@ -86,15 +133,34 @@ class ContractSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Contract
-        fields = ['id', 'counterparty_type', 'counterparty_name',
-                  'client', 'client_name', 'supplier', 'supplier_name',
-                  'project', 'project_name',
-                  'contract_no', 'name', 'amount',
-                  'total_paid', 'payment_status',
-                  'sign_date', 'expire_date',
-                  'status', 'remark', 'attachment', 'attachment_name',
-                  'payment_progress', 'paid_amount_display',
-                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        fields = [
+            'id',
+            'counterparty_type',
+            'counterparty_name',
+            'client',
+            'client_name',
+            'supplier',
+            'supplier_name',
+            'project',
+            'project_name',
+            'contract_no',
+            'name',
+            'amount',
+            'total_paid',
+            'payment_status',
+            'sign_date',
+            'expire_date',
+            'status',
+            'remark',
+            'attachment',
+            'attachment_name',
+            'payment_progress',
+            'paid_amount_display',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
+        ]
         read_only_fields = ['created_by', 'total_paid', 'payment_progress', 'paid_amount_display']
         extra_kwargs = {'contract_no': {'required': False}}
 
@@ -119,15 +185,17 @@ class ContractSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         import re
+
         request = self.context.get('request')
         # 自动生成合同编号：统一 HT-4位数字 格式
         if not validated_data.get('contract_no'):
             import re
+
             for attempt in range(5):  # 最多重试5次解决并发竞争
                 try:
-                    all_nos = Contract.objects.filter(
-                        contract_no__regex=r'^HT-\d{4}$'
-                    ).values_list('contract_no', flat=True)
+                    all_nos = Contract.objects.filter(contract_no__regex=r'^HT-\d{4}$').values_list(
+                        'contract_no', flat=True
+                    )
                     max_num = 0
                     for no in all_nos:
                         m = re.search(r'(\d{4})$', no)
@@ -159,9 +227,20 @@ class ContactSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Contact
-        fields = ['id', 'company', 'client', 'client_name', 'name', 'position',
-                  'phone', 'email', 'is_primary', 'remark',
-                  'created_at', 'updated_at']
+        fields = [
+            'id',
+            'company',
+            'client',
+            'client_name',
+            'name',
+            'position',
+            'phone',
+            'email',
+            'is_primary',
+            'remark',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = ['created_at', 'updated_at']
 
 
@@ -173,10 +252,23 @@ class FollowUpRecordSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = FollowUpRecord
-        fields = ['id', 'contact', 'contact_name', 'client', 'client_name',
-                  'follow_type', 'follow_type_display',
-                  'content', 'next_plan', 'next_date', 'attachment',
-                  'created_at', 'updated_at', 'created_by', 'created_by_name']
+        fields = [
+            'id',
+            'contact',
+            'contact_name',
+            'client',
+            'client_name',
+            'follow_type',
+            'follow_type_display',
+            'content',
+            'next_plan',
+            'next_date',
+            'attachment',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
+        ]
         read_only_fields = ['created_by']
         extra_kwargs = {'attachment': {'required': False}}
 
@@ -195,11 +287,23 @@ class PaymentPlanSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = PaymentPlan
-        fields = ['id', 'contract', 'contract_name',
-                  'plan_date', 'amount',
-                  'paid_date', 'paid_amount', 'status', 'status_display',
-                  'payment_method', 'payment_account', 'remark', 'company_id',
-                  'created_at', 'updated_at']
+        fields = [
+            'id',
+            'contract',
+            'contract_name',
+            'plan_date',
+            'amount',
+            'paid_date',
+            'paid_amount',
+            'status',
+            'status_display',
+            'payment_method',
+            'payment_account',
+            'remark',
+            'company_id',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = ['id', 'contract', 'contract_name', 'status_display', 'created_at']
 
 
@@ -210,15 +314,34 @@ class ContractChangeLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = ContractChangeLog
-        fields = ['id', 'contract', 'contract_name',
-                  'change_type', 'change_type_display',
-                  'old_value', 'new_value', 'reason', 'change_date',
-                  'created_by', 'created_by_name', 'company_id']
-        read_only_fields = ['id', 'contract', 'contract_name', 'change_type_display', 'created_by', 'created_by_name', 'change_date']
+        fields = [
+            'id',
+            'contract',
+            'contract_name',
+            'change_type',
+            'change_type_display',
+            'old_value',
+            'new_value',
+            'reason',
+            'change_date',
+            'created_by',
+            'created_by_name',
+            'company_id',
+        ]
+        read_only_fields = [
+            'id',
+            'contract',
+            'contract_name',
+            'change_type_display',
+            'created_by',
+            'created_by_name',
+            'change_date',
+        ]
 
 
 class OpportunitySerializer(serializers.ModelSerializer):
     """CRM商机序列化器"""
+
     client_name = serializers.CharField(source='client.name', read_only=True, default='')
     contact_name = serializers.CharField(source='contact.name', read_only=True, default='')
     stage_display = serializers.CharField(source='get_stage_display', read_only=True)
@@ -229,13 +352,31 @@ class OpportunitySerializer(serializers.ModelSerializer):
     class Meta:
         model = Opportunity
         fields = [
-            'id', 'company', 'client', 'client_name', 'contact', 'contact_name',
-            'name', 'stage', 'stage_display', 'priority', 'priority_display',
-            'expected_amount', 'probability', 'weighted_amount',
-            'estimated_close_date', 'actual_close_date',
-            'product_lines', 'competitor', 'lost_reason',
-            'remark', 'is_active', 'created_at', 'updated_at',
-            'created_by', 'created_by_name',
+            'id',
+            'company',
+            'client',
+            'client_name',
+            'contact',
+            'contact_name',
+            'name',
+            'stage',
+            'stage_display',
+            'priority',
+            'priority_display',
+            'expected_amount',
+            'probability',
+            'weighted_amount',
+            'estimated_close_date',
+            'actual_close_date',
+            'product_lines',
+            'competitor',
+            'lost_reason',
+            'remark',
+            'is_active',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
@@ -247,7 +388,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     def validate_probability(self, value):
         if value < 0 or value > 100:
-            raise serializers.ValidationError("赢单概率必须在0-100之间")
+            raise serializers.ValidationError('赢单概率必须在0-100之间')
         return value
 
     def validate_stage(self, value):
@@ -267,10 +408,10 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
 class OpportunityStageStatsSerializer(serializers.Serializer):
     """商机阶段统计（Pipeline视图用）"""
+
     stage = serializers.CharField()
     stage_display = serializers.CharField()
     count = serializers.IntegerField()
     total_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
     total_weighted = serializers.DecimalField(max_digits=15, decimal_places=2)
     probability = serializers.IntegerField()
-

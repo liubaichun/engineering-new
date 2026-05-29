@@ -2,10 +2,10 @@
 操作审计日志信号处理器
 通过 class_prepared 信号自动拦截所有模型的 post_save/post_delete
 """
+
 import json
 import threading
 from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
 
 # 已连接的模型，避免重复
 _connected_models = set()
@@ -86,8 +86,14 @@ def _log_operation(instance, action, **kwargs):
         # 排除自身审计日志及 Django 内置
         excluded_apps = {'sessions', 'contenttypes', 'admin', 'auth'}
         excluded_models = {
-            'operationauditlog', 'permissionauditlog', 'loginlog',
-            'session', 'user', 'role', 'permission', 'group',
+            'operationauditlog',
+            'permissionauditlog',
+            'loginlog',
+            'session',
+            'user',
+            'role',
+            'permission',
+            'group',
         }
         if app_label in excluded_apps or model_name in excluded_models:
             return
@@ -103,8 +109,7 @@ def _log_operation(instance, action, **kwargs):
                 user = request.user
                 username = request.user.username
                 ip_address = request.META.get('REMOTE_ADDR') if hasattr(request, 'META') else None
-                user_agent = (request.META.get('HTTP_USER_AGENT', '')[:500]
-                              if hasattr(request, 'META') else '')
+                user_agent = request.META.get('HTTP_USER_AGENT', '')[:500] if hasattr(request, 'META') else ''
 
         changes = _build_changes(instance, action)
 
@@ -160,9 +165,9 @@ def _connect_model_signals(model):
     if key in _connected_models:
         return
     _connected_models.add(key)
-    uid_prefix = f"audit_{key[0]}_{key[1]}"
-    post_save.connect(_on_post_save, sender=model, dispatch_uid=f"{uid_prefix}_save")
-    post_delete.connect(_on_post_delete, sender=model, dispatch_uid=f"{uid_prefix}_del")
+    uid_prefix = f'audit_{key[0]}_{key[1]}'
+    post_save.connect(_on_post_save, sender=model, dispatch_uid=f'{uid_prefix}_save')
+    post_delete.connect(_on_post_delete, sender=model, dispatch_uid=f'{uid_prefix}_del')
 
 
 def _on_class_prepared(sender, **kwargs):

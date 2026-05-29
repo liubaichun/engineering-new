@@ -1,6 +1,5 @@
 from rest_framework import serializers
 from .models import Material, MaterialUsageLog, MaterialBOM, MaterialBOMNode
-from .models import MATERIAL_CATEGORY_CHOICES
 
 
 class MaterialUsageLogSerializer(serializers.ModelSerializer):
@@ -12,9 +11,18 @@ class MaterialUsageLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = MaterialUsageLog
         fields = [
-            'id', 'material', 'material_code', 'material_name',
-            'project', 'project_name', 'quantity', 'used_by', 'used_by_name',
-            'used_at', 'remark', 'company_id'
+            'id',
+            'material',
+            'material_code',
+            'material_name',
+            'project',
+            'project_name',
+            'quantity',
+            'used_by',
+            'used_by_name',
+            'used_at',
+            'remark',
+            'company_id',
         ]
         read_only_fields = ['used_at']
 
@@ -29,17 +37,34 @@ class MaterialSerializer(serializers.ModelSerializer):
     class Meta:
         model = Material
         fields = [
-            'id', 'code', 'name', 'spec', 'category', 'category_display',
-            'unit', 'stock', 'alert_threshold', 'unit_price',
-            'supplier', 'supplier_name', 'project', 'project_name',
-            'remark', 'company_id', 'created_at', 'updated_at', 'created_by', 'created_by_name',
-            'usage_logs'
+            'id',
+            'code',
+            'name',
+            'spec',
+            'category',
+            'category_display',
+            'unit',
+            'stock',
+            'alert_threshold',
+            'unit_price',
+            'supplier',
+            'supplier_name',
+            'project',
+            'project_name',
+            'remark',
+            'company_id',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
+            'usage_logs',
         ]
         read_only_fields = ['code', 'created_at', 'updated_at']
 
 
 class MaterialBOMNodeSerializer(serializers.ModelSerializer):
     """BOM节点序列化器"""
+
     child_material_code = serializers.CharField(source='child_material.code', read_only=True, allow_null=True)
     child_material_name = serializers.CharField(source='child_material.name', read_only=True, allow_null=True)
     child_bom_name = serializers.CharField(source='child_bom.name', read_only=True, allow_null=True)
@@ -47,15 +72,26 @@ class MaterialBOMNodeSerializer(serializers.ModelSerializer):
     class Meta:
         model = MaterialBOMNode
         fields = [
-            'id', 'bom', 'parent', 'child_material', 'child_material_code',
-            'child_material_name', 'child_bom', 'child_bom_name',
-            'quantity', 'unit', 'sequence', 'remark', 'company_id'
+            'id',
+            'bom',
+            'parent',
+            'child_material',
+            'child_material_code',
+            'child_material_name',
+            'child_bom',
+            'child_bom_name',
+            'quantity',
+            'unit',
+            'sequence',
+            'remark',
+            'company_id',
         ]
         extra_kwargs = {'bom': {'required': False}}  # bom from URL, not payload
 
 
 class MaterialBOMTreeSerializer(serializers.Serializer):
     """BOM树形结构序列化器 — 递归展开所有节点"""
+
     id = serializers.IntegerField()
     bom = serializers.IntegerField(source='bom_id', allow_null=True)
     parent = serializers.IntegerField(source='parent_id', allow_null=True)
@@ -77,6 +113,7 @@ class MaterialBOMTreeSerializer(serializers.Serializer):
 
 class MaterialBOMSerializer(serializers.ModelSerializer):
     """BOM基本信息序列化器"""
+
     material_code = serializers.CharField(source='material.code', read_only=True)
     material_name = serializers.CharField(source='material.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
@@ -87,14 +124,28 @@ class MaterialBOMSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MaterialBOM
-        fields = ['id', 'name', 'material', 'material_code', 'material_name',
-                  'version', 'remark', 'created_at', 'updated_at',
-                  'created_by', 'created_by_name', 'is_active', 'node_count', 'company_id']
+        fields = [
+            'id',
+            'name',
+            'material',
+            'material_code',
+            'material_name',
+            'version',
+            'remark',
+            'created_at',
+            'updated_at',
+            'created_by',
+            'created_by_name',
+            'is_active',
+            'node_count',
+            'company_id',
+        ]
         read_only_fields = ['created_at', 'updated_at', 'created_by']
 
 
 class MaterialBOMDetailSerializer(MaterialBOMSerializer):
     """BOM详细信息 + 节点树"""
+
     tree = serializers.SerializerMethodField()
 
     def get_tree(self, obj) -> list:

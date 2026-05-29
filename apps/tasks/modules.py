@@ -1,6 +1,7 @@
 """
 项目模块定义 — 对应系统侧边栏「项目」分类的3个菜单项
 """
+
 from apps.core.models import register_module
 
 # 项目管理
@@ -12,7 +13,7 @@ register_module(
     description='项目管理',
     sort_order=10,
     actions=[
-        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'read', 'label': '查看', 'sort_order': 1, 'bit_position': 0},
         {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
         {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
         {'name': 'delete', 'label': '删除', 'sort_order': 4, 'bit_position': 3},
@@ -41,10 +42,10 @@ register_module(
     description='任务看板管理',
     sort_order=30,
     actions=[
-        {'name': 'read',   'label': '查看',  'sort_order': 1,  'bit_position': 0},
-        {'name': 'create', 'label': '新建',  'sort_order': 2,  'bit_position': 1},
-        {'name': 'update', 'label': '编辑',  'sort_order': 3,  'bit_position': 2},
-        {'name': 'delete', 'label': '删除',  'sort_order': 4,  'bit_position': 3},
-        {'name': 'manage', 'label': '管理',  'sort_order': 5,  'bit_position': 12},
+        {'name': 'read', 'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete', 'label': '删除', 'sort_order': 4, 'bit_position': 3},
+        {'name': 'manage', 'label': '管理', 'sort_order': 5, 'bit_position': 12},
     ],
 )

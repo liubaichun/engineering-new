@@ -290,14 +290,14 @@ register_module(
 def ready(self):
     from django.conf import settings
     from .registry import _MODULE_REGISTRY, sync_modules_to_db
-    
+
     # 扫描所有 INSTALLED_APPS 中的 modules.py
     for app_config in self.get_app_configs():
         try:
             import_module(f'{app_config.name}.modules')
         except ModuleNotFoundError:
             pass  # 没有 modules.py 的 app 跳过
-    
+
     # 同步到 DB
     sync_modules_to_db()
 ```
@@ -311,7 +311,7 @@ def validate_action_perms(cls):
     """检查所有 ViewSet 的 action_perms 是否都有对应的 Module 注册"""
     from apps.core.models import Module
     all_modules = set(Module.objects.values_list('name', flat=True))
-    
+
     # 扫描所有 ViewSet
     for viewset in get_all_viewsets():
         action_perms = getattr(viewset, 'action_perms', {})
@@ -501,18 +501,18 @@ def _user_has_perm_for_company(self, user, perm_code, company_id, request, view)
     # 1. 超级用户跳过
     if user.is_superuser:
         return True
-    
+
     # 2. 解析权限码
     parts = perm_code.split(':')
     if len(parts) != 3:
         return False
     category, resource, action = parts
-    
+
     # 3. 位掩码查询
     bit = ACTION_BITS.get(action)
     if not bit:
         return False
-    
+
     return UserModulePermission.objects.filter(
         user=user,
         company_id=company_id,
@@ -528,15 +528,15 @@ def permission_context(request):
     """侧边栏菜单的权限上下文"""
     if request.user.is_anonymous:
         return {'user_menu_codes': set()}
-    
+
     if request.user.is_superuser:
         return {'user_menu_codes': ALL_CODES}  # 所有权限码
-    
+
     # 从 UMP 生成
     company_id = request.session.get('current_company_id')
     if not company_id:
         return {'user_menu_codes': set()}
-    
+
     codes = set()
     for perm in UserModulePermission.objects.filter(
         user=request.user, company_id=company_id, granted_bits__gt=0
@@ -544,7 +544,7 @@ def permission_context(request):
         for action_name, bit in ACTION_BITS.items():
             if perm.granted_bits & bit:
                 codes.add(f'{perm.module.category}:{perm.module.name}:{action_name}')
-    
+
     return {'user_menu_codes': codes}
 ```
 

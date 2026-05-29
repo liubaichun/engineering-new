@@ -2,9 +2,10 @@
 Smart loaddata command: loads fixture JSON into PostgreSQL with field-type-aware null conversion.
 Django原生loaddata遇到null值就报错，这里智能判断字段类型做适当默认值处理。
 """
+
 import json, os
 from django.core.management.base import BaseCommand
-from django.db import models, connection, transaction
+from django.db import connection, transaction
 from django.apps import apps
 
 
@@ -42,7 +43,7 @@ class Command(BaseCommand):
             for e in errors[:20]:
                 self.stdout.write(f'  {e}')
             if len(errors) > 20:
-                self.stdout.write(f'  ... and {len(errors)-20} more')
+                self.stdout.write(f'  ... and {len(errors) - 20} more')
         else:
             self.stdout.write(self.style.SUCCESS(f'\nAll {loaded} objects loaded successfully!'))
 
@@ -112,8 +113,15 @@ class Command(BaseCommand):
                 return None
             if isinstance(field, (dj_models.DateField, dj_models.TimeField)):
                 return None
-            if isinstance(field, (dj_models.IntegerField, dj_models.BigIntegerField,
-                                   dj_models.AutoField, dj_models.PositiveIntegerField)):
+            if isinstance(
+                field,
+                (
+                    dj_models.IntegerField,
+                    dj_models.BigIntegerField,
+                    dj_models.AutoField,
+                    dj_models.PositiveIntegerField,
+                ),
+            ):
                 return None
             if isinstance(field, (dj_models.DecimalField, dj_models.FloatField)):
                 return None
@@ -132,8 +140,10 @@ class Command(BaseCommand):
             if isinstance(value, str):
                 if ' ' not in value and '-' in value:
                     return value.replace('-', ' ', 1)
-        if isinstance(field, (dj_models.IntegerField, dj_models.BigIntegerField,
-                               dj_models.AutoField, dj_models.PositiveIntegerField)):
+        if isinstance(
+            field,
+            (dj_models.IntegerField, dj_models.BigIntegerField, dj_models.AutoField, dj_models.PositiveIntegerField),
+        ):
             if isinstance(value, str) and not value.strip():
                 return None
             return int(value)

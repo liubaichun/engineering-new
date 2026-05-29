@@ -1,6 +1,5 @@
-from rest_framework import viewsets, mixins
+from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 from django.http import FileResponse
@@ -32,6 +31,7 @@ def get_user_company_id(user):
 
 class FileCategoryViewSet(viewsets.ModelViewSet):
     """文件分类管理"""
+
     queryset = FileCategory.objects.all()
     serializer_class = FileCategorySerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -46,6 +46,7 @@ class FileCategoryViewSet(viewsets.ModelViewSet):
 
 class CompanyFileViewSet(viewsets.ModelViewSet):
     """公司文件管理"""
+
     queryset = CompanyFile.objects.all()
     serializer_class = CompanyFileSerializer
     permission_classes = [IsAuthenticated, RoleRequired]

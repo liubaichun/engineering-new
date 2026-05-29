@@ -2,9 +2,9 @@
 Excel批量导入引擎 - 基于openpyxl
 支持：字段映射、逐行校验、批量写入、错误报告
 """
+
 import io
-import re
-from decimal import Decimal, InvalidOperationeError
+from decimal import Decimal
 from typing import Any, Type
 
 from django.db import transaction
@@ -13,6 +13,7 @@ from openpyxl import load_workbook
 
 class ImportError:
     """单行错误"""
+
     def __init__(self, row: int, field: str, message: str, value: Any = None):
         self.row = row
         self.field = field
@@ -51,9 +52,9 @@ class ImportResult:
 class ExcelImporter:
     """
     通用Excel导入器。
-    
+
     用法示例：
-    
+
         class EmployeeImporter(ExcelImporter):
             model = Employee
             required_fields = ['name', 'code', 'company']
@@ -65,7 +66,7 @@ class ExcelImporter:
             }
             number_fields = ['phone']
             date_fields = ['hire_date']
-            
+
             def clean_value(self, field: str, value: Any) -> Any:
                 # 自定义清洗逻辑
                 if field == 'phone':
@@ -77,10 +78,10 @@ class ExcelImporter:
     required_fields: list[str] = []
     # Excel表头名 → model字段名
     field_mapping: dict[str, str] = {}
-    number_fields: list[str] = []     # 需要转数值的字段
-    decimal_fields: list[str] = []     # 需要转Decimal的字段
-    date_fields: list[str] = []        # 需要转date的字段
-    boolean_fields: list[str] = []     # 需要转bool的字段
+    number_fields: list[str] = []  # 需要转数值的字段
+    decimal_fields: list[str] = []  # 需要转Decimal的字段
+    date_fields: list[str] = []  # 需要转date的字段
+    boolean_fields: list[str] = []  # 需要转bool的字段
 
     def __init__(self, file_content: bytes):
         self.wb = load_workbook(io.BytesIO(file_content), data_only=True)
@@ -156,7 +157,7 @@ class ExcelImporter:
         """执行导入，返回结果"""
         self._parse_headers()
         rows = list(self.ws.iter_rows(min_row=2, values_only=True))
-        
+
         # 快速校验：检查必填字段是否都有映射
         missing = []
         for field in self.required_fields:

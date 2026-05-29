@@ -5,8 +5,11 @@ from apps.finance.models import Company
 
 class FileCategory(models.Model):
     """文件分类"""
+
     name = models.CharField('分类名称', max_length=100)
-    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name='父分类')
+    parent = models.ForeignKey(
+        'self', on_delete=models.CASCADE, null=True, blank=True, related_name='children', verbose_name='父分类'
+    )
     description = models.CharField('描述', max_length=500, blank=True, null=True)
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
@@ -22,24 +25,34 @@ class FileCategory(models.Model):
 
 class CompanyFile(models.Model):
     """公司文件"""
+
     file = models.FileField('文件', upload_to='company_files/%Y/%m/')
     file_name = models.CharField('文件名', max_length=300)
     file_size = models.BigIntegerField('文件大小', default=0)
     category = models.ForeignKey(FileCategory, on_delete=models.CASCADE, related_name='files', verbose_name='分类')
     contract = models.ForeignKey(
-        'crm.Contract',
-        verbose_name='关联合同',
-        on_delete=models.SET_NULL,
-        blank=True, null=True,
-        related_name='files'
+        'crm.Contract', verbose_name='关联合同', on_delete=models.SET_NULL, blank=True, null=True, related_name='files'
     )
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='files', verbose_name='公司')
-    project = models.ForeignKey('tasks.Project', on_delete=models.SET_NULL, blank=True, null=True, related_name='company_files', verbose_name='关联项目')
+    project = models.ForeignKey(
+        'tasks.Project',
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name='company_files',
+        verbose_name='关联项目',
+    )
     remark = models.TextField('备注', blank=True, null=True)
-    alias = models.CharField('别名', max_length=300, blank=True, default='', help_text='用户自定义的文件别名，方便搜索识别')
-    uploaded_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_files')
+    alias = models.CharField(
+        '别名', max_length=300, blank=True, default='', help_text='用户自定义的文件别名，方便搜索识别'
+    )
+    uploaded_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='uploaded_files'
+    )
     version = models.IntegerField('版本号', default=1)
-    previous_file = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='next_versions', verbose_name='上一版本')
+    previous_file = models.ForeignKey(
+        'self', on_delete=models.SET_NULL, null=True, blank=True, related_name='next_versions', verbose_name='上一版本'
+    )
     is_current = models.BooleanField('当前版本', default=True)
     created_at = models.DateTimeField('上传时间', auto_now_add=True)
 

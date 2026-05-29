@@ -1,12 +1,11 @@
 import logging
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -15,59 +14,50 @@ from .models import ChannelPlugin, ChannelBinding, NotificationLog, ChannelAudit
 from .base import ChannelRegistry
 from apps.core.services import get_active_company_id
 
+
 class SendNotificationView(APIView):
     """发送通知"""
+
     permission_classes = [IsAuthenticated]
-    
+
     def post(self, request):
         user_ids = request.data.get('user_ids', [])
         channel_id = request.data.get('channel_id')
         title = request.data.get('title', '')
         content = request.data.get('content', '')
         notification_type = request.data.get('notification_type', 'system')
-        
+
         if not all([channel_id, title, content]):
             return Response({'error': '缺少必要参数'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         channel = get_object_or_404(ChannelPlugin, id=channel_id, is_active=True, is_deleted=False)
-        
+
         plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
         if not plugin:
-            return Response({'error': f'不支持的渠道类型'}, status=status.HTTP_400_BAD_REQUEST)
-        
+            return Response({'error': '不支持的渠道类型'}, status=status.HTTP_400_BAD_REQUEST)
+
         User = get_user_model()
         company_id = get_active_company_id(request)
-        
+
         if user_ids:
             users = User.objects.filter(id__in=user_ids, is_active=True)
         elif company_id:
             users = User.objects.filter(company_id=company_id, is_active=True)
         else:
             return Response({'error': '无法确定公司'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         results = []
         for user in users:
-            binding = ChannelBinding.objects.filter(
-                user=user,
-                channel=channel,
-                is_active=True
-            ).first()
-            
+            binding = ChannelBinding.objects.filter(user=user, channel=channel, is_active=True).first()
+
             if not binding:
-                results.append({
-                    'user_id': user.id,
-                    'username': user.username,
-                    'status': 'failed',
-                    'error': '用户未绑定该渠道'
-                })
+                results.append(
+                    {'user_id': user.id, 'username': user.username, 'status': 'failed', 'error': '用户未绑定该渠道'}
+                )
                 continue
-            
-            success, msg = plugin.send_message(
-                binding.platform_open_id,
-                title,
-                content
-            )
-            
+
+            success, msg = plugin.send_message(binding.platform_open_id, title, content)
+
             NotificationLog.objects.create(
                 channel=channel,
                 user=user,
@@ -79,24 +69,28 @@ class SendNotificationView(APIView):
                 error_message=msg if not success else '',
                 sent_at=timezone.now() if success else None,
             )
-            
-            results.append({
-                'user_id': user.id,
-                'username': user.username,
-                'status': 'sent' if success else 'failed',
-                'message': msg
-            })
-        
-        return Response({
-            'total': len(results),
-            'sent': len([r for r in results if r['status'] == 'sent']),
-            'failed': len([r for r in results if r['status'] == 'failed']),
-            'results': results
-        })
 
+            results.append(
+                {
+                    'user_id': user.id,
+                    'username': user.username,
+                    'status': 'sent' if success else 'failed',
+                    'message': msg,
+                }
+            )
+
+        return Response(
+            {
+                'total': len(results),
+                'sent': len([r for r in results if r['status'] == 'sent']),
+                'failed': len([r for r in results if r['status'] == 'failed']),
+                'results': results,
+            }
+        )
 
 
 # ========== 辅助函数 ==========
+
 
 def get_client_ip(request):
     """从请求中提取真实IP（兼顾反向代理）"""
@@ -106,8 +100,7 @@ def get_client_ip(request):
     return request.META.get('REMOTE_ADDR')
 
 
-def write_audit_log(action, request, channel=None, binding=None,
-                    detail=None, result='success', error_message=''):
+def write_audit_log(action, request, channel=None, binding=None, detail=None, result='success', error_message=''):
     """
     写入审计日志的标准化入口。
     CNAS/CMA 要求：所有敏感操作必须同步写入，不得异步或批量。
@@ -153,25 +146,28 @@ def send_notification(user, channel, title, content, notification_type='system')
     return success, msg
 
 
-
 class NotificationLogView(APIView):
     """通知日志列表+导出"""
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         company_id = get_active_company_id(request)
         if not company_id and not (request.user.is_superuser or request.user.is_staff):
-            return Response({
-                'error': '无权访问',
-                'debug': {
-                    'auth_company': str(getattr(request, 'auth_company', None)),
-                    'company_id_attr': getattr(request, 'company_id', None),
-                    'session_current_company': request.session.get('current_company_id'),
-                    'is_super': request.user.is_superuser,
-                    'is_staff': request.user.is_staff,
-                    'user_id': request.user.id,
-                }
-            }, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {
+                    'error': '无权访问',
+                    'debug': {
+                        'auth_company': str(getattr(request, 'auth_company', None)),
+                        'company_id_attr': getattr(request, 'company_id', None),
+                        'session_current_company': request.session.get('current_company_id'),
+                        'is_super': request.user.is_superuser,
+                        'is_staff': request.user.is_staff,
+                        'user_id': request.user.id,
+                    },
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
 
         notification_type = request.GET.get('notification_type', '')
         channel_type = request.GET.get('channel_type', '')
@@ -195,7 +191,11 @@ class NotificationLogView(APIView):
             queryset = queryset.filter(created_at__lte=date_to)
 
         # 统计
-        total_qs = NotificationLog.objects.filter(channel__company_id=company_id) if company_id else NotificationLog.objects.all()
+        total_qs = (
+            NotificationLog.objects.filter(channel__company_id=company_id)
+            if company_id
+            else NotificationLog.objects.all()
+        )
         stats = {
             'sent': total_qs.filter(status='sent').count(),
             'failed': total_qs.filter(status='failed').count(),
@@ -213,23 +213,27 @@ class NotificationLogView(APIView):
 
         data = []
         for log in logs:
-            data.append({
-                'id': log.id,
-                'channel_type': log.channel.channel_type if log.channel else None,
-                'channel_name': log.channel.get_channel_type_display() if log.channel else None,
-                'username': log.user.username if log.user else None,
-                'title': log.title,
-                'notification_type': log.notification_type,
-                'status': log.status,
-                'error_message': log.error_message or '',
-                'sent_at': log.sent_at.isoformat() if log.sent_at else None,
-                'created_at': log.created_at.isoformat() if log.created_at else None,
-            })
+            data.append(
+                {
+                    'id': log.id,
+                    'channel_type': log.channel.channel_type if log.channel else None,
+                    'channel_name': log.channel.get_channel_type_display() if log.channel else None,
+                    'username': log.user.username if log.user else None,
+                    'title': log.title,
+                    'notification_type': log.notification_type,
+                    'status': log.status,
+                    'error_message': log.error_message or '',
+                    'sent_at': log.sent_at.isoformat() if log.sent_at else None,
+                    'created_at': log.created_at.isoformat() if log.created_at else None,
+                }
+            )
 
-        return Response({
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'logs': data,
-            'stats': stats,
-        })
+        return Response(
+            {
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'logs': data,
+                'stats': stats,
+            }
+        )

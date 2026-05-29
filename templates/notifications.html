@@ -87,20 +87,20 @@ async function loadNotifications(page = 1) {
     currentPage = page;
     const container = document.getElementById('notificationList');
     container.innerHTML = '<div class="text-center py-5 text-muted"><div class="spinner-border spinner-border-sm"></div><p class="mt-2">加载中...</p></div>';
-    
+
     try {
         const params = new URLSearchParams({page: page, page_size: 20});
         if (currentFilter === 'unread') params.set('is_read', 'false');
         if (currentFilter === 'read') params.set('is_read', 'true');
-        
+
         const resp = await fetch('/api/core/notifications/?' + params.toString(), {credentials: 'include'});
         const data = await resp.json();
-        
+
         if (!data.results || data.results.length === 0) {
             container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-bell-slash fs-1"></i><p class="mt-2">暂无通知</p></div>';
             return;
         }
-        
+
         container.innerHTML = data.results.map(n => `
             <div class="notification-item type-${n.type} ${n.is_read ? '' : 'unread'}" data-id="${n.id}" onclick="markRead(${n.id})">
                 <div class="d-flex">
@@ -115,7 +115,7 @@ async function loadNotifications(page = 1) {
                 </div>
             </div>
         `).join('');
-        
+
         renderPagination(data);
     } catch (err) {
         container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-exclamation-triangle"></i><p class="mt-2">加载失败</p></div>';

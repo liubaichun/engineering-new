@@ -1,34 +1,15 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
+from django.db.models import Sum
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count
 from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from .models import Expense
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
     ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
+from .filters import ExpenseFilter
 from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
@@ -37,14 +18,12 @@ from apps.core.permissions import RoleRequired
 from .views_common import (
     SafePageNumberPagination,
     get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
 )
 
 
 class ExpenseViewSet(viewsets.ModelViewSet):
     """支出视图集"""
+
     queryset = Expense.objects.all()
     serializer_class = ExpenseSerializer
     pagination_class = SafePageNumberPagination
@@ -109,44 +88,31 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
 
         # 按类型统计
-        from django.db.models import Sum
-        type_stats = queryset.values('expense_type').annotate(
-            total=Sum('amount'),
-            count=Count('id')
+        type_stats = queryset.values('expense_type').annotate(total=Sum('amount'), count=Count('id'))
+
+        expense_total = queryset.filter(expense_type='expense').aggregate(total=Sum('amount'))['total'] or 0
+        advance_total = queryset.filter(expense_type='advance').aggregate(total=Sum('amount'))['total'] or 0
+        deposit_total = queryset.filter(expense_type='deposit').aggregate(total=Sum('amount'))['total'] or 0
+        wage_total = queryset.filter(expense_type='wage').aggregate(total=Sum('amount'))['total'] or 0
+
+        return Response(
+            {
+                'expense_total': float(expense_total),
+                'advance_total': float(advance_total),
+                'deposit_total': float(deposit_total),
+                'wage_total': float(wage_total),
+                'type_stats': [
+                    {'type': item['expense_type'], 'total': float(item['total']), 'count': item['count']}
+                    for item in type_stats
+                ],
+            }
         )
-
-        expense_total = queryset.filter(expense_type='expense').aggregate(
-            total=Sum('amount')
-        )['total'] or 0
-        advance_total = queryset.filter(expense_type='advance').aggregate(
-            total=Sum('amount')
-        )['total'] or 0
-        deposit_total = queryset.filter(expense_type='deposit').aggregate(
-            total=Sum('amount')
-        )['total'] or 0
-        wage_total = queryset.filter(expense_type='wage').aggregate(
-            total=Sum('amount')
-        )['total'] or 0
-
-        return Response({
-            'expense_total': float(expense_total),
-            'advance_total': float(advance_total),
-            'deposit_total': float(deposit_total),
-            'wage_total': float(wage_total),
-            'type_stats': [
-                {
-                    'type': item['expense_type'],
-                    'total': float(item['total']),
-                    'count': item['count']
-                }
-                for item in type_stats
-            ]
-        })
 
     @action(detail=False, methods=['get'])
     def export(self, request):
         """导出支出 Excel"""
         from apps.core.export_excel import export_expense_records, make_export_response
+
         queryset = self.get_queryset()
         company_id = request.GET.get('company_id')
         date_start = request.GET.get('date_start')
@@ -183,6 +149,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         errors = []
         user = request.user
         import datetime as dt
+
         for i, row_data in enumerate(result.rows):
             try:
                 # 解析交易时间（字符串 → time对象）
@@ -215,10 +182,12 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                 )
                 created += 1
             except Exception as e:
-                errors.append(f"第{i+2}行：{str(e)}")
+                errors.append(f'第{i + 2}行：{str(e)}')
 
-        return Response({
-            'success': created > 0,
-            'message': f'成功导入 {created} 条记录' + (f'，失败 {len(errors)} 条' if errors else ''),
-            'errors': errors[:20],
-        })
+        return Response(
+            {
+                'success': created > 0,
+                'message': f'成功导入 {created} 条记录' + (f'，失败 {len(errors)} 条' if errors else ''),
+                'errors': errors[:20],
+            }
+        )

@@ -1,9 +1,9 @@
 # 通知系统优化方案 v3.0
 
-> **版本：** v3.0  
-> **日期：** 2026-05-28  
-> **状态：** 待评审  
-> **参考：** NOTIFICATION-SYSTEM.md（原始设计）、NOTIFICATION-SYSTEM-UPGRADE.md（v2.0升级需求）  
+> **版本：** v3.0
+> **日期：** 2026-05-28
+> **状态：** 待评审
+> **参考：** NOTIFICATION-SYSTEM.md（原始设计）、NOTIFICATION-SYSTEM-UPGRADE.md（v2.0升级需求）
 
 ---
 
@@ -132,13 +132,13 @@
 def notify(event_type, context, title, content):
     """
     统一通知入口
-    
+
     参数：
         event_type: str — 事件类型，如 'contract_created'
         context: dict — 上下文，含 company_id, recipients, related_obj 等
         title: str — 通知标题
         content: str/list — 通知内容
-    
+
     工作流：
         1. 写入站内 Notification 表（所有接收人各一条）
         2. 查路由规则 → 确定渠道和接收人

@@ -3,8 +3,8 @@
 
 check_alerts 和其他业务模块都调用这里的 send_channel_notification()
 """
+
 import logging
-from typing import List, Optional
 from django.utils import timezone
 
 from apps.core.models import User
@@ -59,10 +59,7 @@ class ChannelNotificationService:
             return {'total': 0, 'sent': 0, 'failed': 0, 'details': []}
 
         # 获取该公司所有已激活的渠道
-        channels = ChannelPlugin.objects.filter(
-            company_id=company_id,
-            is_active=True
-        )
+        channels = ChannelPlugin.objects.filter(company_id=company_id, is_active=True)
 
         results = []
         sent_count = 0
@@ -162,10 +159,12 @@ class ChannelNotificationService:
             'message': msg,
         }
 
+
 # ================================================================
 # 统一广播接口 — 旧系统 send_notification() 的替代入口
 # 其他业务模块调用此函数，由 ChannelNotificationService 统一路由
 # ================================================================
+
 
 def send_channel_broadcast(
     company_id: int,

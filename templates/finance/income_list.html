@@ -581,13 +581,13 @@ async function loadIncomes(page = 1) {
 function renderIncomes(data) {
     const tableBody = document.getElementById('incomeTableBody');
     const incomes = data.results || data;
-    
+
     if (!incomes || incomes.length === 0) {
         tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">暂无数据</td></tr>';
         document.getElementById('recordCount').textContent = '0';
         return;
     }
-    
+
     let html = '';
     incomes.forEach(income => {
         const sourceClass = income.source || 'other';
@@ -601,7 +601,7 @@ function renderIncomes(data) {
         const companyName = income.company_name || income.company || '-';
         const transactionTime = income.transaction_time ? income.transaction_time.substring(0, 5) : '-';
         const balance = income.balance != null ? `¥${formatNumber(income.balance)}` : '-';
-        
+
         // 收入科目标签映射
         const categoryMap = {
             'main_business': '主营业务收入',
@@ -644,7 +644,7 @@ function renderIncomes(data) {
         </tr>
         `;
     });
-    
+
     tableBody.innerHTML = html;
     document.getElementById('recordCount').textContent = data.count || incomes.length;
     renderPagination(data);
@@ -652,28 +652,28 @@ function renderIncomes(data) {
 
 function updateSummary(data) {
     const incomes = data.results || data;
-    
+
     let total = 0, monthTotal = 0, pending = 0, confirmed = 0;
     const now = new Date();
     const currentMonth = now.getMonth();
     const currentYear = now.getFullYear();
-    
+
     incomes.forEach(income => {
         const amount = parseFloat(income.amount) || 0;
         total += amount;
-        
+
         const incomeDate = new Date(income.date);
         if (incomeDate.getMonth() === currentMonth && incomeDate.getFullYear() === currentYear) {
             monthTotal += amount;
         }
-        
+
         if (income.status === 'pending') {
             pending += amount;
         } else if (income.status === 'approved' || income.status === 'received') {
             confirmed += amount;
         }
     });
-    
+
     document.getElementById('totalIncome').textContent = '¥' + formatNumber(total);
     document.getElementById('monthIncome').textContent = '¥' + formatNumber(monthTotal);
     document.getElementById('pendingIncome').textContent = '¥' + formatNumber(pending);
@@ -774,12 +774,12 @@ async function saveIncome() {
     const project = document.getElementById('incomeProject').value;
     const incomeCategory = document.getElementById('incomeCategory').value;
     const remark = document.getElementById('incomeRemark').value;
-    
+
     if (!company || !amount || !date) {
         showToast('请填写必填项', 'warning');
         return;
     }
-    
+
     const data = {
         company: parseInt(company),
         amount: parseFloat(amount),
@@ -790,10 +790,10 @@ async function saveIncome() {
         income_category: incomeCategory || null,
         description: remark
     };
-    
+
     const url = id ? '/api/finance/incomes/' + id + '/' : '/api/finance/incomes/';
     const method = id ? 'PUT' : 'POST';
-    
+
     try {
         const response = await fetch(url, {
             method: method,
@@ -804,7 +804,7 @@ async function saveIncome() {
             },
             body: JSON.stringify(data)
         });
-        
+
         if (response.ok) {
             showToast(id ? '收入更新成功' : '收入创建成功', 'success');
             incomeModal.hide();
@@ -862,7 +862,7 @@ async function saveLinkProject() {
 
 async function confirmDelete() {
     if (!deleteTargetId) return;
-    
+
     try {
         const response = await fetch('/api/finance/incomes/' + deleteTargetId + '/', {
             method: 'DELETE',
@@ -871,7 +871,7 @@ async function confirmDelete() {
                 'X-CSRFToken': getCookie('csrftoken'),
             },
         });
-        
+
         if (response.ok) {
             showToast('删除成功', 'success');
             deleteModal.hide();
@@ -886,7 +886,7 @@ async function confirmDelete() {
         console.error('删除收入失败:', error);
         showToast('网络错误', 'error');
     }
-    
+
     deleteTargetId = null;
 }
 
@@ -903,7 +903,7 @@ function showToast(message, type) {
     toast.className = 'toast-msg ' + (type || 'info');
     toast.innerHTML = '<i class="bi bi-' + getToastIcon(type) + '"></i><span>' + message + '</span>';
     container.appendChild(toast);
-    
+
     setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => toast.remove(), 300);

@@ -5,13 +5,13 @@ POST /api/finance/import/incomes/    - 收入导入
 POST /api/finance/import/expenses/   - 支出导入
 POST /api/finance/import/employees/   - 员工导入
 """
+
 import datetime
 import io
 import re
 from decimal import Decimal
 
 from django.db import transaction
-from django.utils import timezone
 from openpyxl import load_workbook
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
@@ -73,8 +73,9 @@ class ImportResult:
         self.created_ids = []
 
     def add_error(self, row, field, msg, value=None):
-        self.errors.append({'row': row, 'field': field, 'message': msg,
-                           'value': str(value) if value is not None else None})
+        self.errors.append(
+            {'row': row, 'field': field, 'message': msg, 'value': str(value) if value is not None else None}
+        )
         self.error_count += 1
 
     def to_dict(self):
@@ -162,9 +163,13 @@ def import_invoices(request):
             continue  # 跳过空行
 
         # 必填
-        for f, label in [('invoice_no', '发票号码'), ('type', '发票类型'),
-                         ('amount', '价税合计金额'), ('counterparty', '对方单位'),
-                         ('issue_date', '开票日期')]:
+        for f, label in [
+            ('invoice_no', '发票号码'),
+            ('type', '发票类型'),
+            ('amount', '价税合计金额'),
+            ('counterparty', '对方单位'),
+            ('issue_date', '开票日期'),
+        ]:
             v = _cell(ws, row_num, col_map[f])
             if not v:
                 row_errors.append((label, f'必填字段 [{label}] 不能为空'))
@@ -268,7 +273,7 @@ def import_incomes(request):
         for f, label in [('amount', '金额'), ('date', '收入日期'), ('customer', '客户名称')]:
             v = _cell(ws, row_num, col_map[f])
             if not v:
-                row_errors.append((label, f'必填'))
+                row_errors.append((label, '必填'))
 
         if row_errors:
             for field, msg in row_errors:
@@ -356,7 +361,7 @@ def import_expenses(request):
         for f, label in [('amount', '金额'), ('expense_type', '支出类型')]:
             v = _cell(ws, row_num, col_map.get(f))
             if not v:
-                row_errors.append((label, f'必填'))
+                row_errors.append((label, '必填'))
 
         if row_errors:
             for field, msg in row_errors:
@@ -370,8 +375,7 @@ def import_expenses(request):
 
         type_raw = str(_cell(ws, row_num, col_map.get('expense_type') or '')).strip()
         type_val = TYPE_MAP.get(type_raw, 'expense')
-        status_val = STATUS_MAP.get(
-            str(_cell(ws, row_num, col_map.get('status')) or '待审批').strip(), 'pending')
+        status_val = STATUS_MAP.get(str(_cell(ws, row_num, col_map.get('status')) or '待审批').strip(), 'pending')
 
         date = _parse_date(_cell(ws, row_num, col_map.get('date'))) or datetime.date.today()
         expense_date = _parse_date(_cell(ws, row_num, col_map.get('expense_date'))) or date
@@ -455,7 +459,7 @@ def import_employees(request):
         for f, label in [('code', '工号'), ('name', '姓名')]:
             v = _cell(ws, row_num, col_map.get(f))
             if not v:
-                row_errors.append((label, f'必填'))
+                row_errors.append((label, '必填'))
 
         if row_errors:
             for field, msg in row_errors:
@@ -514,7 +518,9 @@ def import_employees(request):
                     housing_fund_base=hf_base or Decimal('0'),
                     email=str(_cell(ws, row_num, col_map.get('email')) or '').strip(),
                     emergency_contact=str(_cell(ws, row_num, col_map.get('emergency_contact')) or '').strip(),
-                    emergency_phone=re.sub(r'\D', '', str(_cell(ws, row_num, col_map.get('emergency_phone')) or '').strip()),
+                    emergency_phone=re.sub(
+                        r'\D', '', str(_cell(ws, row_num, col_map.get('emergency_phone')) or '').strip()
+                    ),
                     remarks=str(_cell(ws, row_num, col_map.get('remarks')) or '').strip(),
                 )
                 result.created_ids.append(obj.id)

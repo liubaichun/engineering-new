@@ -2,10 +2,11 @@
 银行流水解析适配器
 支持：ICBC(工商银行) / CMB(招商银行) / CCB(建设银行) / BOC(中国银行) / ABC(农业银行) / COMM(交通银行) / PSBC(邮储银行)
 """
+
 import datetime
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from decimal import Decimal
 from typing import Optional
 
@@ -15,25 +16,26 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ParsedTransaction:
     """只保留银行流水中实际有数据的12个字段"""
+
     transaction_date: Optional[datetime.date] = None
     transaction_time: Optional[datetime.time] = None
     amount: Decimal = Decimal('0')
-    direction: str = 'expense'   # income / expense（贷=income，借=expense）
+    direction: str = 'expense'  # income / expense（贷=income，借=expense）
     balance: Optional[Decimal] = None
-    bank_serial: str = ''       # 流水号
+    bank_serial: str = ''  # 流水号
     counterparty_name: str = ''  # 收(付)方名称
     counterparty_account: str = ''  # 收(付)方账号
     counterparty_bank: str = ''  # 收(付)方开户行名
-    summary: str = ''           # 摘要
+    summary: str = ''  # 摘要
     transaction_type: str = ''  # 交易类型（原始文本，不分类）
-    account_no: str = ''        # 我方账号（从文件"账号"列提取，用于与账户归属校验）
+    account_no: str = ''  # 我方账号（从文件"账号"列提取，用于与账户归属校验）
 
     def get_dedup_key(self) -> str:
         if self.bank_serial:
             return self.bank_serial
         date_str = self.transaction_date.isoformat() if self.transaction_date else ''
         time_str = self.transaction_time.isoformat() if self.transaction_time else ''
-        return f"{date_str}_{time_str}_{self.counterparty_account}_{self.amount}"
+        return f'{date_str}_{time_str}_{self.counterparty_account}_{self.amount}'
 
 
 class BankStatementAdapter(ABC):
@@ -85,7 +87,16 @@ class BankStatementAdapter(ABC):
         if value is None or str(value).strip() == '':
             return None
         try:
-            s = str(value).replace(',', '').replace('¥', '').replace(' ', '').replace('+', '').replace('（', '').replace('）', '').strip()
+            s = (
+                str(value)
+                .replace(',', '')
+                .replace('¥', '')
+                .replace(' ', '')
+                .replace('+', '')
+                .replace('（', '')
+                .replace('）', '')
+                .strip()
+            )
             if s == '' or s == '-':
                 return None
             return Decimal(s)
@@ -104,6 +115,7 @@ class ICBCAdapter(BankStatementAdapter):
     借贷标志：贷=收入（从"转入金额"取金额），借=支出（从"转出金额"取金额）
     余额列存在时直接使用，不依赖余额变化推导金额
     """
+
     bank_code = 'ICBC'
     bank_name = '工商银行'
 
@@ -165,15 +177,15 @@ class ICBCAdapter(BankStatementAdapter):
                     continue  # 无借贷标志的行跳过
 
                 txn_date = self._parse_date(
-                    get_col(row_idx, '入账日期', '交易日期', '记账日期', '日期') or
-                    get_col(row_idx, '入账时间')
+                    get_col(row_idx, '入账日期', '交易日期', '记账日期', '日期') or get_col(row_idx, '入账时间')
                 )
                 if not txn_date:
                     continue
 
                 # 入账时间 → transaction_time（优先用入账时间，不用交易时间）
-                txn_time = self._parse_time(get_col(row_idx, '入账时间')) or \
-                           self._parse_time(get_col(row_idx, '交易时间'))
+                txn_time = self._parse_time(get_col(row_idx, '入账时间')) or self._parse_time(
+                    get_col(row_idx, '交易时间')
+                )
 
                 # 金额：根据借贷方向从不同列读取
                 # 借方（支出）从"转出金额"取，贷方（收入）从"转入金额"取
@@ -191,20 +203,24 @@ class ICBCAdapter(BankStatementAdapter):
                 # 用途 → 交易类型
                 transaction_type = str(get_col(row_idx, '用途') or '').strip()
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=txn_time,
-                    amount=amount,
-                    direction=direction,
-                    balance=balance,
-                    counterparty_name=str(get_col(row_idx, '对方单位', '对方名称', '对方户名', '收(付)方名称') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '对方账号', '对方账户', '账号') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '对方行号', '对方银行', '开户行') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '凭证号', '流水号', '交易流水') or '').strip(),
-                    transaction_type=transaction_type,
-                    account_no=file_account_no,
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=txn_time,
+                        amount=amount,
+                        direction=direction,
+                        balance=balance,
+                        counterparty_name=str(
+                            get_col(row_idx, '对方单位', '对方名称', '对方户名', '收(付)方名称') or ''
+                        ).strip(),
+                        counterparty_account=str(get_col(row_idx, '对方账号', '对方账户', '账号') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '对方行号', '对方银行', '开户行') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
+                        bank_serial=str(get_col(row_idx, '凭证号', '流水号', '交易流水') or '').strip(),
+                        transaction_type=transaction_type,
+                        account_no=file_account_no,
+                    )
+                )
             except Exception:
                 logger.exception('ICBCAdapter.parse 行解析失败')
                 continue
@@ -219,6 +235,7 @@ class CMBAdapter(BankStatementAdapter):
     前若干行为元数据，第N行(索引N)为表头（含'交易日'+'流水号'），第N+1行开始为数据
     表头：交易日|交易时间|流水号|借方金额|贷方金额|余额|收(付)方名称|收(付)方账号|收(付)方开户行名|摘要|其它摘要
     """
+
     bank_code = 'CMB'
     bank_name = '招商银行'
 
@@ -259,8 +276,11 @@ class CMBAdapter(BankStatementAdapter):
         col_idx = {h: c for c, h in enumerate(headers, start=1)}
 
         def get_col(row, name):
-            for variant in [name, name.replace('(', '（').replace(')', '）'),
-                            name.replace('（', '(').replace('）', ')')]:
+            for variant in [
+                name,
+                name.replace('(', '（').replace(')', '）'),
+                name.replace('（', '(').replace('）', ')'),
+            ]:
                 c = col_idx.get(variant)
                 if c:
                     val = ws.cell(row, c).value
@@ -279,7 +299,7 @@ class CMBAdapter(BankStatementAdapter):
         records = []
         for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
-                debit  = self._decimal(get_col(row_idx, '借方金额'))
+                debit = self._decimal(get_col(row_idx, '借方金额'))
                 credit = self._decimal(get_col(row_idx, '贷方金额'))
 
                 if debit is not None and debit > 0:
@@ -293,20 +313,22 @@ class CMBAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '余额')),
-                    bank_serial=str(get_col(row_idx, '流水号') or '').strip(),
-                    counterparty_name=str(get_col(row_idx, '收(付)方名称') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '收(付)方账号') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '收(付)方开户行名') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要') or '').strip(),
-                    transaction_type=str(get_col(row_idx, '交易类型') or '').strip(),
-                    account_no=file_account_no,
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '余额')),
+                        bank_serial=str(get_col(row_idx, '流水号') or '').strip(),
+                        counterparty_name=str(get_col(row_idx, '收(付)方名称') or '').strip(),
+                        counterparty_account=str(get_col(row_idx, '收(付)方账号') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '收(付)方开户行名') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要') or '').strip(),
+                        transaction_type=str(get_col(row_idx, '交易类型') or '').strip(),
+                        account_no=file_account_no,
+                    )
+                )
             except Exception:
                 logger.exception('CMBAdapter.parse 行解析失败')
                 continue
@@ -321,6 +343,7 @@ class CCBAdapter(BankStatementAdapter):
     通常 Row1 含 "中国建设银行" 或 "CCB"
     表头包含：交易日期|交易时间|交易金额|余额|对方账户|对方户名|摘要 等
     """
+
     bank_code = 'CCB'
     bank_name = '建设银行'
 
@@ -380,19 +403,21 @@ class CCBAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间', '时间')),
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '余额')),
-                    counterparty_name=str(get_col(row_idx, '对方户名', '收款人', '付款人') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '对方账号', '收款账号', '付款账号') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '对方银行', '开户行') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '流水号', '交易流水') or '').strip(),
-                    raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=self._parse_time(get_col(row_idx, '交易时间', '时间')),
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '余额')),
+                        counterparty_name=str(get_col(row_idx, '对方户名', '收款人', '付款人') or '').strip(),
+                        counterparty_account=str(get_col(row_idx, '对方账号', '收款账号', '付款账号') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '对方银行', '开户行') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要', '交易描述', '说明') or '').strip(),
+                        bank_serial=str(get_col(row_idx, '流水号', '交易流水') or '').strip(),
+                        raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)])),
+                    )
+                )
             except Exception:
                 logger.exception('CCBAdapter.parse 行解析失败')
                 continue
@@ -406,6 +431,7 @@ class BOCAdapter(BankStatementAdapter):
     中国银行对账单格式：
     通常 Row1 含 "中国银行" 或 "BOC"
     """
+
     bank_code = 'BOC'
     bank_name = '中国银行'
 
@@ -458,19 +484,23 @@ class BOCAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
-                    counterparty_name=str(get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '流水号', '交易流水号', '参考号') or '').strip(),
-                    raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
+                        counterparty_name=str(
+                            get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or ''
+                        ).strip(),
+                        counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
+                        bank_serial=str(get_col(row_idx, '流水号', '交易流水号', '参考号') or '').strip(),
+                        raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)])),
+                    )
+                )
             except Exception:
                 logger.exception('BOCAdapter.parse 行解析失败')
                 continue
@@ -483,6 +513,7 @@ class ABCAdapter(BankStatementAdapter):
     """
     农业银行对账单格式
     """
+
     bank_code = 'ABC'
     bank_name = '农业银行'
 
@@ -535,19 +566,23 @@ class ABCAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
-                    counterparty_name=str(get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
-                    raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
+                        counterparty_name=str(
+                            get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or ''
+                        ).strip(),
+                        counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
+                        bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
+                        raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)])),
+                    )
+                )
             except Exception:
                 logger.exception('ABCAdapter.parse 行解析失败')
                 continue
@@ -560,6 +595,7 @@ class COMMAdapter(BankStatementAdapter):
     """
     交通银行对账单格式
     """
+
     bank_code = 'COMM'
     bank_name = '交通银行'
 
@@ -612,19 +648,23 @@ class COMMAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
-                    counterparty_name=str(get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
-                    raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
+                        counterparty_name=str(
+                            get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or ''
+                        ).strip(),
+                        counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
+                        bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
+                        raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)])),
+                    )
+                )
             except Exception:
                 logger.exception('COMMAdapter.parse 行解析失败')
                 continue
@@ -637,6 +677,7 @@ class PSBCAdapter(BankStatementAdapter):
     """
     中国邮政储蓄银行对账单格式
     """
+
     bank_code = 'PSBC'
     bank_name = '邮储银行'
 
@@ -689,19 +730,23 @@ class PSBCAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
-                    counterparty_name=str(get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or '').strip(),
-                    counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
-                    counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
-                    summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
-                    bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
-                    raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=self._parse_time(get_col(row_idx, '交易时间')),
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '账户余额', '余额')),
+                        counterparty_name=str(
+                            get_col(row_idx, '对方名称', '对方户名', '收款人', '付款人') or ''
+                        ).strip(),
+                        counterparty_account=str(get_col(row_idx, '对方账号', '对方账户') or '').strip(),
+                        counterparty_bank=str(get_col(row_idx, '对方开户行', '对方银行') or '').strip(),
+                        summary=str(get_col(row_idx, '摘要', '用途', '交易描述') or '').strip(),
+                        bank_serial=str(get_col(row_idx, '流水号', '交易流水号') or '').strip(),
+                        raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)])),
+                    )
+                )
             except Exception:
                 logger.exception('PSBCAdapter.parse 行解析失败')
                 continue
@@ -711,6 +756,7 @@ class PSBCAdapter(BankStatementAdapter):
 
 class XlrdSheetWrapper:
     """将 xlrd sheet 适配为类似 openpyxl 的工作表接口，供各银行适配器使用。"""
+
     def __init__(self, sheet):
         self.sheet = sheet
         self.max_row = sheet.nrows
@@ -724,6 +770,7 @@ class XlrdSheetWrapper:
 class XlrdCell:
     def __init__(self, value):
         self.value = value
+
 
 # ─── 平安银行 ───────────────────────────────────────────────────────────
 class PingAnAdapter(BankStatementAdapter):
@@ -740,6 +787,7 @@ class PingAnAdapter(BankStatementAdapter):
     - 流水号（交易流水号）唯一性高，适合去重
     - 摘要是交易渠道（网银/跨行转账等），用途是业务内容（货款/运费等）
     """
+
     bank_code = 'PINGAN'
     bank_name = '平安银行'
 
@@ -800,9 +848,9 @@ class PingAnAdapter(BankStatementAdapter):
         file_account_no = ''
         for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
-                debit_raw  = get_col(row_idx, '借')
+                debit_raw = get_col(row_idx, '借')
                 credit_raw = get_col(row_idx, '贷')
-                debit  = self._decimal(debit_raw)
+                debit = self._decimal(debit_raw)
                 credit = self._decimal(credit_raw)
                 if (debit is not None and debit > 0) or (credit is not None and credit > 0):
                     file_account_no = str(get_col(row_idx, '账号') or '').strip()
@@ -813,10 +861,10 @@ class PingAnAdapter(BankStatementAdapter):
 
         for row_idx in range(header_row + 1, ws.max_row + 1):
             try:
-                debit_raw  = get_col(row_idx, '借')
+                debit_raw = get_col(row_idx, '借')
                 credit_raw = get_col(row_idx, '贷')
 
-                debit  = self._decimal(debit_raw)
+                debit = self._decimal(debit_raw)
                 credit = self._decimal(credit_raw)
 
                 if debit is not None and debit > 0:
@@ -830,25 +878,27 @@ class PingAnAdapter(BankStatementAdapter):
                 if not txn_date:
                     continue
 
-                cp_name    = str(get_col(row_idx, '对方账户名称') or '').strip()
+                cp_name = str(get_col(row_idx, '对方账户名称') or '').strip()
                 cp_account = str(get_col(row_idx, '对方账户') or '').strip()
-                cp_bank    = ''
-                summary    = str(get_col(row_idx, '摘要') or '').strip()
+                cp_bank = ''
+                summary = str(get_col(row_idx, '摘要') or '').strip()
 
-                records.append(ParsedTransaction(
-                    transaction_date=txn_date,
-                    transaction_time=None,
-                    amount=amount,
-                    direction=direction,
-                    balance=self._decimal(get_col(row_idx, '账户余额')),
-                    bank_serial=str(get_col(row_idx, '交易流水号') or '').strip(),
-                    counterparty_name=cp_name,
-                    counterparty_account=cp_account,
-                    counterparty_bank=cp_bank,
-                    summary=summary,
-                    transaction_type=str(get_col(row_idx, '用途') or '').strip(),
-                    account_no=file_account_no,
-                ))
+                records.append(
+                    ParsedTransaction(
+                        transaction_date=txn_date,
+                        transaction_time=None,
+                        amount=amount,
+                        direction=direction,
+                        balance=self._decimal(get_col(row_idx, '账户余额')),
+                        bank_serial=str(get_col(row_idx, '交易流水号') or '').strip(),
+                        counterparty_name=cp_name,
+                        counterparty_account=cp_account,
+                        counterparty_bank=cp_bank,
+                        summary=summary,
+                        transaction_type=str(get_col(row_idx, '用途') or '').strip(),
+                        account_no=file_account_no,
+                    )
+                )
             except Exception:
                 logger.exception('PingAnAdapter.parse 行解析失败')
                 continue
@@ -863,18 +913,21 @@ def detect_and_parse(file_content):
     file_content 可以是 bytes（文件路径读取结果）或 BytesIO（Django InMemoryUploadedFile.read() 返回值）。
     """
     import io
+
     if isinstance(file_content, (io.IOBase,)):
         file_obj = file_content
     else:
         file_obj = io.BytesIO(file_content)
 
     import openpyxl
+
     try:
         wb = openpyxl.load_workbook(file_obj, data_only=True)
         ws = wb.active
     except Exception:
         logger.exception('detect_and_parse openpyxl 加载失败，尝试 xlrd 降级')
         import xlrd
+
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
         xlrd_content = file_obj.read()
@@ -888,6 +941,7 @@ def detect_and_parse(file_content):
             # 统一补 account_no：若所有 txn.account_no 为空，尝试从第1列账号提取
             if txns and all(not t.account_no for t in txns):
                 import re as _re
+
                 _acc = ''
                 for r in range(1, min(ws.max_row + 1, 50)):
                     for c in range(1, ws.max_column + 1):
@@ -902,7 +956,9 @@ def detect_and_parse(file_content):
                         t.account_no = _acc
             return adapter_cls.bank_code, txns
 
-    raise ValueError("无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行、平安银行")
+    raise ValueError(
+        '无法识别银行格式，请确认文件为以下银行对账单：工商银行、招商银行、建设银行、中国银行、农业银行、交通银行、邮储银行、平安银行'
+    )
 
 
 def parse_with_adapter(file_content, bank_code: str):
@@ -911,9 +967,10 @@ def parse_with_adapter(file_content, bank_code: str):
     bank_code = 'PINGAN' if bank_code == 'PA' else bank_code
     adapters = {a.bank_code: a for a in [cls() for cls in ALL_ADAPTERS]}
     if bank_code not in adapters:
-        raise ValueError(f"不支持的银行: {bank_code}，支持的银行：{', '.join(adapters.keys())}")
+        raise ValueError(f'不支持的银行: {bank_code}，支持的银行：{", ".join(adapters.keys())}')
 
     import io
+
     if isinstance(file_content, (io.IOBase,)):
         file_obj = file_content
         if hasattr(file_obj, 'seek'):
@@ -922,12 +979,14 @@ def parse_with_adapter(file_content, bank_code: str):
         file_obj = io.BytesIO(file_content)
 
     import openpyxl
+
     try:
         wb = openpyxl.load_workbook(file_obj, data_only=True)
         ws = wb.active
     except Exception:
         logger.exception('parse_with_adapter openpyxl 加载失败，尝试 xlrd 降级')
         import xlrd
+
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
         xlrd_content = file_obj.read()
@@ -949,12 +1008,14 @@ def detect_with_adapter(file_content, bank_code: str) -> bool:
         return False
 
     import io
+
     if isinstance(file_content, (io.IOBase,)):
         file_obj = file_content
     else:
         file_obj = io.BytesIO(file_content)
 
     import openpyxl
+
     try:
         wb = openpyxl.load_workbook(file_obj, data_only=True)
         ws = wb.active
@@ -962,6 +1023,7 @@ def detect_with_adapter(file_content, bank_code: str) -> bool:
         logger.exception('detect_with_adapter openpyxl 加载失败，尝试 xlrd 降级')
         try:
             import xlrd
+
             if hasattr(file_obj, 'seek'):
                 file_obj.seek(0)
             xlrd_content = file_obj.read()
@@ -976,12 +1038,12 @@ def detect_with_adapter(file_content, bank_code: str) -> bool:
 
 # ─── 适配器注册表（CMB在前，更具体优先检测）─────────────────────────────
 ALL_ADAPTERS = [
-    CMBAdapter,     # 招商银行（最具体，优先）
-    ICBCAdapter,    # 工商银行
-    CCBAdapter,     # 建设银行
-    BOCAdapter,     # 中国银行
-    ABCAdapter,     # 农业银行
-    COMMAdapter,    # 交通银行
-    PSBCAdapter,    # 邮储银行
+    CMBAdapter,  # 招商银行（最具体，优先）
+    ICBCAdapter,  # 工商银行
+    CCBAdapter,  # 建设银行
+    BOCAdapter,  # 中国银行
+    ABCAdapter,  # 农业银行
+    COMMAdapter,  # 交通银行
+    PSBCAdapter,  # 邮储银行
     PingAnAdapter,  # 平安银行
 ]

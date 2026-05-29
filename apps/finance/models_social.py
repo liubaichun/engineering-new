@@ -5,14 +5,9 @@ from django.db import models
 class SocialRecord(models.Model):
     """社保申报记录 — 按员工×月份存储分险种明细"""
 
-    company = models.ForeignKey(
-        'Company', verbose_name='公司',
-        on_delete=models.PROTECT, related_name='social_records'
-    )
+    company = models.ForeignKey('Company', verbose_name='公司', on_delete=models.PROTECT, related_name='social_records')
     employee = models.ForeignKey(
-        'Employee', verbose_name='员工',
-        null=True, blank=True,
-        on_delete=models.PROTECT, related_name='social_records'
+        'Employee', verbose_name='员工', null=True, blank=True, on_delete=models.PROTECT, related_name='social_records'
     )
     name = models.CharField('姓名', max_length=50, blank=True, default='')
     id_card = models.CharField('身份证号', max_length=18, blank=True, default='')
@@ -41,7 +36,9 @@ class SocialRecord(models.Model):
     # 自动计算的合计
     total_employee = models.DecimalField('个人缴合计', max_digits=10, decimal_places=2, default=0)
     total_company = models.DecimalField('单位缴合计', max_digits=10, decimal_places=2, default=0)
-    total = models.DecimalField('费款总计', max_digits=10, decimal_places=2, default=0)  # total_employee + total_company
+    total = models.DecimalField(
+        '费款总计', max_digits=10, decimal_places=2, default=0
+    )  # total_employee + total_company
 
     # 核销状态
     is_reconciled = models.BooleanField('已核销', default=False)
@@ -62,15 +59,20 @@ class SocialRecord(models.Model):
     def save(self, *args, **kwargs):
         # 合计包含社保+公积金（分开显示，合计参与运算）
         self.total_employee = (
-            Decimal(str(self.pension_employee)) + Decimal(str(self.pension_bup_employee)) +
-            Decimal(str(self.medical_employee)) + Decimal(str(self.unemployment_employee)) +
-            Decimal(str(self.housing_fund_employee))
+            Decimal(str(self.pension_employee))
+            + Decimal(str(self.pension_bup_employee))
+            + Decimal(str(self.medical_employee))
+            + Decimal(str(self.unemployment_employee))
+            + Decimal(str(self.housing_fund_employee))
         )
         self.total_company = (
-            Decimal(str(self.pension_company)) + Decimal(str(self.pension_bup_company)) +
-            Decimal(str(self.medical_company)) + Decimal(str(self.unemployment_company)) +
-            Decimal(str(self.injury_company)) + Decimal(str(self.birth_company)) +
-            Decimal(str(self.housing_fund_company))
+            Decimal(str(self.pension_company))
+            + Decimal(str(self.pension_bup_company))
+            + Decimal(str(self.medical_company))
+            + Decimal(str(self.unemployment_company))
+            + Decimal(str(self.injury_company))
+            + Decimal(str(self.birth_company))
+            + Decimal(str(self.housing_fund_company))
         )
         self.total = self.total_employee + self.total_company
         super().save(*args, **kwargs)
@@ -84,16 +86,14 @@ class SocialRecord(models.Model):
         return f'未知({mask})'
 
     def __str__(self):
-        return f"{self.employee_display()} {self.year_month} 社保"
+        return f'{self.employee_display()} {self.year_month} 社保'
 
 
 class CompanySocialConfig(models.Model):
     """公司社保公积金配置"""
+
     company = models.OneToOneField(
-        'Company',
-        on_delete=models.PROTECT,
-        related_name='social_config',
-        verbose_name='关联公司'
+        'Company', on_delete=models.PROTECT, related_name='social_config', verbose_name='关联公司'
     )
     social_base = models.DecimalField('社保基数', max_digits=10, decimal_places=2, default=0)
     pension_rate_employee = models.DecimalField('养老保险个人比例%', max_digits=5, decimal_places=2, default=8)
@@ -113,4 +113,4 @@ class CompanySocialConfig(models.Model):
         verbose_name_plural = verbose_name
 
     def __str__(self):
-        return f"{self.company.name} 社保配置"
+        return f'{self.company.name} 社保配置'

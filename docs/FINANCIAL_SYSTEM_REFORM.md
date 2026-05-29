@@ -82,14 +82,14 @@ internal_transfer只贴标签，没有台账（已通过RelatedPartyLedger模型
 
 ```
 收入分类（5个真实 + 2个非收入排除）：
-  
+
   真实收入（入利润表）：
   ├─ 主营业务收入    main_business
   ├─ 其他业务收入    other_business      ← 新增
   ├─ 营业外收入      non_operating
   ├─ 其他收益        other_income        ← 新增
   └─ 投资收益        investment_income   ← 新增（结构预留）
-  
+
   非收入（在收入表展示，但不入利润表）：
   ├─ 内部往来        internal_transfer
   └─ 实收资本        equity

@@ -1,13 +1,24 @@
 from django.urls import path, include
 from config.routers import IntegerPkRouter
-from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet, BankAccountViewSet, SocialRecordViewSet, BudgetViewSet
+from .views import (
+    CompanyViewSet,
+    IncomeViewSet,
+    ExpenseViewSet,
+    WageRecordViewSet,
+    InvoiceViewSet,
+    ReportViewSet,
+    EmployeeViewSet,
+    CompanySocialConfigViewSet,
+    ARAPViewSet,
+    EmployeeCompanyViewSet,
+    BankAccountViewSet,
+    SocialRecordViewSet,
+    BudgetViewSet,
+)
 from . import import_views
 from . import bank_import_views
 from . import tax_invoice_import
 from . import reports_v2
-from django.shortcuts import render
-from django.contrib.auth.decorators import login_required
-from .models import Company
 
 router = IntegerPkRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -41,7 +52,11 @@ urlpatterns = [
     path('reports/supplier-expense/', reports_v2.supplier_expense_report, name='report-supplier-expense'),
     path('reports/tax-summary/', reports_v2.tax_summary_report, name='report-tax-summary'),
     path('reports/budget-execution/', reports_v2.budget_execution_report, name='report-budget-execution'),
-    path('reports/revenue-expense-summary/', ReportViewSet.as_view({'get': 'revenue_expense_summary'}), name='report-revenue-expense-summary'),
+    path(
+        'reports/revenue-expense-summary/',
+        ReportViewSet.as_view({'get': 'revenue_expense_summary'}),
+        name='report-revenue-expense-summary',
+    ),
     path('reports/invoice-summary/', ReportViewSet.as_view({'get': 'invoice_summary'}), name='report-invoice-summary'),
     path('reports/invoice-aging/', ReportViewSet.as_view({'get': 'invoice_aging'}), name='report-invoice-aging'),
     path('reports/invoice-dimension/', reports_v2.invoice_dimension_report, name='report-invoice-dimension'),

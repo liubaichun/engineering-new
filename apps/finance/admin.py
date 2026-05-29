@@ -6,6 +6,7 @@ from .models import Company, Income, Expense, WageRecord, Invoice, Account, Budg
 @admin.register(Company)
 class CompanyAdmin(admin.ModelAdmin):
     """公司管理"""
+
     list_display = ['name', 'code', 'status_badge', 'contact_person', 'contact_phone', 'created_at']
     list_filter = ['status']
     search_fields = ['name', 'code', 'contact_person']
@@ -21,14 +22,16 @@ class CompanyAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
             colors.get(obj.status, '#999'),
-            obj.get_status_display()
+            obj.get_status_display(),
         )
+
     status_badge.short_description = '状态'
 
 
 @admin.register(Income)
 class IncomeAdmin(admin.ModelAdmin):
     """收入管理"""
+
     list_display = ['amount_display', 'date', 'company', 'status_badge', 'source', 'customer', 'operator', 'created_at']
     list_filter = ['status', 'date', 'company']
     search_fields = ['description', 'customer', 'source']
@@ -38,6 +41,7 @@ class IncomeAdmin(admin.ModelAdmin):
 
     def amount_display(self, obj):
         return format_html('<b style="color: green;">{}</b>', obj.amount)
+
     amount_display.short_description = '金额'
 
     def status_badge(self, obj):
@@ -48,14 +52,16 @@ class IncomeAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
             colors.get(obj.status, '#999'),
-            obj.get_status_display()
+            obj.get_status_display(),
         )
+
     status_badge.short_description = '状态'
 
 
 @admin.register(Expense)
 class ExpenseAdmin(admin.ModelAdmin):
     """支出管理"""
+
     list_display = ['amount_display', 'expense_type', 'date', 'project', 'supplier', 'operator', 'created_at']
     list_filter = ['expense_type', 'date', 'project']
     search_fields = ['description', 'supplier']
@@ -65,15 +71,24 @@ class ExpenseAdmin(admin.ModelAdmin):
 
     def amount_display(self, obj):
         return format_html('<b style="color: red;">{}</b>', obj.amount)
+
     amount_display.short_description = '金额'
 
 
 @admin.register(WageRecord)
 class WageRecordAdmin(admin.ModelAdmin):
     """工资单管理"""
+
     list_display = [
-        'employee_name', 'company', 'year_month', 'gross_salary',
-        'tax', 'net_salary', 'status_badge', 'approver', 'created_at'
+        'employee_name',
+        'company',
+        'year_month',
+        'gross_salary',
+        'tax',
+        'net_salary',
+        'status_badge',
+        'approver',
+        'created_at',
     ]
     list_filter = ['year', 'month', 'company', 'status']
     search_fields = ['employee_name', 'department', 'position']
@@ -83,33 +98,22 @@ class WageRecordAdmin(admin.ModelAdmin):
     date_hierarchy = 'created_at'
 
     fieldsets = (
-        ('基本信息', {
-            'fields': ('company', 'employee_name', 'bank_card', 'department', 'position')
-        }),
-        ('工资构成', {
-            'fields': ('base_salary', 'overtime_pay', 'bonus')
-        }),
-        ('扣除项目', {
-            'fields': ('social_insurance', 'housing_fund', 'leave_deduction', 'other_deductions')
-        }),
-        ('计算结果', {
-            'fields': ('gross_salary', 'tax', 'net_salary'),
-            'classes': ('collapse',)
-        }),
-        ('审核信息', {
-            'fields': ('year', 'month', 'status', 'approver', 'approved_at', 'paid_at')
-        }),
-        ('备注', {
-            'fields': ('remarks',)
-        }),
+        ('基本信息', {'fields': ('company', 'employee_name', 'bank_card', 'department', 'position')}),
+        ('工资构成', {'fields': ('base_salary', 'overtime_pay', 'bonus')}),
+        ('扣除项目', {'fields': ('social_insurance', 'housing_fund', 'leave_deduction', 'other_deductions')}),
+        ('计算结果', {'fields': ('gross_salary', 'tax', 'net_salary'), 'classes': ('collapse',)}),
+        ('审核信息', {'fields': ('year', 'month', 'status', 'approver', 'approved_at', 'paid_at')}),
+        ('备注', {'fields': ('remarks',)}),
     )
 
     def year_month(self, obj):
         return f'{obj.year}-{obj.month:02d}'
+
     year_month.short_description = '年月'
 
     def amount_display(self, obj):
         return format_html('<b>{}</b>', obj.net_salary)
+
     amount_display.short_description = '实发工资'
 
     def status_badge(self, obj):
@@ -122,8 +126,9 @@ class WageRecordAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
             colors.get(obj.status, '#999'),
-            obj.get_status_display()
+            obj.get_status_display(),
         )
+
     status_badge.short_description = '状态'
 
     actions = ['approve_wages', 'mark_as_paid']
@@ -131,6 +136,7 @@ class WageRecordAdmin(admin.ModelAdmin):
     @admin.action(description='批准选中工资单')
     def approve_wages(self, request, queryset):
         from django.utils import timezone
+
         for wage in queryset.filter(status='pending'):
             wage.status = 'approved'
             wage.approver = request.user
@@ -141,6 +147,7 @@ class WageRecordAdmin(admin.ModelAdmin):
     @admin.action(description='标记为已发放')
     def mark_as_paid(self, request, queryset):
         from django.utils import timezone
+
         for wage in queryset.filter(status='approved'):
             wage.status = 'paid'
             wage.paid_at = timezone.now()
@@ -151,6 +158,7 @@ class WageRecordAdmin(admin.ModelAdmin):
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     """发票管理"""
+
     list_display = ['invoice_no', 'type', 'amount', 'company', 'project', 'status_badge', 'issue_date', 'due_date']
     list_filter = ['type', 'status', 'issue_date', 'company']
     search_fields = ['invoice_no', 'remarks']
@@ -168,8 +176,9 @@ class InvoiceAdmin(admin.ModelAdmin):
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',
             colors.get(obj.status, '#999'),
-            obj.get_status_display()
+            obj.get_status_display(),
         )
+
     status_badge.short_description = '状态'
 
     actions = ['cancel_invoices']
@@ -187,6 +196,7 @@ class InvoiceAdmin(admin.ModelAdmin):
 @admin.register(Account)
 class AccountAdmin(admin.ModelAdmin):
     """会计科目表管理"""
+
     list_display = ['code', 'name', 'account_type', 'level', 'is_leaf', 'parent', 'is_active', 'sort_order']
     list_filter = ['account_type', 'level', 'is_active']
     search_fields = ['code', 'name']
@@ -197,6 +207,7 @@ class AccountAdmin(admin.ModelAdmin):
 @admin.register(Budget)
 class BudgetAdmin(admin.ModelAdmin):
     """预算管理"""
+
     list_display = ['company', 'year', 'month', 'expense_type', 'budget_amount', 'note']
     list_filter = ['company', 'year', 'expense_type']
     search_fields = ['company__name', 'note']

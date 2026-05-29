@@ -1,19 +1,13 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
-import re
 
-from django.db.models import Sum, Count, Q, F
-from django.utils import timezone
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
+from apps.finance.models import Company
 from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
 
 
 @api_view(['GET'])
@@ -43,22 +37,24 @@ def cash_flow_report(request):
         bs_qs = BankStatement.objects.filter(company=company).order_by('transaction_date', 'id')
 
         # 期初余额：取 year-01-01 之前最近一条有余额的记录
-        year_start = f"{year}-01-01"
-        prior_bs = bs_qs.filter(transaction_date__lt=year_start).exclude(
-            balance__isnull=True
-        ).order_by('transaction_date', 'id')
+        year_start = f'{year}-01-01'
+        prior_bs = (
+            bs_qs.filter(transaction_date__lt=year_start)
+            .exclude(balance__isnull=True)
+            .order_by('transaction_date', 'id')
+        )
         begin_balance = 0.0
         if prior_bs.exists():
             begin_balance = float(prior_bs.last().balance or 0)
 
         monthly_data = []
         for month in months_to_process:
-            month_start = f"{year}-{month:02d}-01"
+            month_start = f'{year}-{month:02d}-01'
             # 下个月1日
             if month == 12:
-                month_end = f"{year+1}-01-01"
+                month_end = f'{year + 1}-01-01'
             else:
-                month_end = f"{year}-{month+1:02d}-01"
+                month_end = f'{year}-{month + 1:02d}-01'
 
             # 该月所有流水
             month_bs = bs_qs.filter(
@@ -95,40 +91,47 @@ def cash_flow_report(request):
 
             # 只有有发生额才记录
             if inc_total > 0 or exp_total > 0:
-                monthly_data.append({
-                    'month': month,
-                    'income': round(inc_total, 2),
-                    'expense': round(exp_total, 2),
-                    'net': round(inc_total - exp_total, 2),
-                    'end_balance': round(end_balance, 2),
-                })
+                monthly_data.append(
+                    {
+                        'month': month,
+                        'income': round(inc_total, 2),
+                        'expense': round(exp_total, 2),
+                        'net': round(inc_total - exp_total, 2),
+                        'end_balance': round(end_balance, 2),
+                    }
+                )
 
             begin_balance = end_balance  # 下月期初 = 本月末
 
         year_income = sum(m['income'] for m in monthly_data)
         year_expense = sum(m['expense'] for m in monthly_data)
-        rows.append({
-            'company_id': company.id,
-            'company_name': company.name,
-            'year': year,
-            'year_income': round(year_income, 2),
-            'year_expense': round(year_expense, 2),
-            'year_net': round(year_income - year_expense, 2),
-            'monthly': monthly_data,
-        })
+        rows.append(
+            {
+                'company_id': company.id,
+                'company_name': company.name,
+                'year': year,
+                'year_income': round(year_income, 2),
+                'year_expense': round(year_expense, 2),
+                'year_net': round(year_income - year_expense, 2),
+                'monthly': monthly_data,
+            }
+        )
         grand_income += year_income
         grand_expense += year_expense
 
-    return Response({
-        'report': 'cash_flow',
-        'title': f'{year}年 银行余额变动表',
-        'params': params,
-        'results': rows,
-        'summary': {
-            'total_income': round(grand_income, 2),
-            'total_expense': round(grand_expense, 2),
-            'total_net': round(grand_income - grand_expense, 2),
+    return Response(
+        {
+            'report': 'cash_flow',
+            'title': f'{year}年 银行余额变动表',
+            'params': params,
+            'results': rows,
+            'summary': {
+                'total_income': round(grand_income, 2),
+                'total_expense': round(grand_expense, 2),
+                'total_net': round(grand_income - grand_expense, 2),
+            },
         }
-    })
+    )
+
 
 # ─── 2. 应收应付账龄分析 ────────────────────────────────────────────────

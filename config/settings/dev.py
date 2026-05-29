@@ -5,6 +5,7 @@
   export DJANGO_SETTINGS_MODULE=config.settings.dev
   python manage.py runserver
 """
+
 from .base import *
 
 # 开发环境默认开启调试

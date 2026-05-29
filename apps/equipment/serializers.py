@@ -10,9 +10,19 @@ class EquipmentUsageLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EquipmentUsageLog
         fields = [
-            'id', 'equipment', 'equipment_name', 'action', 'action_display',
-            'user', 'user_name', 'quantity', 'purpose', 'company_id',
-            'operator', 'operated_at', 'remarks'
+            'id',
+            'equipment',
+            'equipment_name',
+            'action',
+            'action_display',
+            'user',
+            'user_name',
+            'quantity',
+            'purpose',
+            'company_id',
+            'operator',
+            'operated_at',
+            'remarks',
         ]
         read_only_fields = ['operated_at']
 
@@ -24,8 +34,18 @@ class EquipmentRepairLogSerializer(serializers.ModelSerializer):
     class Meta:
         model = EquipmentRepairLog
         fields = [
-            'id', 'equipment', 'equipment_name', 'repair_date', 'description',
-            'result', 'cost', 'company_id', 'repair_company', 'operator', 'operator_name', 'created_at'
+            'id',
+            'equipment',
+            'equipment_name',
+            'repair_date',
+            'description',
+            'result',
+            'cost',
+            'company_id',
+            'repair_company',
+            'operator',
+            'operator_name',
+            'created_at',
         ]
         read_only_fields = ['created_at']
 
@@ -41,12 +61,31 @@ class EquipmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Equipment
         fields = [
-            'id', 'code', 'name', 'spec', 'category', 'category_display',
-            'management_type', 'management_type_display', 'batch_number',
-            'serial_number', 'unit', 'status', 'status_display', 'location',
-            'purchase_date', 'purchase_price', 'warranty_end', 'project',
-            'project_name', 'remarks', 'company_id', 'created_at', 'updated_at',
-            'usage_logs', 'repair_logs'
+            'id',
+            'code',
+            'name',
+            'spec',
+            'category',
+            'category_display',
+            'management_type',
+            'management_type_display',
+            'batch_number',
+            'serial_number',
+            'unit',
+            'status',
+            'status_display',
+            'location',
+            'purchase_date',
+            'purchase_price',
+            'warranty_end',
+            'project',
+            'project_name',
+            'remarks',
+            'company_id',
+            'created_at',
+            'updated_at',
+            'usage_logs',
+            'repair_logs',
         ]
         read_only_fields = ['code', 'created_at', 'updated_at']
 
@@ -61,8 +100,17 @@ class EquipmentBOMRelationSerializer(serializers.ModelSerializer):
     class Meta:
         model = EquipmentBOMRelation
         fields = [
-            'id', 'equipment', 'equipment_code', 'equipment_name',
-            'material_bom', 'material_bom_name', 'material_name', 'material_code',
-            'quantity', 'remark', 'company_id', 'created_at'
+            'id',
+            'equipment',
+            'equipment_code',
+            'equipment_name',
+            'material_bom',
+            'material_bom_name',
+            'material_name',
+            'material_code',
+            'quantity',
+            'remark',
+            'company_id',
+            'created_at',
         ]
         read_only_fields = ['created_at']

@@ -1,50 +1,22 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
-from rest_framework import viewsets, filters, permissions
+from django.db.models import Sum
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
-from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from django.db.models import Count
+from .models import Invoice
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
     InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
-from .views_common import (
-    SafePageNumberPagination,
-    get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
-)
 
 
 class ARAPViewSet(viewsets.ViewSet):
     """应收应付台账视图集"""
+
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -65,35 +37,46 @@ class ARAPViewSet(viewsets.ViewSet):
                 # 忽略前端传入的其他公司ID，强制过滤为自己公司
                 if not company_id or int(company_id) != user.company_id:
                     company_id = user.company_id
-        from django.db.models import Sum, Min, Max, Count
+        from django.db.models import Min, Max
+
         ar_qs = Invoice.objects.filter(type='income', status='pending')
         ap_qs = Invoice.objects.filter(type='expense', status='pending')
         if company_id:
             ar_qs = ar_qs.filter(company_id=company_id)
             ap_qs = ap_qs.filter(company_id=company_id)
 
-        ar_summary = ar_qs.values('counterparty').annotate(
-            total_amount=Sum('amount'),
-            total_tax=Sum('tax_amount'),
-            invoice_count=Count('id'),
-            earliest_date=Min('issue_date'),
-            latest_date=Max('issue_date'),
-        ).order_by('-total_amount')
+        ar_summary = (
+            ar_qs.values('counterparty')
+            .annotate(
+                total_amount=Sum('amount'),
+                total_tax=Sum('tax_amount'),
+                invoice_count=Count('id'),
+                earliest_date=Min('issue_date'),
+                latest_date=Max('issue_date'),
+            )
+            .order_by('-total_amount')
+        )
 
-        ap_summary = ap_qs.values('counterparty').annotate(
-            total_amount=Sum('amount'),
-            total_tax=Sum('tax_amount'),
-            invoice_count=Count('id'),
-            earliest_date=Min('issue_date'),
-            latest_date=Max('issue_date'),
-        ).order_by('-total_amount')
+        ap_summary = (
+            ap_qs.values('counterparty')
+            .annotate(
+                total_amount=Sum('amount'),
+                total_tax=Sum('tax_amount'),
+                invoice_count=Count('id'),
+                earliest_date=Min('issue_date'),
+                latest_date=Max('issue_date'),
+            )
+            .order_by('-total_amount')
+        )
 
-        return Response({
-            'receivables': list(ar_summary),
-            'payables': list(ap_summary),
-            'receivable_total': ar_qs.aggregate(total=Sum('amount'))['total'] or 0,
-            'payable_total': ap_qs.aggregate(total=Sum('amount'))['total'] or 0,
-        })
+        return Response(
+            {
+                'receivables': list(ar_summary),
+                'payables': list(ap_summary),
+                'receivable_total': ar_qs.aggregate(total=Sum('amount'))['total'] or 0,
+                'payable_total': ap_qs.aggregate(total=Sum('amount'))['total'] or 0,
+            }
+        )
 
     def _paginate(self, queryset):
         """内部分页辅助方法（避免与DRF内置方法名冲突）"""

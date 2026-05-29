@@ -8,6 +8,7 @@
   | 开票日期 | 税收分类编码 | 特定业务类型 | 货物或应税劳务名称 | 规格型号 | 单位 | 数量 | 单价
   | 金额 | 税率 | 税额 | 价税合计 | 发票来源 | 发票票种 | 发票状态 | 是否正数发票 | 发票风险等级 | 开票人 | 备注
 """
+
 import datetime
 import io
 import re
@@ -16,7 +17,7 @@ from decimal import Decimal
 from django.db import transaction
 from openpyxl import load_workbook
 from apps.core.permissions import require_perms
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from apps.crm.models import Client, Supplier
@@ -24,6 +25,7 @@ from apps.finance.models import Company, Expense, Income
 
 
 # ─── 工具函数 ───────────────────────────────────────────────
+
 
 def _parse_date(value) -> datetime.date | None:
     if value is None:
@@ -74,18 +76,39 @@ def _is_enterprise_name(name: str) -> bool:
     name = name.strip()
     # 非企业关键字
     skip_patterns = [
-        r'国家金库', r'税务局', r'国家税务总局', r'住房公积金',
-        r'中华人民共和国', r'深圳市.*金库', r'对公中间业务',
-        r'暂收款', r'应付利息', r'应收利息', r'应付账款',
-        r'自动驾驶', r'测试', r'示范应用', r'备付金',
+        r'国家金库',
+        r'税务局',
+        r'国家税务总局',
+        r'住房公积金',
+        r'中华人民共和国',
+        r'深圳市.*金库',
+        r'对公中间业务',
+        r'暂收款',
+        r'应付利息',
+        r'应收利息',
+        r'应付账款',
+        r'自动驾驶',
+        r'测试',
+        r'示范应用',
+        r'备付金',
     ]
     for p in skip_patterns:
         if re.search(p, name):
             return False
     # 企业名通常含公司/有限/集团/科技/贸易等
     enterprise_patterns = [
-        r'公司', r'有限公司', r'有限责任公司', r'集团', r'科技', r'贸易',
-        r'实业', r'发展', r'公司$', r'Co', r'Ltd', r'Inc',
+        r'公司',
+        r'有限公司',
+        r'有限责任公司',
+        r'集团',
+        r'科技',
+        r'贸易',
+        r'实业',
+        r'发展',
+        r'公司$',
+        r'Co',
+        r'Ltd',
+        r'Inc',
     ]
     for p in enterprise_patterns:
         if re.search(p, name):
@@ -97,8 +120,20 @@ def _is_government_or_special(name: str) -> bool:
     """判断是否为政府/事业单位"""
     if not name:
         return False
-    patterns = [r'大学', r'医院', r'政府', r'委员会', r'局$', r'厅$', r'处$',
-                r'事业单位', r'法院', r'检察院', r'管委会', r'政府$']
+    patterns = [
+        r'大学',
+        r'医院',
+        r'政府',
+        r'委员会',
+        r'局$',
+        r'厅$',
+        r'处$',
+        r'事业单位',
+        r'法院',
+        r'检察院',
+        r'管委会',
+        r'政府$',
+    ]
     for p in patterns:
         if re.search(p, name):
             return True
@@ -118,7 +153,7 @@ def _classify_expense_category(summary: str, goods_name: str) -> str:
     """
     根据摘要/商品名称自动分类 expense_category
     """
-    text = f"{summary} {goods_name}".lower()
+    text = f'{summary} {goods_name}'.lower()
     if '工资' in text or '代发' in text or '奖金' in text:
         return '工资'
     if '税' in text or '增值税' in text or '个税' in text or '所得税' in text or '税费' in text:
@@ -154,7 +189,7 @@ def _classify_expense_category(summary: str, goods_name: str) -> str:
 
 def _classify_income_category(summary: str, goods_name: str) -> str:
     """根据摘要/商品名称自动分类收入类别"""
-    text = f"{summary} {goods_name}".lower()
+    text = f'{summary} {goods_name}'.lower()
     if '软件' in text or '维护' in text or '技术服务' in text or '开发' in text:
         return '技术服务费'
     if '咨询' in text or '顾问' in text:
@@ -174,6 +209,7 @@ def _classify_income_category(summary: str, goods_name: str) -> str:
 
 # ─── 核心导入函数 ───────────────────────────────────────────
 
+
 class TaxInvoiceImportResult:
     def __init__(self):
         self.success_count = 0
@@ -185,8 +221,7 @@ class TaxInvoiceImportResult:
         self.skipped = []  # [(row, reason)]
 
     def add_error(self, row, field, msg, value=None):
-        self.errors.append({'row': row, 'field': field, 'message': msg,
-                            'value': str(value)[:50] if value else None})
+        self.errors.append({'row': row, 'field': field, 'message': msg, 'value': str(value)[:50] if value else None})
         self.error_count += 1
 
     def add_skipped(self, row, reason):
@@ -237,7 +272,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         'buyer_name': get_col('购买方名称'),
         'issue_date': get_col('开票日期'),
         'goods_name': get_col('货物或应税劳务名称'),
-        'amount': get_col('金额'),        # 不含税金额
+        'amount': get_col('金额'),  # 不含税金额
         'tax_rate': get_col('税率'),
         'tax_amount': get_col('税额'),
         'total_amount': get_col('价税合计'),
@@ -250,7 +285,11 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
     }
 
     # 验证必需列
-    missing = [k for k, v in idx.items() if v is None and k not in ('elec_invoice_no', 'remarks', 'issuer', 'invoice_source', 'invoice_type_name')]
+    missing = [
+        k
+        for k, v in idx.items()
+        if v is None and k not in ('elec_invoice_no', 'remarks', 'issuer', 'invoice_source', 'invoice_type_name')
+    ]
     if missing:
         for k in missing:
             result.add_error(1, k, f'缺少列：{k}')
@@ -269,7 +308,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         # 过滤非正数发票
         is_positive = str(_cell(ws, row_num, idx['is_positive']) or '是').strip()
         if is_positive not in ('是', 'yes', 'true', '1'):
-            result.add_skipped(row_num, f'负数发票，跳过')
+            result.add_skipped(row_num, '负数发票，跳过')
             continue
 
         # 过滤非正常发票
@@ -281,7 +320,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         if invoice_no not in invoice_groups:
             invoice_groups[invoice_no] = {
                 'meta': {k: _cell(ws, row_num, v) for k, v in idx.items() if v is not None},
-                'rows': []
+                'rows': [],
             }
         invoice_groups[invoice_no]['rows'].append(row_num)
 
@@ -296,7 +335,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
         amount = _parse_decimal(meta.get('amount'))
         # 如果价税合计有值，用它作为实际发生额
         if total_amount is None or total_amount == 0:
-            result.add_skipped(row, f'价税合计为空，跳过')
+            result.add_skipped(row, '价税合计为空，跳过')
             continue
         actual_amount = total_amount  # 实际付款/收款金额
 
@@ -361,7 +400,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                                 'counterparty_type': cp_type,
                                 'tax_id': seller_tax_id,
                                 'created_by': operator,
-                            }
+                            },
                         )
                         if not supplier_obj.tax_id and seller_tax_id:
                             supplier_obj.tax_id = seller_tax_id
@@ -383,11 +422,11 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                         expense_type='expense',
                         expense_category=category,
                         supplier=seller_name,
-                        note=f"[进项票]{invoice_no} {invoice_type_name}",
-                        description=f"{goods_name}\n票号:{invoice_no}\n开票人:{issuer}\n来源:{invoice_source}".strip(),
+                        note=f'[进项票]{invoice_no} {invoice_type_name}',
+                        description=f'{goods_name}\n票号:{invoice_no}\n开票人:{issuer}\n来源:{invoice_source}'.strip(),
                         operator=operator,
                         status='approved',
-                        transaction_type=f"进项票-{invoice_type_name}",
+                        transaction_type=f'进项票-{invoice_type_name}',
                         summary=summary,
                     )
                     result.created_expense_ids.append(obj.id)
@@ -409,7 +448,7 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                                 'counterparty_type': cp_type,
                                 'tax_id': buyer_tax_id,
                                 'created_by': operator,
-                            }
+                            },
                         )
                         if not client_obj.tax_id and buyer_tax_id:
                             client_obj.tax_id = buyer_tax_id
@@ -423,10 +462,10 @@ def _import_tax_invoices_common(ws, company: Company, invoice_type: str, operato
                         date=issue_date,
                         source=f'发票导入[{invoice_no}]',
                         customer=buyer_name,
-                        description=f"{goods_name}\n票号:{invoice_no}\n开票人:{issuer}\n税率:{tax_rate}%".strip(),
+                        description=f'{goods_name}\n票号:{invoice_no}\n开票人:{issuer}\n税率:{tax_rate}%'.strip(),
                         operator=operator,
                         status='approved',
-                        transaction_type=f"销项票-{invoice_type_name}",
+                        transaction_type=f'销项票-{invoice_type_name}',
                         summary=summary,
                     )
                     result.created_income_ids.append(obj.id)
@@ -579,9 +618,11 @@ def import_tax_invoices_auto(request):
     total_errors = sum(r['error_count'] for r in results.values())
     total_skipped = sum(r['skipped_count'] for r in results.values())
 
-    return Response({
-        'total_success': total_success,
-        'total_errors': total_errors,
-        'total_skipped': total_skipped,
-        'by_sheet': results,
-    })
+    return Response(
+        {
+            'total_success': total_success,
+            'total_errors': total_errors,
+            'total_skipped': total_skipped,
+            'by_sheet': results,
+        }
+    )

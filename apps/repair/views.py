@@ -9,8 +9,11 @@ from django.utils import timezone
 from apps.core.permissions import RoleRequired
 from .models import RepairRequest, RepairImage, RepairSparePart
 from .serializers import (
-    RepairRequestListSerializer, RepairRequestDetailSerializer, RepairRequestCreateSerializer,
-    RepairImageSerializer, RepairSparePartSerializer,
+    RepairRequestListSerializer,
+    RepairRequestDetailSerializer,
+    RepairRequestCreateSerializer,
+    RepairImageSerializer,
+    RepairSparePartSerializer,
 )
 
 
@@ -63,10 +66,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         today = timezone.now().strftime('%Y%m%d')
         count = RepairRequest.objects.filter(request_no__startswith=f'REP{today}').count()
-        serializer.save(
-            request_no=f'REP{today}{str(count + 1).zfill(4)}',
-            created_by=self.request.user
-        )
+        serializer.save(request_no=f'REP{today}{str(count + 1).zfill(4)}', created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def assign(self, request, pk=None):
@@ -83,6 +83,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['assigned_to', 'assigned_at', 'status'])
         try:
             from apps.tasks.notification_service import notify_repair_action
+
             notify_repair_action(obj, 'assigned', request.user)
         except Exception:
             logger.exception('通知发送失败(派工)')
@@ -99,6 +100,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['status'])
         try:
             from apps.tasks.notification_service import notify_repair_action
+
             notify_repair_action(obj, 'started', request.user)
         except Exception:
             logger.exception('通知发送失败(开始维修)')
@@ -119,6 +121,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['status', 'completed_at', 'solution', 'repair_cost', 'repair_company'])
         try:
             from apps.tasks.notification_service import notify_repair_action
+
             notify_repair_action(obj, 'completed', request.user)
         except Exception:
             logger.exception('通知发送失败(维修完成)')
@@ -137,6 +140,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['status', 'accepted_at', 'acceptance_result'])
         try:
             from apps.tasks.notification_service import notify_repair_action
+
             notify_repair_action(obj, 'accepted', request.user)
         except Exception:
             logger.exception('通知发送失败(验收通过)')
@@ -153,6 +157,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['status'])
         try:
             from apps.tasks.notification_service import notify_repair_action
+
             notify_repair_action(obj, 'rejected', request.user)
         except Exception:
             logger.exception('通知发送失败(验收不通过)')
@@ -169,6 +174,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj.save(update_fields=['status'])
         try:
             from apps.tasks.notification_service import notify_repair_action
+
             notify_repair_action(obj, 'cancelled', request.user)
         except Exception:
             logger.exception('通知发送失败(取消报修)')
@@ -178,6 +184,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
 
 class RepairImageViewSet(viewsets.ModelViewSet):
     """报修图片"""
+
     queryset = RepairImage.objects.all()
     serializer_class = RepairImageSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -203,6 +210,7 @@ class RepairImageViewSet(viewsets.ModelViewSet):
 
 class RepairSparePartViewSet(viewsets.ModelViewSet):
     """维修配件"""
+
     queryset = RepairSparePart.objects.all()
     serializer_class = RepairSparePartSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]

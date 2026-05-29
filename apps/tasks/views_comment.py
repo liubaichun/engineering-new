@@ -1,16 +1,8 @@
-from rest_framework import viewsets, serializers, status, permissions
-from rest_framework.decorators import action
-from rest_framework.response import Response
+from rest_framework import viewsets, serializers, permissions
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
-from apps.core.permissions import RoleRequired, get_module_companies
-from rest_framework.permissions import AllowAny
-from django.utils import timezone
+from apps.core.permissions import RoleRequired
 from django.contrib.auth import get_user_model
-from datetime import timedelta
-from django.db.models import Q
-from apps.core.serializers import UserSerializer
-from apps.finance.models import Company
 import logging
 
 logger = logging.getLogger(__name__)
@@ -20,6 +12,7 @@ from .models import TaskComment, TaskAttachment, TaskDependency
 
 # ===== 任务评论/附件/依赖 =====
 
+
 class TaskCommentSerializer(serializers.ModelSerializer):
     author_name = serializers.CharField(source='author.username', read_only=True, allow_null=True)
     replies = serializers.SerializerMethodField()
@@ -28,8 +21,19 @@ class TaskCommentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskComment
-        fields = ['id', 'task', 'author', 'author_name', 'content',
-                  'parent', 'replies', 'reply_count', 'created_at', 'updated_at', 'company_id']
+        fields = [
+            'id',
+            'task',
+            'author',
+            'author_name',
+            'content',
+            'parent',
+            'replies',
+            'reply_count',
+            'created_at',
+            'updated_at',
+            'company_id',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_replies(self, obj):
@@ -51,8 +55,18 @@ class TaskAttachmentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskAttachment
-        fields = ['id', 'task', 'file', 'name', 'size',
-                  'uploaded_by', 'uploaded_by_name', 'url', 'created_at', 'company_id']
+        fields = [
+            'id',
+            'task',
+            'file',
+            'name',
+            'size',
+            'uploaded_by',
+            'uploaded_by_name',
+            'url',
+            'created_at',
+            'company_id',
+        ]
         extra_kwargs = {'name': {'required': False}, 'size': {'required': False}}
         read_only_fields = ['id', 'created_at']
 
@@ -85,17 +99,29 @@ class TaskDependencySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = TaskDependency
-        fields = ['id', 'task', 'task_code', 'task_title',
-                  'depends_on', 'depends_on_code', 'depends_on_title', 'depends_on_status',
-                  'dependency_type', 'dependency_type_display', 'created_at', 'company_id']
+        fields = [
+            'id',
+            'task',
+            'task_code',
+            'task_title',
+            'depends_on',
+            'depends_on_code',
+            'depends_on_title',
+            'depends_on_status',
+            'dependency_type',
+            'dependency_type_display',
+            'created_at',
+            'company_id',
+        ]
         read_only_fields = ['id', 'created_at']
-
 
 
 # ===== 任务评论/附件/依赖 ViewSet =====
 
+
 class TaskCommentViewSet(viewsets.ModelViewSet):
     """任务评论视图集"""
+
     queryset = TaskComment.objects.all()
     serializer_class = TaskCommentSerializer
     authentication_classes = [CSRFExemptSessionAuthentication]
@@ -118,6 +144,7 @@ class TaskCommentViewSet(viewsets.ModelViewSet):
 
 class TaskAttachmentViewSet(viewsets.ModelViewSet):
     """任务附件视图集"""
+
     queryset = TaskAttachment.objects.all()
     serializer_class = TaskAttachmentSerializer
     authentication_classes = [CSRFExemptSessionAuthentication]
@@ -141,6 +168,7 @@ class TaskAttachmentViewSet(viewsets.ModelViewSet):
 
 class TaskDependencyViewSet(viewsets.ModelViewSet):
     """任务依赖视图集"""
+
     queryset = TaskDependency.objects.all()
     serializer_class = TaskDependencySerializer
     authentication_classes = [CSRFExemptSessionAuthentication]
@@ -163,12 +191,12 @@ class TaskDependencyViewSet(viewsets.ModelViewSet):
         depends_on = serializer.validated_data['depends_on']
         if task.id == depends_on.id:
             from rest_framework.exceptions import ValidationError
+
             raise ValidationError({'depends_on': '任务不能依赖自己'})
         # 检查循环依赖
-        existing = TaskDependency.objects.filter(
-            task=depends_on, depends_on=task
-        ).exists()
+        existing = TaskDependency.objects.filter(task=depends_on, depends_on=task).exists()
         if existing:
             from rest_framework.exceptions import ValidationError
+
             raise ValidationError({'depends_on': '禁止循环依赖'})
         serializer.save()

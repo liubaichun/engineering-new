@@ -10,6 +10,7 @@
   8. 银行利息、退税 → 营业外收入
   9. 其余 → 主营业务收入
 """
+
 from django.core.management.base import BaseCommand
 from apps.finance.models import Income, Company
 
@@ -23,12 +24,23 @@ INVESTMENT_DESC_PATTERNS = ['投资款']
 
 # 按描述判断内部往来（优先级最高，不看客户名）
 INTERNAL_TRANSFER_DESC_PATTERNS = [
-    '往来', '借款', '还款', '备用金', '退款', '退订金', '退定金',
+    '往来',
+    '借款',
+    '还款',
+    '备用金',
+    '退款',
+    '退订金',
+    '退定金',
 ]
 
 # 内部往来 - 客户名为个人姓名
 INTERNAL_TRANSFER_CUSTOMER_PATTERNS = [
-    '刘柏春', '马利英', '郑晚霞', '沈容', '谢超', '邓阳',
+    '刘柏春',
+    '马利英',
+    '郑晚霞',
+    '沈容',
+    '谢超',
+    '邓阳',
 ]
 
 # 生育津贴 → 内部往来（代收代付，不入损益表）
@@ -39,12 +51,17 @@ SUBSIDY_DESC_PATTERNS = ['稳岗', '稳岗补贴']
 
 # 营业外收入 - 客户名
 NON_OPERATING_CUSTOMER_PATTERNS = [
-    '应付利息', '待报解预算收入', '利息',
+    '应付利息',
+    '待报解预算收入',
+    '利息',
 ]
 
 # 营业外收入 - 描述
 NON_OPERATING_DESC_PATTERNS = [
-    '利息', '退税', '退库', '电子退库',
+    '利息',
+    '退税',
+    '退库',
+    '电子退库',
 ]
 
 
@@ -53,8 +70,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         internal_names = get_internal_names()
-        updated = {'main_business': 0, 'non_operating': 0, 'other_income': 0,
-                   'internal_transfer': 0, 'equity': 0}
+        updated = {'main_business': 0, 'non_operating': 0, 'other_income': 0, 'internal_transfer': 0, 'equity': 0}
 
         for inc in Income.objects.iterator():
             customer = (inc.customer or '').strip()
@@ -111,7 +127,7 @@ class Command(BaseCommand):
 
             inc.save(update_fields=['income_category'])
 
-        self.stdout.write(f'分类完成：')
+        self.stdout.write('分类完成：')
         self.stdout.write(f'  主营业务收入: {updated["main_business"]}条')
         self.stdout.write(f'  营业外收入:   {updated["non_operating"]}条')
         self.stdout.write(f'  其他收益:     {updated["other_income"]}条')

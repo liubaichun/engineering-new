@@ -1,31 +1,22 @@
 import logging
-from rest_framework import viewsets, filters, status, permissions, serializers
+from rest_framework import viewsets, status, permissions, serializers
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from apps.core.auth import CSRFExemptSessionAuthentication
-from drf_spectacular.utils import extend_schema
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-from .models import SystemSetting, CompanyRole, Module, ModuleAction
+from .models import SystemSetting, CompanyRole
 from .serializers import (
     SystemSettingSerializer,
     FinanceCompanySerializer,
-    CompanyRoleSerializer,
-    UserCompanyRoleSerializer,
 )
 from apps.finance.models import Company as FinanceCompany
-from apps.core.permissions import RoleRequired, get_module_companies
+from apps.core.permissions import RoleRequired
+
 
 class SystemSettingViewSet(viewsets.ModelViewSet):
     """系统参数管理视图集"""
+
     queryset = SystemSetting.objects.all()
     serializer_class = SystemSettingSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -68,41 +59,47 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
             elif not https_ok:
                 missing.append('SSL证书')
 
-            return Response({
-                'status': 'ok' if not missing else 'incomplete',
-                'setting_count': count,
-                'domain': domain or '(未配置)',
-                'email_ok': email_ok,
-                'https_ok': https_ok,
-                'missing': missing,
-                'message': '所有外部依赖已就绪 ✓' if not missing else f'还需配置: {", ".join(missing)}'
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {
+                    'status': 'ok' if not missing else 'incomplete',
+                    'setting_count': count,
+                    'domain': domain or '(未配置)',
+                    'email_ok': email_ok,
+                    'https_ok': https_ok,
+                    'missing': missing,
+                    'message': '所有外部依赖已就绪 ✓' if not missing else f'还需配置: {", ".join(missing)}',
+                },
+                status=status.HTTP_200_OK,
+            )
         except Exception as e:
             import traceback
-            return Response({
-                'error': str(e),
-                'type': type(e).__name__,
-                'tb': traceback.format_exc(),
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            return Response(
+                {
+                    'error': str(e),
+                    'type': type(e).__name__,
+                    'tb': traceback.format_exc(),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
     def update(self, request, *args, **kwargs):
         """PATCH /api/core/settings/{key}/ — 更新单个参数"""
         instance = self.get_object()
         new_value = request.data.get('value')
         if new_value is None:
-            return Response({'status': 'error', 'message': 'value 不能为空'},
-                          status=status.HTTP_400_BAD_REQUEST)
+            return Response({'status': 'error', 'message': 'value 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
         instance.value = new_value
         try:
             instance.save(update_fields=['value', 'updated_at'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'保存设置失败：{str(e)}'},
-                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        return Response({
-            'status': 'success',
-            'message': '设置已更新',
-            'data': SystemSettingSerializer(instance).data
-        }, status=status.HTTP_200_OK)
+            return Response(
+                {'status': 'error', 'message': f'保存设置失败：{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        return Response(
+            {'status': 'success', 'message': '设置已更新', 'data': SystemSettingSerializer(instance).data},
+            status=status.HTTP_200_OK,
+        )
 
     def partial_update(self, request, *args, **kwargs):
         return self.update(request, *args, **kwargs)
@@ -110,6 +107,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
 
 class FinanceCompanyViewSet(viewsets.ModelViewSet):
     """公司信息管理视图集"""
+
     queryset = FinanceCompany.objects.all()
     serializer_class = FinanceCompanySerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
@@ -125,13 +123,14 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
     def active(self, request):
         """获取所有启用状态的公司"""
         companies = FinanceCompany.objects.filter(status='active').order_by('name')
-        return Response({
-            'status': 'success',
-            'companies': FinanceCompanySerializer(companies, many=True).data
-        }, status=status.HTTP_200_OK)
+        return Response(
+            {'status': 'success', 'companies': FinanceCompanySerializer(companies, many=True).data},
+            status=status.HTTP_200_OK,
+        )
 
 
 # ── 公司角色定义 CRUD ────────────────────────────────────────────────────────
+
 
 class CompanyRoleDefViewSet(viewsets.ModelViewSet):
     """
@@ -142,6 +141,7 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
     POST /api/core/company-role-defs/                        → {company_id, name, code, description}
     PATCH/DELETE /api/core/company-role-defs/{id}/          → 更新/删除
     """
+
     queryset = CompanyRole.objects.select_related('company')
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     lookup_field = 'id'
@@ -174,6 +174,7 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # 检查是否已有用户分配了这个角色
         from .models import UserCompanyRole
+
         if UserCompanyRole.objects.filter(company_role=instance).exists():
             raise serializers.ValidationError({'detail': '该角色已有用户分配，无法删除'})
         instance.delete()
@@ -181,6 +182,7 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
     def _sync_permissions(self, role, permission_ids):
         from django.db import transaction
         from .models import CompanyRolePermission, Permission
+
         with transaction.atomic():
             CompanyRolePermission.objects.filter(company_role=role).delete()
             for perm_id in permission_ids:
@@ -194,14 +196,24 @@ class CompanyRoleDefViewSet(viewsets.ModelViewSet):
 
 class CompanyRoleDefListSerializer(serializers.ModelSerializer):
     """角色定义列表序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     permission_count = serializers.SerializerMethodField()
 
     class Meta:
         model = CompanyRole
-        fields = ['id', 'name', 'code', 'description', 'is_active',
-                  'company', 'company_name', 'permission_count',
-                  'created_at', 'updated_at']
+        fields = [
+            'id',
+            'name',
+            'code',
+            'description',
+            'is_active',
+            'company',
+            'company_name',
+            'permission_count',
+            'created_at',
+            'updated_at',
+        ]
 
     def get_permission_count(self, obj):
         return obj.permissions.count()
@@ -209,6 +221,7 @@ class CompanyRoleDefListSerializer(serializers.ModelSerializer):
 
 class CompanyRoleDefSerializer(serializers.ModelSerializer):
     """角色定义详情序列化器（包含权限列表）"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     permissions = serializers.SerializerMethodField()
     # permission_ids: 写入时接受 [perm_id, ...]，写入 CompanyRolePermission 中间表
@@ -218,9 +231,19 @@ class CompanyRoleDefSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CompanyRole
-        fields = ['id', 'name', 'code', 'description', 'is_active',
-                  'company', 'company_name', 'permissions', 'permission_ids',
-                  'created_at', 'updated_at']
+        fields = [
+            'id',
+            'name',
+            'code',
+            'description',
+            'is_active',
+            'company',
+            'company_name',
+            'permissions',
+            'permission_ids',
+            'created_at',
+            'updated_at',
+        ]
         read_only_fields = ['created_at', 'updated_at']
 
     def get_permissions(self, obj):

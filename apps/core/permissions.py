@@ -88,17 +88,23 @@ class RoleRequired(BasePermission):
             module_name = parts[0]
 
         from apps.core.models import UserModulePermission, ACTION_BITS
+
         bit = ACTION_BITS.get(action_name)
         if not bit:
             return False
 
         # 跨公司权限检查：只要用户在任意公司有这个模块的对应权限就放行
         # 数据过滤由 get_queryset() 中的 get_module_companies() 精确控制
-        return UserModulePermission.objects.filter(
-            user=user,
-            module__name=module_name,
-            granted_bits__gte=bit,
-        ).extra(where=["granted_bits & %s = %s"], params=[bit, bit]).exists()
+        return (
+            UserModulePermission.objects.filter(
+                user=user,
+                module__name=module_name,
+                granted_bits__gte=bit,
+            )
+            .extra(where=['granted_bits & %s = %s'], params=[bit, bit])
+            .exists()
+        )
+
     def _resolve_action_perm(self, request, view):
         """
         解析当前 action 对应的权限码。
@@ -173,34 +179,34 @@ class RoleRequired(BasePermission):
 
     VIEW_CATEGORY_MAP = {
         # core app → DB category 是 'system'（不是 'core'）
-        'UserViewSet':                ('system', 'user'),
-        'CompanyRoleViewSet':         ('system', 'role'),
-        'LoginLogViewSet':            ('system', 'log'),
-        'OperationAuditLogViewSet':   ('system', 'log'),
-        'PermissionAuditLogViewSet':  ('system', 'log'),
-        'SystemSettingViewSet':       ('system', 'setting'),
-        'NotificationViewSet':        ('notifications', 'channel'),
+        'UserViewSet': ('system', 'user'),
+        'CompanyRoleViewSet': ('system', 'role'),
+        'LoginLogViewSet': ('system', 'log'),
+        'OperationAuditLogViewSet': ('system', 'log'),
+        'PermissionAuditLogViewSet': ('system', 'log'),
+        'SystemSettingViewSet': ('system', 'setting'),
+        'NotificationViewSet': ('notifications', 'channel'),
         # finance app 下的 FinanceCompanyViewSet 映射到 finance:company（而非 core:company）
-        'FinanceCompanyViewSet':      ('finance', 'company'),
+        'FinanceCompanyViewSet': ('finance', 'company'),
         # core app 下的 EmployeeCompanyViewSet → finance:employee
-        'EmployeeCompanyViewSet':     ('finance', 'employee'),
+        'EmployeeCompanyViewSet': ('finance', 'employee'),
         # approvals app：model 名是 ApprovalFlow/ApprovalNode → DB category=approval
-        'ApprovalFlowViewSet':       ('approval', 'flow'),
-        'ApprovalNodeViewSet':       ('approval', 'node'),
-        'ApprovalTemplateViewSet':    ('approval', 'template'),
+        'ApprovalFlowViewSet': ('approval', 'flow'),
+        'ApprovalNodeViewSet': ('approval', 'node'),
+        'ApprovalTemplateViewSet': ('approval', 'template'),
         # crm app：ClientViewSet 对应 DB resource='customer'
-        'ClientViewSet':             ('crm', 'customer'),
+        'ClientViewSet': ('crm', 'customer'),
         # finance app 特殊资源名
-        'BankAccountViewSet':        ('finance', 'bank'),
+        'BankAccountViewSet': ('finance', 'bank'),
         'CompanySocialConfigViewSet': ('finance', 'company'),
-        'EmployeeViewSet':           ('finance', 'employee'),
-        'WageRecordViewSet':         ('finance', 'wage'),
-        'InvoiceViewSet':           ('finance', 'invoice'),
-        'MaterialViewSet':          ('material', 'stock'),  # material:stock 是 DB 中的资源名
+        'EmployeeViewSet': ('finance', 'employee'),
+        'WageRecordViewSet': ('finance', 'wage'),
+        'InvoiceViewSet': ('finance', 'invoice'),
+        'MaterialViewSet': ('material', 'stock'),  # material:stock 是 DB 中的资源名
         # repair app
-        'RepairRequestViewSet':       ('repair', 'repair_request'),
-        'RepairImageViewSet':        ('repair', 'repair_request'),
-        'RepairSparePartViewSet':    ('repair', 'repair_request'),
+        'RepairRequestViewSet': ('repair', 'repair_request'),
+        'RepairImageViewSet': ('repair', 'repair_request'),
+        'RepairSparePartViewSet': ('repair', 'repair_request'),
     }
 
     @staticmethod
@@ -247,22 +253,27 @@ class RoleRequired(BasePermission):
 
 # ─── 常用角色权限预定义 ──────────────────────────────────────────────────────
 
+
 class FinanceOnly(RoleRequired):
     """财务专用：仅 admin 和 finance 角色可访问"""
+
     required_roles = ['admin', 'finance']
 
 
 class ManagerOnly(RoleRequired):
     """管理层专用：admin / manager / finance"""
+
     required_roles = ['admin', 'manager', 'finance']
 
 
 class AdminOnly(RoleRequired):
     """系统管理员：仅 admin 角色"""
+
     required_roles = ['admin']
 
 
 # ─── 函数视图权限装饰器 ──────────────────────────────────────────────────────
+
 
 def require_perms(perm_code, required_roles=None):
     """
@@ -280,6 +291,7 @@ def require_perms(perm_code, required_roles=None):
     链路：superuser bypass → required_roles（系统级）→ UCP(perm_code, is_granted=True)
           无任何兜底，UCP 无记录则 403。
     """
+
     def decorator(view_func):
         @wraps(view_func)
         def wrapped(request, *args, **kwargs):
@@ -306,7 +318,9 @@ def require_perms(perm_code, required_roles=None):
                 return JsonResponse({'detail': '您没有执行该操作的权限。'}, status=403)
 
             return view_func(request, *args, **kwargs)
+
         return wrapped
+
     return decorator
 
 
@@ -328,6 +342,7 @@ def _resolve_company_id(request):
 def _check_ucp(user, company_id, perm_code):
     """检查用户在指定公司+权限码下是否有 UMP 授权（位掩码）"""
     from apps.core.models import UserModulePermission, ACTION_BITS
+
     parts = perm_code.split(':')
     action_name = parts[-1]
     module_name = parts[1] if len(parts) == 3 else parts[0]
@@ -336,11 +351,15 @@ def _check_ucp(user, company_id, perm_code):
     if not bit:
         return False
 
-    return UserModulePermission.objects.filter(
-        user=user,
-        company_id=company_id,
-        module__name=module_name,
-    ).extra(where=["granted_bits & %s = %s"], params=[bit, bit]).exists()
+    return (
+        UserModulePermission.objects.filter(
+            user=user,
+            company_id=company_id,
+            module__name=module_name,
+        )
+        .extra(where=['granted_bits & %s = %s'], params=[bit, bit])
+        .exists()
+    )
 
 
 def get_module_companies(user, module_name, action='read'):
@@ -363,6 +382,7 @@ def get_module_companies(user, module_name, action='read'):
         return None  # 超管：不过滤
 
     from apps.core.models import UserModulePermission, ACTION_BITS
+
     bit = ACTION_BITS.get(action)
     if not bit:
         return []
@@ -371,7 +391,9 @@ def get_module_companies(user, module_name, action='read'):
         UserModulePermission.objects.filter(
             user=user,
             module__name=module_name,
-        ).extra(where=["granted_bits & %s = %s"], params=[bit, bit])
-        .values_list('company_id', flat=True).distinct()
+        )
+        .extra(where=['granted_bits & %s = %s'], params=[bit, bit])
+        .values_list('company_id', flat=True)
+        .distinct()
     )
     return cids if cids else []

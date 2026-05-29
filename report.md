@@ -1,6 +1,6 @@
 # GREEN ERP Code Quality & Security Pattern Analysis
 
-**Generated:** 2026-05-29  
+**Generated:** 2026-05-29
 **Scope:** 195 Python files (excluding migrations, venv, __pycache__) in /root/engineering-new/
 
 ---
@@ -74,10 +74,10 @@ Most `.save()` calls lack try/except blocks. Key areas without wrapping:
 - `apps/equipment/views.py` — 4 calls (lines 78-165)
 
 ### 3. Raw SQL queries — `extra()` used
-**File:** `apps/core/permissions.py`  
-- Line 101: `).extra(where=["granted_bits & %d = %d" % (bit, bit)]).exists()`  
-- Line 343: `).extra(where=["granted_bits & %d = %d" % (bit, bit)]).exists()`  
-- Line 374: `).extra(where=["granted_bits & %d = %d" % (bit, bit)])`  
+**File:** `apps/core/permissions.py`
+- Line 101: `).extra(where=["granted_bits & %d = %d" % (bit, bit)]).exists()`
+- Line 343: `).extra(where=["granted_bits & %d = %d" % (bit, bit)]).exists()`
+- Line 374: `).extra(where=["granted_bits & %d = %d" % (bit, bit)])`
 These use string formatting for SQL parameters — potential SQL injection if parameters come from user input.
 
 ---

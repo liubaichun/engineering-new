@@ -1,19 +1,36 @@
-from rest_framework import viewsets, mixins
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
-from .models import Client, Contract, Supplier, ClientSource, Contact, FollowUpRecord, PaymentPlan, ContractChangeLog, Opportunity
+from .models import (
+    Client,
+    Contract,
+    Supplier,
+    ClientSource,
+    Contact,
+    FollowUpRecord,
+    PaymentPlan,
+    ContractChangeLog,
+    Opportunity,
+)
 from .serializers import (
-    ClientSerializer, ContractSerializer, SupplierSerializer,
-    ClientSourceSerializer, ContactSerializer, FollowUpRecordSerializer,
-    PaymentPlanSerializer, ContractChangeLogSerializer,
-    OpportunitySerializer, OpportunityStageStatsSerializer,
+    ClientSerializer,
+    ContractSerializer,
+    SupplierSerializer,
+    ClientSourceSerializer,
+    ContactSerializer,
+    FollowUpRecordSerializer,
+    PaymentPlanSerializer,
+    ContractChangeLogSerializer,
+    OpportunitySerializer,
 )
 from rest_framework.permissions import IsAuthenticated
 from apps.core.permissions import RoleRequired, get_module_companies
 
+
 class ClientSourceViewSet(viewsets.ModelViewSet):
     """客户来源管理"""
+
     queryset = ClientSource.objects.all()
     serializer_class = ClientSourceSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -34,8 +51,10 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
             return base_qs.filter(company_id__in=cids)
         return ClientSource.objects.none()
 
+
 class SupplierViewSet(viewsets.ModelViewSet):
     """供应商管理"""
+
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -68,6 +87,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
     def export(self, request):
         """导出供应商 Excel"""
         from apps.core.export_excel import export_suppliers, make_export_response
+
         queryset = self.get_queryset()
         records = queryset.all()
         buf = export_suppliers(list(records))
@@ -76,6 +96,7 @@ class SupplierViewSet(viewsets.ModelViewSet):
 
 class ClientViewSet(viewsets.ModelViewSet):
     """客户管理"""
+
     queryset = Client.objects.all()
     serializer_class = ClientSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -108,6 +129,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     def export(self, request):
         """导出客户 Excel"""
         from apps.core.export_excel import export_clients, make_export_response
+
         queryset = self.get_queryset()
         records = queryset.all()
         buf = export_clients(list(records))
@@ -116,6 +138,7 @@ class ClientViewSet(viewsets.ModelViewSet):
 
 class ContractViewSet(viewsets.ModelViewSet):
     """合同管理"""
+
     queryset = Contract.objects.all()
     serializer_class = ContractSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -152,6 +175,7 @@ class ContractViewSet(viewsets.ModelViewSet):
             instance = serializer.save(created_by=self.request.user)
             try:
                 from apps.tasks.notification_service import notify_contract_created
+
                 notify_contract_created(instance)
             except Exception:
                 pass
@@ -162,6 +186,7 @@ class ContractViewSet(viewsets.ModelViewSet):
     def export(self, request):
         """导出合同 Excel"""
         from apps.core.export_excel import export_contracts, make_export_response
+
         queryset = self.get_queryset()
         records = queryset.select_related('client', 'project', 'created_by')
         buf = export_contracts(list(records))
@@ -192,6 +217,7 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response({'detail': f'驳回失败：{str(e)}'}, status=500)
         try:
             from apps.tasks.notification_service import notify_contract_rejected
+
             notify_contract_rejected(contract)
         except Exception:
             pass
@@ -210,6 +236,7 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response({'detail': f'生效失败：{str(e)}'}, status=500)
         try:
             from apps.tasks.notification_service import notify_contract_approved
+
             notify_contract_approved(contract)
         except Exception:
             pass
@@ -294,6 +321,7 @@ class ContractViewSet(viewsets.ModelViewSet):
 
 class PaymentPlanViewSet(viewsets.ModelViewSet):
     """付款计划管理"""
+
     queryset = PaymentPlan.objects.all()
     serializer_class = PaymentPlanSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -335,6 +363,7 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
     def _sync_contract_payment(self, contract):
         """同步合同实付总额和付款状态"""
         from django.db.models import Sum
+
         agg = contract.payment_plans.aggregate(total=Sum('paid_amount'))
         total_paid = agg['total'] or 0
         total_amount = contract.amount or 0
@@ -383,6 +412,7 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
 
 class ContractChangeLogViewSet(viewsets.ModelViewSet):
     """合同变更记录"""
+
     queryset = ContractChangeLog.objects.all()
     serializer_class = ContractChangeLogSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -422,6 +452,7 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
 
 class ContactViewSet(viewsets.ModelViewSet):
     """联系人管理"""
+
     queryset = Contact.objects.all()
     serializer_class = ContactSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -454,6 +485,7 @@ class ContactViewSet(viewsets.ModelViewSet):
 
 class FollowUpRecordViewSet(viewsets.ModelViewSet):
     """跟进记录管理"""
+
     queryset = FollowUpRecord.objects.all()
     serializer_class = FollowUpRecordSerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -487,6 +519,7 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
 
 class OpportunityViewSet(viewsets.ModelViewSet):
     """CRM商机视图集 — 销售漏斗管理"""
+
     queryset = Opportunity.objects.all()
     serializer_class = OpportunitySerializer
     permission_classes = [IsAuthenticated, RoleRequired]
@@ -528,20 +561,23 @@ class OpportunityViewSet(viewsets.ModelViewSet):
         stage_order = ['lead', 'qualify', 'proposal', 'negotiation', 'won', 'lost']
         stage_probs = {'lead': 10, 'qualify': 30, 'proposal': 50, 'negotiation': 80, 'won': 100, 'lost': 0}
         from django.db.models import Sum
+
         result = []
         for stage in stage_order:
             items = queryset.filter(stage=stage)
             count = items.count()
             total = items.aggregate(total_amount=Sum('expected_amount'))['total_amount'] or 0
             weighted = sum(float(i.expected_amount or 0) * i.probability / 100 for i in items)
-            result.append({
-                'stage': stage,
-                'stage_display': dict(Opportunity.STAGE_CHOICES).get(stage, stage),
-                'count': count,
-                'total_amount': total,
-                'total_weighted': round(weighted, 2),
-                'probability': stage_probs.get(stage, 0),
-            })
+            result.append(
+                {
+                    'stage': stage,
+                    'stage_display': dict(Opportunity.STAGE_CHOICES).get(stage, stage),
+                    'count': count,
+                    'total_amount': total,
+                    'total_weighted': round(weighted, 2),
+                    'probability': stage_probs.get(stage, 0),
+                }
+            )
         # 漏斗整体加权总额汇总
         grand_weighted = round(sum(s['total_weighted'] for s in result), 2)
         return Response({'stages': result, 'total_weighted': grand_weighted})
@@ -558,6 +594,7 @@ class OpportunityViewSet(viewsets.ModelViewSet):
                 opp.stage = next_stage
                 if next_stage == 'won':
                     from datetime import date
+
                     opp.actual_close_date = date.today()
                 try:
                     opp.save(update_fields=['stage', 'actual_close_date'])
@@ -572,6 +609,7 @@ class OpportunityViewSet(viewsets.ModelViewSet):
         opp = self.get_object()
         opp.stage = 'won'
         from datetime import date
+
         opp.actual_close_date = date.today()
         try:
             opp.save(update_fields=['stage', 'actual_close_date'])

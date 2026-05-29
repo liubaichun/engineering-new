@@ -94,7 +94,7 @@ class TenantAwareMixin(models.Model):
         default=0,
         help_text='平台分配的租户ID，0=平台公共数据'
     )
-    
+
     class Meta:
         abstract = True
 ```
@@ -104,13 +104,13 @@ class TenantAwareMixin(models.Model):
 ```python
 class TenantMiddleware:
     """多租户中间件——自动为所有查询注入 tenant_id 过滤"""
-    
+
     def resolve_tenant(self, request):
         """从请求中解析租户ID（优先级：JWT → 子域名 → Session → Header）"""
         # 1. 优先从JWT中取（不暴露在payload，从签名中提取）
         # 2. 其次从子域名查路由表
         # 3. 最后从请求 Header: X-Tenant-Id
-        
+
     def process_queryset(self, queryset, request):
         """自动注入租户过滤"""
         tenant_id = self.resolve_tenant(request)
@@ -197,7 +197,7 @@ server {
     server_name *.green-erp.com;
     ssl_certificate /etc/letsencrypt/live/green-erp.com/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/green-erp.com/privkey.pem;
-    
+
     location / {
         proxy_pass http://127.0.0.1:8001;
         proxy_set_header Host $host;
@@ -335,33 +335,33 @@ DNS → Nginx → 应用
 ```python
 class AuthMiddleware:
     """认证中间件——JWT + 服务端Session双重校验"""
-    
+
     TOKEN_HEADER = 'Authorization'
     SESSION_PREFIX = 'user_session:'
-    
+
     def authenticate(self, request):
         # Step 1: 从请求头提取JWT
         token = request.headers.get(self.TOKEN_HEADER, '').replace('Bearer ', '')
-        
+
         # Step 2: 验证JWT签名
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
             session_id = payload['sid']  # Session ID
         except:
             raise AuthenticationFailed('Token无效')
-        
+
         # Step 3: 查服务端Session
         session_data = redis.get(f'{SESSION_PREFIX}{session_id}')
         if not session_data:
             raise AuthenticationFailed('Session过期')
-        
+
         # Step 4: 校验tenant_id与请求域名匹配
         tenant_id_from_session = session_data['tenant_id']
         tenant_id_from_route = resolve_tenant_from_domain(request)
-        
+
         if tenant_id_from_session != tenant_id_from_route:
             raise AuthenticationFailed('租户不匹配')
-        
+
         # Step 5: 返回认证用户（含租户信息）
         return AuthUser(
             user_id=session_data['user_id'],
@@ -381,7 +381,7 @@ class PlatformUser(models.Model):
     email = models.EmailField(unique=True)
     password_hash = models.CharField(max_length=128)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'platform_user'
 
@@ -393,7 +393,7 @@ class TenantUser(models.Model):
     display_name = models.CharField(max_length=100)  # 在租户内的显示名
     role = models.CharField(max_length=50, choices=ROLE_CHOICES)
     is_active = models.BooleanField(default=True)
-    
+
     class Meta:
         db_table = 'tenant_user'
         unique_together = [('platform_user', 'tenant')]
@@ -420,7 +420,7 @@ class ApiToken(models.Model):
     permissions = models.JSONField(default=list)  # 允许的API范围
     expires_at = models.DateTimeField(null=True, blank=True)
     last_used_at = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
         db_table = 'platform_api_token'
 ```
@@ -440,10 +440,10 @@ class TenantAwareModel(models.Model):
         db_index=True,
         verbose_name='所属租户'
     )
-    
+
     class Meta:
         abstract = True
-    
+
     @classmethod
     def get_tenant_queryset(cls, tenant_id):
         """获取特定租户的查询集"""
@@ -451,7 +451,7 @@ class TenantAwareModel(models.Model):
 
 class TenantAwareManager(models.Manager):
     """自动过滤租户的管理器"""
-    
+
     def get_queryset(self):
         qs = super().get_queryset()
         tenant_id = get_current_tenant_id()
@@ -465,10 +465,10 @@ class TenantAwareManager(models.Manager):
 ```python
 class TenantIsolationMiddleware:
     """租户隔离中间件"""
-    
+
     def __init__(self, get_response):
         self.get_response = get_response
-    
+
     def __call__(self, request):
         # 解析当前租户
         tenant = self.resolve_tenant(request)
@@ -480,9 +480,9 @@ class TenantIsolationMiddleware:
         else:
             request.tenant = None
             request.tenant_id = None
-        
+
         response = self.get_response(request)
-        
+
         # 清理线程局部变量
         clear_current_tenant_id()
         return response
@@ -494,7 +494,7 @@ class TenantIsolationMiddleware:
 # 显式声明跨租户查询
 with platform_context():
     all_tenants_data = SocialRecord.objects.all()
-    
+
 # 或使用 .bypass_tenant() 方法
 stats = SocialRecord.objects.bypass_tenant().filter(
     year_month='2026-05'
@@ -755,14 +755,14 @@ class TenantMetrics(models.Model):
     存储空间: 100MB
     API次数: 1000/月
     功能: 核心平台（不含行业包）
-    
+
   Pro:
     月费: ¥299/月
     用户数上限: 20
     存储空间: 1GB
     API次数: 50000/月
     功能: 核心平台 + 1个行业包
-    
+
   Enterprise:
     月费: ¥999/月
     用户数上限: 100
@@ -794,7 +794,7 @@ class Subscription(models.Model):
     ended_at = models.DateTimeField('结束时间', null=True, blank=True)
     # 按比例计算（月中升级）
     next_billing_date = models.DateField('下次扣费日')
-    
+
     def pro_rate_upgrade(self, new_plan, upgrade_date):
         """月中升级按比例计算差价"""
         days_in_month = days_in_month(upgrade_date)
@@ -894,7 +894,7 @@ class TenantDataExport(models.Model):
         ('completed', '已完成'),
         ('failed', '导出失败'),
     ]
-    
+
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     requester = models.ForeignKey(TenantUser, on_delete=models.CASCADE)
     export_format = models.CharField('导出格式', max_length=10, choices=[
@@ -974,12 +974,12 @@ regions:
     - 电子商务法: 交易记录保留不少于3年
     - 会计法: 财务凭证保留不少于10年
     - 处理: 退租后业务数据删除，但财务记录匿名化保留
-    
+
   EU (GDPR):
     - 用户有权要求删除所有数据（被遗忘权）
     - 处理时限: 30天内完成
     - 处理: 收到删除请求后全量清理，出具删除证明
-    
+
   US:
     - 各州法规不同
     - 处理: 默认保留90天，按需协商
@@ -1037,14 +1037,14 @@ backup:
     schedule: "0 2 * * *"    # 每天凌晨2点
     retention: 7天
     storage: 对象存储(OSS/S3)
-  
+
   pro:
     type: full + WAL
     schedule: "0 2 * * *"    # 全量每天
     wal_interval: 1小时
     retention: 30天
     storage: 对象存储 + 异地副本
-  
+
   enterprise:
     type: streaming + WAL
     replica: 只读副本(实时同步)
@@ -1063,12 +1063,12 @@ backup:
       - 模拟单DB实例故障 → 从备份恢复
       - 模拟服务器宕机 → 切换到备用服务器
       - 模拟数据损坏 → 时间点恢复(PITR)
-    
+
     验证指标:
       - Free: RTO < 48h, RPO < 24h
       - Pro: RTO < 4h, RPO < 1h
       - Enterprise: RTO < 30min, RPO < 5min
-    
+
     演练记录:
       - 演练日期
       - 实际RTO/RPO
@@ -1109,25 +1109,25 @@ backup:
 ```python
 class WebhookEvent:
     """平台事件类型"""
-    
+
     # 财务事件
     INCOME_CREATED = 'finance.income.created'           # 收入创建
     EXPENSE_CREATED = 'finance.expense.created'         # 支出创建
     INVOICE_ISSUED = 'finance.invoice.issued'           # 发票开出
     PAYMENT_RECEIVED = 'finance.payment.received'       # 收款到账
     PAYMENT_SENT = 'finance.payment.sent'               # 付款成功
-    
+
     # 业务事件
     ORDER_CREATED = 'sales.order.created'               # 销售订单创建
     ORDER_SHIPPED = 'sales.order.shipped'               # 销售订单发货
     CONTRACT_SIGNED = 'crm.contract.signed'             # 合同签署
     PROJECT_COMPLETED = 'tasks.project.completed'       # 项目完成
-    
+
     # 预警事件
     STOCK_LOW = 'inventory.stock.low'                   # 库存预警
     RECEIVABLE_OVERDUE = 'finance.receivable.overdue'   # 应收逾期
     CONTRACT_EXPIRING = 'crm.contract.expiring'         # 合同即将到期
-    
+
     # 系统事件
     USER_CREATED = 'system.user.created'                # 用户创建
     TENANT_USAGE_EXCEEDED = 'system.tenant.usage.exceeded'  # 用量超限
@@ -1143,7 +1143,7 @@ class WebhookEndpoint(models.Model):
     secret = models.CharField('签名密钥', max_length=64)
     events = models.JSONField('订阅事件', default=list)
     # 如: ["finance.income.created", "finance.payment.received"]
-    
+
     is_active = models.BooleanField('启用', default=True)
     retry_count = models.IntegerField('重试次数', default=3)
     timeout_seconds = models.IntegerField('超时秒数', default=10)
@@ -1184,7 +1184,7 @@ signing:
   header: X-Webhook-Signature
   format: "sha256=#{hexdigest}"
   payload: "#{timestamp}.#{body}"
-  
+
 # 幂等性
 idempotency:
   header: X-Webhook-Id
@@ -1231,17 +1231,17 @@ class FeatureFlag(models.Model):
     name = models.CharField('开关名称', max_length=100, unique=True)
     code = models.CharField('开关代码', max_length=50, unique=True)
     description = models.TextField('说明', blank=True)
-    
+
     # 默认值（未配置时的行为）
     default_value = models.BooleanField('默认开启', default=False)
-    
+
     # 开关层级
     scope = models.CharField('作用范围', max_length=20, choices=[
         ('global', '全局'),
         ('tenant', '按租户'),
         ('user', '按用户'),
     ], default='tenant')
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -1250,14 +1250,14 @@ class TenantFeatureFlag(models.Model):
     feature = models.ForeignKey(FeatureFlag, on_delete=models.CASCADE)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)
     is_enabled = models.BooleanField('启用', default=False)
-    
+
     # 灰度比例（按租户ID哈希决定）
-    rollout_percentage = models.IntegerField('灰度比例%', default=0, 
+    rollout_percentage = models.IntegerField('灰度比例%', default=0,
         help_text='0=关闭，100=全部开启，50=50%租户开启')
-    
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         unique_together = [('feature', 'tenant')]
 
@@ -1278,10 +1278,10 @@ def is_feature_enabled(feature_code, user, tenant):
     flag = FeatureFlag.objects.filter(code=feature_code).first()
     if not flag:
         return False
-    
+
     if flag.scope == 'global':
         return flag.default_value
-    
+
     elif flag.scope == 'tenant':
         # 1. 检查是否有显式配置
         tf = TenantFeatureFlag.objects.filter(
@@ -1289,11 +1289,11 @@ def is_feature_enabled(feature_code, user, tenant):
         ).first()
         if tf:
             return tf.is_enabled
-        
+
         # 2. 按灰度比例（哈希一致性，同一租户结果稳定）
         hash_val = hash(f"{tenant.id}_{flag.id}") % 100
         return hash_val < flag.rollout_percentage
-    
+
     elif flag.scope == 'user':
         uf = UserFeatureFlag.objects.filter(
             feature=flag, user=user
@@ -1395,21 +1395,21 @@ CREATE INDEX idx_{table}_tenant_ref ON {table}(tenant_id, reference_id);
 # 按租户API限流
 class TenantRateLimiter:
     """租户级限流——防止单个租户打满所有资源"""
-    
+
     # Free租户
     FREE_LIMITS = {
         'rpm': 60,      # 每分钟请求数
         'rpd': 5000,    # 每天请求数
         'concurrent': 5 # 并发连接数
     }
-    
+
     # Pro租户
     PRO_LIMITS = {
         'rpm': 300,
         'rpd': 50000,
         'concurrent': 20
     }
-    
+
     # Enterprise租户
     ENTERPRISE_LIMITS = {
         'rpm': 1000,
@@ -1424,11 +1424,11 @@ class TenantRateLimiter:
 # 活跃租户 vs 不活跃租户
 class TenantActivityClassifier:
     """租户活跃度分类器——决定资源分配优先级"""
-    
+
     def classify(self, tenant_id):
         last_active = TenantMetrics.get_last_active(tenant_id)
         days_since_active = (now() - last_active).days
-        
+
         if days_since_active <= 1:
             return 'hot'      # 活跃：全资源
         elif days_since_active <= 7:
@@ -1487,19 +1487,19 @@ class TenantActivityClassifier:
 
 for tenant in $(psql -c "SELECT tenant_code FROM platform_tenant_route WHERE is_active=true" -t); do
     echo "=== 检查租户: $tenant ==="
-    
+
     # 1. 可达性检测
     curl -s -o /dev/null -w "%{http_code}" "https://$tenant.green-erp.com/api/health"
-    
+
     # 2. 数据库连接检测
     psql -c "SELECT 1 FROM tenant_${TENANT_ID}.finance_income LIMIT 1"
-    
+
     # 3. 缓存检测
     redis-cli PING
-    
+
     # 4. 磁盘使用率
     df -h | grep /data
-    
+
     # 5. 告警（错误率 > 5%）
     if [ $ERROR_RATE -gt 5 ]; then
         send_alert "租户 $tenant 错误率超过5%"
@@ -1516,21 +1516,21 @@ done
 ```python
 class TenantSecurityMiddleware:
     """防跨租户攻击——每30秒可测试1次绕过漏洞"""
-    
+
     TENANT_ENFORCED_MODELS = [
         'Income', 'Expense', 'WageRecord', 'Invoice',
         'SocialRecord', 'Client', 'Supplier', 'Contract',
         'Material', 'PurchaseOrder', 'Project', 'Task',
         'Notification', 'BankStatement', 'Budget'
     ]
-    
+
     def validate_tenant_access(self, request, model_name, object_id):
         """每次数据访问校验tenant_id"""
         tenant_id = request.tenant_id
-        
+
         # 从查询中解析实际数据
         obj = getattr(models, model_name).objects.get(id=object_id)
-        
+
         # 校验
         if obj.tenant_id != tenant_id:
             # 记录安全事件
@@ -1548,14 +1548,14 @@ class TenantSecurityMiddleware:
 # 敏感字段加密（AES-256-GCM）
 class EncryptedField:
     """加密字段——自动加密写入，解密读取"""
-    
+
     def encrypt(self, plaintext):
         if not plaintext:
             return None
         cipher = AES.new(MASTER_KEY, AES.MODE_GCM)
         ct, tag = cipher.encrypt_and_digest(plaintext.encode())
         return base64.b64encode(cipher.nonce + tag + ct)
-    
+
     def decrypt(self, ciphertext):
         if not ciphertext:
             return ''
@@ -1577,7 +1577,7 @@ class SecurityAuditLog(models.Model):
         ('warning', '警告'),
         ('critical', '严重'),
     ]
-    
+
     event_type = models.CharField(max_length=50)  # login_fail, crosstenant, api_abuse
     tenant_id = models.IntegerField(null=True)
     user_id = models.IntegerField(null=True)
@@ -1586,14 +1586,14 @@ class SecurityAuditLog(models.Model):
     detail = models.JSONField(default=dict)
     severity = models.CharField(max_length=20, choices=SEVERITY_CHOICES)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     class Meta:
         db_table = 'platform_security_audit_log'
         indexes = [
             models.Index(fields=['created_at']),
             models.Index(fields=['tenant_id', 'event_type']),
         ]
-    
+
     @classmethod
     def log(cls, event_type, tenant_id, user_id, ip, detail, severity='info'):
         """追加日志（仅允许写入，不允许修改或删除）"""
@@ -1630,7 +1630,7 @@ class MySerializer(serializers.ModelSerializer):
 # 规则3: 所有视图集自动过滤
 class MyViewSet(viewsets.ModelViewSet):
     queryset = MyModel.objects.all()
-    
+
     def get_queryset(self):
         return self.queryset.filter(tenant=self.request.tenant)
 
@@ -1794,17 +1794,17 @@ rules:
     default: 0
     index: true
     description: 所属租户ID
-    
+
   - field: created_at
     type: DateTimeField
     auto_now_add: true
     description: 创建时间
-    
+
   - field: updated_at
     type: DateTimeField
     auto_now: true
     description: 更新时间
-    
+
   - condition: 所有ForeignKey引用必须跨租户安全
     action: 确保被引用的对象在同一租户下
 
@@ -1824,7 +1824,7 @@ headers:
     type: Integer
     optional: true
     description: 租户ID（JWT和Session失效时备用）
-    
+
   - name: Authorization
     type: Bearer Token
     required: true
@@ -1835,7 +1835,7 @@ success:
   code: 0
   message: "success"
   data: { ... }
-  
+
 error:
   code: 1001   # 错误码
   message: "租户不存在"
@@ -1855,30 +1855,30 @@ error_codes:
 # 多租户测试模板
 class TenantTestCase(TestCase):
     """多租户测试基类"""
-    
+
     def setUp(self):
         self.tenant_a = Tenant.objects.create(name='公司A', code='comp_a')
         self.tenant_b = Tenant.objects.create(name='公司B', code='comp_b')
-        
+
         self.user_a = self._create_user(self.tenant_a, 'admin_a')
         self.user_b = self._create_user(self.tenant_b, 'admin_b')
-    
+
     def test_tenant_isolation(self):
         """测试：租户A的数据对租户B不可见"""
         # 租户A创建数据
         self._login_as(self.tenant_a, self.user_a)
         Income.objects.create(tenant=self.tenant_a, amount=100)
-        
+
         # 租户B查询（应该看不到）
         self._login_as(self.tenant_b, self.user_b)
         qs = Income.objects.all()
         self.assertEqual(qs.count(), 0)
-    
+
     def test_crosstenant_blocked(self):
         """测试：跨租户访问被阻止"""
         self._login_as(self.tenant_a, self.user_a)
         income = Income.objects.create(tenant=self.tenant_a, amount=100)
-        
+
         # 尝试跨租户访问
         with self.assertRaises(PermissionDenied):
             self.client.get(f'/api/finance/income/{income.id}/',
@@ -1894,25 +1894,25 @@ infrastructure:
     - 通配符证书配置
     - 自定义域名转发
     - 限流配置(按域名)
-    
+
   database:
     - PostgreSQL 15+
     - 连接池(PgBouncer)
     - 读写分离配置
     - 备份策略(按租户)
-    
+
   cache:
     - Redis 7+
     - 集群模式(3节点)
     - RDB+AOF持久化
     - 内存使用率监控
-    
+
   application:
     - Gunicorn + Uvicorn
     - 水平扩展(3+实例)
     - 健康检查端点
     - 优雅关闭
-    
+
   monitoring:
     - Prometheus + Grafana
     - 租户级指标

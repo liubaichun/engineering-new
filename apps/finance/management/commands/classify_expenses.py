@@ -6,6 +6,7 @@
   - 报销款 → office
   - 其他根据摘要关键词细分
 """
+
 from django.core.management.base import BaseCommand
 from apps.finance.models import Expense
 
@@ -46,28 +47,37 @@ class Command(BaseCommand):
     help = '批量重分类支出类型'
 
     def handle(self, *args, **options):
-        stats = {'tax': 0, 'salary': 0, 'office': 0, 'travel': 0,
-                 'entertainment': 0, 'communication': 0, 'marketing': 0,
-                 'rd': 0, 'advance': 0, 'other': 0}
-        
+        stats = {
+            'tax': 0,
+            'salary': 0,
+            'office': 0,
+            'travel': 0,
+            'entertainment': 0,
+            'communication': 0,
+            'marketing': 0,
+            'rd': 0,
+            'advance': 0,
+            'other': 0,
+        }
+
         for exp in Expense.objects.iterator():
             cat = (exp.expense_category or '').strip()
             summary = (exp.summary or '').strip()
             etype = (exp.expense_type or '').strip()
-            
+
             # 跳过已有合理分类的记录
             if etype in ('salary', 'social', 'tax', 'advance'):
                 if etype in stats:
                     stats[etype] += 1
                 continue
-            
+
             # 按 expense_category 判断
             new_type = classify_by_bank_category(cat)
-            
+
             # 如果没判断出来，按摘要关键词判断
             if not new_type:
                 new_type = classify_by_summary(summary)
-            
+
             # 还是没判断出来 → 其他
             if not new_type:
                 # 根据供应商名再试一次
@@ -78,15 +88,15 @@ class Command(BaseCommand):
                     new_type = 'tax'
                 else:
                     new_type = 'other'
-            
+
             exp.expense_type = new_type
             exp.save(update_fields=['expense_type'])
-            
+
             if new_type in stats:
                 stats[new_type] += 1
             else:
                 stats[new_type] = 1
-        
+
         self.stdout.write('重分类完成：')
         for k, v in sorted(stats.items(), key=lambda x: -x[1]):
             self.stdout.write(f'  {k}: {v}条')

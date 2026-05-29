@@ -5,9 +5,10 @@
 2. 资产负债表：资产 = 负债 + 所有者权益
 3. 利润表：净利润 = 收入 - 费用
 """
+
 from decimal import Decimal
 from django.core.management.base import BaseCommand
-from apps.finance.models import Company, Account
+from apps.finance.models import Company
 from apps.finance.classification_rules import compute_trial_balance
 
 
@@ -38,10 +39,10 @@ class Command(BaseCommand):
             # 1. 试算平衡：借方总额 = 贷方总额
             total_debit = sum(item['debit_amount'] for item in tb)
             total_credit = sum(item['credit_amount'] for item in tb)
-            debit_close = sum(item['closing_balance'] for item in tb
-                              if item['account_type'] in ('asset', 'expense'))
-            credit_close = sum(item['closing_balance'] for item in tb
-                               if item['account_type'] in ('liability', 'equity', 'income'))
+            debit_close = sum(item['closing_balance'] for item in tb if item['account_type'] in ('asset', 'expense'))
+            credit_close = sum(
+                item['closing_balance'] for item in tb if item['account_type'] in ('liability', 'equity', 'income')
+            )
 
             self.stdout.write(f'  科目数: {len(tb)}')
             self.stdout.write(f'  借方发生额: ¥{format_decimal(total_debit)}')
@@ -77,15 +78,16 @@ class Command(BaseCommand):
             if bs_diff < Decimal('0.01'):
                 self.stdout.write(self.style.SUCCESS('  ✅ 资产负债表平衡：资产 = 负债 + 权益'))
             else:
-                self.stdout.write(self.style.WARNING(
-                    f'  ⚠️ 资产负债表不平衡：差额 ¥{format_decimal(bs_diff)}'
-                    '（说明：银行余额含历史数据，收入/费用仅当年）'))
+                self.stdout.write(
+                    self.style.WARNING(
+                        f'  ⚠️ 资产负债表不平衡：差额 ¥{format_decimal(bs_diff)}'
+                        '（说明：银行余额含历史数据，收入/费用仅当年）'
+                    )
+                )
 
             # 3. 利润表检查
-            income = sum(item['credit_amount'] for item in tb
-                         if item['account_type'] == 'income')
-            expense = sum(item['debit_amount'] for item in tb
-                          if item['account_type'] == 'expense')
+            income = sum(item['credit_amount'] for item in tb if item['account_type'] == 'income')
+            expense = sum(item['debit_amount'] for item in tb if item['account_type'] == 'expense')
             net_profit = income - expense
 
             self.stdout.write(f'  收入: ¥{format_decimal(income)}')
@@ -93,7 +95,7 @@ class Command(BaseCommand):
             self.stdout.write(f'  净利润: ¥{format_decimal(net_profit)}')
 
             # 显示所有非零科目
-            self.stdout.write(f'\n  --- 科目明细 ---')
+            self.stdout.write('\n  --- 科目明细 ---')
             for item in sorted(tb, key=lambda x: x['sort_order']):
                 bal = item['closing_balance']
                 acct_type = item['account_type']

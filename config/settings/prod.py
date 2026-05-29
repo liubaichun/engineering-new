@@ -11,6 +11,7 @@
 📌 SaaS 扩展入口：若要支持多租户动态配置，在此文件顶部插入
    `from .saas import *` 即可加载租户路由；无需改造 base。
 """
+
 from .base import *
 
 # 生产环境默认关闭调试
@@ -24,11 +25,7 @@ DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 # SESSION_COOKIE_SECURE = True
 # CSRF_COOKIE_SECURE = True
 
-CSRF_TRUSTED_ORIGINS = [
-    h.strip()
-    for h in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
-    if h.strip()
-]
+CSRF_TRUSTED_ORIGINS = [h.strip() for h in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if h.strip()]
 
 # ── 生产数据库（PostgreSQL） ──────────────────────────────
 DATABASES = {
@@ -42,7 +39,7 @@ DATABASES = {
         'OPTIONS': {
             'connect_timeout': 10,
         },
-        'CONN_MAX_AGE': None,    # 强制新建连接，让 statement_timeout 生效
+        'CONN_MAX_AGE': None,  # 强制新建连接，让 statement_timeout 生效
         'CONN_HEALTH_CHECKS': True,
     }
 }
@@ -56,23 +53,39 @@ LOGGING = {
             'format': '{levelname} {asctime} {module} {message}',
             'style': '{',
         },
+        'json': {
+            '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+            'format': '%(levelname)s %(asctime)s %(module)s %(name)s %(message)s',
+        },
+        'simple_json': {
+            '()': 'pythonjsonlogger.jsonlogger.JsonFormatter',
+            'format': '%(levelname)s %(asctime)s %(message)s',
+        },
     },
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
+            'formatter': 'json',
         },
         'file': {
-            'level': 'WARNING',
+            'level': 'INFO',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'django.log',
             'maxBytes': 10 * 1024 * 1024,  # 10MB
-            'backupCount': 5,
-            'formatter': 'verbose',
+            'backupCount': 30,  # 保留30天
+            'formatter': 'json',
+        },
+        'error_file': {
+            'level': 'WARNING',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': BASE_DIR / 'logs' / 'error.log',
+            'maxBytes': 10 * 1024 * 1024,
+            'backupCount': 30,
+            'formatter': 'json',
         },
     },
     'root': {
-        'handlers': ['console', 'file'],
+        'handlers': ['console', 'file', 'error_file'],
         'level': 'INFO',
     },
 }

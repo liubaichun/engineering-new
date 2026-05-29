@@ -1,9 +1,9 @@
 # 通知系统 — 需求分析与实施计划
 
-> **版本：** v1.0  
-> **日期：** 2026-05-28  
-> **状态：** ✅ 已确认，待实施  
-> **参考设计：** `knowledge-base/01-requirements/NOTIFICATION-SYSTEM-OPTIMIZATION-V6.md`  
+> **版本：** v1.0
+> **日期：** 2026-05-28
+> **状态：** ✅ 已确认，待实施
+> **参考设计：** `knowledge-base/01-requirements/NOTIFICATION-SYSTEM-OPTIMIZATION-V6.md`
 
 ---
 

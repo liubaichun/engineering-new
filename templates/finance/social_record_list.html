@@ -366,15 +366,15 @@ async function doImport() {
             resultDiv.innerHTML = `<strong>导入完成：</strong>${data.message}<br>新建：${data.created || 0}，更新：${data.updated || 0}`;
             if (data.errors && data.errors.length > 0) {
                 resultDiv.innerHTML += '<br><div class="mt-2"><strong>异常记录：</strong><ul class="mb-0" style="font-size:0.85rem;">' +
-                    data.errors.slice(0, 5).map(function(e) { 
+                    data.errors.slice(0, 5).map(function(e) {
                         return '<li>' + e.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
                     }).join('') +
                     '</ul></div>';
             }
-            setTimeout(() => { 
-                importModal.hide(); 
+            setTimeout(() => {
+                importModal.hide();
                 currentPage = 1;
-                loadRecords(); 
+                loadRecords();
                 loadYearMonths();
             }, 1500);
         } else {

@@ -187,7 +187,7 @@
             </table>
         </div>
     </div>
-    
+
     <!-- 分页 -->
     <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0 条</span>
@@ -394,7 +394,7 @@ document.addEventListener('DOMContentLoaded', function() {
     rejectToRequesterModal = new bootstrap.Modal(document.getElementById('rejectToRequesterModal'));
     transferModal = new bootstrap.Modal(document.getElementById('transferModal'));
     delegateModal = new bootstrap.Modal(document.getElementById('delegateModal'));
-    
+
     loadUsers();
     loadApprovals();
     loadSummary();
@@ -426,7 +426,7 @@ async function loadSummary() {
     } catch (error) {
         console.error('加载汇总数据失败:', error);
     }
-    
+
     try {
         const response = await fetch('/api/approvals/flows/?status=pending', { credentials: 'include' });
         if (response.ok) {
@@ -436,19 +436,19 @@ async function loadSummary() {
     } catch (error) {
         console.error('加载汇总数据失败:', error);
     }
-    
+
     // 月度统计
     try {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        
+
         const approvedRes = await fetch(`/api/approvals/flows/?status=approved&decided_at__gte=${startOfMonth}`, { credentials: 'include' });
         if (approvedRes.ok) {
             const approvedData = await approvedRes.json();
             const el = document.getElementById('monthApproved');
             if (el) el.textContent = approvedData.count || 0;
         }
-        
+
         const rejectedRes = await fetch(`/api/approvals/flows/?status=rejected&decided_at__gte=${startOfMonth}`, { credentials: 'include' });
         if (rejectedRes.ok) {
             const rejectedData = await rejectedRes.json();
@@ -463,11 +463,11 @@ async function loadSummary() {
 async function loadApprovals() {
     const flowType = document.getElementById('filterFlowType').value;
     const status = document.getElementById('filterStatus').value;
-    
+
     let url = `/api/approvals/flows/?page=${currentPage}&page_size=${pageSize}`;
     if (flowType) url += `&flow_type=${flowType}`;
     if (status) url += `&status=${status}`;
-    
+
     try {
         const response = await fetch(url, { credentials: 'include' });
         if (response.ok) {
@@ -486,12 +486,12 @@ async function loadApprovals() {
 
 function renderApprovals(approvals) {
     const tbody = document.getElementById('approvalTableBody');
-    
+
     if (!approvals || approvals.length === 0) {
         tbody.innerHTML = `<tr><td colspan="8" class="text-center text-muted py-4">暂无数据</td></tr>`;
         return;
     }
-    
+
     const typeMap = {
         'payment': '付款审批',
         'project': '立项审批',
@@ -499,7 +499,7 @@ function renderApprovals(approvals) {
         'wage': '工资审批',
         'custom': '自定义审批'
     };
-    
+
     const statusMap = {
         'draft': '草稿',
         'pending': '待审批',
@@ -507,7 +507,7 @@ function renderApprovals(approvals) {
         'rejected': '已拒绝',
         'cancelled': '已取消'
     };
-    
+
     tbody.innerHTML = approvals.map(approval => `
         <tr>
             <td>
@@ -537,14 +537,14 @@ function renderNodeProgress(approval) {
     if (!approval.nodes || approval.nodes.length === 0) {
         return '<span class="text-muted">无节点</span>';
     }
-    
+
     let html = '<div class="node-progress">';
     approval.nodes.forEach((node, index) => {
         let dotClass = 'pending';
         if (node.status === 'approved') dotClass = 'completed';
         else if (node.status === 'rejected') dotClass = 'rejected';
         else if (node.status === 'pending' && index === approval.current_node_order - 1) dotClass = 'current';
-        
+
         html += `<span class="node-dot ${dotClass}" title="${node.approver_name || ''}: ${node.status_display || node.status}">${index + 1}</span>`;
     });
     html += '</div>';
@@ -618,15 +618,15 @@ function renderPagination(totalCount) {
     const paginationInfo = document.getElementById('paginationInfo');
     const start = (currentPage - 1) * pageSize + 1;
     const end = Math.min(currentPage * pageSize, totalCount);
-    
+
     paginationInfo.textContent = `显示 ${start}-${end} 条，共 ${totalCount} 条`;
-    
+
     let html = `
         <li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
             <a class="page-link" href="#" onclick="goToPage(${currentPage - 1}); return false;">上一页</a>
         </li>
     `;
-    
+
     for (let i = 1; i <= totalPages; i++) {
         if (i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
             html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
@@ -636,13 +636,13 @@ function renderPagination(totalCount) {
             html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
         }
     }
-    
+
     html += `
         <li class="page-item ${currentPage === totalPages ? 'disabled' : ''}">
             <a class="page-link" href="#" onclick="goToPage(${currentPage + 1}); return false;">下一页</a>
         </li>
     `;
-    
+
     pagination.innerHTML = html;
 }
 
@@ -694,12 +694,12 @@ async function saveApproval() {
     const amount = document.getElementById('approvalAmount').value;
     const description = document.getElementById('approvalDescription').value;
     const first_approver = document.getElementById('approvalFirstApprover').value;
-    
+
     if (!name || !flow_type || !first_approver) {
         showToast('请填写必填项', 'warning');
         return;
     }
-    
+
     const data = {
         name: name,
         flow_type: flow_type,
@@ -707,17 +707,17 @@ async function saveApproval() {
         description: description,
         first_approver: parseInt(first_approver)
     };
-    
+
     try {
         const response = await fetch('/api/approvals/flows/', {
             method: 'POST',
-            
+
             headers: {
                 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify(data)
         });
-        
+
         if (response.ok) {
             showToast('审批创建成功', 'success');
             approvalModal.hide();
@@ -781,7 +781,7 @@ async function submitApproval(id) {
             credentials: 'include',
             headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
         });
-        
+
         if (response.ok) {
             showToast('审批已提交', 'success');
             loadApprovals();
@@ -819,17 +819,17 @@ function showRejectAction(id) {
 async function confirmApprove() {
     const id = document.getElementById('actionApprovalId').value;
     const comment = document.getElementById('actionComment').value;
-    
+
     try {
         const response = await fetch(`/api/approvals/flows/${id}/approve/`, {
             method: 'POST',
-            
+
             headers: {
                 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ comment: comment })
         });
-        
+
         if (response.ok) {
             showToast('已批准', 'success');
             approvalActionModal.hide();
@@ -851,17 +851,17 @@ async function confirmApprove() {
 async function confirmReject() {
     const id = document.getElementById('actionApprovalId').value;
     const comment = document.getElementById('actionComment').value;
-    
+
     try {
         const response = await fetch(`/api/approvals/flows/${id}/reject/`, {
             method: 'POST',
-            
+
             headers: {
                 'X-CSRFToken': getCookie('csrftoken'), 'Content-Type': 'application/json' },
             credentials: 'include',
             body: JSON.stringify({ comment: comment })
         });
-        
+
         if (response.ok) {
             showToast('已拒绝', 'success');
             approvalActionModal.hide();
@@ -908,7 +908,7 @@ function showRejectToRequesterAction(id) {
 async function confirmRejectToRequester() {
     const id = document.getElementById('rejectToRequesterApprovalId').value;
     const comment = document.getElementById('rejectToRequesterComment').value;
-    
+
     try {
         const response = await fetch(`/api/approvals/flows/${id}/reject_to_requester/`, {
             method: 'POST',
@@ -918,7 +918,7 @@ async function confirmRejectToRequester() {
             credentials: 'include',
             body: JSON.stringify({ comment: comment })
         });
-        
+
         if (response.ok) {
             showToast('已驳回，请申请人修改后重新提交', 'success');
             rejectToRequesterModal.hide();
@@ -946,12 +946,12 @@ async function confirmTransfer() {
     const id = document.getElementById('transferApprovalId').value;
     const targetUserId = document.getElementById('transferTargetUser').value;
     const comment = document.getElementById('transferComment').value;
-    
+
     if (!targetUserId) {
         showToast('请选择转交目标用户', 'warning');
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/approvals/flows/${id}/transfer/`, {
             method: 'POST',
@@ -961,7 +961,7 @@ async function confirmTransfer() {
             credentials: 'include',
             body: JSON.stringify({ target_user_id: parseInt(targetUserId), comment: comment })
         });
-        
+
         if (response.ok) {
             showToast('已转交', 'success');
             transferModal.hide();
@@ -989,12 +989,12 @@ async function confirmDelegate() {
     const id = document.getElementById('delegateApprovalId').value;
     const delegateUserId = document.getElementById('delegateTargetUser').value;
     const comment = document.getElementById('delegateComment').value;
-    
+
     if (!delegateUserId) {
         showToast('请选择委托目标用户', 'warning');
         return;
     }
-    
+
     try {
         const response = await fetch(`/api/approvals/flows/${id}/delegate/`, {
             method: 'POST',
@@ -1004,7 +1004,7 @@ async function confirmDelegate() {
             credentials: 'include',
             body: JSON.stringify({ delegate_user_id: parseInt(delegateUserId), comment: comment })
         });
-        
+
         if (response.ok) {
             showToast('已委托', 'success');
             delegateModal.hide();
@@ -1045,7 +1045,7 @@ function renderDetail(approval) {
         'wage': '工资审批',
         'custom': '自定义审批'
     };
-    
+
     const statusMap = {
         'draft': '草稿',
         'pending': '待审批',
@@ -1053,7 +1053,7 @@ function renderDetail(approval) {
         'rejected': '已拒绝',
         'cancelled': '已取消'
     };
-    
+
     let nodesHtml = '';
     if (approval.nodes && approval.nodes.length > 0) {
         nodesHtml = `
@@ -1079,7 +1079,7 @@ function renderDetail(approval) {
             </div>
         `;
     }
-    
+
     document.getElementById('detailModalBody').innerHTML = `
         <div class="row">
             <div class="col-md-6">

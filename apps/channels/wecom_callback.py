@@ -2,7 +2,7 @@
 企业微信回调/验证接口
 用于处理企业微信应用的 URL 验证和消息回调
 """
-import hashlib
+
 import base64
 import logging
 import struct
@@ -27,20 +27,20 @@ def _decrypt_message(encoding_aes_key, encrypted_msg):
         aes_key = base64.b64decode(encoding_aes_key + '=')
         # Base64 decode encrypted message
         encrypted = base64.b64decode(encrypted_msg)
-        
+
         # AES-256-CBC 解密
         iv = aes_key[:16]
         cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
         decryptor = cipher.decryptor()
         decrypted = decryptor.update(encrypted) + decryptor.finalize()
-        
+
         # 去除 PKCS7 填充
         unpadder = padding.PKCS7(256).unpadder()
         decrypted = unpadder.update(decrypted) + unpadder.finalize()
-        
+
         # 解析：random(16B) + msg_len(4B network order) + msg + corpid(最后)
         msg_len = struct.unpack('>I', decrypted[16:20])[0]
-        msg = decrypted[20:20 + msg_len].decode('utf-8')
+        msg = decrypted[20 : 20 + msg_len].decode('utf-8')
         return msg
     except Exception as e:
         logger.error(f'[WeCom] 解密失败: {e}')
@@ -60,13 +60,13 @@ def wecom_verify(request):
 
     # 解密 echostr
     decrypted = _decrypt_message(WECOM_ENCODING_AES_KEY, echostr)
-    
+
     if decrypted:
         logger.info(f'[WeCom Verify] URL验证成功: {decrypted}')
         return HttpResponse(decrypted)
     else:
         # 解密失败，尝试直接返回 echostr（兼容模式）
-        logger.warning(f'[WeCom Verify] 解密失败，返回原始echostr')
+        logger.warning('[WeCom Verify] 解密失败，返回原始echostr')
         return HttpResponse(echostr)
 
 

@@ -51,9 +51,7 @@ def get_active_company_id(user, request=None):
             try:
                 cid = int(cid)
                 # 验证用户在该公司有 UCP
-                if UserCompanyPermission.objects.filter(
-                    user=user, company_id=cid, is_granted=True
-                ).exists():
+                if UserCompanyPermission.objects.filter(user=user, company_id=cid, is_granted=True).exists():
                     return cid
             except (ValueError, TypeError):
                 pass
@@ -64,9 +62,7 @@ def get_active_company_id(user, request=None):
         if cid:
             try:
                 cid = int(cid)
-                if UserCompanyPermission.objects.filter(
-                    user=user, company_id=cid, is_granted=True
-                ).exists():
+                if UserCompanyPermission.objects.filter(user=user, company_id=cid, is_granted=True).exists():
                     return cid
             except (ValueError, TypeError):
                 pass
@@ -74,6 +70,7 @@ def get_active_company_id(user, request=None):
     # 取用户第一个有权限的公司
     # 优先级：UCP 记录数最多的公司优先（频率最高的公司），其次按 company_id 排序
     from django.db.models import Count
+
     company_counts = (
         UserCompanyPermission.objects.filter(user=user, is_granted=True)
         .values('company_id')

@@ -4,10 +4,10 @@
 - 支持按年月/公司/员工筛选
 - 邮件内容包含工资明细（应发/扣除/实发）
 """
+
 import logging
 from decimal import Decimal
 from django.core.mail import send_mail
-from django.template.loader import render_to_string
 from django.conf import settings
 from django.utils.html import strip_tags
 
@@ -29,32 +29,32 @@ def get_employee_email(wage_record):
 def build_wage_slip_html(wage_record):
     """构建工资条HTML邮件内容"""
     r = wage_record
-    year_month = f"{r.year}年{r.month}月"
+    year_month = f'{r.year}年{r.month}月'
 
     # 计算应发合计
     gross = (
-        (r.base_salary or Decimal('0')) +
-        (r.position_salary or Decimal('0')) +
-        (r.overtime_pay or Decimal('0')) +
-        (r.bonus or Decimal('0')) +
-        (r.commission or Decimal('0')) +
-        (r.meal_allowance or Decimal('0')) +
-        (r.transport_allowance or Decimal('0')) +
-        (r.communication_allowance or Decimal('0')) +
-        (r.other_allowance or Decimal('0'))
+        (r.base_salary or Decimal('0'))
+        + (r.position_salary or Decimal('0'))
+        + (r.overtime_pay or Decimal('0'))
+        + (r.bonus or Decimal('0'))
+        + (r.commission or Decimal('0'))
+        + (r.meal_allowance or Decimal('0'))
+        + (r.transport_allowance or Decimal('0'))
+        + (r.communication_allowance or Decimal('0'))
+        + (r.other_allowance or Decimal('0'))
     )
     total_deduct = (
-        (r.social_insurance or Decimal('0')) +
-        (r.housing_fund or Decimal('0')) +
-        (r.tax or Decimal('0')) +
-        (r.other_deductions or Decimal('0'))
+        (r.social_insurance or Decimal('0'))
+        + (r.housing_fund or Decimal('0'))
+        + (r.tax or Decimal('0'))
+        + (r.other_deductions or Decimal('0'))
     )
 
     def fmt(v):
         if v is None:
             return '0.00'
         if isinstance(v, Decimal):
-            return f"{v:.2f}"
+            return f'{v:.2f}'
         return str(v)
 
     rows = []
@@ -72,7 +72,9 @@ def build_wage_slip_html(wage_record):
     ]
     for label, val in items:
         if val and val > 0:
-            rows.append(f'<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">{label}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">{fmt(val)}</td></tr>')
+            rows.append(
+                f'<tr><td style="padding:6px 12px;border-bottom:1px solid #eee;">{label}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">{fmt(val)}</td></tr>'
+            )
 
     deduct_items = [
         ('社保扣款', r.social_insurance),
@@ -82,7 +84,9 @@ def build_wage_slip_html(wage_record):
     ]
     for label, val in deduct_items:
         if val and val > 0:
-            rows.append(f'<tr style="color:#dc3545;"><td style="padding:6px 12px;border-bottom:1px solid #eee;">{label}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">-{fmt(val)}</td></tr>')
+            rows.append(
+                f'<tr style="color:#dc3545;"><td style="padding:6px 12px;border-bottom:1px solid #eee;">{label}</td><td style="padding:6px 12px;border-bottom:1px solid #eee;text-align:right;">-{fmt(val)}</td></tr>'
+            )
 
     html = f"""
 <!DOCTYPE html>
@@ -147,15 +151,15 @@ def send_wage_slip_email(wage_record, dry_run=False):
     """
     email = get_employee_email(wage_record)
     if not email:
-        return False, f"员工 {wage_record.employee_name or wage_record.employee_id} 未登记邮箱"
+        return False, f'员工 {wage_record.employee_name or wage_record.employee_id} 未登记邮箱'
 
-    subject = f"【工资条】{wage_record.year}年{wage_record.month}月 工资单 - {wage_record.employee_name}"
+    subject = f'【工资条】{wage_record.year}年{wage_record.month}月 工资单 - {wage_record.employee_name}'
     html_content = build_wage_slip_html(wage_record)
     plain_content = strip_tags(html_content)
 
     if dry_run:
-        logger.info(f"[DryRun] Would send wage slip to {email}: {subject}")
-        return True, f"[DryRun] 将发送邮件至 {email}"
+        logger.info(f'[DryRun] Would send wage slip to {email}: {subject}')
+        return True, f'[DryRun] 将发送邮件至 {email}'
 
     try:
         send_mail(
@@ -166,11 +170,11 @@ def send_wage_slip_email(wage_record, dry_run=False):
             html_message=html_content,
             fail_silently=False,
         )
-        logger.info(f"Wage slip sent to {email} for {wage_record.year}-{wage_record.month:02d}")
-        return True, f"已发送至 {email}"
+        logger.info(f'Wage slip sent to {email} for {wage_record.year}-{wage_record.month:02d}')
+        return True, f'已发送至 {email}'
     except Exception as e:
-        logger.error(f"Failed to send wage slip to {email}: {e}")
-        return False, f"发送失败: {str(e)}"
+        logger.error(f'Failed to send wage slip to {email}: {e}')
+        return False, f'发送失败: {str(e)}'
 
 
 def send_wage_slip_batch(year=None, month=None, company_id=None, employee_id=None, dry_run=False):
@@ -181,9 +185,9 @@ def send_wage_slip_batch(year=None, month=None, company_id=None, employee_id=Non
     """
     from apps.finance.models import WageRecord
 
-    queryset = WageRecord.objects.select_related(
-        'company', 'employee', 'employee_company__employee'
-    ).filter(status='paid')
+    queryset = WageRecord.objects.select_related('company', 'employee', 'employee_company__employee').filter(
+        status='paid'
+    )
 
     if year:
         queryset = queryset.filter(year=year)
@@ -202,7 +206,7 @@ def send_wage_slip_batch(year=None, month=None, company_id=None, employee_id=Non
     for record in queryset:
         email = get_employee_email(record)
         if not email:
-            results.append((record.id, False, "无邮箱"))
+            results.append((record.id, False, '无邮箱'))
             skipped += 1
             continue
 

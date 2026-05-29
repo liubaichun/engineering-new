@@ -44,7 +44,7 @@
                 </select>
             </div>
         </div>
-        
+
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
@@ -351,9 +351,9 @@ function editClient(clientId) {
 async function saveClient() {
     var clientId = document.getElementById('clientId').value;
     var name = document.getElementById('clientName').value.trim();
-    
+
     if (!name) { showToast('请输入客户名称', 'warning'); return; }
-    
+
     var payload = {
         name: name,
         contact_person: document.getElementById('contactPerson').value.trim(),
@@ -368,14 +368,14 @@ async function saveClient() {
         bank_name: document.getElementById('bankName').value.trim(),
         remark: document.getElementById('remark').value.trim()
     };
-    
+
     var url = '/api/crm/clients/';
     var method = 'POST';
     if (clientId) {
         url += clientId + '/';
         method = 'PATCH';
     }
-    
+
     try {
         var response = await fetch(url, {
             method: method,
@@ -385,12 +385,12 @@ async function saveClient() {
             credentials: 'include',
             body: JSON.stringify(payload)
         });
-        
+
         if (!response.ok) {
             var error = await response.json();
             throw new Error(error.detail || '保存失败');
         }
-        
+
         showToast(clientId ? '客户已更新' : '客户已创建', 'success');
         clientModal.hide();
         document.getElementById('clientModal').addEventListener('hidden.bs.modal', function handler() {
@@ -405,13 +405,13 @@ async function saveClient() {
 
 async function deleteClient(clientId) {
     if (!confirm('确定要删除此客户吗？')) return;
-    
+
     try {
         var response = await fetch('/api/crm/clients/' + clientId + '/', {
             method: 'DELETE',
             credentials: 'include'
         });
-        
+
         if (!response.ok) throw new Error('删除失败');
         showToast('客户已删除', 'success');
         loadClients();

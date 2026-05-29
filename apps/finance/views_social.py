@@ -1,50 +1,22 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
-from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from django_filters.rest_framework import DjangoFilterBackend
+from django.db.models import Count
+from .models import CompanySocialConfig, SocialRecord
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
     CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
-    BankAccountSerializer,
     SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
-from .views_common import (
-    SafePageNumberPagination,
-    get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
-)
 
 
 class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     """公司社保公积金配置视图集"""
+
     queryset = CompanySocialConfig.objects.all()
     serializer_class = CompanySocialConfigSerializer
     filter_backends = [DjangoFilterBackend]
@@ -65,8 +37,11 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
             if hasattr(user, 'company') and user.company_id:
                 return CompanySocialConfig.objects.filter(company_id=user.company_id)
         return CompanySocialConfig.objects.all()
+
+
 class SocialRecordViewSet(viewsets.ModelViewSet):
     """社保申报记录视图集"""
+
     queryset = SocialRecord.objects.all().select_related('company', 'employee')
     serializer_class = SocialRecordSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -95,6 +70,7 @@ class SocialRecordViewSet(viewsets.ModelViewSet):
     def import_records(self, request):
         """Excel导入社保申报记录"""
         from .import_social_records import import_social_records
+
         file = request.FILES.get('file')
         if not file:
             return Response({'success': False, 'message': '请上传文件'}, status=400)
@@ -119,25 +95,28 @@ class SocialRecordViewSet(viewsets.ModelViewSet):
             return Response({'success': False, 'message': '需要 employee_id 和 year_month'}, status=400)
         qs = self.get_queryset().filter(employee_id=employee_id, year_month=year_month)
         if not qs.exists():
-            return Response({
-                'success': True,
-                'found': False,
-                'social_insurance': 0,
-                'housing_fund': 0,
-            })
+            return Response(
+                {
+                    'success': True,
+                    'found': False,
+                    'social_insurance': 0,
+                    'housing_fund': 0,
+                }
+            )
         rec = qs.first()
-        return Response({
-            'success': True,
-            'found': True,
-            'social_insurance': float(rec.total_employee) - float(rec.housing_fund_employee),
-            'housing_fund': float(rec.housing_fund_employee),
-            'total_employee': float(rec.total_employee),
-            'total_company': float(rec.total_company),
-        })
+        return Response(
+            {
+                'success': True,
+                'found': True,
+                'social_insurance': float(rec.total_employee) - float(rec.housing_fund_employee),
+                'housing_fund': float(rec.housing_fund_employee),
+                'total_employee': float(rec.total_employee),
+                'total_company': float(rec.total_company),
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def year_months(self, request):
-        '''返回数据库中有数据的年份月份列表'''
-        from django.db.models import Count
+        """返回数据库中有数据的年份月份列表"""
         qs = self.get_queryset().values('year_month').annotate(cnt=Count('id')).order_by('-year_month')
         return Response([r['year_month'] for r in qs])

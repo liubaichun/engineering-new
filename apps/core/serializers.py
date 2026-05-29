@@ -1,22 +1,33 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
-from django.utils import timezone
-from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, CompanyRole
+from .models import (
+    User,
+    Notification,
+    Permission,
+    PermissionAuditLog,
+    LoginLog,
+    UserCompanyRole,
+    OperationAuditLog,
+    SystemSetting,
+    UserCompanyPermission,
+    ModuleAction,
+    CompanyRole,
+)
 from apps.finance.models import Company as FinanceCompany
 
 
 class UserRegisterSerializer(serializers.ModelSerializer):
     """用户注册序列化器"""
+
     password = serializers.CharField(write_only=True, min_length=8, label='密码')
     password_confirm = serializers.CharField(write_only=True, required=False, label='确认密码')
-    
+
     class Meta:
         model = User
         fields = ['username', 'email', 'phone', 'password', 'password_confirm']
         extra_kwargs = {
             'email': {'required': False},
         }
-    
+
     def validate_password(self, value):
         if len(value) < 8:
             raise serializers.ValidationError('密码至少需要8个字符')
@@ -27,17 +38,17 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         if not any(c.isdigit() for c in value):
             raise serializers.ValidationError('密码必须包含至少一个数字')
         return value
-    
+
     def validate(self, attrs):
         password_confirm = attrs.get('password_confirm')
         if password_confirm and attrs['password'] != password_confirm:
             raise serializers.ValidationError({'password_confirm': '两次密码输入不一致'})
         return attrs
-    
+
     def create(self, validated_data):
         validated_data.pop('password_confirm', None)
         password = validated_data.pop('password')
-        validated_data['is_active'] = False   # 注册后需管理员审批才能登录
+        validated_data['is_active'] = False  # 注册后需管理员审批才能登录
         validated_data['is_staff'] = False
         validated_data['is_superuser'] = False
         validated_data.setdefault('phone', '')
@@ -46,6 +57,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         user.save()
         # 给所有管理员发通知
         from .models import Notification
+
         admin_users = User.objects.filter(is_superuser=True, is_active=True)
         for admin in admin_users:
             Notification.objects.create(
@@ -62,9 +74,10 @@ class UserRegisterSerializer(serializers.ModelSerializer):
 
 class UserLoginSerializer(serializers.Serializer):
     """用户登录序列化器"""
+
     username = serializers.CharField(label='用户名')
     password = serializers.CharField(label='密码', write_only=True)
-    
+
     def validate(self, attrs):
         username = attrs.get('username')
         password = attrs.get('password')
@@ -77,6 +90,7 @@ class UserLoginSerializer(serializers.Serializer):
         # 检查账号是否被锁定
         if user.lock_until:
             from django.utils import timezone
+
             if timezone.now() < user.lock_until:
                 remaining = int((user.lock_until - timezone.now()).total_seconds() / 60) + 1
                 raise serializers.ValidationError(f'账号已锁定，请 {remaining} 分钟后再试')
@@ -87,6 +101,7 @@ class UserLoginSerializer(serializers.Serializer):
             if user.failed_login_attempts >= 5:
                 from django.utils import timezone
                 from datetime import timedelta
+
                 user.lock_until = timezone.now() + timedelta(minutes=30)
                 user.save(update_fields=['failed_login_attempts', 'lock_until'])
                 raise serializers.ValidationError('密码错误次数过多，账号已锁定30分钟')
@@ -111,6 +126,7 @@ class UserLoginSerializer(serializers.Serializer):
 
 class UserCompanyRoleSerializer(serializers.ModelSerializer):
     """用户公司角色序列化器"""
+
     company_name = serializers.CharField(source='company.name', read_only=True)
     user_name = serializers.CharField(source='user.username', read_only=True)
     role_display = serializers.SerializerMethodField()
@@ -119,9 +135,20 @@ class UserCompanyRoleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserCompanyRole
-        fields = ['id', 'user', 'user_name', 'company', 'company_name',
-                  'company_role', 'company_role_id', 'company_role_name',
-                  'role_display', 'is_primary', 'assigned_by', 'assigned_at']
+        fields = [
+            'id',
+            'user',
+            'user_name',
+            'company',
+            'company_name',
+            'company_role',
+            'company_role_id',
+            'company_role_name',
+            'role_display',
+            'is_primary',
+            'assigned_by',
+            'assigned_at',
+        ]
         read_only_fields = ['id', 'assigned_by', 'assigned_at']
 
     def get_role_display(self, obj) -> str:
@@ -130,24 +157,39 @@ class UserCompanyRoleSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     """用户序列化器 — 字段与 core_user 表及 User 模型严格对应"""
+
     role_name = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
     role_ids = serializers.ListField(
-        child=serializers.IntegerField(), write_only=True, required=False,
-        label='角色ID列表'
+        child=serializers.IntegerField(), write_only=True, required=False, label='角色ID列表'
     )
     company_roles = UserCompanyRoleSerializer(many=True, read_only=True)
     company_role_ids = serializers.ListField(
-        child=serializers.DictField(), write_only=True, required=False,
-        label='公司角色列表 [{company_id, role}]'
+        child=serializers.DictField(), write_only=True, required=False, label='公司角色列表 [{company_id, role}]'
     )
 
     class Meta:
         model = User
-        fields = ['id', 'username', 'first_name', 'last_name', 'email', 'phone',
-                  'is_active', 'is_staff', 'is_superuser', 'last_login', 'date_joined',
-                  'password', 'password_changed',
-                  'role_name', 'roles', 'role_ids', 'company_roles', 'company_role_ids']
+        fields = [
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'email',
+            'phone',
+            'is_active',
+            'is_staff',
+            'is_superuser',
+            'last_login',
+            'date_joined',
+            'password',
+            'password_changed',
+            'role_name',
+            'roles',
+            'role_ids',
+            'company_roles',
+            'company_role_ids',
+        ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False},
         }
@@ -172,13 +214,15 @@ class UserSerializer(serializers.ModelSerializer):
         """返回用户通过UserCompanyRole关联的所有公司角色"""
         roles = []
         for ucr in obj.company_roles.select_related('company_role', 'company').all():
-            roles.append({
-                'role_id': ucr.company_role_id,
-                'role__name': ucr.company_role.name if ucr.company_role else '-',
-                'role__code': ucr.company_role.code if ucr.company_role else '-',
-                'company_name': ucr.company.name if ucr.company else '-',
-                'assigned_at': ucr.assigned_at.isoformat() if ucr.assigned_at else None,
-            })
+            roles.append(
+                {
+                    'role_id': ucr.company_role_id,
+                    'role__name': ucr.company_role.name if ucr.company_role else '-',
+                    'role__code': ucr.company_role.code if ucr.company_role else '-',
+                    'company_name': ucr.company.name if ucr.company else '-',
+                    'assigned_at': ucr.assigned_at.isoformat() if ucr.assigned_at else None,
+                }
+            )
         return roles
 
     def create(self, validated_data):
@@ -227,30 +271,43 @@ class UserSerializer(serializers.ModelSerializer):
             # 创建或更新
             for company_id, item in incoming.items():
                 UserCompanyRole.objects.update_or_create(
-                    user=instance, company_id=company_id,
-                    defaults={'role': item.get('role', 'staff')}
+                    user=instance, company_id=company_id, defaults={'role': item.get('role', 'staff')}
                 )
         return instance
 
 
 class CompanyRoleSerializer(serializers.ModelSerializer):
     """公司角色序列化器"""
+
     permission_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
     permissions = serializers.SerializerMethodField()
     user_count = serializers.SerializerMethodField()
 
     class Meta:
         model = CompanyRole
-        fields = ['id', 'company', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at',
-                  'permissions', 'permission_ids', 'user_count']
+        fields = [
+            'id',
+            'company',
+            'name',
+            'code',
+            'description',
+            'is_active',
+            'created_at',
+            'updated_at',
+            'permissions',
+            'permission_ids',
+            'user_count',
+        ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_permissions(self, obj) -> list:
-        from .models import CompanyRolePermission, Permission
+        from .models import CompanyRolePermission
+
         return list(CompanyRolePermission.objects.filter(company_role=obj).values_list('permission_id', flat=True))
 
     def get_user_count(self, obj) -> int:
         from .models import UserCompanyRole
+
         return UserCompanyRole.objects.filter(company_role=obj).count()
 
     def create(self, validated_data):
@@ -268,9 +325,11 @@ class CompanyRoleSerializer(serializers.ModelSerializer):
 
     def _update_permissions(self, role, permission_ids):
         from .models import CompanyRolePermission
+
         CompanyRolePermission.objects.filter(company_role=role).delete()
         if permission_ids:
             from .models import Permission
+
             valid_ids = Permission.objects.filter(id__in=permission_ids).values_list('id', flat=True)
             for perm_id in valid_ids:
                 CompanyRolePermission.objects.create(company_role=role, permission_id=perm_id)
@@ -281,13 +340,13 @@ class PermissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Permission
-        fields = ['id', 'name', 'code', 'resource', 'action',
-                  'category', 'description', 'created_at']
+        fields = ['id', 'name', 'code', 'resource', 'action', 'category', 'description', 'created_at']
         read_only_fields = ['id', 'created_at']
 
 
 class PermissionListSerializer(serializers.ModelSerializer):
     """模块动作列表序列化器（简化版，用于角色配置UI）"""
+
     module_name = serializers.CharField(source='module.name', read_only=True)
 
     class Meta:
@@ -297,6 +356,7 @@ class PermissionListSerializer(serializers.ModelSerializer):
 
 class ModuleActionSerializer(serializers.ModelSerializer):
     """模块动作序列化器"""
+
     module_name = serializers.CharField(source='module.name', read_only=True)
 
     class Meta:
@@ -306,6 +366,7 @@ class ModuleActionSerializer(serializers.ModelSerializer):
 
 class NotificationSerializer(serializers.ModelSerializer):
     """通知消息序列化器"""
+
     type_display = serializers.CharField(source='get_notification_type_display', read_only=True)
     level_display = serializers.CharField(source='get_level_display', read_only=True)
     # 兼容前端 notifications.html 的字段名
@@ -314,40 +375,78 @@ class NotificationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Notification
-        fields = ['id', 'user', 'title', 'content', 'notification_type', 'type_display',
-                  'level', 'level_display', 'is_read', 'related_id', 'related_type',
-                  'created_at', 'type', 'message']
+        fields = [
+            'id',
+            'user',
+            'title',
+            'content',
+            'notification_type',
+            'type_display',
+            'level',
+            'level_display',
+            'is_read',
+            'related_id',
+            'related_type',
+            'created_at',
+            'type',
+            'message',
+        ]
         read_only_fields = ['id', 'user', 'created_at']
 
 
 class PermissionAuditLogSerializer(serializers.ModelSerializer):
     """权限审计日志序列化器"""
+
     user_name = serializers.CharField(source='user.username', read_only=True, default='')
     target_user_name = serializers.CharField(source='target_user.username', read_only=True, default='')
     action_display = serializers.CharField(source='get_action_display', read_only=True)
 
     class Meta:
         model = PermissionAuditLog
-        fields = ['id', 'user', 'user_name', 'action', 'action_display',
-                  'target_user', 'target_user_name', 'role_name',
-                  'permission_code', 'ip_address', 'user_agent', 'details', 'created_at']
+        fields = [
+            'id',
+            'user',
+            'user_name',
+            'action',
+            'action_display',
+            'target_user',
+            'target_user_name',
+            'role_name',
+            'permission_code',
+            'ip_address',
+            'user_agent',
+            'details',
+            'created_at',
+        ]
         read_only_fields = fields  # 只读，仅通过 signals 自动写入
 
 
 class LoginLogSerializer(serializers.ModelSerializer):
     """登录日志序列化器"""
+
     user_name = serializers.CharField(source='user.username', read_only=True, default='')
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
         model = LoginLog
-        fields = ['id', 'user', 'user_name', 'username', 'status', 'status_display',
-                  'ip_address', 'user_agent', 'fail_reason', 'created_at']
+        fields = [
+            'id',
+            'user',
+            'user_name',
+            'username',
+            'status',
+            'status_display',
+            'ip_address',
+            'user_agent',
+            'fail_reason',
+            'created_at',
+        ]
         read_only_fields = fields
 
 
 class OperationAuditLogSerializer(serializers.ModelSerializer):
     """操作审计日志序列化器"""
+
     user_name = serializers.CharField(source='user.username', read_only=True, default='')
     action_display = serializers.CharField(source='get_action_display', read_only=True)
     app_label_display = serializers.SerializerMethodField()
@@ -355,18 +454,39 @@ class OperationAuditLogSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OperationAuditLog
-        fields = ['id', 'user', 'user_name', 'username', 'ip_address', 'user_agent',
-                  'app_label', 'app_label_display', 'model_name', 'object_id', 'object_repr',
-                  'action', 'action_display', 'changes', 'changes_dict',
-                  'approval_flow_id', 'created_at']
+        fields = [
+            'id',
+            'user',
+            'user_name',
+            'username',
+            'ip_address',
+            'user_agent',
+            'app_label',
+            'app_label_display',
+            'model_name',
+            'object_id',
+            'object_repr',
+            'action',
+            'action_display',
+            'changes',
+            'changes_dict',
+            'approval_flow_id',
+            'created_at',
+        ]
         read_only_fields = fields
 
     def get_app_label_display(self, obj) -> str:
         """将 app_label 转为中文名称"""
         APP_NAMES = {
-            'finance': '财务管理', 'crm': '客户管理', 'tasks': '任务管理',
-            'equipment': '设备管理', 'approvals': '审批管理', 'core': '系统核心',
-            'notifications': '通知管理', 'files': '文件管理', 'material': '物料管理',
+            'finance': '财务管理',
+            'crm': '客户管理',
+            'tasks': '任务管理',
+            'equipment': '设备管理',
+            'approvals': '审批管理',
+            'core': '系统核心',
+            'notifications': '通知管理',
+            'files': '文件管理',
+            'material': '物料管理',
         }
         return APP_NAMES.get(obj.app_label, obj.app_label)
 
@@ -376,6 +496,7 @@ class OperationAuditLogSerializer(serializers.ModelSerializer):
 
 class SystemSettingSerializer(serializers.ModelSerializer):
     """系统参数序列化器"""
+
     key_display = serializers.SerializerMethodField()
     value_type = serializers.SerializerMethodField()
     category = serializers.SerializerMethodField()
@@ -383,8 +504,17 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = SystemSetting
-        fields = ['id', 'key', 'value', 'key_display', 'value_type',
-                  'category', 'description', 'masked_value', 'updated_at']
+        fields = [
+            'id',
+            'key',
+            'value',
+            'key_display',
+            'value_type',
+            'category',
+            'description',
+            'masked_value',
+            'updated_at',
+        ]
 
     CATEGORY_MAP = {
         'approval_auto_enabled': '审批',
@@ -450,17 +580,30 @@ class SystemSettingSerializer(serializers.ModelSerializer):
 
 class FinanceCompanySerializer(serializers.ModelSerializer):
     """公司信息序列化器（finance_company）"""
+
     status_display = serializers.CharField(source='get_status_display', read_only=True)
 
     class Meta:
         model = FinanceCompany
-        fields = ['id', 'name', 'code', 'address', 'contact_person',
-                  'contact_phone', 'status', 'status_display',
-                  'tax_id', 'bank_name', 'bank_account', 'remark',
-                  'created_at']
+        fields = [
+            'id',
+            'name',
+            'code',
+            'address',
+            'contact_person',
+            'contact_phone',
+            'status',
+            'status_display',
+            'tax_id',
+            'bank_name',
+            'bank_account',
+            'remark',
+            'created_at',
+        ]
 
 
 # ── 角色管理（基于新权限系统 UserCompanyRole）─────────────────────────────────
+
 
 class CompanyRoleSerializer(serializers.ModelSerializer):
     """
@@ -469,6 +612,7 @@ class CompanyRoleSerializer(serializers.ModelSerializer):
     注意：这个 ViewSet 和 Serializer 管理的是「用户角色分配」，
     而非 CompanyRole 本身。CompanyRole 的 CRUD 在 CompanyRoleDefViewSet 中。
     """
+
     user_username = serializers.CharField(source='user.username', read_only=True)
     user_display = serializers.SerializerMethodField()
     company_name = serializers.CharField(source='company.name', read_only=True)
@@ -478,13 +622,25 @@ class CompanyRoleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserCompanyRole
-        fields = ['id', 'user', 'user_username', 'user_display', 'company', 'company_name',
-                  'company_role', 'company_role_name',
-                  'role_display', 'is_primary', 'assigned_by', 'assigned_by_username', 'assigned_at']
+        fields = [
+            'id',
+            'user',
+            'user_username',
+            'user_display',
+            'company',
+            'company_name',
+            'company_role',
+            'company_role_name',
+            'role_display',
+            'is_primary',
+            'assigned_by',
+            'assigned_by_username',
+            'assigned_at',
+        ]
         read_only_fields = ['id', 'assigned_by', 'assigned_at']
 
     def get_user_display(self, obj) -> str:
-        return f"{obj.user.username} ({obj.user.first_name or obj.user.username})"
+        return f'{obj.user.username} ({obj.user.first_name or obj.user.username})'
 
     def get_role_display(self, obj) -> str:
         return obj.company_role.name if obj.company_role else '未分配'
@@ -494,15 +650,14 @@ class CompanyRoleSerializer(serializers.ModelSerializer):
         defaults = {k: v for k, v in validated_data.items() if k not in ('user', 'company')}
         defaults['is_primary'] = validated_data.get('is_primary', False)
         obj, created = UserCompanyRole.objects.update_or_create(
-            user=validated_data['user'],
-            company=validated_data['company'],
-            defaults=defaults
+            user=validated_data['user'], company=validated_data['company'], defaults=defaults
         )
         return obj
 
 
 class UserCompanyPermissionSerializer(serializers.ModelSerializer):
     """用户公司权限序列化器"""
+
     user_username = serializers.CharField(source='user.username', read_only=True)
     company_name = serializers.CharField(source='company.name', read_only=True)
     module_name = serializers.CharField(source='module.name', read_only=True)
@@ -512,7 +667,20 @@ class UserCompanyPermissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserCompanyPermission
-        fields = ['id', 'user', 'user_username', 'company', 'company_name',
-                  'module', 'module_name', 'module_label',
-                  'action', 'action_name', 'action_label',
-                  'is_granted', 'source', 'granted_by', 'granted_at']
+        fields = [
+            'id',
+            'user',
+            'user_username',
+            'company',
+            'company_name',
+            'module',
+            'module_name',
+            'module_label',
+            'action',
+            'action_name',
+            'action_label',
+            'is_granted',
+            'source',
+            'granted_by',
+            'granted_at',
+        ]

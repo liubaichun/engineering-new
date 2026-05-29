@@ -1,19 +1,13 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
-import re
 
-from django.db.models import Sum, Count, Q, F
-from django.utils import timezone
+from django.db.models import Sum, Count
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
-from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
+from apps.finance.models import Invoice
 
 
 @api_view(['GET'])
@@ -22,7 +16,6 @@ def invoice_dimension_report(request):
     """发票多维度汇总
     按对方公司/发票类型/税率三个维度交叉汇总
     """
-    from django.db.models import Sum, Count
 
     year = request.query_params.get('year')
     company_id = request.query_params.get('company')
@@ -97,24 +90,26 @@ def invoice_dimension_report(request):
     total_amount = float(totals['total_amount'] or 0)
     total_tax = float(totals['total_tax'] or 0)
 
-    return Response({
-        'report': 'invoice_dimension',
-        'title': f'{year or "全部"}年 发票多维度汇总',
-        'params': {
-            'year': int(year) if year else None,
-            'company_id': int(company_id) if company_id else None,
-            'type': invoice_type,
-        },
-        'summary': {
-            'count': totals['count'],
-            'total_amount': total_amount,
-            'total_tax': total_tax,
-            'net_amount': round(total_amount + total_tax, 2),
-        },
-        'by_counterparty': by_counterparty[:20],  # top 20
-        'by_invoice_type': by_invoice_type,
-        'by_tax_rate': by_tax_rate,
-    })
+    return Response(
+        {
+            'report': 'invoice_dimension',
+            'title': f'{year or "全部"}年 发票多维度汇总',
+            'params': {
+                'year': int(year) if year else None,
+                'company_id': int(company_id) if company_id else None,
+                'type': invoice_type,
+            },
+            'summary': {
+                'count': totals['count'],
+                'total_amount': total_amount,
+                'total_tax': total_tax,
+                'net_amount': round(total_amount + total_tax, 2),
+            },
+            'by_counterparty': by_counterparty[:20],  # top 20
+            'by_invoice_type': by_invoice_type,
+            'by_tax_rate': by_tax_rate,
+        }
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════

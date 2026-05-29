@@ -1,6 +1,7 @@
 """
 通知模块 — 对应系统侧边栏「数据→我的通知」菜单
 """
+
 from apps.core.models import register_module
 
 # 我的通知

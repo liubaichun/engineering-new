@@ -5,19 +5,26 @@
 
 所有函数均为查询时调用，不修改原始数据。
 """
+
 from decimal import Decimal
 from typing import Optional
 
-from django.db.models import Sum, Q
+from django.db.models import Sum
 from .models import (
-    Account, Income, Expense, WageRecord, SocialRecord,
-    Invoice, BankStatement,
+    Account,
+    Income,
+    Expense,
+    WageRecord,
+    SocialRecord,
+    Invoice,
+    BankStatement,
 )
 
 
 def get_internal_company_names():
     """从 Company 表动态获取所有公司名称，用于排除内部转账"""
     from .models import Company
+
     return set(Company.objects.values_list('name', flat=True))
 
 
@@ -40,6 +47,7 @@ def get_account_by_code(code: str) -> Optional[Account]:
 # 一、收入科目映射
 # ═══════════════════════════════════════════════════════════════════
 
+
 def map_income_to_account(income: Income) -> Optional[Account]:
     """将 Income 记录映射到收入科目
 
@@ -55,11 +63,11 @@ def map_income_to_account(income: Income) -> Optional[Account]:
 
     # 按 income_category 映射
     category_map = {
-        'main_business':    '4001',
-        'other_business':   '4002',
-        'non_operating':    '4003',
-        'other_income':     '4004',
-        'investment_income':'4005',
+        'main_business': '4001',
+        'other_business': '4002',
+        'non_operating': '4003',
+        'other_income': '4004',
+        'investment_income': '4005',
     }
     code = category_map.get(income.income_category)
     if code:
@@ -72,6 +80,7 @@ def map_income_to_account(income: Income) -> Optional[Account]:
 # ═══════════════════════════════════════════════════════════════════
 # 二、支出科目映射
 # ═══════════════════════════════════════════════════════════════════
+
 
 def map_expense_to_account(expense: Expense) -> Optional[Account]:
     """将 Expense 记录映射到费用科目
@@ -115,17 +124,17 @@ def map_expense_to_account(expense: Expense) -> Optional[Account]:
 
     # 按 expense_type 值映射
     type_to_leaf = {
-        'main_cost':      '5001-01',  # 主营业务成本-采购成本
-        'office':         '5002-03',  # 办公费用
-        'travel':         '5002-04',  # 差旅费用
-        'admin_expense':  '5002-10',  # 管理费用-其他
-        'entertainment':  '5002-05',  # 业务招待费
-        'communication':  '5002-06',  # 通讯费用
-        'marketing':      '5002-07',  # 市场营销
-        'rd':             '5002-08',  # 研发费用
-        'finance_expense':'5005',     # 财务费用
-        'advance':        '5002-10',  # 预付款 → 其他
-        'other':          '5002-10',  # 其他
+        'main_cost': '5001-01',  # 主营业务成本-采购成本
+        'office': '5002-03',  # 办公费用
+        'travel': '5002-04',  # 差旅费用
+        'admin_expense': '5002-10',  # 管理费用-其他
+        'entertainment': '5002-05',  # 业务招待费
+        'communication': '5002-06',  # 通讯费用
+        'marketing': '5002-07',  # 市场营销
+        'rd': '5002-08',  # 研发费用
+        'finance_expense': '5005',  # 财务费用
+        'advance': '5002-10',  # 预付款 → 其他
+        'other': '5002-10',  # 其他
     }
     code = type_to_leaf.get(etype)
     if code:
@@ -152,6 +161,7 @@ def map_expense_to_account(expense: Expense) -> Optional[Account]:
 # 三、工资科目映射
 # ═══════════════════════════════════════════════════════════════════
 
+
 def map_wage_to_account() -> Optional[Account]:
     """工资薪酬 → 5002-01 管理费用-工资薪酬"""
     return get_account_by_code('5002-01')
@@ -159,9 +169,7 @@ def map_wage_to_account() -> Optional[Account]:
 
 def get_wage_total(company_id: int, year: int, month: Optional[int] = None) -> Decimal:
     """获取指定公司月份工资总额（应发合计 gross_salary）"""
-    qs = WageRecord.objects.filter(
-        company_id=company_id, year=year
-    ).order_by('employee_id')
+    qs = WageRecord.objects.filter(company_id=company_id, year=year).order_by('employee_id')
     if month:
         qs = qs.filter(month=month)
 
@@ -178,6 +186,7 @@ def get_wage_total(company_id: int, year: int, month: Optional[int] = None) -> D
 # 四、社保科目映射
 # ═══════════════════════════════════════════════════════════════════
 
+
 def map_social_to_account() -> Optional[Account]:
     """社保费用 → 5002-02 管理费用-社保费用"""
     return get_account_by_code('5002-02')
@@ -185,9 +194,7 @@ def map_social_to_account() -> Optional[Account]:
 
 def get_social_total(company_id: int, year: int, month: Optional[int] = None) -> dict:
     """获取指定公司月份社保单位缴纳总额"""
-    qs = SocialRecord.objects.filter(
-        company_id=company_id, year_month__startswith=str(year)
-    )
+    qs = SocialRecord.objects.filter(company_id=company_id, year_month__startswith=str(year))
     if month:
         ym = f'{year}{month:02d}'
         qs = qs.filter(year_month=ym)
@@ -216,6 +223,7 @@ def get_social_total(company_id: int, year: int, month: Optional[int] = None) ->
 # 五、发票科目映射
 # ═══════════════════════════════════════════════════════════════════
 
+
 def map_invoice_to_account(invoice) -> Optional[Account]:
     """将 Invoice 映射到应收/应付科目
 
@@ -229,10 +237,7 @@ def map_invoice_to_account(invoice) -> Optional[Account]:
     return None
 
 
-def get_invoice_ar_ap_total(
-    company_id: int, year: int,
-    status: str = 'pending'
-) -> dict:
+def get_invoice_ar_ap_total(company_id: int, year: int, status: str = 'pending') -> dict:
     """获取应收账款(AR)和应付账款(AP)汇总"""
     ar = Invoice.objects.filter(
         company_id=company_id,
@@ -264,6 +269,7 @@ def get_invoice_ar_ap_total(
 # 六、银行余额映射
 # ═══════════════════════════════════════════════════════════════════
 
+
 def map_bank_to_account() -> Optional[Account]:
     """银行存款 → 1001 银行存款"""
     return get_account_by_code('1001')
@@ -271,9 +277,11 @@ def map_bank_to_account() -> Optional[Account]:
 
 def get_bank_balance(company_id: int) -> Decimal:
     """获取公司最新银行账户余额（取最后一条流水余额）"""
-    last_stmt = BankStatement.objects.filter(
-        company_id=company_id
-    ).order_by('-transaction_date', '-transaction_time', '-id').first()
+    last_stmt = (
+        BankStatement.objects.filter(company_id=company_id)
+        .order_by('-transaction_date', '-transaction_time', '-id')
+        .first()
+    )
     if last_stmt and last_stmt.balance is not None:
         return Decimal(str(last_stmt.balance))
     return Decimal('0')
@@ -282,12 +290,15 @@ def get_bank_balance(company_id: int) -> Decimal:
 def get_bank_account_balances(company_id: int) -> dict:
     """获取各银行账户最新余额"""
     from .models import BankAccount
+
     result = {}
     accounts = BankAccount.objects.filter(company_id=company_id).order_by('account_name')
     for acct in accounts:
-        last = BankStatement.objects.filter(
-            bank_account=acct
-        ).order_by('-transaction_date', '-transaction_time', '-id').first()
+        last = (
+            BankStatement.objects.filter(bank_account=acct)
+            .order_by('-transaction_date', '-transaction_time', '-id')
+            .first()
+        )
         result[acct.account_name or acct.account_number] = (
             Decimal(str(last.balance)) if last and last.balance is not None else Decimal('0')
         )
@@ -297,6 +308,7 @@ def get_bank_account_balances(company_id: int) -> dict:
 # ═══════════════════════════════════════════════════════════════════
 # 七、科目余额表（内存计算版）
 # ═══════════════════════════════════════════════════════════════════
+
 
 def compute_trial_balance(company_id: int, year: int):
     """计算指定公司年份的科目余额表（内存计算，不持久化）
@@ -315,15 +327,15 @@ def compute_trial_balance(company_id: int, year: int):
     from .models import Income, Expense
 
     result = []
-    accounts = Account.objects.filter(company__isnull=True)\
-        .order_by('sort_order', 'code')
+    accounts = Account.objects.filter(company__isnull=True).order_by('sort_order', 'code')
 
     # ── 预聚合数据 ──────────────────────────────────────────────
     # 收入按科目聚合
-    income_records = Income.objects.filter(
-        company_id=company_id, date__year=year
-    ).exclude(customer__in=get_internal_company_names())\
+    income_records = (
+        Income.objects.filter(company_id=company_id, date__year=year)
+        .exclude(customer__in=get_internal_company_names())
         .order_by('date', 'id')
+    )
 
     income_by_account = {}
     for inc in income_records:
@@ -333,10 +345,11 @@ def compute_trial_balance(company_id: int, year: int):
             income_by_account[acct.code] += Decimal(str(inc.amount))
 
     # 支出按科目聚合
-    expense_records = Expense.objects.filter(
-        company_id=company_id, expense_date__year=year
-    ).exclude(supplier__in=get_internal_company_names())\
+    expense_records = (
+        Expense.objects.filter(company_id=company_id, expense_date__year=year)
+        .exclude(supplier__in=get_internal_company_names())
         .order_by('expense_date', 'id')
+    )
 
     expense_by_account = {}
     for exp in expense_records:
@@ -347,16 +360,14 @@ def compute_trial_balance(company_id: int, year: int):
 
     # 工资总和（使用已计算的 gross_salary 字段）
     wage_total = Decimal('0')
-    wage_records = WageRecord.objects.filter(
-        company_id=company_id, year=year
-    ).order_by('employee_id')
+    wage_records = WageRecord.objects.filter(company_id=company_id, year=year).order_by('employee_id')
     for wr in wage_records:
         wage_total += Decimal(str(wr.gross_salary or 0))
 
     # 社保总和
-    social_agg = SocialRecord.objects.filter(
-        company_id=company_id, year_month__startswith=str(year)
-    ).aggregate(total=Sum('total_company'))
+    social_agg = SocialRecord.objects.filter(company_id=company_id, year_month__startswith=str(year)).aggregate(
+        total=Sum('total_company')
+    )
     social_total = Decimal(str(social_agg['total'] or 0))
 
     # 银行余额
@@ -412,9 +423,7 @@ def compute_trial_balance(company_id: int, year: int):
                 credit_amount = invoice_data.get('accounts_payable', Decimal('0'))
             elif acct.code == '2002':  # 应付职工薪酬
                 # 应付 = 应发 - 实发（待支付）
-                total_paid = wage_records.aggregate(
-                    s=Sum('net_salary')
-                )['s'] or Decimal('0')
+                total_paid = wage_records.aggregate(s=Sum('net_salary'))['s'] or Decimal('0')
                 credit_amount = wage_total - Decimal(str(total_paid))
             elif acct.code == '2003':  # 应交税费
                 credit_amount = invoice_data.get('ap_tax', Decimal('0')) - invoice_data.get('ar_tax', Decimal('0'))
@@ -427,13 +436,9 @@ def compute_trial_balance(company_id: int, year: int):
                 pass  # 手动配置，暂为0
             elif acct.code == '3002':  # 未分配利润
                 # 未分配利润 = 总收入 - 总费用（净利润累计）
-                total_income = sum(
-                    v for k, v in income_by_account.items()
-                    if k.startswith('4')
-                )
-                total_expense = wage_total + social_total + sum(
-                    v for k, v in expense_by_account.items()
-                    if k.startswith('5')
+                total_income = sum(v for k, v in income_by_account.items() if k.startswith('4'))
+                total_expense = (
+                    wage_total + social_total + sum(v for k, v in expense_by_account.items() if k.startswith('5'))
                 )
                 credit_amount = total_income - total_expense
 
@@ -446,16 +451,18 @@ def compute_trial_balance(company_id: int, year: int):
             closing_balance = credit_amount - debit_amount
 
         if debit_amount != 0 or credit_amount != 0 or closing_balance != 0:
-            result.append({
-                'account_code': acct.code,
-                'account_name': acct.name,
-                'account_type': acct.account_type,
-                'opening_balance': Decimal('0'),
-                'debit_amount': debit_amount,
-                'credit_amount': credit_amount,
-                'closing_balance': closing_balance,
-                'level': acct.level,
-                'sort_order': acct.sort_order,
-            })
+            result.append(
+                {
+                    'account_code': acct.code,
+                    'account_name': acct.name,
+                    'account_type': acct.account_type,
+                    'opening_balance': Decimal('0'),
+                    'debit_amount': debit_amount,
+                    'credit_amount': credit_amount,
+                    'closing_balance': closing_balance,
+                    'level': acct.level,
+                    'sort_order': acct.sort_order,
+                }
+            )
 
     return result

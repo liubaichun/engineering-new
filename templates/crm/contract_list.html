@@ -48,7 +48,7 @@
                 </select>
             </div>
         </div>
-        
+
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
@@ -238,7 +238,7 @@ async function loadProjects() {
         var data = await response.json();
         var projects = data.results || data;
         var select = document.getElementById('contractProject');
-        
+
         projects.forEach(function(p) {
             select.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
         });
@@ -445,13 +445,13 @@ async function saveContract() {
 
 async function deleteContract(contractId) {
     if (!confirm('确定要删除此合同吗？')) return;
-    
+
     try {
         var response = await fetch('/api/crm/contracts/' + contractId + '/', {
             method: 'DELETE',
             credentials: 'include'
         });
-        
+
         if (!response.ok) throw new Error('删除失败');
         showToast('合同已删除', 'success');
         loadContracts();

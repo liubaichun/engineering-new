@@ -10,11 +10,10 @@
 用法：./manage.py check_invoice_expiry
 推荐定时：每天 9:00（crontab）
 """
+
 import os
-import sys
 from datetime import date, timedelta
 from django.core.management.base import BaseCommand
-from django.db.models import Q
 
 
 class Command(BaseCommand):
@@ -23,21 +22,30 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from apps.finance.models import Invoice
         from apps.core.models import User, Notification
+
         today = date.today()
         seven_days = today + timedelta(days=7)
 
         # 逾期发票：due_date < today 且未付款
-        overdue = Invoice.objects.filter(
-            due_date__lt=today,
-            payment_date__isnull=True,
-        ).select_related('company').order_by('due_date')
+        overdue = (
+            Invoice.objects.filter(
+                due_date__lt=today,
+                payment_date__isnull=True,
+            )
+            .select_related('company')
+            .order_by('due_date')
+        )
 
         # 即将到期：due_date 在 [today, today+7] 且未付款
-        due_soon = Invoice.objects.filter(
-            due_date__gte=today,
-            due_date__lte=seven_days,
-            payment_date__isnull=True,
-        ).select_related('company').order_by('due_date')
+        due_soon = (
+            Invoice.objects.filter(
+                due_date__gte=today,
+                due_date__lte=seven_days,
+                payment_date__isnull=True,
+            )
+            .select_related('company')
+            .order_by('due_date')
+        )
 
         # 输出报告
         lines = []
@@ -95,8 +103,9 @@ class Command(BaseCommand):
         self.stdout.write(output)
 
         # 记录到日志文件
-        log_dir = os.path.join(os.path.dirname(os.path.dirname(
-            os.path.dirname(os.path.abspath(__file__)))), '..', '..', 'logs')
+        log_dir = os.path.join(
+            os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '..', '..', 'logs'
+        )
         os.makedirs(log_dir, exist_ok=True)
         log_path = os.path.join(log_dir, 'invoice_expiry.log')
         with open(log_path, 'a', encoding='utf-8') as f:

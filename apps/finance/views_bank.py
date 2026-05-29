@@ -1,50 +1,20 @@
-import functools
-from django.db.models import F, Q, Sum
-from urllib.parse import urlparse
 from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.pagination import PageNumberPagination
-from django.shortcuts import render
-from rest_framework.permissions import AllowAny
-from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from django.db import models
-from django.db.models import F, Q, Sum, Sum, Count
-from django.db.models.functions import TruncMonth
-from django.utils import timezone
-from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
-from .models_bank import BankAccount, BankStatement
+from django_filters.rest_framework import DjangoFilterBackend
+from .models_bank import BankAccount
 from .serializers import (
-    CompanySerializer,
-    IncomeSerializer,
-    ExpenseSerializer,
-    WageRecordSerializer,
-    InvoiceSerializer,
-    EmployeeSerializer,
-    CompanySocialConfigSerializer,
-    EmployeeCompanySerializer,
     BankAccountSerializer,
-    SocialRecordSerializer,
-    BudgetSerializer,
 )
-from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
-from apps.approvals.models import ApprovalFlow, ApprovalNode
-from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
-from .views_common import (
-    SafePageNumberPagination,
-    get_user_companies,
-    _get_user_company_id,
-    _check_perm,
-    _require_perms,
-)
 
 
 class BankAccountViewSet(viewsets.ModelViewSet):
     """银行账户视图集"""
+
     queryset = BankAccount.objects.all().select_related('company')
     serializer_class = BankAccountSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -89,14 +59,16 @@ class BankAccountViewSet(viewsets.ModelViewSet):
             qs = qs.filter(company_id=company_id)
         data = []
         for acc in qs:
-            data.append({
-                'id': acc.id,
-                'company_id': acc.company_id,
-                'company_name': acc.company.name,
-                'bank_code': acc.bank_code,
-                'bank_name': acc.bank_name or acc.bank_code,
-                'account_no': acc.account_no,
-                'account_name': acc.account_name,
-                'is_active': acc.is_active,
-            })
+            data.append(
+                {
+                    'id': acc.id,
+                    'company_id': acc.company_id,
+                    'company_name': acc.company.name,
+                    'bank_code': acc.bank_code,
+                    'bank_name': acc.bank_name or acc.bank_code,
+                    'account_no': acc.account_no,
+                    'account_name': acc.account_name,
+                    'is_active': acc.is_active,
+                }
+            )
         return Response(data)

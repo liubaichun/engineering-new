@@ -1,4 +1,5 @@
 """公司上下文中间件 — 为每个请求注入 request.auth_company"""
+
 from django.utils.deprecation import MiddlewareMixin
 
 
@@ -25,9 +26,7 @@ class CompanyContextMiddleware(MiddlewareMixin):
 
         if company_id:
             # 验证用户在 session 指定的该公司有 UCP
-            if UserCompanyPermission.objects.filter(
-                user=request.user, company_id=company_id, is_granted=True
-            ).exists():
+            if UserCompanyPermission.objects.filter(user=request.user, company_id=company_id, is_granted=True).exists():
                 try:
                     company = Company.objects.get(id=company_id)
                     request.auth_company = company
@@ -36,9 +35,12 @@ class CompanyContextMiddleware(MiddlewareMixin):
                     pass
 
         # 无 session 或 session 公司无效：从 UCP 取第一个有权限的公司
-        first_ucp = UserCompanyPermission.objects.filter(
-            user=request.user, is_granted=True
-        ).select_related('module').order_by('company_id').first()
+        first_ucp = (
+            UserCompanyPermission.objects.filter(user=request.user, is_granted=True)
+            .select_related('module')
+            .order_by('company_id')
+            .first()
+        )
 
         if first_ucp:
             try:

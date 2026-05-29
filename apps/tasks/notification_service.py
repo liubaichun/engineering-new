@@ -1,8 +1,8 @@
 """
 通知路由 — 按事件类型分发到 channels 渠道插件
 """
+
 import logging
-from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,10 @@ def dispatch_notify(event_type, context, priority='normal', title='', content_li
         return
 
     # 收集公司所有已激活渠道（按 channel_type 去重）
-    channels = {ch.channel_type: ch for ch in
-                ChannelPlugin.objects.filter(company_id=company_id, is_active=True, is_deleted=False)}
+    channels = {
+        ch.channel_type: ch
+        for ch in ChannelPlugin.objects.filter(company_id=company_id, is_active=True, is_deleted=False)
+    }
 
     if not channels:
         logger.debug(f'[dispatch_notify] 公司 {company_id} 无已激活渠道，跳过')
@@ -50,8 +52,11 @@ def dispatch_notify(event_type, context, priority='normal', title='', content_li
                 continue
             try:
                 ChannelNotificationService._send_via_channel(
-                    user=user, channel=channel, title=title,
-                    content='\n'.join(content_lines or []), notification_type=event_type,
+                    user=user,
+                    channel=channel,
+                    title=title,
+                    content='\n'.join(content_lines or []),
+                    notification_type=event_type,
                 )
             except Exception as e:
                 logger.warning(f'[dispatch_notify] 发送失败 user={user.username} channel={ct}: {e}')
@@ -59,6 +64,7 @@ def dispatch_notify(event_type, context, priority='normal', title='', content_li
 
 def _resolve_recipients(scope, context):
     from django.contrib.auth import get_user_model
+
     User = get_user_model()
 
     if scope == 'owner':
@@ -84,11 +90,13 @@ def _resolve_recipients(scope, context):
 
 def _get_user_preference(user, event_type):
     from apps.notifications.models import UserNotificationPreference
+
     return UserNotificationPreference.objects.filter(user=user, event_type=event_type).first()
 
 
 def notify_contract_created(contract):
     from apps.core.email_service import notify_approval_created
+
     try:
         if hasattr(contract, 'approval_flow') and contract.approval_flow:
             notify_approval_created(contract.approval_flow)
@@ -191,11 +199,13 @@ def notify_repair_action(repair_request, action, operator):
     info = action_map.get(action, (f'维修操作({action})', f'维修单发生了操作：{action}'))
     title, tmpl = info
     reason = getattr(repair_request, 'reject_reason', '') if action == 'reject' else ''
-    content_lines = [tmpl.format(
-        no=getattr(repair_request, 'request_no', repair_request.id),
-        operator=getattr(operator, 'username', str(operator)),
-        reason=reason,
-    )]
+    content_lines = [
+        tmpl.format(
+            no=getattr(repair_request, 'request_no', repair_request.id),
+            operator=getattr(operator, 'username', str(operator)),
+            reason=reason,
+        )
+    ]
     context = {
         'notify_target': getattr(repair_request, 'requester', None),
         'requester': operator,
@@ -285,7 +295,7 @@ def notify_stage_timeout(stage_instance):
     title = '⚠️ 阶段超时预警'
     content_lines = [
         f'阶段「{getattr(stage_instance, "name", "未知")}」已超时。',
-        f'请尽快处理。',
+        '请尽快处理。',
     ]
     context = {
         'notify_target': getattr(stage_instance, 'owner', None),

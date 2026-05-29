@@ -8,6 +8,7 @@ from django.test import Client
 def api_client():
     """返回一个未认证的 DRF API 测试客户端"""
     from rest_framework.test import APIClient
+
     return APIClient()
 
 
@@ -15,6 +16,7 @@ def api_client():
 def auth_client(db, user_factory):
     """返回一个已认证的 API 客户端"""
     from rest_framework.test import APIClient
+
     password = 'testpass123'
     user = user_factory(password=password)
     client = APIClient()
@@ -29,6 +31,7 @@ def admin_client(db, company_factory):
     from rest_framework.test import APIClient
     from django.contrib.auth.hashers import make_password
     from apps.core.models import User
+
     company = company_factory()
     password = 'adminpass123'
     user = User.objects.create(
@@ -55,6 +58,7 @@ def django_client(db):
 def default_company(db):
     """默认公司 fixture"""
     from tests.factories.core import CompanyFactory
+
     return CompanyFactory(name='测试公司', code='TEST001')
 
 
@@ -62,6 +66,7 @@ def default_company(db):
 def default_user(db, default_company):
     """默认用户 fixture"""
     from tests.factories.core import UserFactory
+
     return UserFactory(company=default_company, is_active=True)
 
 
@@ -69,6 +74,7 @@ def default_user(db, default_company):
 def company_factory(db):
     """公司 factory fixture"""
     from tests.factories.core import CompanyFactory
+
     return CompanyFactory
 
 
@@ -76,6 +82,7 @@ def company_factory(db):
 def user_factory(db):
     """用户 factory fixture"""
     from tests.factories.core import UserFactory
+
     return UserFactory
 
 
@@ -83,6 +90,7 @@ def user_factory(db):
 def invoice_factory(db):
     """发票 factory fixture"""
     from tests.factories.finance import InvoiceFactory
+
     return InvoiceFactory
 
 
@@ -90,6 +98,7 @@ def invoice_factory(db):
 def employee_factory(db):
     """员工 factory fixture"""
     from tests.factories.finance import EmployeeFactory
+
     return EmployeeFactory
 
 
@@ -97,6 +106,7 @@ def employee_factory(db):
 def income_factory(db):
     """收入 factory fixture"""
     from tests.factories.finance import IncomeFactory
+
     return IncomeFactory
 
 
@@ -104,4 +114,5 @@ def income_factory(db):
 def expense_factory(db):
     """支出 factory fixture"""
     from tests.factories.finance import ExpenseFactory
+
     return ExpenseFactory

@@ -639,7 +639,7 @@ async function loadFlowTemplates() {
         var response = await fetch('/api/tasks/flow-templates/?is_active=1', { credentials: 'include' });
         var data = await response.json();
         flowTemplates = extractData(data);
-        
+
         var select = document.getElementById('templateFilter');
         flowTemplates.forEach(function(t) {
             select.innerHTML += '<option value="' + t.id + '">' + escapeHtml(t.name) + '</option>';
@@ -676,7 +676,7 @@ async function loadFlowNodes(templateId) {
 
 function renderKanbanBoard(nodes) {
     var board = document.getElementById('board');
-    
+
     if (!nodes || nodes.length === 0) {
         // Fallback to default 4 columns
         board.innerHTML = getDefaultColumnsHTML();
@@ -686,15 +686,15 @@ function renderKanbanBoard(nodes) {
         renderKanban();
         return;
     }
-    
+
     // Build columns from nodes (node_type='start' → pending, 'task' → in_progress, 'approval' → review, 'end' → completed)
     var statusMap2 = { 'start': 'pending', 'task': 'in_progress', 'approval': 'review', 'end': 'completed' };
     var columnTitles = { 'pending': '待办', 'in_progress': '进行中', 'review': '审核中', 'completed': '已完成' };
     var columnIcons = { 'pending': 'bi-circle', 'in_progress': 'bi-arrow-repeat', 'review': 'bi-clipboard-check', 'completed': 'bi-check-circle' };
     var columnColors = { 'pending': 'blue', 'in_progress': 'orange', 'review': 'green', 'completed': 'gray' };
-    
+
     var columns = ['pending', 'in_progress', 'review', 'completed'];
-    
+
     var html = '';
     columns.forEach(function(status) {
         html += '<div class="kanban-column" data-status="' + status + '">' +
@@ -705,7 +705,7 @@ function renderKanbanBoard(nodes) {
             '<button class="add-task-btn" onclick="showTaskModal(\'' + status + '\')"><i class="bi bi-plus"></i>添加任务</button>' +
             '</div>';
     });
-    
+
     board.innerHTML = html;
 
     // Update counts and render tasks
@@ -747,15 +747,15 @@ async function loadProjects() {
         var response = await fetch('/api/tasks/projects/', { credentials: 'include' });
         var data = await response.json();
         var projects = extractData(data);
-        
+
         var select = document.getElementById('projectFilter');
         var taskProjectSelect = document.getElementById('taskProject');
-        
+
         projects.forEach(function(p) {
             select.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
             taskProjectSelect.innerHTML += '<option value="' + p.id + '">' + escapeHtml(p.name) + '</option>';
         });
-        
+
         // 如果URL有项目参数，设置默认值
         var urlParams = new URLSearchParams(window.location.search);
         var projectId = urlParams.get('project');
@@ -792,12 +792,12 @@ async function loadTasks() {
     var url = '/api/tasks/tasks/?page_size=100&';
     if (projectId) url += 'project=' + projectId + '&';
     if (priority) url += 'priority=' + priority + '&';
-    
+
     try {
         var response = await fetch(url, { credentials: 'include' });
         var data = await response.json();
         taskList = extractData(data);
-        
+
         updateStats();
         renderKanban();
     } catch (error) {
@@ -811,47 +811,47 @@ function updateStats() {
     taskList.forEach(function(t) {
         if (counts.hasOwnProperty(t.status)) counts[t.status]++;
     });
-    
+
     for (var status in counts) {
         var el = document.getElementById('count-' + status);
         if (el) el.textContent = counts[status];
     }
-    
+
     var total = taskList.length;
     var myTasks = taskList.filter(function(t) { return t.assignee; }).length;
-    document.getElementById('taskStats').innerHTML = 
+    document.getElementById('taskStats').innerHTML =
         '共 <strong>' + total + '</strong> 个任务' + (myTasks > 0 ? '，<strong>' + myTasks + '</strong> 个已分配' : '');
 }
 
 function renderKanban() {
     var columns = ['pending', 'in_progress', 'review', 'completed'];
-    
+
     columns.forEach(function(status) {
         var container = document.getElementById('cards-' + status);
         if (!container) return;
-        
+
         var tasks = taskList.filter(function(t) { return t.status === status; });
-        
+
         if (tasks.length === 0) {
             container.innerHTML = '<p class="text-center text-muted" style="font-size:0.85rem;padding:20px;">暂无任务</p>';
             return;
         }
-        
+
         var html = '';
         tasks.forEach(function(task) {
             var priorityClass = 'priority-' + (task.priority || 'medium');
             var priorityText = priorityMap[task.priority] || task.priority || '中';
-            var priorityBadgeClass = task.priority === 'critical' ? 'critical' : 
-                                    task.priority === 'high' ? 'high' : 
+            var priorityBadgeClass = task.priority === 'critical' ? 'critical' :
+                                    task.priority === 'high' ? 'high' :
                                     task.priority === 'medium' ? 'medium' : 'low';
             var completedStyle = task.status === 'completed' ? 'opacity:0.7;' : '';
-            
+
             // Flow node info
             var flowNodeHtml = '';
             if (task.flow_instance && task.flow_instance.current_node_name) {
                 var nodeStatus = task.flow_instance.current_node_status || 'pending';
-                var statusLabel = nodeStatus === 'completed' ? '已完成' : 
-                                  nodeStatus === 'in_progress' ? '进行中' : 
+                var statusLabel = nodeStatus === 'completed' ? '已完成' :
+                                  nodeStatus === 'in_progress' ? '进行中' :
                                   nodeStatus === 'rejected' ? '已拒绝' : '待处理';
                 var assigneeText = task.flow_instance.current_node_assignee || '';
                 flowNodeHtml = '<div class="flow-node-info">' +
@@ -863,9 +863,9 @@ function renderKanban() {
                     (assigneeText ? '<span class="text-muted" style="font-size:0.7rem;margin-left:6px;">→ ' + escapeHtml(assigneeText) + '</span>' : '') +
                     '</div>';
             }
-            
+
             html += `
-                <div class="task-card ${priorityClass}" draggable="true" data-id="${task.id}" 
+                <div class="task-card ${priorityClass}" draggable="true" data-id="${task.id}"
                      data-status="${task.status}" style="${completedStyle}"
                      onclick="showTaskDetail(${task.id})">
                     <div class="task-code">${escapeHtml(task.code)}</div>
@@ -876,9 +876,9 @@ function renderKanban() {
                     </div>
                     <div class="task-footer">
                         <div class="task-assignee">
-                            ${task.assignee_name ? 
+                            ${task.assignee_name ?
                                 '<div class="assignee-avatar">' + task.assignee_name.charAt(0) + '</div>' +
-                                '<span class="assignee-name">' + escapeHtml(task.assignee_name) + '</span>' : 
+                                '<span class="assignee-name">' + escapeHtml(task.assignee_name) + '</span>' :
                                 '<span class="text-muted" style="font-size:0.8rem;">未分配</span>'
                             }
                         </div>
@@ -888,10 +888,10 @@ function renderKanban() {
                 </div>
             `;
         });
-        
+
         container.innerHTML = html;
     });
-    
+
     // Rebind drag events
     initDragAndDrop();
 }
@@ -907,7 +907,7 @@ function showTaskModal(status) {
     document.getElementById('taskPriority').value = 'medium';
     document.getElementById('taskDueDate').value = '';
     document.getElementById('taskDescription').value = '';
-    
+
     taskModal.show();
 }
 
@@ -915,7 +915,7 @@ async function loadTaskData(taskId) {
     try {
         var response = await fetch('/api/tasks/tasks/' + taskId + '/', { credentials: 'include' });
         var task = await response.json();
-        
+
         document.getElementById('taskId').value = task.id;
         document.getElementById('taskTitle').value = task.title;
         document.getElementById('taskCode').value = task.code;
@@ -926,7 +926,7 @@ async function loadTaskData(taskId) {
         document.getElementById('taskDueDate').value = task.due_date ? task.due_date.slice(0, 16) : '';
         document.getElementById('taskDescription').value = task.description || '';
         currentTaskStatus = task.status;
-        
+
         taskModal.show();
     } catch (error) {
         console.error('加载任务数据失败:', error);
@@ -943,7 +943,7 @@ async function saveTask() {
     var priority = document.getElementById('taskPriority').value;
     var dueDate = document.getElementById('taskDueDate').value;
     var description = document.getElementById('taskDescription').value.trim();
-    
+
     if (!title) { showToast('请输入任务标题', 'warning'); return; }
     if (!code) { showToast('请输入任务编号', 'warning'); return; }
 
@@ -957,14 +957,14 @@ async function saveTask() {
         due_date: dueDate || null,
         description: description
     };
-    
+
     var url = '/api/tasks/tasks/';
     var method = 'POST';
     if (taskId) {
         url += taskId + '/';
         method = 'PATCH';
     }
-    
+
     try {
         var response = await fetch(url, {
             method: method,
@@ -975,12 +975,12 @@ async function saveTask() {
             credentials: 'include',
             body: JSON.stringify(payload)
         });
-        
+
         if (!response.ok) {
             var error = await response.json();
             throw new Error(error.code || error.detail || '保存失败');
         }
-        
+
         showToast(taskId ? '任务已更新' : '任务已创建', 'success');
         document.getElementById('taskCode').readOnly = false;
         loadTasks();
@@ -1322,12 +1322,12 @@ async function startTask() {
             credentials: 'include',
             headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
         });
-        
+
         if (!response.ok) {
             var error = await response.json();
             throw new Error(error.error || '操作失败');
         }
-        
+
         showToast('任务已开始', 'success');
         taskDetailModal.hide();
         document.getElementById('taskDetailModal').addEventListener('hidden.bs.modal', function handler() {
@@ -1347,12 +1347,12 @@ async function completeTask() {
             credentials: 'include',
             headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
         });
-        
+
         if (!response.ok) {
             var error = await response.json();
             throw new Error(error.error || '操作失败');
         }
-        
+
         showToast('任务已完成', 'success');
         taskDetailModal.hide();
         document.getElementById('taskDetailModal').addEventListener('hidden.bs.modal', function handler() {
@@ -1369,39 +1369,39 @@ async function completeTask() {
 function initDragAndDrop() {
     var cards = document.querySelectorAll('.task-card');
     var columns = document.querySelectorAll('.kanban-column');
-    
+
     cards.forEach(function(card) {
         card.addEventListener('dragstart', function(e) {
             this.classList.add('dragging');
             e.dataTransfer.setData('text/plain', this.dataset.id);
             e.dataTransfer.setData('text/status', this.dataset.status);
         });
-        
+
         card.addEventListener('dragend', function() {
             this.classList.remove('dragging');
         });
     });
-    
+
     columns.forEach(function(col) {
         col.addEventListener('dragover', function(e) {
             e.preventDefault();
             this.classList.add('drag-over');
         });
-        
+
         col.addEventListener('dragleave', function() {
             this.classList.remove('drag-over');
         });
-        
+
         col.addEventListener('drop', async function(e) {
             e.preventDefault();
             this.classList.remove('drag-over');
-            
+
             var taskId = e.dataTransfer.getData('text/plain');
             var oldStatus = e.dataTransfer.getData('text/status');
             var newStatus = this.dataset.status;
-            
+
             if (oldStatus === newStatus) return;
-            
+
             // Update task status via API
             try {
                 var response = await fetch('/api/tasks/tasks/' + taskId + '/', {
@@ -1413,9 +1413,9 @@ function initDragAndDrop() {
                     credentials: 'include',
                     body: JSON.stringify({ status: newStatus })
                 });
-                
+
                 if (!response.ok) throw new Error('更新失败');
-                
+
                 showToast('任务已移动到: ' + (statusMap[newStatus] || newStatus), 'success');
                 loadTasks();
             } catch (error) {

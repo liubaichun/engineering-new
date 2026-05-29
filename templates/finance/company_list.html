@@ -165,7 +165,7 @@
             </table>
         </div>
     </div>
-    
+
     <!-- 分页 -->
     <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         <span style="font-size:0.85rem; color:var(--text-secondary);" id="paginationInfo">显示 0-0 条，共 0 条</span>
@@ -270,13 +270,13 @@ document.addEventListener('DOMContentLoaded', function() {
 async function loadCompanies() {
     const tbody = document.getElementById('companyTableBody');
     tbody.innerHTML = '<tr><td colspan="7" class="loading-spinner"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">加载中...</span></div></td></tr>';
-    
+
     const status = document.getElementById('statusFilter').value;
     let url = '/api/finance/companies/?page=' + currentPage + '&page_size=' + pageSize;
     if (status) {
         url += '&status=' + status;
     }
-    
+
     try {
         const response = await fetch(url, {
             method: 'GET',
@@ -285,11 +285,11 @@ async function loadCompanies() {
                 'Content-Type': 'application/json',
             }
         });
-        
+
         if (!response.ok) {
             throw new Error('获取公司列表失败');
         }
-        
+
         const data = await response.json();
         renderCompanies(data);
         updateSummary(data);
@@ -303,26 +303,26 @@ async function loadCompanies() {
 function renderCompanies(data) {
     const tbody = document.getElementById('companyTableBody');
     const results = data.results || data;
-    
+
     if (!results || results.length === 0) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><i class="bi bi-building"></i><p>暂无公司信息</p><button class="btn btn-sm btn-primary" onclick="showAddCompanyModal()">新建公司</button></td></tr>';
         document.getElementById('recordCount').textContent = '0';
         document.getElementById('paginationInfo').textContent = '显示 0-0 条，共 0 条';
         return;
     }
-    
+
     const start = (currentPage - 1) * pageSize + 1;
     const end = Math.min(currentPage * pageSize, data.count || results.length);
     document.getElementById('recordCount').textContent = data.count || results.length;
     document.getElementById('paginationInfo').textContent = '显示 ' + start + '-' + end + ' 条，共 ' + (data.count || results.length) + ' 条';
-    
+
     let html = '';
     results.forEach(function(company) {
         const firstChar = company.name ? company.name.charAt(0).toUpperCase() : '?';
         const statusClass = company.status === 'active' ? 'active' : (company.status === 'inactive' ? 'inactive' : 'pending');
         const statusText = company.status === 'active' ? '启用' : (company.status === 'inactive' ? '停用' : '待审核');
         const createdTime = company.created_at ? new Date(company.created_at).toLocaleDateString('zh-CN') : '-';
-        
+
         html += '<tr data-id="' + company.id + '">';
         html += '<td>';
         html += '<div class="company-info">';
@@ -345,7 +345,7 @@ function renderCompanies(data) {
         html += '</td>';
         html += '</tr>';
     });
-    
+
     tbody.innerHTML = html;
     renderPagination(data);
 }
@@ -354,13 +354,13 @@ function updateSummary(data) {
     const results = data.results || data;
     const total = data.count || results.length;
     let active = 0, inactive = 0, pending = 0;
-    
+
     results.forEach(function(company) {
         if (company.status === 'active') active++;
         else if (company.status === 'inactive') inactive++;
         else pending++;
     });
-    
+
     document.getElementById('totalCount').textContent = total;
     document.getElementById('totalNum').textContent = total;
     document.getElementById('activeCount').textContent = active;
@@ -372,43 +372,43 @@ function renderPagination(data) {
     const pagination = document.getElementById('pagination');
     const total = data.count || 0;
     const totalPages = Math.ceil(total / pageSize);
-    
+
     if (totalPages <= 1) {
         pagination.innerHTML = '';
         return;
     }
-    
+
     let html = '';
     html += '<li class="page-item ' + (currentPage === 1 ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (currentPage - 1) + ')">上一页</a></li>';
-    
+
     const maxVisible = 5;
     let startPage = Math.max(1, currentPage - Math.floor(maxVisible / 2));
     let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    
+
     if (endPage - startPage < maxVisible - 1) {
         startPage = Math.max(1, endPage - maxVisible + 1);
     }
-    
+
     if (startPage > 1) {
         html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(1)">1</a></li>';
         if (startPage > 2) {
             html += '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
         }
     }
-    
+
     for (let i = startPage; i <= endPage; i++) {
         html += '<li class="page-item ' + (i === currentPage ? 'active' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + i + ')">' + i + '</a></li>';
     }
-    
+
     if (endPage < totalPages) {
         if (endPage < totalPages - 1) {
             html += '<li class="page-item disabled"><a class="page-link" href="#">...</a></li>';
         }
         html += '<li class="page-item"><a class="page-link" href="#" onclick="goToPage(' + totalPages + ')">' + totalPages + '</a></li>';
     }
-    
+
     html += '<li class="page-item ' + (currentPage === totalPages ? 'disabled' : '') + '"><a class="page-link" href="#" onclick="goToPage(' + (currentPage + 1) + ')">下一页</a></li>';
-    
+
     pagination.innerHTML = html;
 }
 
@@ -445,13 +445,13 @@ async function editCompany(id) {
                 'Content-Type': 'application/json',
             }
         });
-        
+
         if (!response.ok) {
             throw new Error('获取公司信息失败');
         }
-        
+
         const company = await response.json();
-        
+
         document.getElementById('companyModalTitle').textContent = '编辑公司';
         document.getElementById('companyId').value = company.id;
         document.getElementById('companyName').value = company.name || '';
@@ -461,7 +461,7 @@ async function editCompany(id) {
         document.getElementById('contactPhone').value = company.contact_phone || '';
         document.getElementById('companyAddress').value = company.createress || '';
         document.getElementById('companyRemark').value = company.remark || '';
-        
+
         companyModal.show();
     } catch (error) {
         showToast('获取公司信息失败: ' + error.message, 'error');
@@ -477,17 +477,17 @@ async function saveCompany() {
     const contactPhone = document.getElementById('contactPhone').value.trim();
     const address = document.getElementById('companyAddress').value.trim();
     const remark = document.getElementById('companyRemark').value.trim();
-    
+
     if (!name) {
         showToast('请输入公司名称', 'warning');
         return;
     }
-    
+
     if (!code) {
         showToast('请输入公司代码', 'warning');
         return;
     }
-    
+
     const data = {
         name: name,
         code: code,
@@ -497,10 +497,10 @@ async function saveCompany() {
         address: address,
         remark: remark
     };
-    
+
     const method = id ? 'PUT' : 'POST';
     const url = id ? '/api/finance/companies/' + id + '/' : '/api/finance/companies/';
-    
+
     try {
         const response = await fetch(url, {
             method: method,
@@ -510,11 +510,11 @@ async function saveCompany() {
             },
             body: JSON.stringify(data)
         });
-        
+
         if (!response.ok) {
             throw new Error(id ? '更新公司失败' : '创建公司失败');
         }
-        
+
         showToast(id ? '公司更新成功' : '公司创建成功', 'success');
         companyModal.hide();
         document.getElementById('companyModal').addEventListener('hidden.bs.modal', function handler() {
@@ -534,22 +534,22 @@ function deleteCompany(id, name) {
 
 async function confirmDelete() {
     if (!deleteTargetId) return;
-    
+
     try {
         const response = await fetch('/api/finance/companies/' + deleteTargetId + '/', {
             method: 'DELETE',
             credentials: 'include',
-            
+
             'X-CSRFToken': getCookie('csrftoken'),
             headers: {
                 'Content-Type': 'application/json',
             }
         });
-        
+
         if (!response.ok) {
             throw new Error('删除公司失败');
         }
-        
+
         showToast('公司删除成功', 'success');
         deleteModal.hide();
         document.getElementById('deleteModal').addEventListener('hidden.bs.modal', function handler() {
@@ -605,7 +605,7 @@ function showToast(message, type) {
     toast.className = 'toast-msg ' + (type || 'info');
     toast.innerHTML = '<i class="bi bi-' + (type === 'success' ? 'check-circle' : type === 'error' ? 'x-circle' : type === 'warning' ? 'exclamation-circle' : 'info-circle') + '"></i><span>' + message + '</span>';
     container.appendChild(toast);
-    
+
     setTimeout(function() {
         toast.style.opacity = '0';
         toast.style.transform = 'translateX(30px)';

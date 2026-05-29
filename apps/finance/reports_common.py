@@ -1,25 +1,19 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
-import re
 
-from django.db.models import Sum, Count, Q, F
+from django.db.models import Sum
 from django.utils import timezone
-from rest_framework.decorators import api_view
-from apps.core.permissions import require_perms
-from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
-from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
+from apps.finance.models import Company
+
 
 # 内部公司名称（同一集团内各公司互转不算外部收入）
 # ── 【P2-1 修复】从 Company 表动态读取（排除所有公司名，避免硬编码）────
 def get_internal_company_names():
     """从 Company 表获取所有公司名称，用于排除内部转账收入"""
     return set(Company.objects.values_list('name', flat=True))
+
 
 INTERNAL_COMPANY_NAMES = get_internal_company_names()
 
@@ -28,8 +22,6 @@ def agg(qs, field):
     """安全聚合，返回float，None当0处理"""
     v = qs.aggregate(t=Sum(field))['t']
     return float(v) if v is not None else 0.0
-
-
 
 
 # ─── 通用筛选逻辑 ─────────────────────────────────────────────────────────
@@ -59,14 +51,16 @@ def parse_date_range(request):
 
 def build_qs(model, company_id=None, year=None, month=None):
     qs = model.objects.all()
-    if company_id: qs = qs.filter(company_id=company_id)
+    if company_id:
+        qs = qs.filter(company_id=company_id)
     # 不同模型使用不同日期字段
     date_field = 'date'
     if model.__name__ == 'Expense':
         date_field = 'expense_date'
     elif model.__name__ == 'Income':
         date_field = 'date'
-    if year:  qs = qs.filter(**{f'{date_field}__year': year})
-    if month: qs = qs.filter(**{f'{date_field}__month': month})
+    if year:
+        qs = qs.filter(**{f'{date_field}__year': year})
+    if month:
+        qs = qs.filter(**{f'{date_field}__month': month})
     return qs
-

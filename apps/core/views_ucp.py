@@ -1,26 +1,14 @@
 import logging
-from rest_framework import viewsets, filters, status, permissions, serializers
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.permissions import AllowAny
-from apps.core.auth import CSRFExemptSessionAuthentication
-from drf_spectacular.utils import extend_schema
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
-from django.utils.decorators import method_decorator
-from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-from .models import (
-    UserCompanyPermission, Module, ModuleAction,
-    UserModulePermission, ACTION_BITS
-)
+from .models import UserCompanyPermission, Module, ModuleAction, UserModulePermission, ACTION_BITS
 from .serializers import UserCompanyPermissionSerializer
 from apps.finance.models import Company as FinanceCompany
-from apps.core.permissions import RoleRequired, get_module_companies
+from apps.core.permissions import RoleRequired
 
 
 class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
@@ -32,6 +20,7 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
     POST   {user_id, company_id, module_id, action_id, is_granted} → 写入/更新一条记录
     PUT/DELETE 批量操作由 matrix_bulk_update 处理
     """
+
     queryset = UserCompanyPermission.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     serializer_class = UserCompanyPermissionSerializer
@@ -39,9 +28,9 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
     required_roles = ['admin']
 
     def get_queryset(self):
-        qs = UserCompanyPermission.objects.select_related(
-            'user', 'company', 'module', 'action'
-        ).order_by('user__username', 'company__name', 'module__name', 'action__name')
+        qs = UserCompanyPermission.objects.select_related('user', 'company', 'module', 'action').order_by(
+            'user__username', 'company__name', 'module__name', 'action__name'
+        )
         user_id = self.request.query_params.get('user_id')
         if user_id:
             qs = qs.filter(user_id=user_id)
@@ -73,18 +62,20 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
         modules = Module.objects.filter(is_active=True).prefetch_related('actions').order_by('sort_order')
         module_data = []
         for m in modules:
-            module_data.append({
-                'id': m.id,
-                'name': m.name,
-                'label': m.label,
-                'icon': m.icon,
-                'category': m.category,
-                'sort_order': m.sort_order,
-                'actions': [
-                    {'id': a.id, 'name': a.name, 'label': a.label, 'action_group': a.action_group}
-                    for a in m.actions.all().order_by('action_group', 'sort_order')
-                ]
-            })
+            module_data.append(
+                {
+                    'id': m.id,
+                    'name': m.name,
+                    'label': m.label,
+                    'icon': m.icon,
+                    'category': m.category,
+                    'sort_order': m.sort_order,
+                    'actions': [
+                        {'id': a.id, 'name': a.name, 'label': a.label, 'action_group': a.action_group}
+                        for a in m.actions.all().order_by('action_group', 'sort_order')
+                    ],
+                }
+            )
 
         # 所有公司
         companies = list(FinanceCompany.objects.filter(status='active').order_by('name').values('id', 'name'))
@@ -101,22 +92,26 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 try:
                     action_obj = ModuleAction.objects.get(module=ump.module, name=action_name)
                     is_granted = bool(ump.granted_bits & bit)
-                    matrix_records.append({
-                        'user_id': int(user_id),
-                        'company_id': ump.company_id,
-                        'module_id': ump.module_id,
-                        'action_id': action_obj.id,
-                        'is_granted': is_granted,
-                        'has_record': True,
-                    })
+                    matrix_records.append(
+                        {
+                            'user_id': int(user_id),
+                            'company_id': ump.company_id,
+                            'module_id': ump.module_id,
+                            'action_id': action_obj.id,
+                            'is_granted': is_granted,
+                            'has_record': True,
+                        }
+                    )
                 except ModuleAction.DoesNotExist:
                     pass
 
-        return Response({
-            'modules': module_data,
-            'companies': companies,
-            'matrix': matrix_records,
-        })
+        return Response(
+            {
+                'modules': module_data,
+                'companies': companies,
+                'matrix': matrix_records,
+            }
+        )
 
     @action(detail=False, methods=['post'])
     def matrix_bulk_update(self, request):
@@ -157,10 +152,11 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
             if 'action_name' in upd:
                 module_for_action = upd.get('module_name') or module_names.get(upd.get('module_id'))
                 if module_for_action:
-                    action_id = ModuleAction.objects.filter(
-                        module__name=module_for_action,
-                        name=upd['action_name']
-                    ).values_list('id', flat=True).first()
+                    action_id = (
+                        ModuleAction.objects.filter(module__name=module_for_action, name=upd['action_name'])
+                        .values_list('id', flat=True)
+                        .first()
+                    )
                 else:
                     action_id = None
             else:
@@ -168,18 +164,17 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
 
             if not module_id or not action_id:
                 return Response(
-                    {'detail': f"找不到模块或动作: module={upd.get('module_name',upd.get('module_id'))}, action={upd.get('action_name',upd.get('action_id'))}"},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {
+                        'detail': f'找不到模块或动作: module={upd.get("module_name", upd.get("module_id"))}, action={upd.get("action_name", upd.get("action_id"))}'
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             # 获取 action_name 和对应的 bit
             action_name = action_names[action_id]
             bit = ACTION_BITS.get(action_name)
             if not bit:
-                return Response(
-                    {'detail': f'未知动作: {action_name}'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+                return Response({'detail': f'未知动作: {action_name}'}, status=status.HTTP_400_BAD_REQUEST)
 
             # 使用 UMP 位掩码
             ump, ump_created = UserModulePermission.objects.get_or_create(
@@ -202,14 +197,18 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 except Exception as e:
                     return Response({'status': 'error', 'message': f'保存权限失败：{str(e)}'}, status=500)
 
-            updated.append({
-                'company_id': company_id,
-                'module_id': module_id,
-                'action_id': action_id,
-                'is_granted': upd['is_granted'],
-            })
+            updated.append(
+                {
+                    'company_id': company_id,
+                    'module_id': module_id,
+                    'action_id': action_id,
+                    'is_granted': upd['is_granted'],
+                }
+            )
 
-        return Response({
-            'updated': len(updated),
-            'records': updated,
-        })
+        return Response(
+            {
+                'updated': len(updated),
+                'records': updated,
+            }
+        )

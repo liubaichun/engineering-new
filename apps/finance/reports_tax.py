@@ -1,19 +1,15 @@
 """
 财务补充报表 - P1增强
 """
-from datetime import datetime, timedelta
-from decimal import Decimal
+
 import re
 
-from django.db.models import Sum, Count, Q, F
-from django.utils import timezone
+from django.db.models import Sum
 from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Income, Expense, Invoice, WageRecord
-from apps.finance.models_bank import BankStatement
-from apps.crm.models import Client, Supplier
+from apps.finance.models import Company, Expense, Invoice
 
 
 def _parse_tax_type(desc: str, amount: float):
@@ -33,7 +29,6 @@ def _parse_tax_type(desc: str, amount: float):
     # ── 【P3-1 修复】────────────────────────────────────────────
     # 原 r'625\d+|626\d+' 会误匹配描述中任意位置的 626（如444036260里的"626"）
     # 改为取"税单号:"后面的实际税单号，再判断其前缀
-    import re
     tax_num_match = re.search(r'税单号[：:]([0-9]+)', desc)
     if tax_num_match:
         tax_num = tax_num_match.group(1)
@@ -46,7 +41,6 @@ def _parse_tax_type(desc: str, amount: float):
         return 'corporate_income_tax'
     # 其他税费归为其他
     return 'other'
-
 
 
 @api_view(['GET'])
@@ -115,6 +109,7 @@ def tax_summary_report(request):
         # 社保公积金：统一从 SocialRecord 读取公司缴部分（不再用反推公式）
         # 【P0-3 修复】直接查 SocialRecord.total_company，费率配置差异由导入数据覆盖
         from apps.finance.models import SocialRecord
+
         sr_q = SocialRecord.objects.filter(company=company)
         if year:
             sr_q = sr_q.filter(year_month__startswith=str(year))
@@ -127,19 +122,21 @@ def tax_summary_report(request):
         # 【P1-1 修复】区分发票层面的应交增值税（不考虑留抵/减免等复杂情况）
         net_vat = invoice_output_tax - invoice_input_tax
 
-        results.append({
-            'company_id': company.id,
-            'company_name': company.name,
-            'invoice_input_tax': round(invoice_input_tax, 2),
-            'invoice_output_tax': round(invoice_output_tax, 2),
-            'net_vat': round(net_vat, 2),                            # 应交增值税（销项-进项）
-            'personal_income_tax': round(personal_tax, 2),        # 代扣个税
-            'corporate_income_tax': round(corporate_tax, 2),       # 企业所得税
-            'vat': round(vat, 2),                                  # 增值税（银行实缴）
-            'social_housing_total': round(social_total, 2),        # 社保公积金
-            'other_tax': round(other_tax, 2),                       # 其他税费
-            'company_tax_total': round(company_tax_total, 2),
-        })
+        results.append(
+            {
+                'company_id': company.id,
+                'company_name': company.name,
+                'invoice_input_tax': round(invoice_input_tax, 2),
+                'invoice_output_tax': round(invoice_output_tax, 2),
+                'net_vat': round(net_vat, 2),  # 应交增值税（销项-进项）
+                'personal_income_tax': round(personal_tax, 2),  # 代扣个税
+                'corporate_income_tax': round(corporate_tax, 2),  # 企业所得税
+                'vat': round(vat, 2),  # 增值税（银行实缴）
+                'social_housing_total': round(social_total, 2),  # 社保公积金
+                'other_tax': round(other_tax, 2),  # 其他税费
+                'company_tax_total': round(company_tax_total, 2),
+            }
+        )
         grand_input_tax += invoice_input_tax
         grand_output_tax += invoice_output_tax
         grand_personal_tax += personal_tax
@@ -150,22 +147,24 @@ def tax_summary_report(request):
     grand_net_vat = grand_output_tax - grand_input_tax
     grand_company_total = grand_personal_tax + grand_corporate_tax + grand_vat + grand_social
 
-    return Response({
-        'report': 'tax_summary',
-        'title': f'{year}年 税费汇总表',
-        'params': params,
-        'results': results,
-        'summary': {
-            'total_invoice_input_tax': round(grand_input_tax, 2),
-            'total_invoice_output_tax': round(grand_output_tax, 2),
-            'total_net_vat': round(grand_net_vat, 2),                    # 应交增值税
-            'total_personal_income_tax': round(grand_personal_tax, 2),
-            'total_corporate_income_tax': round(grand_corporate_tax, 2),
-            'total_vat': round(grand_vat, 2),
-            'total_social_housing': round(grand_social, 2),
-            'grand_company_tax_total': round(grand_company_total, 2),
+    return Response(
+        {
+            'report': 'tax_summary',
+            'title': f'{year}年 税费汇总表',
+            'params': params,
+            'results': results,
+            'summary': {
+                'total_invoice_input_tax': round(grand_input_tax, 2),
+                'total_invoice_output_tax': round(grand_output_tax, 2),
+                'total_net_vat': round(grand_net_vat, 2),  # 应交增值税
+                'total_personal_income_tax': round(grand_personal_tax, 2),
+                'total_corporate_income_tax': round(grand_corporate_tax, 2),
+                'total_vat': round(grand_vat, 2),
+                'total_social_housing': round(grand_social, 2),
+                'grand_company_tax_total': round(grand_company_total, 2),
+            },
         }
-    })
+    )
 
 
 # ─── 6. 预算执行表 ──────────────────────────────────────────────────────

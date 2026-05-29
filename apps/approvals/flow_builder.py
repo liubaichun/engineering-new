@@ -12,6 +12,7 @@
         related_id=123,
     )
 """
+
 from decimal import Decimal
 from django.contrib.auth import get_user_model
 from .models import ApprovalFlow, ApprovalNode, ApprovalTemplate
@@ -44,12 +45,14 @@ def find_best_template(flow_type, amount):
     """
     amount = Decimal(str(amount)) if amount else Decimal('0')
 
-    candidates = ApprovalTemplate.objects.filter(
-        flow_type=flow_type,
-        is_active=True,
-    ).filter(
-        conditions__min_amount__lte=float(amount)
-    ).order_by('-conditions__min_amount')
+    candidates = (
+        ApprovalTemplate.objects.filter(
+            flow_type=flow_type,
+            is_active=True,
+        )
+        .filter(conditions__min_amount__lte=float(amount))
+        .order_by('-conditions__min_amount')
+    )
 
     for tpl in candidates:
         min_amt = tpl.conditions.get('min_amount', 0) or 0
@@ -86,8 +89,7 @@ def resolve_approver(approver_type, approver_id, company=None):
     return admin
 
 
-def build_approval_flow(flow_type, amount, name, requester=None,
-                         description='', related_id=None, company=None):
+def build_approval_flow(flow_type, amount, name, requester=None, description='', related_id=None, company=None):
     """
     构建审批流：
       1. 若智能审批关闭 → 返回 None（不创建审批流，业务直接放行）

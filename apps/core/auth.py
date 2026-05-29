@@ -1,5 +1,6 @@
 from rest_framework.authentication import SessionAuthentication
 
+
 class CSRFExemptSessionAuthentication(SessionAuthentication):
     """
     内部系统禁用CSRF检查的Session认证。
@@ -13,5 +14,6 @@ class CSRFExemptSessionAuthentication(SessionAuthentication):
 
     面向外部的服务（如果将来有）应使用标准SessionAuthentication并强制CSRF。
     """
+
     def enforce_csrf(self, request):
         return  # 不进行CSRF检查

@@ -5,11 +5,12 @@
   python manage.py check_approval_timeouts --dry-run # 仅预览不修改
   python manage.py check_approval_timeouts --hours=24 # 自定义超时阈值(小时)
 """
+
 from datetime import timedelta
 from django.core.management.base import BaseCommand
 from django.utils import timezone
-from django.db.models import Q
 from apps.approvals.models import ApprovalNode, ApprovalFlow
+
 
 class Command(BaseCommand):
     help = '检测审批超时节点，标记为超时状态'
@@ -26,9 +27,9 @@ class Command(BaseCommand):
         self.stdout.write(f'[{now}] 开始检测超时节点...' + (' (DRY RUN)' if dry_run else ''))
 
         # 查找 pending 状态且可超时的节点
-        pending_nodes = ApprovalNode.objects.filter(
-            status__in=['pending', 'approved']
-        ).select_related('flow', 'approver')
+        pending_nodes = ApprovalNode.objects.filter(status__in=['pending', 'approved']).select_related(
+            'flow', 'approver'
+        )
 
         expired_count = 0
         processed_ids = []
@@ -62,14 +63,11 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.SUCCESS(
-                f'\n完成: 发现 {expired_count} 个超时节点'
-                + (' (未执行修改)' if dry_run else ' (已全部标记)')
+                f'\n完成: 发现 {expired_count} 个超时节点' + (' (未执行修改)' if dry_run else ' (已全部标记)')
             )
         )
 
         if not dry_run and expired_count > 0:
             # 检查是否有超时节点的 flow 需要特殊处理
-            timeout_flows = ApprovalFlow.objects.filter(
-                nodes__status='expired'
-            ).distinct()
+            timeout_flows = ApprovalFlow.objects.filter(nodes__status='expired').distinct()
             self.stdout.write(f'涉及 {timeout_flows.count()} 条审批流含超时节点')

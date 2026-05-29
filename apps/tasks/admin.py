@@ -1,8 +1,5 @@
 from django.contrib import admin
-from .models import (
-    Project, Task, FlowTemplate, FlowNodeTemplate,
-    TaskStageInstance, StageActivity, FlowTransition
-)
+from .models import Project, Task, FlowTemplate, FlowNodeTemplate, TaskStageInstance, StageActivity, FlowTransition
 
 
 @admin.register(Project)

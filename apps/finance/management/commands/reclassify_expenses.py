@@ -7,6 +7,7 @@
   4. 费用报销/报销款 → 管理费用（不知道具体用途）
   5. 其他银行相关 + 无供应商 → 财务费用
 """
+
 from django.core.management.base import BaseCommand
 from apps.finance.models import Expense
 
@@ -33,10 +34,15 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         total = Expense.objects.count()
-        changes = {'finance_to_main': 0, 'finance_to_admin': 0,
-                   'other_to_main': 0, 'other_to_admin': 0,
-                   'other_to_internal': 0, 'other_to_agency': 0,
-                   'kept': 0}
+        changes = {
+            'finance_to_main': 0,
+            'finance_to_admin': 0,
+            'other_to_main': 0,
+            'other_to_admin': 0,
+            'other_to_internal': 0,
+            'other_to_agency': 0,
+            'kept': 0,
+        }
 
         for exp in Expense.objects.iterator():
             desc = (exp.description or '').strip()
@@ -61,6 +67,7 @@ class Command(BaseCommand):
 
         # 最终分布
         from collections import Counter
+
         final = Counter(Expense.objects.values_list('expense_type', flat=True))
         choices = dict(Expense._meta.get_field('expense_type').choices)
         self.stdout.write('\n最终分布:')
@@ -70,18 +77,35 @@ class Command(BaseCommand):
 
     def _classify(self, desc, supplier, original, exp):
         # ─── 规则1: 银行纯手续费（无公司供应商）→ 财务费用 ───
-        bank_terms = ['手续费', '年费', '账户管理费', '批量代发付费',
-                       '批量代发', '网银支付', '代发代扣', '回单',
-                       '支票手续费', '财智账户卡']
+        bank_terms = [
+            '手续费',
+            '年费',
+            '账户管理费',
+            '批量代发付费',
+            '批量代发',
+            '网银支付',
+            '代发代扣',
+            '回单',
+            '支票手续费',
+            '财智账户卡',
+        ]
         if any(k in desc for k in bank_terms):
             if not _is_real_company(supplier):
                 return 'finance_expense'
             # 供应商是公司名 → 不是银行手续费，走下方规则
 
         # ─── 规则2: 技术服务费/服务费 + 有公司供应商 → 主营业务成本 ───
-        service_terms = ['技术服务费', '服务费', '中标服务费', '招标服务费',
-                         '代理服务费', '测试化验', '委托业务', '维保服务费',
-                         '专用材料']
+        service_terms = [
+            '技术服务费',
+            '服务费',
+            '中标服务费',
+            '招标服务费',
+            '代理服务费',
+            '测试化验',
+            '委托业务',
+            '维保服务费',
+            '专用材料',
+        ]
         if any(k in desc for k in service_terms):
             if _is_real_company(supplier):
                 return 'main_cost'

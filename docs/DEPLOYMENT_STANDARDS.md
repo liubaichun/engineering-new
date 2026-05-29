@@ -134,7 +134,7 @@ grep -A5 "dependencies" apps/notifications/migrations/0003*.py
   # 方案1（推荐）：fake掉中间状态，然后正常执行
   python manage.py migrate notifications 0002_add_notification_channel --fake
   python manage.py migrate notifications 0003_add_notify_binding_fields
-  
+
   # 方案2：直接插入applied记录
   # 在Django shell中执行SQL
   ```
@@ -202,7 +202,7 @@ with connection.cursor() as c:
   # 修改代码
   git commit -m "fix: ..."
   git push origin master
-  
+
   # Cherry-pick到standalone
   git checkout standalone
   git cherry-pick <master-commit-hash>

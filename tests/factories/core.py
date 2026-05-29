@@ -6,6 +6,7 @@ from django.contrib.auth.hashers import make_password
 
 class UserFactory(factory.django.DjangoModelFactory):
     """core.User 模型工厂（AUTH_USER_MODEL = core.User）"""
+
     class Meta:
         model = 'core.User'
         django_get_or_create = ('username',)
@@ -20,6 +21,7 @@ class UserFactory(factory.django.DjangoModelFactory):
 
 class CompanyFactory(factory.django.DjangoModelFactory):
     """Company 模型工厂"""
+
     class Meta:
         model = 'finance.Company'
         django_get_or_create = ('code',)
@@ -35,6 +37,7 @@ class CompanyFactory(factory.django.DjangoModelFactory):
 
 class PermissionFactory(factory.django.DjangoModelFactory):
     """auth.Permission 模型工厂"""
+
     class Meta:
         model = 'auth.Permission'
         django_get_or_create = ('codename',)
@@ -42,8 +45,7 @@ class PermissionFactory(factory.django.DjangoModelFactory):
     name = factory.Sequence(lambda n: f'测试权限_{n:04d}')
     codename = factory.Sequence(lambda n: f'test_perm_{n:04d}')
     content_type = factory.LazyAttribute(
-        lambda o: __import__('django.contrib.contenttypes.models', fromlist=['ContentType'])
-        .ContentType.objects.get_for_model(
-            __import__('apps.core.models', fromlist=['User']).User
-        )
+        lambda o: __import__(
+            'django.contrib.contenttypes.models', fromlist=['ContentType']
+        ).ContentType.objects.get_for_model(__import__('apps.core.models', fromlist=['User']).User)
     )

@@ -4,15 +4,15 @@ POST /api/crm/import/clients/     - 客户导入
 POST /api/crm/import/suppliers/   - 供应商导入
 POST /api/crm/import/contracts/  - 合同导入
 """
+
 import datetime
 import io
-import re
 from decimal import Decimal
 
 from django.db import transaction
 from openpyxl import load_workbook
 from apps.core.permissions import require_perms
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from apps.crm.models import Client, Supplier, Contract
@@ -59,10 +59,9 @@ class ImportResult:
         self.created_ids = []
 
     def add_error(self, row, field, msg, value=None):
-        self.errors.append({
-            'row': row, 'field': field, 'message': msg,
-            'value': str(value) if value is not None else None
-        })
+        self.errors.append(
+            {'row': row, 'field': field, 'message': msg, 'value': str(value) if value is not None else None}
+        )
         self.error_count += 1
 
     def to_dict(self):
@@ -248,7 +247,8 @@ def import_contracts(request):
         expire_date = _parse_date(_cell(ws, row_num, cm.get('expire_date')))
 
         counterparty_type_val = COUNTERPARTY_TYPE_MAP.get(
-            str(_cell(ws, row_num, cm.get('counterparty_type')) or '客户').strip(), 'client')
+            str(_cell(ws, row_num, cm.get('counterparty_type')) or '客户').strip(), 'client'
+        )
 
         client = None
         supplier = None
@@ -266,6 +266,7 @@ def import_contracts(request):
             project_name = str(_cell(ws, row_num, project_col) or '').strip()
             if project_name:
                 from apps.tasks.models import Project
+
                 project = Project.objects.filter(name=project_name).first()
 
         try:

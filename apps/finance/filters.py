@@ -4,6 +4,7 @@ from .models import WageRecord, Company, Income, Expense, Invoice
 
 class CompanyFilter(django_filters.FilterSet):
     """公司过滤器"""
+
     status = django_filters.ChoiceFilter(field_name='status', choices=Company.STATUS_CHOICES)
     name = django_filters.CharFilter(field_name='name', lookup_expr='contains')
     code = django_filters.CharFilter(field_name='code', lookup_expr='exact')
@@ -17,6 +18,7 @@ class CompanyFilter(django_filters.FilterSet):
 
 class IncomeFilter(django_filters.FilterSet):
     """收入过滤器"""
+
     company_id = django_filters.NumberFilter(field_name='company__id')
     year = django_filters.NumberFilter(field_name='date__year')
     month = django_filters.NumberFilter(field_name='date__month')
@@ -37,15 +39,27 @@ class IncomeFilter(django_filters.FilterSet):
     class Meta:
         model = Income
         fields = [
-            'company_id', 'year', 'month', 'status', 'source',
-            'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to',
-            'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary', 'income_category',
+            'company_id',
+            'year',
+            'month',
+            'status',
+            'source',
+            'project_id',
+            'min_amount',
+            'max_amount',
+            'date_from',
+            'date_to',
+            'counterparty_account',
+            'counterparty_bank',
+            'transaction_type',
+            'summary',
+            'income_category',
         ]
 
 
 class ExpenseFilter(django_filters.FilterSet):
     """支出过滤器"""
+
     company_id = django_filters.NumberFilter(field_name='company__id')
     year = django_filters.NumberFilter(field_name='expense_date__year')
     month = django_filters.NumberFilter(field_name='expense_date__month')
@@ -64,15 +78,25 @@ class ExpenseFilter(django_filters.FilterSet):
     class Meta:
         model = Expense
         fields = [
-            'company_id', 'year', 'month', 'expense_type',
-            'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to',
-            'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary',
+            'company_id',
+            'year',
+            'month',
+            'expense_type',
+            'project_id',
+            'min_amount',
+            'max_amount',
+            'date_from',
+            'date_to',
+            'counterparty_account',
+            'counterparty_bank',
+            'transaction_type',
+            'summary',
         ]
 
 
 class WageRecordFilter(django_filters.FilterSet):
     """工资单过滤器"""
+
     year = django_filters.NumberFilter(field_name='year')
     month = django_filters.NumberFilter(field_name='month')
     company = django_filters.NumberFilter(field_name='company__id')
@@ -89,14 +113,23 @@ class WageRecordFilter(django_filters.FilterSet):
     class Meta:
         model = WageRecord
         fields = [
-            'year', 'month', 'company_id', 'status', 'employee', 'employee_name',
-            'department', 'min_gross_salary', 'max_gross_salary',
-            'min_net_salary', 'date_range'
+            'year',
+            'month',
+            'company_id',
+            'status',
+            'employee',
+            'employee_name',
+            'department',
+            'min_gross_salary',
+            'max_gross_salary',
+            'min_net_salary',
+            'date_range',
         ]
 
 
 class InvoiceFilter(django_filters.FilterSet):
     """发票过滤器"""
+
     company_id = django_filters.NumberFilter(field_name='company__id')
     year = django_filters.NumberFilter(field_name='issue_date__year')
     month = django_filters.NumberFilter(field_name='issue_date__month')

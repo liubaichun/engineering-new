@@ -1,76 +1,81 @@
 import logging
 from django.shortcuts import get_object_or_404
-from django.http import HttpResponse
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-from .models import ChannelPlugin, ChannelBinding, NotificationLog, ChannelAuditLog
+from .models import ChannelPlugin
 from .base import ChannelRegistry
 from apps.core.services import get_active_company_id
-from apps.channels.utils import make_oauth_state
+
 
 class ChannelListView(APIView):
     """获取可用渠道列表"""
+
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
         company_id = get_active_company_id(request)
         queryset = ChannelPlugin.objects.filter(is_deleted=False)
-        
+
         if not (request.user.is_superuser or request.user.is_staff):
             if company_id is None:
                 return Response([])
             queryset = queryset.filter(company_id=company_id)
-        
+
         channels = queryset.filter(is_active=True).order_by('-created_at')
-        
+
         data = []
         for ch in channels:
             plugin = ChannelRegistry.get_plugin(ch.channel_type, ch.config)
             status_info = plugin.get_status() if plugin else {}
-            
-            data.append({
-                'id': ch.id,
-                'channel_type': ch.channel_type,
-                'channel_name': ch.get_channel_type_display(),
-                'usage': ch.usage,
-                'usage_display': ch.get_usage_display(),
-                'plugin_name': ch.plugin_name,
-                'app_name': ch.app_name,
-                'connection_mode': ch.connection_mode,
-                'pairing_mode': ch.pairing_mode,
-                'is_active': ch.is_active,
-                'config': ch.config or {},
-                'status': status_info,
-                'config_schema': {
-                    'required_fields': plugin.get_required_config_fields() if plugin else [],
-                    'optional_fields': plugin.get_optional_config_fields() if plugin else [],
-                } if plugin else {},
-            })
-        
+
+            data.append(
+                {
+                    'id': ch.id,
+                    'channel_type': ch.channel_type,
+                    'channel_name': ch.get_channel_type_display(),
+                    'usage': ch.usage,
+                    'usage_display': ch.get_usage_display(),
+                    'plugin_name': ch.plugin_name,
+                    'app_name': ch.app_name,
+                    'connection_mode': ch.connection_mode,
+                    'pairing_mode': ch.pairing_mode,
+                    'is_active': ch.is_active,
+                    'config': ch.config or {},
+                    'status': status_info,
+                    'config_schema': {
+                        'required_fields': plugin.get_required_config_fields() if plugin else [],
+                        'optional_fields': plugin.get_optional_config_fields() if plugin else [],
+                    }
+                    if plugin
+                    else {},
+                }
+            )
+
         return Response(data)
-    
+
     def post(self, request):
         """创建新渠道"""
         company_id = get_active_company_id(request)
-        
+
         if not company_id and request.user.is_authenticated and (request.user.is_superuser or request.user.is_staff):
             # 超管/staff 用户：取其第一个 UCP 记录对应的公司
             from apps.core.models import UserCompanyPermission
+
             first_ucp = UserCompanyPermission.objects.filter(user=request.user).first()
             if first_ucp:
                 company_id = first_ucp.company_id
-        
+
         if not company_id:
             return Response({'error': '无法确定公司'}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         channel_type = request.data.get('channel_type')
         usage = request.data.get('usage', 'personal')
         app_name = request.data.get('app_name', '')
@@ -88,6 +93,7 @@ class ChannelListView(APIView):
 
         # 保存前加密敏感凭证（CNAS/CMA 要求）
         from apps.channels.utils import encrypt_credentials
+
         encrypted_config = encrypt_credentials(config)
 
         try:
@@ -104,28 +110,32 @@ class ChannelListView(APIView):
             return Response({'error': f'创建渠道失败: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         write_audit_log(
-            'channel_create', request,
+            'channel_create',
+            request,
             channel=channel,
             detail={
                 'channel_id': channel.id,
                 'channel_type': channel_type,
                 'app_name': app_name,
             },
-            result='success'
+            result='success',
         )
 
-        return Response({
-            'id': channel.id,
-            'channel_type': channel.channel_type,
-            'channel_name': channel.get_channel_type_display(),
-            'app_name': channel.app_name,
-            'is_active': channel.is_active,
-        }, status=status.HTTP_201_CREATED)
-
+        return Response(
+            {
+                'id': channel.id,
+                'channel_type': channel.channel_type,
+                'channel_name': channel.get_channel_type_display(),
+                'app_name': channel.app_name,
+                'is_active': channel.is_active,
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class ChannelDetailView(APIView):
     """渠道详情（更新/删除）"""
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
@@ -139,19 +149,21 @@ class ChannelDetailView(APIView):
             'current_config_keys': list(channel.config.keys()) if channel.config else [],
         }
 
-        return Response({
-            'id': channel.id,
-            'channel_type': channel.channel_type,
-            'channel_name': channel.get_channel_type_display(),
-            'usage': channel.usage,
-            'usage_display': channel.get_usage_display(),
-            'app_name': channel.app_name,
-            'connection_mode': channel.connection_mode,
-            'pairing_mode': channel.pairing_mode,
-            'is_active': channel.is_active,
-            'config': channel.config or {},
-            'config_schema': schema,
-        })
+        return Response(
+            {
+                'id': channel.id,
+                'channel_type': channel.channel_type,
+                'channel_name': channel.get_channel_type_display(),
+                'usage': channel.usage,
+                'usage_display': channel.get_usage_display(),
+                'app_name': channel.app_name,
+                'connection_mode': channel.connection_mode,
+                'pairing_mode': channel.pairing_mode,
+                'is_active': channel.is_active,
+                'config': channel.config or {},
+                'config_schema': schema,
+            }
+        )
 
     def patch(self, request, pk):
         channel = get_object_or_404(ChannelPlugin, id=pk, is_deleted=False)
@@ -192,6 +204,7 @@ class ChannelDetailView(APIView):
             changed_fields.append('config')
             # 保存前加密敏感凭证（CNAS/CMA 要求）
             from apps.channels.utils import encrypt_credentials
+
             merged = {**channel.config, **new_config}
             channel.config = encrypt_credentials(merged)
 
@@ -213,7 +226,8 @@ class ChannelDetailView(APIView):
             except Exception as e:
                 return Response({'error': f'更新渠道失败：{str(e)}'}, status=500)
             write_audit_log(
-                'channel_update', request,
+                'channel_update',
+                request,
                 channel=channel,
                 detail={
                     'channel_id': channel.id,
@@ -221,23 +235,26 @@ class ChannelDetailView(APIView):
                     'old_values': old_values,
                     'new_values': new_values,
                 },
-                result='success'
+                result='success',
             )
         else:
             write_audit_log(
-                'channel_update', request,
+                'channel_update',
+                request,
                 channel=channel,
                 detail={'channel_id': channel.id, 'changed_fields': [], 'note': '无实际变更'},
-                result='success'
+                result='success',
             )
 
-        return Response({
-            'id': channel.id,
-            'channel_type': channel.channel_type,
-            'channel_name': channel.get_channel_type_display(),
-            'app_name': channel.app_name,
-            'is_active': channel.is_active,
-        })
+        return Response(
+            {
+                'id': channel.id,
+                'channel_type': channel.channel_type,
+                'channel_name': channel.get_channel_type_display(),
+                'app_name': channel.app_name,
+                'is_active': channel.is_active,
+            }
+        )
 
     def delete(self, request, pk):
         """
@@ -248,7 +265,8 @@ class ChannelDetailView(APIView):
             channel = get_object_or_404(ChannelPlugin, id=pk, is_deleted=False)
 
             write_audit_log(
-                'channel_delete', request,
+                'channel_delete',
+                request,
                 channel=channel,
                 detail={
                     'channel_id': channel.id,
@@ -256,7 +274,7 @@ class ChannelDetailView(APIView):
                     'app_name': channel.app_name,
                     'delete_type': 'soft',
                 },
-                result='success'
+                result='success',
             )
 
             channel.is_active = False
@@ -271,8 +289,7 @@ class ChannelDetailView(APIView):
             return Response({'message': '渠道已停用（软删除）'}, status=status.HTTP_200_OK)
         except Exception as e:
             import traceback
-            return Response(
-                {'error': str(e), 'trace': traceback.format_exc()},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
 
+            return Response(
+                {'error': str(e), 'trace': traceback.format_exc()}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

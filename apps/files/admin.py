@@ -12,8 +12,17 @@ class FileCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(CompanyFile)
 class CompanyFileAdmin(admin.ModelAdmin):
-    list_display = ['file_name', 'category', 'company', 'project',
-                    'version', 'is_current', 'uploaded_by', 'file_size', 'created_at']
+    list_display = [
+        'file_name',
+        'category',
+        'company',
+        'project',
+        'version',
+        'is_current',
+        'uploaded_by',
+        'file_size',
+        'created_at',
+    ]
     list_filter = ['category', 'is_current', 'created_at']
     search_fields = ['file_name', 'company__name', 'project__name']
     readonly_fields = ['file_size', 'version', 'created_at']

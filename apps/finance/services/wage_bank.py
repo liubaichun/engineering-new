@@ -2,7 +2,7 @@
 工资银行代发文件导出服务
 支持：工商银行(ICBC)、建设银行(CCB)、通用CSV格式
 """
-from decimal import Decimal
+
 from typing import List
 from io import StringIO
 
@@ -35,13 +35,13 @@ def generate_icbc_batch_file(records: List, company_name: str = '', account_no: 
             emp_bank_name = getattr(wr.employee, 'bank_name', '') or ''
         bank_name = emp_bank_name.strip().ljust(60)[:60]
         emp_name = (wr.employee_name or '').strip().ljust(60)[:60]
-        amount = f"{float(wr.net_salary or 0):.2f}".rjust(15)
-        serial = f"{seq:08d}".ljust(20)
-        usage = f"工资{wr.year}年{wr.month}月".encode('gbk').decode('gbk').ljust(40)[:40]
+        amount = f'{float(wr.net_salary or 0):.2f}'.rjust(15)
+        serial = f'{seq:08d}'.ljust(20)
+        usage = f'工资{wr.year}年{wr.month}月'.encode('gbk').decode('gbk').ljust(40)[:40]
         remark = ''.ljust(20)
 
         # 固定长度记录行
-        line = f"{serial}{bank_card}{emp_name}{bank_name}{amount}{usage}{remark}"
+        line = f'{serial}{bank_card}{emp_name}{bank_name}{amount}{usage}{remark}'
         lines.append(line)
         seq += 1
 
@@ -77,9 +77,7 @@ def generate_ccb_batch_file(records: List) -> bytes:
         amount = float(wr.net_salary or 0)
         usage = f'工资{wr.year}年{wr.month}月'
 
-        output.write(
-            f'{i},{bank_card},{emp_name},{bank_name},{amount:.2f},{usage}\n'
-        )
+        output.write(f'{i},{bank_card},{emp_name},{bank_name},{amount:.2f},{usage}\n')
 
     return output.getvalue().encode('utf-8')
 
@@ -98,6 +96,7 @@ def generate_generic_batch_file(records: List, bank_type: str = 'ICBC') -> bytes
 def make_bank_export_response(content: bytes, filename: str, content_type: str = None) -> 'HttpResponse':
     """生成HTTP响应用于文件下载"""
     from django.http import HttpResponse
+
     if content_type is None:
         content_type = 'application/octet-stream'
     response = HttpResponse(content, content_type=content_type)

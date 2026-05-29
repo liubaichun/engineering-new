@@ -31,12 +31,12 @@
 def get_module_companies(user, module_name, action='read'):
     """
     返回用户对指定模块有 action 权限的所有公司 ID 列表。
-    
+
     参数：
         user: User 对象
         module_name: str — 模块名（如 'income', 'expense', 'project'）
         action: str — 动作名（默认 'read'）
-    
+
     返回：
         None — 超级用户，不过滤（见全公司数据）
         []   — 用户无任何公司有此权限
@@ -267,7 +267,7 @@ POST /api/core/auth/user/           → POST 新增 action 模式
 2. 在 ViewSet 的 `get_queryset()` 中添加：
    ```python
    from apps.core.permissions import get_module_companies
-   
+
    def get_queryset(self):
        qs = super().get_queryset()
        cids = get_module_companies(self.request.user, '<module_name>')

@@ -510,13 +510,13 @@ async function saveBinding() {
         // For now, use a direct approach via a dedicated admin endpoint, or adapt the existing one
         // The existing BindingListCreateView binds to request.user, not arbitrary user
         // Let's create a new payload format and handle it via PATCH if exists, or create new
-        
+
         const resp = await fetch('/api/channels/bindings/', {
             method: 'POST', credentials: 'include',
             headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
             body: JSON.stringify({ channel_id, open_id, user_id })
         });
-        
+
         // If 400 because user mismatch, try alternative
         if (!resp.ok) {
             const d = await resp.json();
