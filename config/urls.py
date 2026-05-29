@@ -161,7 +161,6 @@ def contract_list_page(request):
 
 def contract_detail_page(request, contract_id):
     from apps.crm.models import Contract, PaymentPlan, ContractChangeLog
-    from apps.core.tenant_resolver import resolve_company
     try:
         contract = Contract.objects.select_related('company').get(id=contract_id)
     except Contract.DoesNotExist:
@@ -263,12 +262,9 @@ def file_list_page(request):
 def register_page(request):
     if request.user.is_authenticated:
         return redirect('/dashboard/')
-    # 买断版关闭注册入口
-    from django.conf import settings
-    if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
-        from django.http import Http404
-        raise Http404("注册入口已关闭，请联系系统管理员。")
-    return TemplateView.as_view(template_name='register.html')(request)
+    # 关闭注册入口
+    from django.http import Http404
+    raise Http404("注册入口已关闭，请联系系统管理员。")
 
 def profile_page(request):
     if not request.user.is_authenticated:

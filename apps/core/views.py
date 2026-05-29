@@ -147,28 +147,13 @@ class RegisterView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
-    @extend_schema(tags=['auth'], summary='用户注册', description='提交注册信息（买断版默认关闭注册入口），管理员审批后账号生效')
+    @extend_schema(tags=['auth'], summary='用户注册', description='提交注册信息，管理员审批后账号生效')
     def post(self, request):
-        # 买断版关闭注册
-        from django.conf import settings
-        if getattr(settings, 'TENANT_MODE', 'subscription') == 'standalone':
-            return Response(
-                {'status': 'error', 'message': '注册入口已关闭，请联系系统管理员。'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-        serializer = UserRegisterSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            return Response({
-                'status': 'pending',
-                'message': '注册成功，您的账号正在等待管理员审批，审批通过后即可登录。',
-                'user': UserSerializer(user).data,
-            }, status=status.HTTP_201_CREATED)
-        return Response({
-            'status': 'error',
-            'message': '注册失败',
-            'errors': serializer.errors
-        }, status=status.HTTP_400_BAD_REQUEST)
+        # 关闭自助注册入口
+        return Response(
+            {'status': 'error', 'message': '注册入口已关闭，请联系系统管理员。'},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
 
 @method_decorator(csrf_exempt, name='dispatch')

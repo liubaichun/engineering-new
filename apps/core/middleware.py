@@ -6,10 +6,8 @@ class CompanyContextMiddleware(MiddlewareMixin):
     """
     为已认证用户注入 request.auth_company。
 
-    买断版（standalone）：所有用户使用 DEFAULT_COMPANY_ID。
-    租赁版（subscription）：从 session 或 UserCompanyPermission 解析租户。
-
-    不再依赖 UserCompanyRole。
+    多公司经营模式：用户通过 UserCompanyPermission 关联到多个公司，
+    当前公司从 session['current_company_id'] 读取，用户可切换。
     """
 
     def process_request(self, request):
@@ -19,12 +17,7 @@ class CompanyContextMiddleware(MiddlewareMixin):
         if not hasattr(request, 'user') or not request.user.is_authenticated:
             return
 
-        # 买断版：所有用户使用同一个预设公司
-        if self._is_standalone():
-            self._apply_standalone_company(request)
-            return
-
-        # 租赁版：从 UCP 解析
+        # 从 session 获取当前公司
         from apps.core.models import UserCompanyPermission
         from apps.finance.models import Company
 
@@ -58,22 +51,3 @@ class CompanyContextMiddleware(MiddlewareMixin):
         if request.auth_company:
             if hasattr(request.user, 'company_id'):
                 request.user.company_id = request.auth_company.id
-
-    def _is_standalone(self):
-        from django.conf import settings
-        return settings.TENANT_MODE == 'standalone'
-
-    def _apply_standalone_company(self, request):
-        """买断版：强制使用 DEFAULT_COMPANY_ID"""
-        from django.conf import settings
-        from apps.finance.models import Company
-
-        if not settings.DEFAULT_COMPANY_ID:
-            return
-
-        try:
-            company = Company.objects.get(id=settings.DEFAULT_COMPANY_ID)
-            request.auth_company = company
-            request.session['current_company_id'] = settings.DEFAULT_COMPANY_ID
-        except Company.DoesNotExist:
-            pass

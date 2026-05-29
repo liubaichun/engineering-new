@@ -146,12 +146,7 @@ CORS_ALLOWED_ORIGINS = [
     if h.strip()
 ]
 
-# ─── 租户模式配置 ───
-# 'subscription' = 租赁版（多租户SaaS，注册入口开放，需审批）
-# 'standalone'   = 买断版（单公司部署，注册入口关闭，直接使用预置公司）
-TENANT_MODE = os.environ.get('TENANT_MODE', 'subscription')
-
-# 买断版专用：指定系统使用的默认公司ID（standalone模式必填）
+# 指定系统使用的默认公司ID（用于无 session 时的降级方案）
 # 格式：公司ID整数，如 '3'
 # 买断版部署后，需要先在管理后台创建这家公司的数据
 DEFAULT_COMPANY_ID = os.environ.get('DEFAULT_COMPANY_ID', None)
