@@ -239,3 +239,62 @@
 5. **Core 005** — 状态同步已手动删除的 menu_code 列
 6. **死脚本清理** — 删除 4 个旧 Phase1 权限迁移脚本
 7. **Core admin.py** — 清理 UserRole 死注释
+
+## 2026-05-29 — P1-4: CASCADE→PROTECT 关键业务模型
+
+### 改动：finance 7处 + core 12处 = 19处 `on_delete=CASCADE` → `PROTECT`
+
+**finance (7处)：**
+| 模型 | 字段 | 原因 |
+|:-----|:-----|:------|
+| EmployeeCompany | employee, company | 员工任职关联 |
+| CompanySocialConfig | company | 公司社保配置 |
+| BankStatement | bank_account | 银行流水不应因删账户丢失 |
+| Budget | company | 预算数据 |
+| Account | company | 科目表 |
+| RelatedPartyLedger | company | 往来台账 |
+
+**core (12处)：**
+| 模型 | 字段 | 数量 |
+|:-----|:-----|:-----|
+| UserCompanyRole | user, company | 2 |
+| CompanyRole | company | 1 |
+| CompanyRolePermission | company_role, permission | 2 |
+| UserCompanyPermission | user, company, module, action | 4 |
+| UserModulePermission | user, company, module | 3 |
+
+**保留 CASCADE：** `Notification.user`, `ModuleAction.module`, `Account.parent`
+
+### 验证
+| 项目 | 状态 |
+|:-----|:-----|
+| models.py修改 | ✅ 19处已改 |
+| finance.0041 migration | ✅ 43+124已应用 |
+| core.0026 migration | ✅ 43+124已应用 |
+| 0 pending, 0 errors | ✅ |
+| 浏览器预算/员工/银行账户 | ✅ 正常加载 |
+
+## 2026-05-29 — Day 5 全量回归测试
+
+### P0+P1 全部 9 项终验
+
+| 项目 | 43服务器 | 124服务器 |
+|:-----|:---------|:----------|
+| P0-1 get()异常处理 | ✅ | ✅ |
+| P0-2 save()异常处理 | ✅ | ✅ |
+| P0-3 CSRF降级P2 | ✅ 已分析 | ✅ |
+| P1-1 SQL注入 | ✅ 参数化 | ✅ |
+| P1-2 安全头配置 | ✅ SAMEORIGIN | ✅ |
+| P1-3 except日志 | ✅ 34处 | ✅ |
+| P1-4 CASCADE→PROTECT | ✅ 19处 | ✅ |
+| P1-5 权限校验 | ✅ 已有声明 | ✅ |
+| P1-6 print→logging | ✅ | ✅ |
+
+### 验证指标
+| 检查项 | 43 | 124 |
+|:-------|:---|:----|
+| makemigrations --check | ✅ No changes | ✅ No changes |
+| showmigrations pending | ✅ 0 | ✅ 0 |
+| check --deploy ERRORS | ✅ 0 | ⚠️ 1个历史遗留（CRM short_name） |
+| 浏览器用户视角 | ✅ 控制台/预算/员工/系统/权限/用户 | ✅ login page / gunicorn running |
+| gunicorn重启验证 | ✅ 200 | ✅ 200 |
