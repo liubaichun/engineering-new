@@ -17,3 +17,21 @@ class CSRFExemptSessionAuthentication(SessionAuthentication):
 
     def enforce_csrf(self, request):
         return  # 不进行CSRF检查
+
+
+# ── drf-spectacular auth extension（消除 schema 生成警告） ──
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
+
+
+class SessionAuthExtension(OpenApiAuthenticationExtension):
+    target_class = 'apps.core.auth.CSRFExemptSessionAuthentication'
+    name = 'SessionAuth'
+
+    def get_security_definition(self, auto_schema):
+        return {
+            'type': 'apiKey',
+            'in': 'cookie',
+            'name': 'sessionid',
+            'description': 'Cookie-based session auth (csrf exempt). '
+            'Login via POST /api/core/auth/login/ obtains session cookie.',
+        }

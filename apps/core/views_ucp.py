@@ -8,6 +8,7 @@ logger = logging.getLogger(__name__)
 from .models import UserCompanyPermission, Module, ModuleAction, UserModulePermission, ACTION_BITS
 from .serializers import UserCompanyPermissionSerializer
 from apps.finance.models import Company as FinanceCompany
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 
 
@@ -195,7 +196,7 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 try:
                     ump.save()
                 except Exception as e:
-                    return Response({'status': 'error', 'message': f'保存权限失败：{str(e)}'}, status=500)
+                    return api_error(ErrorCode.INTERNAL_ERROR, f'保存权限失败：{str(e)}', status_code=500)
 
             updated.append(
                 {

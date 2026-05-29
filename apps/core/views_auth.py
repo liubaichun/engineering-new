@@ -25,6 +25,7 @@ from .serializers import (
     UserSerializer,
 )
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 from .views_common import get_client_ip
 
 
@@ -42,7 +43,7 @@ class PasswordResetRequestView(APIView):
     def post(self, request):
         email = request.data.get('email', '').strip()
         if not email:
-            return Response({'status': 'error', 'message': '邮箱不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '邮箱不能为空')
 
         users = User.objects.filter(email=email)
         # 即使邮箱不存在也返回成功，防止暴力猜测试探
@@ -86,19 +87,19 @@ class PasswordResetConfirmView(APIView):
         confirm_password = request.data.get('confirm_password', '')
 
         if not new_password or not confirm_password:
-            return Response({'status': 'error', 'message': '密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '密码不能为空')
 
         if new_password != confirm_password:
-            return Response({'status': 'error', 'message': '两次密码不一致'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '两次密码不一致')
 
         if len(new_password) < 8:
-            return Response({'status': 'error', 'message': '密码至少8个字符'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '密码至少8个字符')
 
         try:
             uid = force_str(urlsafe_base64_decode(uidb64))
             user = User.objects.get(pk=uid)
         except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            return Response({'status': 'error', 'message': '无效的重置链接'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '无效的重置链接')
 
         if not default_token_generator.check_token(user, token):
             return Response(
@@ -236,7 +237,7 @@ class ChangePasswordView(APIView):
         # 密码强度校验
         pwd = new_password
         if len(pwd) < 8:
-            return Response({'status': 'error', 'message': '密码至少需要8个字符'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '密码至少需要8个字符')
         if not any(c.isupper() for c in pwd):
             return Response(
                 {'status': 'error', 'message': '密码必须包含至少一个大写字母'}, status=status.HTTP_400_BAD_REQUEST
@@ -253,7 +254,7 @@ class ChangePasswordView(APIView):
         user = request.user
 
         if not user.check_password(old_password):
-            return Response({'status': 'error', 'message': '旧密码不正确'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '旧密码不正确')
 
         user.set_password(new_password)
         user.password_changed = True
@@ -331,11 +332,11 @@ class CurrentUserView(APIView):
     def _switch_company(self, request, company_id):
         """切换当前活跃公司"""
         if not company_id:
-            return Response({'status': 'error', 'message': 'company_id 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 不能为空')
         try:
             company_id = int(company_id)
         except (ValueError, TypeError):
-            return Response({'status': 'error', 'message': 'company_id 必须是整数'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 必须是整数')
 
         from apps.core.models import UserCompanyPermission
 
@@ -399,11 +400,11 @@ class SwitchCompanyView(APIView):
     def post(self, request):
         company_id = request.data.get('company_id')
         if not company_id:
-            return Response({'status': 'error', 'message': 'company_id 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 不能为空')
         try:
             company_id = int(company_id)
         except (ValueError, TypeError):
-            return Response({'status': 'error', 'message': 'company_id 必须是整数'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 必须是整数')
 
         from apps.core.models import UserCompanyPermission
 

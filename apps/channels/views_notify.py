@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 
+from apps.core.exceptions import api_error, ErrorCode
+
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
@@ -28,13 +30,13 @@ class SendNotificationView(APIView):
         notification_type = request.data.get('notification_type', 'system')
 
         if not all([channel_id, title, content]):
-            return Response({'error': '缺少必要参数'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少必要参数')
 
         channel = get_object_or_404(ChannelPlugin, id=channel_id, is_active=True, is_deleted=False)
 
         plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
         if not plugin:
-            return Response({'error': '不支持的渠道类型'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '不支持的渠道类型')
 
         User = get_user_model()
         company_id = get_active_company_id(request)
@@ -44,7 +46,7 @@ class SendNotificationView(APIView):
         elif company_id:
             users = User.objects.filter(company_id=company_id, is_active=True)
         else:
-            return Response({'error': '无法确定公司'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '无法确定公司')
 
         results = []
         for user in users:

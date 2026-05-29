@@ -3,9 +3,12 @@
 其余旧视图已迁移到 channels 应用
 """
 
+from drf_spectacular.utils import extend_schema
+
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from apps.core.exceptions import api_error, ErrorCode
 
 
 class UserNotificationPreferenceView:
@@ -46,6 +49,7 @@ class UserNotificationPreferenceView:
         return Response({'status': 'ok'})
 
 
+@extend_schema(exclude=True)
 class NotificationRouterRuleView(APIView):
     """通知路由规则 CRUD"""
 
@@ -62,15 +66,15 @@ class NotificationRouterRuleView(APIView):
             import traceback
 
             traceback.print_exc()
-            return Response({'error': str(e)}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, str(e), status_code=500)
         if not company_id:
-            return Response({'error': '未选择公司'}, status=403)
+            return api_error(ErrorCode.PERMISSION_DENIED, '未选择公司', status_code=403)
 
         if pk:
             try:
                 rule = NotificationRouterRule.objects.get(pk=pk, company_id=company_id)
             except NotificationRouterRule.DoesNotExist:
-                return Response({'error': '规则不存在'}, status=404)
+                return api_error(ErrorCode.NOT_FOUND, '规则不存在', status_code=404)
             return Response(self._rule_to_dict(rule))
 
         rules = NotificationRouterRule.objects.filter(company_id=company_id)
@@ -83,7 +87,7 @@ class NotificationRouterRuleView(APIView):
 
         company_id = get_active_company_id(request)
         if not company_id:
-            return Response({'error': '未选择公司'}, status=403)
+            return api_error(ErrorCode.PERMISSION_DENIED, '未选择公司', status_code=403)
 
         data = request.data
         rule = NotificationRouterRule.objects.create(
@@ -105,16 +109,16 @@ class NotificationRouterRuleView(APIView):
         from apps.core.services import get_active_company_id
 
         if not pk:
-            return Response({'error': '缺少规则ID'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少规则ID')
 
         company_id = get_active_company_id(request)
         if not company_id:
-            return Response({'error': '未选择公司'}, status=403)
+            return api_error(ErrorCode.PERMISSION_DENIED, '未选择公司', status_code=403)
 
         try:
             rule = NotificationRouterRule.objects.get(pk=pk, company_id=company_id)
         except NotificationRouterRule.DoesNotExist:
-            return Response({'error': '规则不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '规则不存在', status_code=404)
 
         data = request.data
         for field in [
@@ -131,7 +135,7 @@ class NotificationRouterRuleView(APIView):
         try:
             rule.save()
         except Exception as e:
-            return Response({'error': f'保存规则失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'保存规则失败：{str(e)}', status_code=500)
         return Response(self._rule_to_dict(rule))
 
     def delete(self, request, pk=None):
@@ -140,15 +144,15 @@ class NotificationRouterRuleView(APIView):
         from apps.core.services import get_active_company_id
 
         if not pk:
-            return Response({'error': '缺少规则ID'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少规则ID')
 
         company_id = get_active_company_id(request)
         if not company_id:
-            return Response({'error': '未选择公司'}, status=403)
+            return api_error(ErrorCode.PERMISSION_DENIED, '未选择公司', status_code=403)
 
         deleted, _ = NotificationRouterRule.objects.filter(pk=pk, company_id=company_id).delete()
         if not deleted:
-            return Response({'error': '规则不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '规则不存在', status_code=404)
         return Response(status=204)
 
     def _rule_to_dict(self, rule):

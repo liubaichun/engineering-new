@@ -6,6 +6,7 @@
 """
 
 import os
+import logging
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -76,6 +77,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'apps.core.middleware.CompanyContextMiddleware',
     'apps.core.audit.AuditRequestMiddleware',
+    'apps.core.middleware_timing.RequestTimingMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -155,6 +157,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'apps.core.exceptions.unified_exception_handler',
 }
 
 # ── API 文档 ──────────────────────────────────────────────
@@ -172,6 +175,14 @@ GREEN 企业信息化管理系统 RESTful API
 - `search` — 全文搜索
 - `ordering` — 排序字段，如 `ordering=-created_at`
 
+## 错误响应
+所有错误以统一 JSON 格式返回：
+- `code`: 错误码（1001-5000）
+- `message`: 错误描述
+- `detail`: 字段级校验详情（可选）
+
+错误码：1001=未登录 1004=权限不足 2001=校验失败 2002=资源不存在 2003=资源已存在 2004=状态不允许 5000=内部错误
+
 ## 数据格式
 - 请求：`Content-Type: application/json`，POST/PATCH body 为 JSON
 - 响应：分页格式 `{ "count": N, "next": "...", "previous": "...", "results": [...] }`
@@ -179,32 +190,42 @@ GREEN 企业信息化管理系统 RESTful API
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
     'TAGS': [
-        {'name': 'auth', 'description': '认证相关 — 登录/登出/注册/密码重置'},
-        {'name': 'core-user', 'description': '用户管理 — 用户 CRUD / 注册审批 / 密码重置 / 角色分配'},
-        {'name': 'core-permission', 'description': '权限管理 — 权限定义 CRUD'},
-        {'name': 'core-audit', 'description': '审计日志 — 操作日志 / 登录日志 / 权限变更记录'},
-        {'name': 'core-setting', 'description': '系统参数 — 审批规则 / 工资规则'},
-        {'name': 'core-notification', 'description': '站内通知 — 通知列表 / 标记已读'},
-        {'name': 'finance-company', 'description': '公司管理 — 公司信息 / 多租户'},
-        {'name': 'finance-income', 'description': '收入管理 — 收入记录 / 审批流'},
-        {'name': 'finance-expense', 'description': '支出管理 — 支出记录 / 审批流'},
-        {'name': 'finance-invoice', 'description': '发票管理 — 发票开具与作废'},
-        {'name': 'finance-wage', 'description': '工资管理 — 工资记录 / 税务计算 / 社保'},
-        {'name': 'finance-employee', 'description': '员工管理 — 员工信息'},
-        {'name': 'crm-client', 'description': '客户管理 — 客户信息'},
-        {'name': 'crm-contract', 'description': '合同管理 — 合同信息'},
-        {'name': 'crm-supplier', 'description': '供应商管理 — 供应商信息'},
-        {'name': 'tasks-project', 'description': '项目管理 — 项目 CRUD'},
-        {'name': 'tasks-task', 'description': '任务管理 — 任务看板'},
-        {'name': 'approvals', 'description': '审批管理 — 审批流 / 审批历史'},
-        {'name': 'equipment', 'description': '设备管理 — 设备台账'},
-        {'name': 'material', 'description': '物料管理 — 物料台账'},
-        {'name': 'files', 'description': '文件管理 — 文件上传 / 下载'},
+        {'name': 'auth', 'description': '认证 — 登录/登出/注册/密码重置'},
+        {'name': 'core', 'description': '系统核心 — 用户/权限/公司/审计日志/系统设置/通知'},
+        {'name': 'finance', 'description': '财务 — 公司/收入/支出/发票/工资/员工/社保/应收应付/预算/银行账户'},
+        {'name': 'crm', 'description': '客户关系 — 客户/合同/供应商，含Excel导入'},
+        {'name': 'tasks', 'description': '任务与审批 — 项目/任务/审批流/审批实例/评论/附件'},
+        {'name': 'approvals', 'description': '审批模板 — 审批流模板/节点模板定义'},
+        {'name': 'equipment', 'description': '设备管理 — 设备台账/BOM关系'},
+        {'name': 'material', 'description': '物料管理 — 物料台账/库存/使用记录'},
+        {'name': 'files', 'description': '文件管理 — 文件分类/上传/下载'},
+        {'name': 'notifications', 'description': '通知管理 — 通知渠道/绑定/发送/日志'},
     ],
     'POSTPROCESSING_HOOKS': [
         'config.schema.autogenerate_chinese_summary',
     ],
 }
+
+# ── 性能监控（Sentry — 可选）───────────────────────────────
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+        ],
+        send_default_pii=False,  # 不发送用户 PII
+        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+        profiles_sample_rate=float(os.environ.get('SENTRY_PROFILES_SAMPLE_RATE', '0.0')),
+    )
+
+# ── 请求耗时监控 ──────────────────────────────────────────
+SLOW_REQUEST_THRESHOLD_MS = int(os.environ.get('SLOW_REQUEST_THRESHOLD_MS', '500'))
 
 # ── 邮件 ──────────────────────────────────────────────────
 EMAIL_BACKEND = os.environ.get(

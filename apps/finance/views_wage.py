@@ -11,6 +11,7 @@ from .serializers import (
 from .filters import WageRecordFilter
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 
 # 从共享模块导入工具函数
 from .views_common import (
@@ -92,7 +93,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         """批准工资单"""
         wage_record = self.get_object()
         if wage_record.status != 'pending':
-            return Response({'status': 'error', 'message': '只能批准待审核状态的工资单'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '只能批准待审核状态的工资单')
         wage_record.status = 'approved'
         wage_record.approver = request.user
         from django.utils import timezone
@@ -101,7 +102,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         try:
             wage_record.save(update_fields=['status', 'approver', 'approved_at'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'批准失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'批准失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '工资单已批准'})
 
     @action(detail=True, methods=['post'])
@@ -109,7 +110,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         """发放工资"""
         wage_record = self.get_object()
         if wage_record.status != 'approved':
-            return Response({'status': 'error', 'message': '只能发放已批准状态的工资单'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '只能发放已批准状态的工资单')
         wage_record.status = 'paid'
         from django.utils import timezone
 
@@ -117,7 +118,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         try:
             wage_record.save(update_fields=['status', 'paid_at'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'发放失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'发放失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '工资已发放'})
 
     @action(detail=False, methods=['get'])
@@ -135,12 +136,12 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         """提交工资单进行审核"""
         wage_record = self.get_object()
         if wage_record.status != 'draft':
-            return Response({'status': 'error', 'message': '只能提交草稿状态的工资单'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '只能提交草稿状态的工资单')
         wage_record.status = 'pending'
         try:
             wage_record.save(update_fields=['status'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'提交失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'提交失败：{str(e)}', status_code=500)
 
         # 根据系统设置决定是否触发审批流
         from apps.core.models import SystemSetting
@@ -369,7 +370,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         )
 
         if not records:
-            return Response({'status': 'error', 'message': '没有找到符合条件的工资单'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '没有找到符合条件的工资单')
 
         # 逐条生成 PDF，再合并
         writer = PdfWriter()
@@ -418,7 +419,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         records = list(queryset.select_related('company', 'employee', 'employee_company'))
 
         if not records:
-            return Response({'status': 'error', 'message': '没有符合条件的已审批工资单'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '没有符合条件的已审批工资单')
 
         company_name = records[0].company.name if records else ''
         period_str = f'{year or "全部"}{month or "全部"}'
@@ -466,7 +467,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         file = request.FILES.get('file')
         if not file:
-            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请上传 Excel 文件')
 
         year = request.POST.get('year') or request.data.get('year')
         month = request.POST.get('month') or request.data.get('month')
@@ -486,19 +487,12 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             file_bytes = file.read()
             records, parse_errors = import_wage_excel(file_bytes, company_id or 0, defaults)
         except WageImportError as e:
-            return Response({'success': False, 'message': str(e)}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, str(e))
         except Exception as e:
-            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'解析失败：{str(e)}')
 
         if not records:
-            return Response(
-                {
-                    'success': False,
-                    'message': 'Excel 中无有效数据行',
-                    'errors': [{'row': e['row'], 'message': e['message']} for e in parse_errors],
-                },
-                status=400,
-            )
+            return api_error(ErrorCode.VALIDATION_ERROR, '解析后无有效数据行，请检查文件格式和列名')
 
         created = 0
         skipped = []
@@ -662,7 +656,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
                 }
             )
         except Exception as e:
-            return Response({'error': str(e)}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, str(e))
 
     @action(detail=False, methods=['post'])
     def import_records(self, request):
@@ -672,15 +666,15 @@ class WageRecordViewSet(viewsets.ModelViewSet):
 
         file = request.FILES.get('file')
         if not file:
-            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请上传 Excel 文件')
 
         try:
             result = import_wage(file)
         except Exception as e:
-            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'解析失败：{str(e)}')
 
         if not result.rows:
-            return Response({'success': False, 'message': '解析后无有效数据行，请检查文件格式和列名'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '解析后无有效数据行，请检查文件格式和列名')
 
         created = 0
         errors = []
@@ -747,7 +741,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
                     id=wage_id
                 )
             except WageRecord.DoesNotExist:
-                return Response({'success': False, 'message': f'工资记录 ID={wage_id} 不存在'}, status=404)
+                return api_error(ErrorCode.NOT_FOUND, f'工资记录 ID={wage_id} 不存在', status_code=404)
             ok, msg = send_wage_slip_email(record, dry_run=dry_run)
             return Response({'success': ok, 'message': msg, 'wage_id': wage_id})
         elif year and month:
@@ -756,4 +750,4 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             )
             return Response({'success': True, **result})
         else:
-            return Response({'success': False, 'message': '请提供 wage_id 或 year+month 参数'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请提供 wage_id 或 year+month 参数')

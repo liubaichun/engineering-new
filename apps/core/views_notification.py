@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from .models import Notification
 from .serializers import NotificationSerializer
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 
 
@@ -37,7 +38,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         try:
             notification.save(update_fields=['is_read'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'标记已读失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'标记已读失败：{str(e)}', status_code=500)
         return Response({'status': 'success'})
 
     @action(detail=False, methods=['post'], url_path='mark-all-read')

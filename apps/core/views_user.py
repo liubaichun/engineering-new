@@ -4,6 +4,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 
+from apps.core.exceptions import api_error, ErrorCode
+
 logger = logging.getLogger(__name__)
 
 
@@ -61,7 +63,7 @@ class UserViewSet(viewsets.ModelViewSet):
         new_password = request.data.get('new_password')
 
         if not new_password:
-            return Response({'status': 'error', 'message': '新密码不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '新密码不能为空')
 
         user.set_password(new_password)
         try:
@@ -208,7 +210,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """批量批准用户注册 — 自动建公司+分配公司管理员角色"""
         user_ids = request.data.get('user_ids', [])
         if not user_ids:
-            return Response({'status': 'error', 'message': '未提供用户ID列表'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '未提供用户ID列表')
 
         from apps.finance.models import Company as FinanceCompany
 

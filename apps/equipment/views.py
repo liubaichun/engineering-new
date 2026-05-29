@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 from django.db import models
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
 from django.utils import timezone
@@ -109,7 +110,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             try:
                 equipment.save()
             except Exception as e:
-                return Response({'error': f'更新设备状态失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'更新设备状态失败：{str(e)}', status_code=500)
             try:
                 from apps.tasks.notification_service import notify_equipment_action
 
@@ -131,7 +132,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             try:
                 equipment.save()
             except Exception as e:
-                return Response({'error': f'更新设备状态失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'更新设备状态失败：{str(e)}', status_code=500)
             try:
                 from apps.tasks.notification_service import notify_equipment_action
 
@@ -179,7 +180,7 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             try:
                 equipment.save()
             except Exception as e:
-                return Response({'error': f'更新设备状态失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'更新设备状态失败：{str(e)}', status_code=500)
             try:
                 from apps.tasks.notification_service import notify_equipment_action
 
@@ -248,7 +249,7 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
             rel.delete()
             return Response(status=204)
         except EquipmentBOMRelation.DoesNotExist:
-            return Response({'error': '关联不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '关联不存在', status_code=404)
 
     @action(detail=False, methods=['get'])
     def export(self, request):

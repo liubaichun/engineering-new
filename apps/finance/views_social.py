@@ -10,6 +10,7 @@ from .serializers import (
 )
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 
 # 从共享模块导入工具函数
 
@@ -73,17 +74,17 @@ class SocialRecordViewSet(viewsets.ModelViewSet):
 
         file = request.FILES.get('file')
         if not file:
-            return Response({'success': False, 'message': '请上传文件'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请上传文件')
         company_id = request.POST.get('company_id') or None
         if company_id:
             try:
                 company_id = int(company_id)
             except (ValueError, TypeError):
-                return Response({'success': False, 'message': '无效的公司ID'}, status=400)
+                return api_error(ErrorCode.VALIDATION_ERROR, '无效的公司ID')
         try:
             result = import_social_records(file, company_id=company_id)
         except Exception as e:
-            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'解析失败：{str(e)}')
         return Response(result)
 
     @action(detail=False, methods=['get'])
@@ -92,7 +93,7 @@ class SocialRecordViewSet(viewsets.ModelViewSet):
         employee_id = request.query_params.get('employee_id')
         year_month = request.query_params.get('year_month')
         if not employee_id or not year_month:
-            return Response({'success': False, 'message': '需要 employee_id 和 year_month'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '需要 employee_id 和 year_month')
         qs = self.get_queryset().filter(employee_id=employee_id, year_month=year_month)
         if not qs.exists():
             return Response(

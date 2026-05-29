@@ -11,6 +11,7 @@ from .serializers import (
 from .filters import CompanyFilter
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 
 # 从共享模块导入工具函数
 
@@ -72,7 +73,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         try:
             company.save(update_fields=['status'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'启用失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'启用失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '公司已启用'})
 
     @action(detail=True, methods=['post'])
@@ -83,7 +84,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         try:
             company.save(update_fields=['status'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'停用失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'停用失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '公司已停用'})
 
     @action(detail=False, methods=['get'])

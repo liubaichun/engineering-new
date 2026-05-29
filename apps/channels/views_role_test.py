@@ -1,11 +1,12 @@
 import logging
 from django.shortcuts import get_object_or_404
 from django.contrib.auth import get_user_model
-from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
+
+from apps.core.exceptions import api_error, ErrorCode
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -47,7 +48,7 @@ class RoleBindingListView(APIView):
         enabled = request.data.get('enabled', True)
 
         if not role_id:
-            return Response({'error': '缺少role_id'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少role_id')
 
         role_bindings = channel.config.get('role_bindings', [])
         found = False
@@ -64,7 +65,7 @@ class RoleBindingListView(APIView):
         try:
             channel.save(update_fields=['config'])
         except Exception as e:
-            return Response({'error': f'更新角色绑定失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'更新角色绑定失败：{str(e)}', status_code=500)
 
         return Response({'message': '角色绑定已更新', 'role_bindings': role_bindings})
 
@@ -74,7 +75,7 @@ class RoleBindingListView(APIView):
 
         role_id = request.data.get('role_id')
         if not role_id:
-            return Response({'error': '缺少role_id'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少role_id')
 
         role_bindings = channel.config.get('role_bindings', [])
         role_bindings = [rb for rb in role_bindings if str(rb.get('role_id')) != str(role_id)]
@@ -82,7 +83,7 @@ class RoleBindingListView(APIView):
         try:
             channel.save(update_fields=['config'])
         except Exception as e:
-            return Response({'error': f'删除角色绑定失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'删除角色绑定失败：{str(e)}', status_code=500)
 
         return Response({'message': '角色绑定已删除'})
 
@@ -119,7 +120,7 @@ class ValidateCredentialsView(APIView):
                 result='failure',
                 error_message='不支持的渠道类型',
             )
-            return Response({'error': '不支持的渠道类型'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '不支持的渠道类型')
 
         try:
             is_valid, msg = plugin.validate_credentials()
@@ -171,7 +172,7 @@ class SendTestMessageView(APIView):
                 result='failure',
                 error_message='不支持的渠道类型',
             )
-            return Response({'error': '不支持的渠道类型'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '不支持的渠道类型')
 
         binding = ChannelBinding.objects.filter(user=request.user, channel=channel, is_active=True).first()
 
@@ -184,7 +185,7 @@ class SendTestMessageView(APIView):
                 result='failure',
                 error_message='用户未绑定该渠道',
             )
-            return Response({'error': '您尚未绑定该渠道，请先扫码绑定'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '您尚未绑定该渠道，请先扫码绑定')
 
         test_title = '测试消息'
         test_content = '这是一条来自企业信息化管理系统的测试通知，收到此消息表示绑定成功！'
@@ -221,4 +222,4 @@ class SendTestMessageView(APIView):
 
         if success:
             return Response({'success': True, 'message': '测试消息发送成功'})
-        return Response({'success': False, 'error': msg}, status=status.HTTP_400_BAD_REQUEST)
+        return api_error(ErrorCode.VALIDATION_ERROR, msg)

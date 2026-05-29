@@ -1,7 +1,8 @@
-from rest_framework import viewsets, filters, status, permissions
+from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 from django.utils import timezone
 from .models import ApprovalFlow, ApprovalNode, ApprovalTemplate
@@ -164,12 +165,12 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         """提交审批"""
         flow = self.get_object()
         if flow.status != 'draft':
-            return Response({'error': '当前状态不允许提交'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许提交')
         flow.status = 'pending'
         try:
             flow.save(update_fields=['status'])
         except Exception as e:
-            return Response({'error': f'提交失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'提交失败：{str(e)}', status_code=500)
         notify_approval_created(flow)
         return Response({'status': '已提交'})
 
@@ -180,16 +181,16 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         comment = request.data.get('comment', '')
 
         if flow.status != 'pending':
-            return Response({'error': '当前状态不允许审批'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许审批')
 
         # 获取当前应该审批的节点
         current_node = flow.nodes.filter(status='pending').order_by('node_order').first()
         if not current_node:
-            return Response({'error': '没有待审批的节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '没有待审批的节点')
 
         # 检查是否是当前节点的审批人
         if current_node.approver_id != request.user.id:
-            return Response({'error': '您不是当前节点的审批人'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '您不是当前节点的审批人')
 
         # 更新节点状态
         current_node.status = 'approved'
@@ -198,7 +199,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             current_node.save(update_fields=['status', 'comment', 'decided_at'])
         except Exception as e:
-            return Response({'error': f'审批失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'审批失败：{str(e)}', status_code=500)
 
         # 检查是否还有下一个节点
         next_node = (
@@ -210,7 +211,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
             try:
                 flow.save(update_fields=['current_node_order'])
             except Exception as e:
-                return Response({'error': f'审批失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'审批失败：{str(e)}', status_code=500)
         else:
             # 所有节点都已审批通过，更新业务对象状态
             flow.status = 'approved'
@@ -219,7 +220,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
             try:
                 flow.save(update_fields=['status', 'decided_at', 'result_comment'])
             except Exception as e:
-                return Response({'error': f'审批失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'审批失败：{str(e)}', status_code=500)
             _sync_business_status(flow, 'approved')
 
         notify_approval_result(flow, request.user, 'approved')
@@ -232,14 +233,14 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         comment = request.data.get('comment', '')
 
         if flow.status != 'pending':
-            return Response({'error': '当前状态不允许审批'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许审批')
 
         current_node = flow.nodes.filter(status='pending').order_by('node_order').first()
         if not current_node:
-            return Response({'error': '没有待审批的节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '没有待审批的节点')
 
         if current_node.approver_id != request.user.id:
-            return Response({'error': '您不是当前节点的审批人'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '您不是当前节点的审批人')
 
         current_node.status = 'rejected'
         current_node.comment = comment
@@ -247,7 +248,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             current_node.save(update_fields=['status', 'comment', 'decided_at'])
         except Exception as e:
-            return Response({'error': f'拒绝失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'拒绝失败：{str(e)}', status_code=500)
 
         # 整个流程拒绝，更新业务对象状态
         flow.status = 'rejected'
@@ -256,7 +257,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             flow.save(update_fields=['status', 'decided_at', 'result_comment'])
         except Exception as e:
-            return Response({'error': f'拒绝失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'拒绝失败：{str(e)}', status_code=500)
         _sync_business_status(flow, 'rejected')
 
         notify_approval_result(flow, request.user, 'rejected')
@@ -268,13 +269,13 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         flow = self.get_object()
 
         if flow.status in ['approved', 'rejected', 'cancelled']:
-            return Response({'error': '当前状态不允许取消'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许取消')
 
         flow.status = 'cancelled'
         try:
             flow.save(update_fields=['status'])
         except Exception as e:
-            return Response({'error': f'取消失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'取消失败：{str(e)}', status_code=500)
         # 取消所有待审批节点
         flow.nodes.filter(status='pending').update(status='skipped')
         notify_approval_result(flow, request.user, 'cancelled')
@@ -287,14 +288,14 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         comment = request.data.get('comment', '')
 
         if flow.status != 'pending':
-            return Response({'error': '当前状态不允许驳回'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许驳回')
 
         current_node = flow.nodes.filter(status='pending').order_by('node_order').first()
         if not current_node:
-            return Response({'error': '没有待审批的节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '没有待审批的节点')
 
         if current_node.approver_id != request.user.id:
-            return Response({'error': '您不是当前节点的审批人'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '您不是当前节点的审批人')
 
         # 更新当前节点状态为已拒绝
         current_node.status = 'rejected'
@@ -303,7 +304,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             current_node.save(update_fields=['status', 'comment', 'decided_at'])
         except Exception as e:
-            return Response({'error': f'驳回失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'驳回失败：{str(e)}', status_code=500)
 
         # 将流程状态改为草稿（申请人可以重新提交）
         flow.status = 'draft'
@@ -312,7 +313,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             flow.save(update_fields=['status', 'decided_at', 'result_comment'])
         except Exception as e:
-            return Response({'error': f'驳回失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'驳回失败：{str(e)}', status_code=500)
 
         notify_rejected_to_requester(flow, request.user, comment)
         return Response({'status': '已驳回，请申请人修改后重新提交'})
@@ -325,17 +326,17 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         comment = request.data.get('comment', '')
 
         if not target_user_id:
-            return Response({'error': '请指定转交目标用户'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请指定转交目标用户')
 
         if flow.status != 'pending':
-            return Response({'error': '当前状态不允许转交'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许转交')
 
         current_node = flow.nodes.filter(status='pending').order_by('node_order').first()
         if not current_node:
-            return Response({'error': '没有待审批的节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '没有待审批的节点')
 
         if current_node.approver_id != request.user.id:
-            return Response({'error': '您不是当前节点的审批人'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '您不是当前节点的审批人')
 
         from django.contrib.auth import get_user_model
 
@@ -343,7 +344,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             target_user = User.objects.get(id=target_user_id)
         except User.DoesNotExist:
-            return Response({'error': '转交目标用户不存在'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.NOT_FOUND, '转交目标用户不存在')
 
         # 将当前节点标记为已批准
         current_node.status = 'approved'
@@ -354,7 +355,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             current_node.save(update_fields=['status', 'comment', 'decided_at'])
         except Exception as e:
-            return Response({'error': f'转交失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'转交失败：{str(e)}', status_code=500)
 
         # 创建新的转交节点
         next_order = current_node.node_order + 1
@@ -372,7 +373,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             flow.save(update_fields=['current_node_order'])
         except Exception as e:
-            return Response({'error': f'转交失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'转交失败：{str(e)}', status_code=500)
 
         # 发送转交通知
         try:
@@ -392,17 +393,17 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         comment = request.data.get('comment', '')
 
         if not delegate_user_id:
-            return Response({'error': '请指定委托目标用户'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请指定委托目标用户')
 
         if flow.status != 'pending':
-            return Response({'error': '当前状态不允许委托'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许委托')
 
         current_node = flow.nodes.filter(status='pending').order_by('node_order').first()
         if not current_node:
-            return Response({'error': '没有待审批的节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '没有待审批的节点')
 
         if current_node.approver_id != request.user.id:
-            return Response({'error': '您不是当前节点的审批人'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '您不是当前节点的审批人')
 
         from django.contrib.auth import get_user_model
 
@@ -410,7 +411,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             delegate_user = User.objects.get(id=delegate_user_id)
         except User.DoesNotExist:
-            return Response({'error': '委托目标用户不存在'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.NOT_FOUND, '委托目标用户不存在')
 
         # 将当前节点标记为已批准
         current_node.status = 'approved'
@@ -421,7 +422,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             current_node.save(update_fields=['status', 'comment', 'decided_at'])
         except Exception as e:
-            return Response({'error': f'委托失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'委托失败：{str(e)}', status_code=500)
 
         # 创建新的委托节点
         next_order = current_node.node_order + 1
@@ -440,7 +441,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         try:
             flow.save(update_fields=['current_node_order'])
         except Exception as e:
-            return Response({'error': f'委托失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'委托失败：{str(e)}', status_code=500)
 
         # 发送委托通知
         try:
@@ -457,12 +458,12 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         """催办 - 申请人催促审批人尽快处理"""
         flow = self.get_object()
         if flow.status != 'pending':
-            return Response({'error': '当前状态不是待审批，无法催办'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不是待审批，无法催办')
         if flow.requester_id != request.user.id:
-            return Response({'error': '只有申请人可以催办'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '只有申请人可以催办')
         pending_nodes = flow.nodes.filter(status='pending')
         if not pending_nodes.exists():
-            return Response({'error': '没有待审批的节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '没有待审批的节点')
         notify_urged(flow, request.user)
         return Response({'status': '已催办，审批人将收到提醒'})
 
@@ -472,18 +473,18 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         flow = self.get_object()
 
         if flow.status not in ['pending', 'draft']:
-            return Response({'error': '当前状态不允许撤回'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许撤回')
 
         # 只有申请人可以撤回
         if flow.requester_id != request.user.id:
-            return Response({'error': '只有申请人可以撤回'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.PERMISSION_DENIED, '只有申请人可以撤回')
 
         flow.status = 'cancelled'
         flow.result_comment = '申请人撤回'
         try:
             flow.save(update_fields=['status', 'result_comment'])
         except Exception as e:
-            return Response({'error': f'撤回失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'撤回失败：{str(e)}', status_code=500)
 
         # 取消所有待审批节点
         flow.nodes.filter(status='pending').update(status='skipped')

@@ -1,5 +1,30 @@
 # 变更日志
 
+## 2026-05-29 P3-4 日志聚合 — 结构化JSON日志 + logs管理命令
+
+### 改进
+- **结构化JSON日志**：生产日志改用 `python-json-logger`，机器可解析
+- **`manage.py logs` 命令**：按级别/模块/关键词/时间筛选，支持 `--tail` 实时追踪
+- **双层日志文件**：
+  - `django.log` — INFO+ 全量日志
+  - `error.log` — WARNING+ 分离，方便快速定位问题
+- **保留策略**：日志保留30天（10MB轮转）
+- **旧日志兼容**：旧 plain text 日志文件不受影响
+
+### 用法示例
+```bash
+python manage.py logs                           # 最近20条
+python manage.py logs --level WARNING           # 只看警告+
+python manage.py logs --module invoice          # 只看发票模块
+python manage.py logs --search "error"          # 关键词搜索
+python manage.py logs --tail                    # 实时追踪
+python manage.py logs --today --count 100       # 今天100条
+```
+
+### 其他
+- ruff 全库格式化（统一单引号风格、导入排序）
+- per-file-ignores: 放行 settings 文件的 F403/F405
+
 ## 2026-05-29 P3-3 Pre-commit hooks — 代码提交自动检查
 
 ### 新增
@@ -443,3 +468,50 @@
 | check --deploy ERRORS | ✅ 0 | ✅ 0 |
 | gunicorn HTTP状态 | ✅ 200 | ✅ 200 |
 | 两服务器一致 | ✅ 同步完成 | ✅ 同步完成 |
+
+## 2026-05-29 P3-5 性能监控 — Sentry + 请求耗时 + 健康检查增强
+
+### 新增
+- **Sentry SDK 集成**：通过 `SENTRY_DSN` 环境变量启用，无 DSN 时自动跳过
+- **请求耗时中间件**：`RequestTimingMiddleware` — 自动追踪所有请求耗时，>500ms 输出慢请求告警日志
+- **增强健康检查** `GET /api/core/health/`：数据库 + 磁盘空间双重检查
+- **Metrics端点** `GET /api/core/metrics/`：实时请求统计（按端点分，含计数/平均值/慢请求数）
+
+### 配置
+- `SLOW_REQUEST_THRESHOLD_MS` 环境变量（默认 500ms）
+- `SENTRY_TRACES_SAMPLE_RATE` / `SENTRY_PROFILES_SAMPLE_RATE` 采样率配置
+
+## 2026-05-29 P3-6 API文档增强 — Swagger文档补齐
+
+### 优化
+- **SPECTACULAR_SETTINGS.TAGS 同步**：10个生产标签匹配实际端点，每个标签含中文描述
+- **drf-spectacular auth extension**：注册 `SessionAuthExtension`，消除“无法解析认证类”警告
+- **ViewSet补齐**：ReportViewSet / ARAPViewSet 添加 serializer_class，消除 schema 警告
+- **Channel/Notification视图**：添加 `@extend_schema(exclude=True)`，消除非DRF视图警告
+- **修复兼容层Bug**：`apps/finance/reports_v2.py` 存根缺少重导出 → 补全所有报表函数
+- **修复 `apps/notifications/views.py`**：补全缺失的 `IsAuthenticated` import
+
+### 验证
+- Schema 生成 0 警告 ✅（之前 20+ 个 Error/Warning 全部消除）
+- 332 endpoints，10 个分类标签 ✅
+- 43/124 双服务器同步并验证 ✅
+
+## 2026-05-28 P3-7 错误码标准化 — 统一错误响应格式
+
+### 新增
+- `apps/core/exceptions.py`：统一错误码系统（ErrorCode常量 + AppException异常类 + DRF exception handler）
+- `api_error()` 快捷函数（视图层一键返回统一格式错误）
+- 错误码范围：1001认证/1004权限/2001校验/2002不存在/2003已存在/2004状态/5000内部
+- Swagger 文档新增错误码说明
+
+### 移除
+- 所有视图层 ad-hoc 错误格式（`{'error': ...}`, `{'status': 'error', ...}`, `{'success': False, ...}`）
+
+### 影响范围
+- 27个视图文件，约 150 处错误响应全部使用 `api_error(ErrorCode.XXX, '描述')` 统一格式
+- REST_FRAMEWORK 注册 `EXCEPTION_HANDLER` 自动格式化所有 DRF 原生异常
+
+### 验证
+- 未认证返回 `{"code": 1004, "message": "身份认证信息未提供。"}` ✅
+- 27个修改文件语法全部通过 ✅
+- 零残留 ad-hoc 错误格式 ✅

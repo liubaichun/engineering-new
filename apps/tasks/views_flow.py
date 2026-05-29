@@ -1,7 +1,8 @@
-from rest_framework import viewsets, serializers, status, permissions
+from rest_framework import viewsets, serializers, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired, get_module_companies
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -292,13 +293,13 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
         """开始阶段"""
         instance = self.get_object()
         if instance.status != 'pending':
-            return Response({'error': '只有待处理的阶段才能开始'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有待处理的阶段才能开始')
         instance.status = 'in_progress'
         instance.started_at = timezone.now()
         try:
             instance.save()
         except Exception as e:
-            return Response({'error': f'开始阶段失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'开始阶段失败：{str(e)}', status_code=500)
 
         StageActivity.objects.create(
             stage_instance=instance,
@@ -317,13 +318,13 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
         """批准阶段"""
         instance = self.get_object()
         if instance.status not in ['pending', 'in_progress']:
-            return Response({'error': '当前状态不允许批准'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许批准')
         instance.status = 'approved'
         instance.completed_at = timezone.now()
         try:
             instance.save()
         except Exception as e:
-            return Response({'error': f'批准阶段失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'批准阶段失败：{str(e)}', status_code=500)
 
         remark = request.data.get('remark', '')
         StageActivity.objects.create(
@@ -344,13 +345,13 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
         """拒绝阶段"""
         instance = self.get_object()
         if instance.status not in ['pending', 'in_progress']:
-            return Response({'error': '当前状态不允许拒绝'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许拒绝')
         instance.status = 'rejected'
         instance.completed_at = timezone.now()
         try:
             instance.save()
         except Exception as e:
-            return Response({'error': f'拒绝阶段失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'拒绝阶段失败：{str(e)}', status_code=500)
 
         remark = request.data.get('remark', '')
         StageActivity.objects.create(
@@ -467,7 +468,7 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         """为任务启动流程"""
         instance = self.get_object()
         if instance.status != 'pending':
-            return Response({'error': '流程已启动或已完成'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '流程已启动或已完成')
 
         engine = FlowEngine(instance.task)
         engine.start_flow(instance.template, started_by=request.user)
@@ -481,13 +482,13 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         """批准当前节点"""
         instance = self.get_object()
         if instance.status != 'running':
-            return Response({'error': '流程未在运行'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '流程未在运行')
 
         engine = FlowEngine(instance.task)
         engine.instance = instance
 
         if not instance.current_node:
-            return Response({'error': '当前没有节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前没有节点')
 
         remark = request.data.get('remark', '')
         result = engine.complete_node(instance.current_node, action='approve', actor=request.user, comment=remark)
@@ -507,13 +508,13 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
         """拒绝当前节点"""
         instance = self.get_object()
         if instance.status != 'running':
-            return Response({'error': '流程未在运行'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '流程未在运行')
 
         engine = FlowEngine(instance.task)
         engine.instance = instance
 
         if not instance.current_node:
-            return Response({'error': '当前没有节点'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前没有节点')
 
         remark = request.data.get('remark', '')
         result = engine.reject_node(instance.current_node, actor=request.user, comment=remark)

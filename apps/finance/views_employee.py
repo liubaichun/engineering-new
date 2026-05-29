@@ -10,6 +10,7 @@ from .serializers import (
 )
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 
 # 从共享模块导入工具函数
 
@@ -91,7 +92,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = self.get_object()
         new_position = request.data.get('position', '')
         if not new_position:
-            return Response({'status': 'error', 'message': '请提供新职位'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请提供新职位')
         # 找到主公司关联记录，更新职位
         ec = employee.company_links.filter(is_primary=True).first()
         if not ec:
@@ -101,9 +102,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
                 ec.position = new_position
                 ec.save(update_fields=['position'])
             except Exception as e:
-                return Response({'status': 'error', 'message': f'晋升失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'晋升失败：{str(e)}', status_code=500)
             return Response({'status': 'success', 'message': f'员工已晋升为{new_position}'})
-        return Response({'status': 'error', 'message': '未找到员工公司关联记录'}, status=400)
+        return api_error(ErrorCode.NOT_FOUND, '未找到员工公司关联记录')
 
     @action(detail=True, methods=['post'])
     def resign(self, request, pk=None):
@@ -114,7 +115,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         try:
             employee.save(update_fields=['status'])
         except Exception as e:
-            return Response({'status': 'error', 'message': f'离职处理失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'离职处理失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '员工已标记为离职'})
 
     @action(detail=True, methods=['post'])

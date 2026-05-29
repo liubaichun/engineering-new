@@ -1,7 +1,8 @@
-from rest_framework import viewsets, serializers, status, permissions
+from rest_framework import viewsets, serializers, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired, get_module_companies
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -204,12 +205,12 @@ class TaskViewSet(viewsets.ModelViewSet):
         """开始任务"""
         task = self.get_object()
         if task.status != 'pending':
-            return Response({'error': '只有待开始的任务才能开始'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有待开始的任务才能开始')
         task.status = 'in_progress'
         try:
             task.save()
         except Exception as e:
-            return Response({'error': f'开始任务失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'开始任务失败：{str(e)}', status_code=500)
         # 发送任务开始通知
         try:
             from apps.tasks.notification_service import notify_task_started
@@ -227,13 +228,13 @@ class TaskViewSet(viewsets.ModelViewSet):
         """完成任务"""
         task = self.get_object()
         if task.status not in ['pending', 'in_progress']:
-            return Response({'error': '当前状态不允许完成'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许完成')
         task.status = 'completed'
         task.completed_at = timezone.now()
         try:
             task.save()
         except Exception as e:
-            return Response({'error': f'完成任务失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'完成任务失败：{str(e)}', status_code=500)
         # 发送任务完成通知
         try:
             from apps.tasks.notification_service import notify_task_completed
@@ -253,16 +254,16 @@ class TaskViewSet(viewsets.ModelViewSet):
         template_id = request.data.get('template')
 
         if not template_id:
-            return Response({'error': '请提供流程模板ID'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请提供流程模板ID')
 
         try:
             template = FlowTemplate.objects.get(id=template_id)
         except FlowTemplate.DoesNotExist:
-            return Response({'error': '流程模板不存在'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.NOT_FOUND, '流程模板不存在')
 
         # 检查是否已有流程实例
         if TaskFlowInstance.objects.filter(task=task).exists():
-            return Response({'error': '任务已有流程实例'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.ALREADY_EXISTS, '任务已有流程实例')
 
         engine = FlowEngine(task)
         instance = engine.start_flow(template, started_by=request.user)

@@ -2,6 +2,7 @@ from rest_framework import viewsets, serializers, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired, get_module_companies
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -207,7 +208,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
 
         project = self.get_object()
         if project.approval_status not in ('', 'draft', 'rejected', 'cancelled'):
-            return Response({'error': '当前状态不允许提交审批'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许提交审批')
 
         # 构建审批流
         flow = build_approval_flow(
@@ -221,7 +222,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         try:
             flow.save()
         except Exception as e:
-            return Response({'error': f'保存审批流失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'保存审批流失败：{str(e)}', status_code=500)
 
         # 更新项目状态
         project.approval_flow = flow
@@ -229,7 +230,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         try:
             project.save(update_fields=['approval_flow', 'approval_status'])
         except Exception as e:
-            return Response({'error': f'更新项目审批状态失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'更新项目审批状态失败：{str(e)}', status_code=500)
 
         # 通知审批人（有新的项目立项审批）
         try:
@@ -252,13 +253,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
         """激活项目（审批通过后手动启动）"""
         project = self.get_object()
         if project.approval_status not in ('approved',):
-            return Response({'error': '项目必须先通过审批才能激活'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '项目必须先通过审批才能激活')
         if project.status != 'active':
             project.status = 'active'
             try:
                 project.save(update_fields=['status'])
             except Exception as e:
-                return Response({'error': f'激活项目失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'激活项目失败：{str(e)}', status_code=500)
         return Response({'message': '项目已激活', 'status': project.status})
 
     @action(detail=True, methods=['get'])

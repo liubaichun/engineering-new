@@ -8,6 +8,8 @@ from urllib.parse import urlparse
 from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 
+from apps.core.exceptions import api_error, ErrorCode
+
 
 class SafePageNumberPagination(PageNumberPagination):
     """解决 get_next_link() build_absolute_uri DisallowedHost 问题，返回相对URL"""
@@ -118,7 +120,7 @@ def _require_perms(*perm_codes):
         def wrapper(self, request, *args, **kwargs):
             if not _check_perm(request, *perm_codes):
                 msg = '需要权限: ' + ' / '.join(perm_codes)
-                return Response({'status': 'error', 'message': msg}, status=403)
+                return api_error(ErrorCode.PERMISSION_DENIED, msg, status_code=403)
             return func(self, request, *args, **kwargs)
 
         return wrapper

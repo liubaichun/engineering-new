@@ -7,12 +7,17 @@ from rest_framework.response import Response
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 
+from apps.core.exceptions import api_error, ErrorCode
+
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
 from .models import ChannelPlugin
 from .base import ChannelRegistry
 from apps.core.services import get_active_company_id
+
+
+from drf_spectacular.utils import extend_schema
 
 
 class ChannelListView(APIView):
@@ -74,7 +79,7 @@ class ChannelListView(APIView):
                 company_id = first_ucp.company_id
 
         if not company_id:
-            return Response({'error': '无法确定公司'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '无法确定公司')
 
         channel_type = request.data.get('channel_type')
         usage = request.data.get('usage', 'personal')
@@ -82,14 +87,14 @@ class ChannelListView(APIView):
         config = request.data.get('config', {})
 
         if not channel_type:
-            return Response({'error': '缺少channel_type'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少channel_type')
 
         if usage not in ('broadcast', 'personal'):
-            return Response({'error': '用途必须为 broadcast 或 personal'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '用途必须为 broadcast 或 personal')
 
         plugin_class = ChannelRegistry._plugins.get(channel_type)
         if not plugin_class:
-            return Response({'error': f'不支持的渠道类型: {channel_type}'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'不支持的渠道类型: {channel_type}')
 
         # 保存前加密敏感凭证（CNAS/CMA 要求）
         from apps.channels.utils import encrypt_credentials
@@ -107,7 +112,7 @@ class ChannelListView(APIView):
                 is_active=True,
             )
         except Exception as e:
-            return Response({'error': f'创建渠道失败: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'创建渠道失败: {str(e)}', status_code=500)
 
         write_audit_log(
             'channel_create',
@@ -133,6 +138,7 @@ class ChannelListView(APIView):
         )
 
 
+@extend_schema(exclude=True)
 class ChannelDetailView(APIView):
     """渠道详情（更新/删除）"""
 
@@ -190,7 +196,7 @@ class ChannelDetailView(APIView):
         if 'usage' in request.data:
             new_usage = request.data['usage']
             if new_usage not in ('broadcast', 'personal'):
-                return Response({'error': '用途必须为 broadcast 或 personal'}, status=status.HTTP_400_BAD_REQUEST)
+                return api_error(ErrorCode.VALIDATION_ERROR, '用途必须为 broadcast 或 personal')
             if channel.usage != new_usage:
                 old_values['usage'] = channel.usage
                 new_values['usage'] = new_usage
@@ -224,7 +230,7 @@ class ChannelDetailView(APIView):
             try:
                 channel.save()
             except Exception as e:
-                return Response({'error': f'更新渠道失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'更新渠道失败：{str(e)}', status_code=500)
             write_audit_log(
                 'channel_update',
                 request,
@@ -284,7 +290,7 @@ class ChannelDetailView(APIView):
             try:
                 channel.save()
             except Exception as e:
-                return Response({'error': f'停用渠道失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'停用渠道失败：{str(e)}', status_code=500)
 
             return Response({'message': '渠道已停用（软删除）'}, status=status.HTTP_200_OK)
         except Exception as e:

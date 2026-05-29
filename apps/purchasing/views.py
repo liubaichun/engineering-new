@@ -1,10 +1,11 @@
 # purchasing/views.py
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum, Count, F
 from apps.core.permissions import RoleRequired, get_module_companies
+from apps.core.exceptions import api_error, ErrorCode
 from .models import (
     PurchaseRequest,
     PurchaseRequestItem,
@@ -73,7 +74,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         """提交采购申请"""
         obj = self.get_object()
         if obj.status not in ('draft', 'rejected'):
-            return Response({'error': '只有草稿或驳回状态可以提交'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有草稿或驳回状态可以提交')
         obj.status = 'submitted'
         obj.submitted_at = timezone.now()
         obj.save(update_fields=['status', 'submitted_at'])
@@ -84,7 +85,7 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         """审批通过"""
         obj = self.get_object()
         if obj.status != 'submitted':
-            return Response({'error': '只有已提交状态可以审批'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有已提交状态可以审批')
         obj.status = 'approved'
         obj.approved_at = timezone.now()
         obj.save(update_fields=['status', 'approved_at'])
@@ -228,7 +229,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """供应商确认"""
         obj = self.get_object()
         if obj.status != 'sent':
-            return Response({'error': '只有已发供应商状态可以确认'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有已发供应商状态可以确认')
         obj.status = 'confirmed'
         obj.save(update_fields=['status'])
         return Response(PurchaseOrderDetailSerializer(obj).data)
@@ -246,7 +247,7 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         """取消订单"""
         obj = self.get_object()
         if obj.status in ('received', 'completed', 'cancelled'):
-            return Response({'error': '当前状态不允许取消'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许取消')
         obj.status = 'cancelled'
         obj.save(update_fields=['status'])
         return Response(PurchaseOrderDetailSerializer(obj).data)

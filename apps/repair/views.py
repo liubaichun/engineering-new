@@ -1,12 +1,13 @@
 # repair/views.py
 import logging
-from rest_framework import viewsets, status, permissions
+from rest_framework import viewsets, permissions
 
 logger = logging.getLogger(__name__)
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 from .models import RepairRequest, RepairImage, RepairSparePart
 from .serializers import (
     RepairRequestListSerializer,
@@ -74,9 +75,9 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         obj = self.get_object()
         employee_id = request.data.get('assigned_to')
         if not employee_id:
-            return Response({'error': '请指定维修负责人'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请指定维修负责人')
         if obj.status not in ('submitted',):
-            return Response({'error': '只有已提交状态可以派工'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有已提交状态可以派工')
         obj.assigned_to_id = employee_id
         obj.assigned_at = timezone.now()
         obj.status = 'assigned'
@@ -95,7 +96,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         """开始维修"""
         obj = self.get_object()
         if obj.status != 'assigned':
-            return Response({'error': '只有已派工状态可以开始维修'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有已派工状态可以开始维修')
         obj.status = 'in_progress'
         obj.save(update_fields=['status'])
         try:
@@ -112,7 +113,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         """维修完成"""
         obj = self.get_object()
         if obj.status not in ('assigned', 'in_progress'):
-            return Response({'error': '当前状态不允许标记完成'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许标记完成')
         obj.status = 'completed'
         obj.completed_at = timezone.now()
         obj.solution = request.data.get('solution', '')
@@ -133,7 +134,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         """验收通过"""
         obj = self.get_object()
         if obj.status != 'completed':
-            return Response({'error': '只有已完成状态可以验收'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '只有已完成状态可以验收')
         obj.status = 'accepted'
         obj.accepted_at = timezone.now()
         obj.acceptance_result = 'pass'
@@ -152,7 +153,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         """验收不通过，退回重修"""
         obj = self.get_object()
         if obj.status != 'completed':
-            return Response({'error': '当前状态不允许此操作'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许此操作')
         obj.status = 'in_progress'
         obj.save(update_fields=['status'])
         try:
@@ -169,7 +170,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         """取消报修"""
         obj = self.get_object()
         if obj.status in ('completed', 'accepted', 'cancelled'):
-            return Response({'error': '当前状态不允许取消'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.INVALID_STATE, '当前状态不允许取消')
         obj.status = 'cancelled'
         obj.save(update_fields=['status'])
         try:

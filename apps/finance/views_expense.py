@@ -12,6 +12,7 @@ from .serializers import (
 from .filters import ExpenseFilter
 from apps.approvals.flow_builder import build_approval_flow
 from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 
 # 从共享模块导入工具函数
@@ -135,15 +136,15 @@ class ExpenseViewSet(viewsets.ModelViewSet):
 
         file = request.FILES.get('file')
         if not file:
-            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请上传 Excel 文件')
 
         try:
             result = import_expense(file)
         except Exception as e:
-            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'解析失败：{str(e)}')
 
         if not result.rows:
-            return Response({'success': False, 'message': '解析后无有效数据行，请检查文件格式和列名'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '解析后无有效数据行，请检查文件格式和列名')
 
         created = 0
         errors = []

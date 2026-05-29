@@ -14,8 +14,19 @@ from .views_common import (
 )
 
 
+from rest_framework import serializers as drf_serializers
+
+
+class _DummyReportSerializer(drf_serializers.Serializer):
+    """占位序列化器（报表视图集使用自定义action）"""
+
+    pass
+
+
 class ReportViewSet(viewsets.ViewSet):
     """财务报表视图集"""
+
+    serializer_class = _DummyReportSerializer
 
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]

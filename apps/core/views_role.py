@@ -7,6 +7,7 @@ logger = logging.getLogger(__name__)
 
 from .models import UserCompanyRole
 from .serializers import CompanyRoleSerializer
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 
 
@@ -129,7 +130,7 @@ class CompanyRoleViewSet(viewsets.ModelViewSet):
         try:
             company = Company.objects.get(id=company_id)
         except Company.DoesNotExist:
-            return Response({'status': 'error', 'message': '公司不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '公司不存在', status_code=404)
         roles = company.company_roles.filter(is_active=True)
         return Response({'status': 'success', 'roles': [{'id': r.id, 'name': r.name, 'code': r.code} for r in roles]})
 

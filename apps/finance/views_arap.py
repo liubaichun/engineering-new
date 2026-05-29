@@ -14,8 +14,19 @@ from apps.core.permissions import RoleRequired
 # 从共享模块导入工具函数
 
 
+from rest_framework import serializers as drf_serializers
+
+
+class _DummyARAPSerializer(drf_serializers.Serializer):
+    """占位序列化器（应收应付视图集使用自定义action）"""
+
+    pass
+
+
 class ARAPViewSet(viewsets.ViewSet):
     """应收应付台账视图集"""
+
+    serializer_class = _DummyARAPSerializer
 
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]

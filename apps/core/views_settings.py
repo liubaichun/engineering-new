@@ -11,6 +11,7 @@ from .serializers import (
     FinanceCompanySerializer,
 )
 from apps.finance.models import Company as FinanceCompany
+from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 
 
@@ -88,7 +89,7 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
         new_value = request.data.get('value')
         if new_value is None:
-            return Response({'status': 'error', 'message': 'value 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'value 不能为空')
         instance.value = new_value
         try:
             instance.save(update_fields=['value', 'updated_at'])

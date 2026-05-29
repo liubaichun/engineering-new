@@ -5,6 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
 from .models import Material, MaterialBOM, MaterialBOMNode
 from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialBOMSerializer
@@ -110,14 +111,16 @@ class MaterialViewSet(viewsets.ModelViewSet):
                 material = Material.objects.select_for_update().get(pk=material_id)
 
                 if material.stock < quantity:
-                    return Response({'error': '库存不足'}, status=400)
+                    return api_error(ErrorCode.VALIDATION_ERROR, '库存不足')
 
                 before_stock = material.stock
                 material.stock -= quantity
                 try:
                     material.save(update_fields=['stock', 'updated_at'])
                 except Exception as e:
-                    return Response({'error': f'出库失败（保存物料库存失败）：{str(e)}'}, status=500)
+                    return api_error(
+                        ErrorCode.INTERNAL_ERROR, f'出库失败（保存物料库存失败）：{str(e)}', status_code=500
+                    )
 
                 logger.info(
                     '[物料出库] material_id=%s, quantity=%s, before_stock=%s, after_stock=%s, user=%s, project=%s',
@@ -149,7 +152,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
                 serializer.save(**save_kwargs)
                 return Response(serializer.data, status=201)
         except Material.DoesNotExist:
-            return Response({'error': '物料不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '物料不存在', status_code=404)
 
 
 class MaterialBOMViewSet(viewsets.ModelViewSet):
@@ -221,9 +224,9 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
 
         # 验证二选一
         if not child_material_id and not child_bom_id:
-            return Response({'error': 'child_material_id和child_bom_id至少必须指定一个'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'child_material_id和child_bom_id至少必须指定一个')
         if child_material_id and child_bom_id:
-            return Response({'error': 'child_material_id和child_bom_id不能同时指定'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, 'child_material_id和child_bom_id不能同时指定')
 
         data = {
             'bom': bom.id,
@@ -253,7 +256,7 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             node.delete()
             return Response(status=204)
         except MaterialBOMNode.DoesNotExist:
-            return Response({'error': '节点不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '节点不存在', status_code=404)
 
     @action(detail=True, methods=['patch'], url_path='update_node/(?P<node_id>[^/.]+)')
     def update_node(self, request, pk=None, node_id=None):
@@ -267,7 +270,7 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             child_material_id = request.data.get('child_material_id') or request.data.get('child_material')
             child_bom_id = request.data.get('child_bom_id')
             if child_material_id and child_bom_id:
-                return Response({'error': 'child_material_id和child_bom_id不能同时指定'}, status=400)
+                return api_error(ErrorCode.VALIDATION_ERROR, 'child_material_id和child_bom_id不能同时指定')
             if child_material_id:
                 node.child_material_id = child_material_id
                 node.child_bom = None
@@ -277,10 +280,10 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             try:
                 node.save()
             except Exception as e:
-                return Response({'error': f'更新BOM节点失败：{str(e)}'}, status=500)
+                return api_error(ErrorCode.INTERNAL_ERROR, f'更新BOM节点失败：{str(e)}', status_code=500)
             return Response(MaterialBOMNodeSerializer(node).data)
         except MaterialBOMNode.DoesNotExist:
-            return Response({'error': '节点不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '节点不存在', status_code=404)
 
     @action(detail=True, methods=['post'])
     def add_item(self, request, pk=None):
@@ -313,7 +316,7 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             item.delete()
             return Response(status=204)
         except MaterialBOMNode.DoesNotExist:
-            return Response({'error': '子件不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '子件不存在', status_code=404)
 
     @action(detail=True, methods=['patch'], url_path='update_item/(?P<item_id>[^/.]+)')
     def update_item(self, request, pk=None, item_id=None):
@@ -326,4 +329,4 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             item.save()
             return Response(MaterialBOMNodeSerializer(item).data)
         except MaterialBOMNode.DoesNotExist:
-            return Response({'error': '子件不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '子件不存在', status_code=404)

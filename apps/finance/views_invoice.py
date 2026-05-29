@@ -11,6 +11,7 @@ from .serializers import (
 from .filters import InvoiceFilter
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.exceptions import api_error, ErrorCode
 
 # 从共享模块导入工具函数
 from .views_common import (
@@ -71,12 +72,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         """作废发票"""
         invoice = self.get_object()
         if invoice.status == 'paid':
-            return Response({'status': 'error', 'message': '已支付的发票不能作废'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '已支付的发票不能作废')
         invoice.status = 'cancelled'
         try:
             invoice.save(update_fields=['status'])
         except Exception as e:
-            return Response({'success': False, 'message': f'作废失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'作废失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '发票已作废'})
 
     @action(detail=True, methods=['post'])
@@ -84,14 +85,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         """标记为已支付"""
         invoice = self.get_object()
         if invoice.status == 'cancelled':
-            return Response({'status': 'error', 'message': '已作废的发票不能标记为已支付'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '已作废的发票不能标记为已支付')
         if invoice.status == 'pending':
-            return Response({'status': 'error', 'message': '请先开具发票'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '请先开具发票')
         invoice.status = 'paid'
         try:
             invoice.save(update_fields=['status'])
         except Exception as e:
-            return Response({'success': False, 'message': f'标记支付失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'标记支付失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '发票已标记为已支付'})
 
     @action(detail=True, methods=['post'])
@@ -99,12 +100,12 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         """开具发票"""
         invoice = self.get_object()
         if invoice.status != 'pending':
-            return Response({'status': 'error', 'message': '只能开具待开票状态的发票'}, status=400)
+            return api_error(ErrorCode.INVALID_STATE, '只能开具待开票状态的发票')
         invoice.status = 'issued'
         try:
             invoice.save(update_fields=['status'])
         except Exception as e:
-            return Response({'success': False, 'message': f'开票失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'开票失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '发票已开具'})
 
     @action(detail=False, methods=['get'])
@@ -191,13 +192,13 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         ids = request.data.get('ids', [])
         action = request.data.get('action')  # 'mark_paid' or 'mark_credited'
         if not ids or not isinstance(ids, list):
-            return Response({'success': False, 'message': '请选择要更新的发票'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请选择要更新的发票')
         if action not in ('mark_paid', 'mark_credited'):
-            return Response({'success': False, 'message': '无效的操作类型'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '无效的操作类型')
         invoices = self.get_queryset().filter(id__in=ids)
         count = invoices.count()
         if not count:
-            return Response({'success': False, 'message': '未找到匹配的发票'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '未找到匹配的发票', status_code=404)
         if action == 'mark_paid':
             invoices.update(status='paid')
         elif action == 'mark_credited':
@@ -209,20 +210,20 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
         statement_id = request.data.get('statement_id')
         if not statement_id:
-            return Response({'success': False, 'message': '缺少 statement_id'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少 statement_id')
         from apps.finance.models import BankStatement
 
         try:
             stmt = BankStatement.objects.get(id=statement_id, company_id=invoice.company_id)
         except BankStatement.DoesNotExist:
-            return Response({'success': False, 'message': '银行流水不存在'}, status=404)
+            return api_error(ErrorCode.NOT_FOUND, '银行流水不存在', status_code=404)
         invoice.matched_bank_statement = stmt
         invoice.payment_date = stmt.transaction_date
         invoice.status = 'paid'
         try:
             invoice.save(update_fields=['matched_bank_statement', 'payment_date', 'status'])
         except Exception as e:
-            return Response({'success': False, 'message': f'核销失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'核销失败：{str(e)}', status_code=500)
         return Response({'success': True, 'message': f'已核销：{stmt.counterparty_name} ¥{stmt.amount}'})
 
     @action(detail=True, methods=['post'])
@@ -232,7 +233,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         try:
             invoice.save(update_fields=['matched_bank_statement'])
         except Exception as e:
-            return Response({'success': False, 'message': f'取消核销失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'取消核销失败：{str(e)}', status_code=500)
         return Response({'success': True, 'message': '已取消核销'})
 
     @action(detail=True, methods=['get'])
@@ -252,13 +253,13 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
         file = request.FILES.get('file')
         if not file:
-            return Response({'success': False, 'message': '请选择文件'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请选择文件')
         invoice.attachment = file
         invoice.attachment_name = file.name
         try:
             invoice.save(update_fields=['attachment', 'attachment_name'])
         except Exception as e:
-            return Response({'success': False, 'message': f'上传失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'上传失败：{str(e)}', status_code=500)
         return Response({'success': True, 'message': f'已上传：{file.name}'})
 
     @action(detail=True, methods=['post'])
@@ -269,7 +270,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         try:
             invoice.save(update_fields=['attachment', 'attachment_name'])
         except Exception as e:
-            return Response({'success': False, 'message': f'删除附件失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'删除附件失败：{str(e)}', status_code=500)
         return Response({'success': True, 'message': '附件已删除'})
 
     @action(detail=False, methods=['post'])
@@ -277,11 +278,11 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         """批量导入发票 Excel（收到/开出的数电发票）"""
         file = request.FILES.get('file')
         if not file:
-            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '请上传 Excel 文件')
 
         invoice_type = request.data.get('type')  # 'income' 收到 或 'expense' 开出
         if invoice_type not in ('income', 'expense'):
-            return Response({'success': False, 'message': '缺少或无效的 type 参数（income/expense）'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少或无效的 type 参数（income/expense）')
 
         user = request.user
         company_id = request.data.get('company_id')
@@ -295,7 +296,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
 
             result = import_invoice(file, invoice_type=invoice_type, company_id=company_id)
         except Exception as e:
-            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'解析失败：{str(e)}')
 
         if not result.rows:
             return Response(

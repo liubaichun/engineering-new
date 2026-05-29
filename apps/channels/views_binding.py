@@ -7,6 +7,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 
+from apps.core.exceptions import api_error, ErrorCode
+
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
@@ -22,7 +24,7 @@ class BindingQRCodeView(APIView):
     def post(self, request):
         channel_id = request.data.get('channel_id')
         if not channel_id:
-            return Response({'error': '缺少channel_id'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少channel_id')
 
         channel = get_object_or_404(ChannelPlugin, id=channel_id, is_active=True, is_deleted=False)
 
@@ -36,7 +38,7 @@ class BindingQRCodeView(APIView):
         # 加载对应插件
         plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
         if not plugin:
-            return Response({'error': f'不支持的渠道类型: {channel.channel_type}'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'不支持的渠道类型: {channel.channel_type}')
 
         binding_url = plugin.get_binding_url(callback_url, state=oauth_state)
 
@@ -86,11 +88,11 @@ class BindingCallbackView(APIView):
                 result='failure',
                 error_message=f'state 校验失败: {error_reason}',
             )
-            return Response({'error': f'OAuth state 校验失败: {error_reason}'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'OAuth state 校验失败: {error_reason}')
 
         plugin = ChannelRegistry.get_plugin(channel.channel_type, channel.config)
         if not plugin:
-            return Response({'error': f'不支持的渠道类型: {channel.channel_type}'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, f'不支持的渠道类型: {channel.channel_type}')
 
         success, result = plugin.handle_callback(request, channel)
 
@@ -212,7 +214,7 @@ class WebhookView(APIView):
                 result='failure',
                 error_message='不支持的渠道类型',
             )
-            return Response({'error': '不支持的渠道类型'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '不支持的渠道类型')
 
         # 尝试验签（plugin可选择实现）
         verify_result = None
@@ -227,7 +229,7 @@ class WebhookView(APIView):
                     result='failure',
                     error_message='验签失败: ' + str(verify_result.get('error', '')),
                 )
-                return Response({'error': '验签失败'}, status=401)
+                return api_error(ErrorCode.PERMISSION_DENIED, '验签失败', status_code=401)
 
         # 调用 plugin 处理 webhook
         result = plugin.handle_webhook(request, channel)
@@ -257,7 +259,7 @@ class WebhookView(APIView):
                 result='failure',
                 error_message='该渠道不支持Webhook处理',
             )
-            return Response({'error': '该渠道不支持Webhook处理'}, status=400)
+            return api_error(ErrorCode.VALIDATION_ERROR, '该渠道不支持Webhook处理')
 
         NotificationLog.objects.create(
             channel=channel,
@@ -339,7 +341,7 @@ class BindingListCreateView(APIView):
             target_user = request.user
 
         if not channel_id or not open_id:
-            return Response({'error': '缺少channel_id或open_id'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少channel_id或open_id')
 
         channel = get_object_or_404(ChannelPlugin, id=channel_id, is_active=True, is_deleted=False)
 
@@ -385,7 +387,7 @@ class BindingListCreateView(APIView):
         """解除绑定"""
         binding_id = request.data.get('binding_id')
         if not binding_id:
-            return Response({'error': '缺少binding_id'}, status=status.HTTP_400_BAD_REQUEST)
+            return api_error(ErrorCode.VALIDATION_ERROR, '缺少binding_id')
 
         binding = get_object_or_404(ChannelBinding, id=binding_id, user=request.user)
 
@@ -406,6 +408,6 @@ class BindingListCreateView(APIView):
         try:
             binding.save()
         except Exception as e:
-            return Response({'error': f'解除绑定失败：{str(e)}'}, status=500)
+            return api_error(ErrorCode.INTERNAL_ERROR, f'解除绑定失败：{str(e)}', status_code=500)
 
         return Response({'message': '解除绑定成功'})

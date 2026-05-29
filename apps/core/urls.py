@@ -2,7 +2,7 @@ from django.urls import path, include
 from django.views.decorators.csrf import csrf_exempt
 from config.routers import IntegerPkRouter
 
-from .views import (
+from .views_auth import (
     RegisterView,
     LoginView,
     LogoutView,
@@ -12,19 +12,19 @@ from .views import (
     CurrentUserView,
     SwitchCompanyView,
     MyPermissionsView,
-    UserViewSet,
-    NotificationViewSet,
-    PermissionAuditLogViewSet,
+)
+from .views_user import UserViewSet
+from .views_notification import NotificationViewSet
+from .views_log import (
     LoginLogViewSet,
     OperationAuditLogViewSet,
-    SystemSettingViewSet,
-    FinanceCompanyViewSet,
-    UserCompanyPermissionViewSet,
-    CompanyRoleViewSet,
-    CompanyRoleDefViewSet,
-    PermissionViewSet,
-    health_check,
 )
+from .views_permission import PermissionViewSet, PermissionAuditLogViewSet
+from .views_settings import SystemSettingViewSet, FinanceCompanyViewSet, CompanyRoleDefViewSet
+from .views_role import CompanyRoleViewSet
+from .views_ucp import UserCompanyPermissionViewSet
+from .views_health import health_check
+from .middleware_timing import metrics_view
 
 router = IntegerPkRouter()
 router.register(r'users', UserViewSet, basename='user')
@@ -53,6 +53,8 @@ urlpatterns = [
     path('switch_company/', SwitchCompanyView.as_view(), name='switch-company-old'),
     # 健康检查
     path('health/', health_check, name='health'),
+    # 请求耗时统计
+    path('metrics/', metrics_view, name='metrics'),
     # API路由
     path('', include(router.urls)),
 ]
