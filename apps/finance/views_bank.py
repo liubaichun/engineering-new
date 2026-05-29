@@ -73,7 +73,10 @@ class BankAccountViewSet(viewsets.ModelViewSet):
         # 有关联流水的账户只标记为停用，不物理删除
         if instance.statements.exists():
             instance.is_active = False
-            instance.save()
+            try:
+                instance.save(update_fields=['is_active'])
+            except Exception as e:
+                logger.error(f'银行账户 {instance.id} 停用失败：{e}')
         else:
             instance.delete()
 

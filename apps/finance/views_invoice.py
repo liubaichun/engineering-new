@@ -96,7 +96,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if invoice.status == 'paid':
             return Response({'status': 'error', 'message': '已支付的发票不能作废'}, status=400)
         invoice.status = 'cancelled'
-        invoice.save()
+        try:
+            invoice.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'作废失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '发票已作废'})
 
     @action(detail=True, methods=['post'])
@@ -108,7 +111,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if invoice.status == 'pending':
             return Response({'status': 'error', 'message': '请先开具发票'}, status=400)
         invoice.status = 'paid'
-        invoice.save()
+        try:
+            invoice.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'标记支付失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '发票已标记为已支付'})
 
     @action(detail=True, methods=['post'])
@@ -118,7 +124,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         if invoice.status != 'pending':
             return Response({'status': 'error', 'message': '只能开具待开票状态的发票'}, status=400)
         invoice.status = 'issued'
-        invoice.save()
+        try:
+            invoice.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'开票失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '发票已开具'})
 
     @action(detail=False, methods=['get'])
@@ -230,14 +239,20 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice.matched_bank_statement = stmt
         invoice.payment_date = stmt.transaction_date
         invoice.status = 'paid'
-        invoice.save(update_fields=['matched_bank_statement', 'payment_date', 'status'])
+        try:
+            invoice.save(update_fields=['matched_bank_statement', 'payment_date', 'status'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'核销失败：{str(e)}'}, status=500)
         return Response({'success': True, 'message': f'已核销：{stmt.counterparty_name} ¥{stmt.amount}'})
 
     @action(detail=True, methods=['post'])
     def unmatch_statement(self, request, pk=None):
         invoice = self.get_object()
         invoice.matched_bank_statement = None
-        invoice.save(update_fields=['matched_bank_statement'])
+        try:
+            invoice.save(update_fields=['matched_bank_statement'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'取消核销失败：{str(e)}'}, status=500)
         return Response({'success': True, 'message': '已取消核销'})
 
     @action(detail=True, methods=['get'])
@@ -259,7 +274,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             return Response({'success': False, 'message': '请选择文件'}, status=400)
         invoice.attachment = file
         invoice.attachment_name = file.name
-        invoice.save(update_fields=['attachment', 'attachment_name'])
+        try:
+            invoice.save(update_fields=['attachment', 'attachment_name'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'上传失败：{str(e)}'}, status=500)
         return Response({'success': True, 'message': f'已上传：{file.name}'})
 
     @action(detail=True, methods=['post'])
@@ -267,7 +285,10 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
         invoice.attachment.delete()
         invoice.attachment_name = ''
-        invoice.save(update_fields=['attachment', 'attachment_name'])
+        try:
+            invoice.save(update_fields=['attachment', 'attachment_name'])
+        except Exception as e:
+            return Response({'success': False, 'message': f'删除附件失败：{str(e)}'}, status=500)
         return Response({'success': True, 'message': '附件已删除'})
 
     @action(detail=False, methods=['post'])

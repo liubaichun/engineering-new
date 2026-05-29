@@ -173,7 +173,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         if contract.status not in ['draft', 'pending']:
             return Response({'detail': f'当前状态不允许审批（当前状态：{contract.status}）'}, status=400)
         contract.status = 'active'
-        contract.save()
+        try:
+            contract.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'detail': f'批准失败：{str(e)}'}, status=500)
         return Response({'detail': '已批准，合同生效', 'status': contract.status})
 
     @action(detail=True, methods=['post'])
@@ -183,7 +186,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         if contract.status not in ['draft', 'pending']:
             return Response({'detail': f'当前状态不允许驳回（当前状态：{contract.status}）'}, status=400)
         contract.status = 'terminated'
-        contract.save()
+        try:
+            contract.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'detail': f'驳回失败：{str(e)}'}, status=500)
         try:
             from apps.tasks.notification_service import notify_contract_rejected
             notify_contract_rejected(contract)
@@ -198,7 +204,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         if contract.status != 'draft':
             return Response({'detail': '只有草稿状态可以生效'}, status=400)
         contract.status = 'active'
-        contract.save()
+        try:
+            contract.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'detail': f'生效失败：{str(e)}'}, status=500)
         try:
             from apps.tasks.notification_service import notify_contract_approved
             notify_contract_approved(contract)
@@ -213,7 +222,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         if contract.status != 'active':
             return Response({'detail': '只有执行中状态可以完成'}, status=400)
         contract.status = 'completed'
-        contract.save()
+        try:
+            contract.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'detail': f'完成失败：{str(e)}'}, status=500)
         return Response({'detail': '合同已完成', 'status': contract.status})
 
     @action(detail=True, methods=['post'])
@@ -223,7 +235,10 @@ class ContractViewSet(viewsets.ModelViewSet):
         if contract.status in ['completed', 'terminated']:
             return Response({'detail': '当前状态不可终止'}, status=400)
         contract.status = 'terminated'
-        contract.save()
+        try:
+            contract.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'detail': f'终止失败：{str(e)}'}, status=500)
         return Response({'detail': '合同已终止', 'status': contract.status})
 
     @action(detail=True, methods=['get'])
@@ -269,7 +284,10 @@ class ContractViewSet(viewsets.ModelViewSet):
             # 自动记录变更前的值
             if not instance.old_value and data.get('change_type'):
                 instance.old_value = str(old_values.get(data['change_type'], ''))
-                instance.save(update_fields=['old_value'])
+                try:
+                    instance.save(update_fields=['old_value'])
+                except Exception as e:
+                    logger.error(f'变更记录 {instance.id} 旧值保存失败：{e}')
             return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
@@ -328,7 +346,10 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
             payment_status = 'pending'
         contract.total_paid = total_paid
         contract.payment_status = payment_status
-        contract.save(update_fields=['total_paid', 'payment_status'])
+        try:
+            contract.save(update_fields=['total_paid', 'payment_status'])
+        except Exception as e:
+            logger.error(f'合同 {contract.id} 付款同步失败：{e}')
 
     @action(detail=True, methods=['post'])
     def mark_paid(self, request, pk=None):
@@ -337,7 +358,10 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
         plan.paid_date = request.data.get('paid_date', timezone.now().date())
         plan.paid_amount = request.data.get('paid_amount', plan.amount)
         plan.status = 'paid'
-        plan.save()
+        try:
+            plan.save(update_fields=['paid_date', 'paid_amount', 'status'])
+        except Exception as e:
+            return Response({'detail': f'标记付款失败：{str(e)}'}, status=500)
         self._sync_contract_payment(plan.contract)
         return Response({'detail': '已标记为已付款', 'status': plan.status})
 
@@ -349,7 +373,10 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
             plan.paid_date = request.data['paid_date']
         if 'paid_amount' in request.data:
             plan.paid_amount = request.data['paid_amount']
-        plan.save()
+        try:
+            plan.save(update_fields=['paid_date', 'paid_amount'])
+        except Exception as e:
+            return Response({'detail': f'更新付款失败：{str(e)}'}, status=500)
         self._sync_contract_payment(plan.contract)
         return Response(PaymentPlanSerializer(plan).data)
 
@@ -385,8 +412,11 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
         if hasattr(contract, 'company_id'):
             company_id = contract.company_id
         else:
-            co = Contract.objects.get(pk=contract.pk)
-            company_id = co.company_id
+            try:
+                co = Contract.objects.get(pk=contract.pk)
+                company_id = co.company_id
+            except Contract.DoesNotExist:
+                company_id = getattr(self.request.user, 'company_id', None) or 0
         serializer.save(created_by=self.request.user, company_id=company_id)
 
 
@@ -529,7 +559,10 @@ class OpportunityViewSet(viewsets.ModelViewSet):
                 if next_stage == 'won':
                     from datetime import date
                     opp.actual_close_date = date.today()
-                opp.save()
+                try:
+                    opp.save(update_fields=['stage', 'actual_close_date'])
+                except Exception as e:
+                    return Response({'detail': f'推进阶段失败：{str(e)}'}, status=500)
                 return Response(OpportunitySerializer(opp).data)
         return Response({'detail': '已是最后阶段'}, status=400)
 
@@ -540,7 +573,10 @@ class OpportunityViewSet(viewsets.ModelViewSet):
         opp.stage = 'won'
         from datetime import date
         opp.actual_close_date = date.today()
-        opp.save()
+        try:
+            opp.save(update_fields=['stage', 'actual_close_date'])
+        except Exception as e:
+            return Response({'detail': f'标记成交失败：{str(e)}'}, status=500)
         return Response(OpportunitySerializer(opp).data)
 
     @action(detail=True, methods=['post'])
@@ -549,5 +585,8 @@ class OpportunityViewSet(viewsets.ModelViewSet):
         opp = self.get_object()
         opp.stage = 'lost'
         opp.lost_reason = request.data.get('lost_reason', '')
-        opp.save()
+        try:
+            opp.save(update_fields=['stage', 'lost_reason'])
+        except Exception as e:
+            return Response({'detail': f'标记失败：{str(e)}'}, status=500)
         return Response(OpportunitySerializer(opp).data)

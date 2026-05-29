@@ -98,7 +98,10 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         )
         if flow:
             expense.approval_flow = flow
-            expense.save(update_fields=['approval_flow'])
+            try:
+                expense.save(update_fields=['approval_flow'])
+            except Exception as e:
+                logger.error(f'支出 {expense.id} 审批流关联失败：{e}')
 
     @action(detail=False, methods=['get'])
     def summary(self, request):

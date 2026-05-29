@@ -89,7 +89,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         # 自动为其创建第一条公司关联（当前用户所属公司，或无主公司记录）
         if hasattr(user, 'company') and user.company_id:
             emp.company_id = user.company_id
-            emp.save(update_fields=['company'])
+            try:
+                emp.save(update_fields=['company'])
+            except Exception as e:
+                logger.error(f'员工 {emp.id} 公司关联失败：{e}')
             EmployeeCompany.objects.create(
                 employee=emp,
                 company_id=user.company_id,
@@ -125,8 +128,11 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if not ec:
             ec = employee.company_links.first()
         if ec:
-            ec.position = new_position
-            ec.save()
+            try:
+                ec.position = new_position
+                ec.save(update_fields=['position'])
+            except Exception as e:
+                return Response({'status': 'error', 'message': f'晋升失败：{str(e)}'}, status=500)
             return Response({'status': 'success', 'message': f'员工已晋升为{new_position}'})
         return Response({'status': 'error', 'message': '未找到员工公司关联记录'}, status=400)
 
@@ -136,7 +142,10 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         employee = self.get_object()
         employee.company_links.all().update(status='resigned', leave_date=timezone.now().date())
         employee.status = 'resigned'
-        employee.save()
+        try:
+            employee.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'离职处理失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '员工已标记为离职'})
 
     @action(detail=True, methods=['post'])

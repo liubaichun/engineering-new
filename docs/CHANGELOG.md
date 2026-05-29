@@ -195,6 +195,38 @@
 - [x] 43 服务器部署验证（HTTP 200）
 - [ ] 124 服务器待同步
 
+## 2026-05-29 — 审计报告 P0 修复
+
+### P0-1: objects.get() 异常处理（已完成）
+- **审计报告说46处，实际扫描结果：**
+  - ✅ 原有23处已有 try/except
+  - ❌ 修复4处裸奔 get()：
+    - `apps/crm/views.py:388` — Contract.objects.get
+    - `apps/purchasing/views.py:147` — PurchaseRequest.objects.get
+    - `apps/purchasing/views.py:296` — PurchaseOrder.objects.get
+    - `apps/purchasing/views.py:398` — PurchaseReceive.objects.get
+  - ✅ 修复后全部 27 处 `objects.get()` 均有异常处理
+
+### P0-2: save() 异常处理（进行中：10/20 文件）
+
+**已完成高+中优先级模块：**
+| 模块 | 状态 | 修了 | 说明 |
+|------|:----:|:----:|------|
+| **finance** (views_*.py × 9文件) | ✅ | 18处 | 发票/收支/工资/员工/公司/银行等核心业务save |
+| **approvals** | ✅ | 14处 | 审批流全部操作（审批/拒绝/转交/委托/撤回等） |
+| **crm** | ✅ | 12处 | 合同状态变更/付款计划/商机推进 |
+| purchasing | ❌ | 待修 | |
+| equipment | ❌ | 待修 | |
+| core | ❌ | 待修 | |
+| tasks | ❌ | 待修 | |
+| channels | ❌ | 待修 | |
+| material | ❌ | 待修 | |
+| notifications | ❌ | 待修 | |
+
+### 在途
+- P0-2: save() 异常处理（剩余7个文件待修）
+- P0-3: CSRF中间件（待开始）
+
 ## 2026-05-29 — P2-8: 迁移文件清理 + 旧代码清理
 
 ### 清理内容

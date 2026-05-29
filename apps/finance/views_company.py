@@ -92,7 +92,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
         """启用公司"""
         company = self.get_object()
         company.status = 'active'
-        company.save()
+        try:
+            company.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'启用失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '公司已启用'})
 
     @action(detail=True, methods=['post'])
@@ -100,7 +103,10 @@ class CompanyViewSet(viewsets.ModelViewSet):
         """停用公司"""
         company = self.get_object()
         company.status = 'inactive'
-        company.save()
+        try:
+            company.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'停用失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '公司已停用'})
 
     @action(detail=False, methods=['get'])

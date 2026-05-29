@@ -115,7 +115,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.approver = request.user
         from django.utils import timezone
         wage_record.approved_at = timezone.now()
-        wage_record.save()
+        try:
+            wage_record.save(update_fields=['status', 'approver', 'approved_at'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'批准失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '工资单已批准'})
 
     @action(detail=True, methods=['post'])
@@ -127,7 +130,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         wage_record.status = 'paid'
         from django.utils import timezone
         wage_record.paid_at = timezone.now()
-        wage_record.save()
+        try:
+            wage_record.save(update_fields=['status', 'paid_at'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'发放失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '工资已发放'})
 
     @action(detail=False, methods=['get'])
@@ -150,7 +156,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         if wage_record.status != 'draft':
             return Response({'status': 'error', 'message': '只能提交草稿状态的工资单'}, status=400)
         wage_record.status = 'pending'
-        wage_record.save()
+        try:
+            wage_record.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'提交失败：{str(e)}'}, status=500)
 
         # 根据系统设置决定是否触发审批流
         from apps.core.models import SystemSetting
@@ -175,7 +184,10 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             )
             if flow:
                 wage_record.approval_flow = flow
-                wage_record.save(update_fields=['approval_flow'])
+                try:
+                    wage_record.save(update_fields=['approval_flow'])
+                except Exception as e:
+                    logger.error(f'工资单 {wage_record.id} 审批流关联失败：{e}')
 
         return Response({'status': 'success', 'message': '工资单已提交'})
 

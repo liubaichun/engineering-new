@@ -75,7 +75,11 @@ def _sync_business_status(flow: ApprovalFlow, approval_status: str):
     if hasattr(obj, 'status'):
         old = obj.status
         obj.status = new_status
-        obj.save(update_fields=['status'])
+        try:
+            obj.save(update_fields=['status'])
+        except Exception as e:
+            logger.error(f'_sync_business_status: {model_name} pk={obj.pk} save failed: {e}')
+            return
         logger.info(f'{model_name} pk={obj.pk}: status {old} → {new_status}')
     else:
         logger.warning(f'{model_name} has no status field')
@@ -149,7 +153,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
             )
             flow.current_node_order = 1
             flow.status = 'pending'
-            flow.save()
+            try:
+                flow.save(update_fields=['current_node_order', 'status'])
+            except Exception as e:
+                logger.error(f'审批流 {flow.id} 创建失败：{e}')
 
     @action(detail=True, methods=['post'])
     def submit(self, request, pk=None):
@@ -158,7 +165,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         if flow.status != 'draft':
             return Response({'error': '当前状态不允许提交'}, status=status.HTTP_400_BAD_REQUEST)
         flow.status = 'pending'
-        flow.save()
+        try:
+            flow.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'error': f'提交失败：{str(e)}'}, status=500)
         notify_approval_created(flow)
         return Response({'status': '已提交'})
 
@@ -184,20 +194,29 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         current_node.status = 'approved'
         current_node.comment = comment
         current_node.decided_at = timezone.now()
-        current_node.save()
+        try:
+            current_node.save(update_fields=['status', 'comment', 'decided_at'])
+        except Exception as e:
+            return Response({'error': f'审批失败：{str(e)}'}, status=500)
         
         # 检查是否还有下一个节点
         next_node = flow.nodes.filter(node_order__gt=current_node.node_order, status='pending').order_by('node_order').first()
         if next_node:
             # 还有下一级审批，更新当前节点顺序
             flow.current_node_order = next_node.node_order
-            flow.save()
+            try:
+                flow.save(update_fields=['current_node_order'])
+            except Exception as e:
+                return Response({'error': f'审批失败：{str(e)}'}, status=500)
         else:
             # 所有节点都已审批通过，更新业务对象状态
             flow.status = 'approved'
             flow.decided_at = timezone.now()
             flow.result_comment = comment
-            flow.save()
+            try:
+                flow.save(update_fields=['status', 'decided_at', 'result_comment'])
+            except Exception as e:
+                return Response({'error': f'审批失败：{str(e)}'}, status=500)
             _sync_business_status(flow, 'approved')
 
         notify_approval_result(flow, request.user, 'approved')
@@ -222,13 +241,19 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         current_node.status = 'rejected'
         current_node.comment = comment
         current_node.decided_at = timezone.now()
-        current_node.save()
+        try:
+            current_node.save(update_fields=['status', 'comment', 'decided_at'])
+        except Exception as e:
+            return Response({'error': f'拒绝失败：{str(e)}'}, status=500)
         
         # 整个流程拒绝，更新业务对象状态
         flow.status = 'rejected'
         flow.decided_at = timezone.now()
         flow.result_comment = comment
-        flow.save()
+        try:
+            flow.save(update_fields=['status', 'decided_at', 'result_comment'])
+        except Exception as e:
+            return Response({'error': f'拒绝失败：{str(e)}'}, status=500)
         _sync_business_status(flow, 'rejected')
 
         notify_approval_result(flow, request.user, 'rejected')
@@ -243,7 +268,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
             return Response({'error': '当前状态不允许取消'}, status=status.HTTP_400_BAD_REQUEST)
         
         flow.status = 'cancelled'
-        flow.save()
+        try:
+            flow.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'error': f'取消失败：{str(e)}'}, status=500)
         # 取消所有待审批节点
         flow.nodes.filter(status='pending').update(status='skipped')
         notify_approval_result(flow, request.user, 'cancelled')
@@ -269,13 +297,19 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         current_node.status = 'rejected'
         current_node.comment = comment
         current_node.decided_at = timezone.now()
-        current_node.save()
+        try:
+            current_node.save(update_fields=['status', 'comment', 'decided_at'])
+        except Exception as e:
+            return Response({'error': f'驳回失败：{str(e)}'}, status=500)
         
         # 将流程状态改为草稿（申请人可以重新提交）
         flow.status = 'draft'
         flow.decided_at = timezone.now()
         flow.result_comment = f'驳回原因：{comment}' if comment else '已驳回'
-        flow.save()
+        try:
+            flow.save(update_fields=['status', 'decided_at', 'result_comment'])
+        except Exception as e:
+            return Response({'error': f'驳回失败：{str(e)}'}, status=500)
 
         notify_rejected_to_requester(flow, request.user, comment)
         return Response({'status': '已驳回，请申请人修改后重新提交'})
@@ -311,7 +345,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         current_node.status = 'approved'
         current_node.comment = f'转交给 {target_user.username}：{comment}' if comment else f'转交给 {target_user.username}'
         current_node.decided_at = timezone.now()
-        current_node.save()
+        try:
+            current_node.save(update_fields=['status', 'comment', 'decided_at'])
+        except Exception as e:
+            return Response({'error': f'转交失败：{str(e)}'}, status=500)
         
         # 创建新的转交节点
         next_order = current_node.node_order + 1
@@ -326,7 +363,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         )
         
         flow.current_node_order = next_order
-        flow.save()
+        try:
+            flow.save(update_fields=['current_node_order'])
+        except Exception as e:
+            return Response({'error': f'转交失败：{str(e)}'}, status=500)
 
         # 发送转交通知
         try:
@@ -368,7 +408,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         current_node.status = 'approved'
         current_node.comment = f'委托给 {delegate_user.username}：{comment}' if comment else f'委托给 {delegate_user.username}'
         current_node.decided_at = timezone.now()
-        current_node.save()
+        try:
+            current_node.save(update_fields=['status', 'comment', 'decided_at'])
+        except Exception as e:
+            return Response({'error': f'委托失败：{str(e)}'}, status=500)
         
         # 创建新的委托节点
         next_order = current_node.node_order + 1
@@ -384,7 +427,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         )
         
         flow.current_node_order = next_order
-        flow.save()
+        try:
+            flow.save(update_fields=['current_node_order'])
+        except Exception as e:
+            return Response({'error': f'委托失败：{str(e)}'}, status=500)
 
         # 发送委托通知
         try:
@@ -423,7 +469,10 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
         
         flow.status = 'cancelled'
         flow.result_comment = '申请人撤回'
-        flow.save()
+        try:
+            flow.save(update_fields=['status', 'result_comment'])
+        except Exception as e:
+            return Response({'error': f'撤回失败：{str(e)}'}, status=500)
         
         # 取消所有待审批节点
         flow.nodes.filter(status='pending').update(status='skipped')

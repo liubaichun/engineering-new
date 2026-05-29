@@ -144,8 +144,11 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
         if hasattr(request_id, 'company_id'):
             company_id = request_id.company_id
         else:
-            pr = PurchaseRequest.objects.get(pk=request_id.pk)
-            company_id = pr.company_id
+            try:
+                pr = PurchaseRequest.objects.get(pk=request_id.pk)
+                company_id = pr.company_id
+            except PurchaseRequest.DoesNotExist:
+                company_id = getattr(self.request.user, 'company_id', None) or 0
         item = serializer.save(company_id=company_id)
         self._update_request_total(item.request)
 
@@ -293,8 +296,11 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
         if hasattr(order_id, 'company_id'):
             company_id = order_id.company_id
         else:
-            po = PurchaseOrder.objects.get(pk=order_id.pk)
-            company_id = po.company_id
+            try:
+                po = PurchaseOrder.objects.get(pk=order_id.pk)
+                company_id = po.company_id
+            except PurchaseOrder.DoesNotExist:
+                company_id = getattr(self.request.user, 'company_id', None) or 0
         item = serializer.save(company_id=company_id)
         self._update_order_totals(item.order)
 
@@ -395,8 +401,11 @@ class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
         if hasattr(receive_id, 'company_id'):
             company_id = receive_id.company_id
         else:
-            pr = PurchaseReceive.objects.get(pk=receive_id.pk)
-            company_id = pr.company_id
+            try:
+                pr = PurchaseReceive.objects.get(pk=receive_id.pk)
+                company_id = pr.company_id
+            except PurchaseReceive.DoesNotExist:
+                company_id = getattr(self.request.user, 'company_id', None) or 0
         item = serializer.save(company_id=company_id)
         # 更新入库单状态
         self._update_receive_status(item.receive)

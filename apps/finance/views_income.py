@@ -96,7 +96,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
         )
         if flow:
             income.approval_flow = flow
-            income.save(update_fields=['approval_flow'])
+            try:
+                income.save(update_fields=['approval_flow'])
+            except Exception as e:
+                logger.error(f'收入 {income.id} 审批流关联失败：{e}')
 
     @action(detail=True, methods=['post'])
     def confirm(self, request, pk=None):
@@ -105,7 +108,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
         if income.status not in ('pending',):
             return Response({'status': 'error', 'message': f'当前状态不允许确认（状态：{income.status}）'}, status=400)
         income.status = 'approved'
-        income.save()
+        try:
+            income.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'确认失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '收入已确认'})
 
     @action(detail=True, methods=['post'])
@@ -115,7 +121,10 @@ class IncomeViewSet(viewsets.ModelViewSet):
         if income.status != 'approved':
             return Response({'status': 'error', 'message': f'当前状态不允许取消确认（状态：{income.status}）'}, status=400)
         income.status = 'pending'
-        income.save()
+        try:
+            income.save(update_fields=['status'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'取消确认失败：{str(e)}'}, status=500)
         return Response({'status': 'success', 'message': '收入已取消确认'})
 
     @action(detail=False, methods=['get'])
