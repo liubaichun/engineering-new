@@ -76,12 +76,12 @@ class ContractSerializer(serializers.ModelSerializer):
     payment_progress = serializers.SerializerMethodField()
     paid_amount_display = serializers.SerializerMethodField()
 
-    def get_payment_progress(self, obj):
+    def get_payment_progress(self, obj) -> float | None:
         if obj.amount and obj.amount > 0:
             return float(obj.total_paid or 0) / float(obj.amount) * 100
         return 0
 
-    def get_paid_amount_display(self, obj):
+    def get_paid_amount_display(self, obj) -> str:
         return obj.total_paid if hasattr(obj, 'total_paid') else 0
 
     class Meta:
@@ -98,7 +98,7 @@ class ContractSerializer(serializers.ModelSerializer):
         read_only_fields = ['created_by', 'total_paid', 'payment_progress', 'paid_amount_display']
         extra_kwargs = {'contract_no': {'required': False}}
 
-    def get_counterparty_name(self, obj):
+    def get_counterparty_name(self, obj) -> str:
         if obj.counterparty_type == 'supplier' and obj.supplier:
             return obj.supplier.name
         if obj.client:
@@ -154,7 +154,7 @@ class ContractSerializer(serializers.ModelSerializer):
 class ContactSerializer(serializers.ModelSerializer):
     client_name = serializers.SerializerMethodField()
 
-    def get_client_name(self, obj):
+    def get_client_name(self, obj) -> str:
         return obj.client.name if obj.client else ''
 
     class Meta:
@@ -239,7 +239,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
-    def get_weighted_amount(self, obj):
+    def get_weighted_amount(self, obj) -> float:
         """加权金额 = 预计金额 × 赢单概率"""
         if obj.expected_amount and obj.probability:
             return float(obj.expected_amount) * obj.probability / 100

@@ -16,7 +16,7 @@ class CompanyFileSerializer(serializers.ModelSerializer):
     previous_version_id = serializers.IntegerField(source='previous_file.id', read_only=True, allow_null=True)
     version_count = serializers.SerializerMethodField()
 
-    def get_file_url(self, obj):
+    def get_file_url(self, obj) -> str:
         if obj.file:
             request = self.context.get('request')
             if request:
@@ -24,7 +24,7 @@ class CompanyFileSerializer(serializers.ModelSerializer):
             return obj.file.url
         return None
 
-    def get_version_count(self, obj):
+    def get_version_count(self, obj) -> int:
         """获取同一文件的历史版本总数"""
         return obj.next_versions.count() + 1
 

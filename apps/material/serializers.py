@@ -70,7 +70,7 @@ class MaterialBOMTreeSerializer(serializers.Serializer):
     remark = serializers.CharField(allow_blank=True)
     children = serializers.SerializerMethodField()
 
-    def get_children(self, node):
+    def get_children(self, node) -> list:
         children = list(node.children.all())
         return MaterialBOMTreeSerializer(children, many=True, context=self.context).data
 
@@ -82,7 +82,7 @@ class MaterialBOMSerializer(serializers.ModelSerializer):
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     node_count = serializers.SerializerMethodField()
 
-    def get_node_count(self, obj):
+    def get_node_count(self, obj) -> int:
         return obj.nodes.count()
 
     class Meta:
@@ -97,7 +97,7 @@ class MaterialBOMDetailSerializer(MaterialBOMSerializer):
     """BOM详细信息 + 节点树"""
     tree = serializers.SerializerMethodField()
 
-    def get_tree(self, obj):
+    def get_tree(self, obj) -> list:
         # 获取根节点（parent为null的节点）
         root_nodes = obj.nodes.filter(parent__isnull=True)
         return MaterialBOMTreeSerializer(root_nodes, many=True, context=self.context).data

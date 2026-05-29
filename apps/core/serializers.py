@@ -124,7 +124,7 @@ class UserCompanyRoleSerializer(serializers.ModelSerializer):
                   'role_display', 'is_primary', 'assigned_by', 'assigned_at']
         read_only_fields = ['id', 'assigned_by', 'assigned_at']
 
-    def get_role_display(self, obj):
+    def get_role_display(self, obj) -> str:
         return obj.company_role.name if obj.company_role else '未分配'
 
 
@@ -152,7 +152,7 @@ class UserSerializer(serializers.ModelSerializer):
             'password': {'write_only': True, 'required': False},
         }
 
-    def get_role_name(self, obj):
+    def get_role_name(self, obj) -> str | None:
         """返回用户角色名称 — 优先用 UserCompanyRole 的角色，否则用 User.role 字段"""
         if obj.is_superuser:
             return '系统管理员'
@@ -168,7 +168,7 @@ class UserSerializer(serializers.ModelSerializer):
         }
         return role_map.get(obj.role, obj.role) if obj.role else '-'
 
-    def get_roles(self, obj):
+    def get_roles(self, obj) -> list:
         """返回用户通过UserCompanyRole关联的所有公司角色"""
         roles = []
         for ucr in obj.company_roles.select_related('company_role', 'company').all():
@@ -245,11 +245,11 @@ class CompanyRoleSerializer(serializers.ModelSerializer):
                   'permissions', 'permission_ids', 'user_count']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-    def get_permissions(self, obj):
+    def get_permissions(self, obj) -> list:
         from .models import CompanyRolePermission, Permission
         return list(CompanyRolePermission.objects.filter(company_role=obj).values_list('permission_id', flat=True))
 
-    def get_user_count(self, obj):
+    def get_user_count(self, obj) -> int:
         from .models import UserCompanyRole
         return UserCompanyRole.objects.filter(company_role=obj).count()
 
@@ -361,7 +361,7 @@ class OperationAuditLogSerializer(serializers.ModelSerializer):
                   'approval_flow_id', 'created_at']
         read_only_fields = fields
 
-    def get_app_label_display(self, obj):
+    def get_app_label_display(self, obj) -> str:
         """将 app_label 转为中文名称"""
         APP_NAMES = {
             'finance': '财务管理', 'crm': '客户管理', 'tasks': '任务管理',
@@ -370,7 +370,7 @@ class OperationAuditLogSerializer(serializers.ModelSerializer):
         }
         return APP_NAMES.get(obj.app_label, obj.app_label)
 
-    def get_changes_dict(self, obj):
+    def get_changes_dict(self, obj) -> list:
         return obj.changes_dict
 
 
@@ -406,7 +406,7 @@ class SystemSettingSerializer(serializers.ModelSerializer):
     }
     SENSITIVE_KEYS = {'email_smtp_password'}
 
-    def get_key_display(self, obj):
+    def get_key_display(self, obj) -> str:
         DISPLAY_NAMES = {
             'approval_auto_enabled': '审批自动化',
             'approval_timeout_hours': '审批超时小时数',
@@ -427,7 +427,7 @@ class SystemSettingSerializer(serializers.ModelSerializer):
         }
         return DISPLAY_NAMES.get(obj.key, obj.key)
 
-    def get_value_type(self, obj):
+    def get_value_type(self, obj) -> str:
         if obj.key in ('email_smtp_port',):
             return 'number'
         if obj.value.lower() in ('true', 'false'):
@@ -438,10 +438,10 @@ class SystemSettingSerializer(serializers.ModelSerializer):
         except ValueError:
             return 'text'
 
-    def get_category(self, obj):
+    def get_category(self, obj) -> str:
         return self.CATEGORY_MAP.get(obj.key, '其他')
 
-    def get_masked_value(self, obj):
+    def get_masked_value(self, obj) -> str | None:
         """敏感字段（密码）显示为 ***，其余正常显示"""
         if obj.key in self.SENSITIVE_KEYS and obj.value:
             return '••••••••'
@@ -483,10 +483,10 @@ class CompanyRoleSerializer(serializers.ModelSerializer):
                   'role_display', 'is_primary', 'assigned_by', 'assigned_by_username', 'assigned_at']
         read_only_fields = ['id', 'assigned_by', 'assigned_at']
 
-    def get_user_display(self, obj):
+    def get_user_display(self, obj) -> str:
         return f"{obj.user.username} ({obj.user.first_name or obj.user.username})"
 
-    def get_role_display(self, obj):
+    def get_role_display(self, obj) -> str:
         return obj.company_role.name if obj.company_role else '未分配'
 
     def create(self, validated_data):

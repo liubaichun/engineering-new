@@ -9,7 +9,7 @@ class ApprovalTemplateSerializer(serializers.ModelSerializer):
     node_count = serializers.SerializerMethodField()
     company_id = serializers.IntegerField(required=False, allow_null=True)
 
-    def get_node_count(self, obj):
+    def get_node_count(self, obj) -> int:
         return len(obj.nodes) if obj.nodes else 0
 
     class Meta:
@@ -57,7 +57,7 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
     nodes = ApprovalNodeSerializer(many=True, read_only=True)
     requester_name = serializers.SerializerMethodField()
 
-    def get_requester_name(self, obj):
+    def get_requester_name(self, obj) -> str:
         if obj.requester:
             return obj.requester.username
         return '未知申请人'
@@ -70,7 +70,7 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
     expense_info = serializers.SerializerMethodField()
     income_info = serializers.SerializerMethodField()
 
-    def get_expense_info(self, obj):
+    def get_expense_info(self, obj) -> dict:
         expense = obj.expense_records.first()
         if expense:
             return {
@@ -82,7 +82,7 @@ class ApprovalFlowSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_income_info(self, obj):
+    def get_income_info(self, obj) -> dict:
         income = obj.income_records.first()
         if income:
             return {

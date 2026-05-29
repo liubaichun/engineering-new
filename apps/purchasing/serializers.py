@@ -32,7 +32,7 @@ class PurchaseRequestListSerializer(serializers.ModelSerializer):
                   'expected_date', 'submitted_at', 'approved_at', 'created_by_name',
                   'created_at', 'items_count']
 
-    def get_items_count(self, obj):
+    def get_items_count(self, obj) -> int:
         return obj.items.count()
 
 
@@ -88,7 +88,7 @@ class PurchaseOrderListSerializer(serializers.ModelSerializer):
                   'currency', 'order_date', 'expected_delivery_date', 'status', 'status_display',
                   'created_by_name', 'created_at', 'items_count']
 
-    def get_items_count(self, obj):
+    def get_items_count(self, obj) -> int:
         return obj.items.count()
 
 
@@ -143,7 +143,7 @@ class PurchaseReceiveListSerializer(serializers.ModelSerializer):
                   'company', 'company_name', 'warehouse', 'receive_date', 'status',
                   'status_display', 'received_by', 'received_by_name', 'created_at', 'items_count']
 
-    def get_items_count(self, obj):
+    def get_items_count(self, obj) -> int:
         return obj.items.count()
 
 

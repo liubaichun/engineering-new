@@ -134,7 +134,7 @@ class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer)
             'transaction_type', 'summary',
         ]
 
-    def get_approval_status(self, obj):
+    def get_approval_status(self, obj) -> str | None:
         try:
             if obj.approval_flow_id and obj.approval_flow:
                 return obj.approval_flow.status
@@ -142,7 +142,7 @@ class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer)
             pass
         return None
 
-    def get_source_display(self, obj):
+    def get_source_display(self, obj) -> str:
         if obj.source in ('bank_import', '网银'):
             return '网银'
         # 中文来源值也显示为网银（如IBPS对公提回贷记/代发工资等）
@@ -156,7 +156,7 @@ class IncomeSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer)
         }
         return source_map.get(obj.source, obj.source or '网银')
 
-    def get_bank_statement(self, obj):
+    def get_bank_statement(self, obj) -> list:
         """反向追溯：关联的银行流水摘要"""
         stmts = obj.matched_statements.all()
         return BankStatementSerializer(stmts, many=True).data
@@ -205,12 +205,12 @@ class ExpenseSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
                 'created_at', 'updated_at'
             ]
 
-        def get_source_display(self, obj):
+        def get_source_display(self, obj) -> str:
             if obj.source in ('bank_import', '网银'):
                 return '网银'
             return obj.source or '网银'
 
-        def get_approval_status(self, obj):
+        def get_approval_status(self, obj) -> str | None:
             try:
                 if obj.approval_flow_id and obj.approval_flow:
                     return obj.approval_flow.status
@@ -218,12 +218,12 @@ class ExpenseSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
                 pass
             return None
 
-        def get_date(self, obj):
+        def get_date(self, obj) -> str | None:
             if obj.date:
                 return obj.date.isoformat()
             return None
 
-        def get_bank_statement(self, obj):
+        def get_bank_statement(self, obj) -> list:
             """反向追溯：关联的银行流水摘要"""
             stmts = obj.matched_statements.all()
             return BankStatementSerializer(stmts, many=True).data
@@ -259,7 +259,7 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
     def to_representation(self, obj):
         return super().to_representation(obj)
 
-    def get_approval_flow_id(self, obj):
+    def get_approval_flow_id(self, obj) -> int | None:
         try:
             return obj.approval_flow.id if obj.approval_flow else None
         except Exception:
@@ -327,7 +327,7 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
             validated_data.pop(f, None)
         return super().update(instance, validated_data)
 
-    def get_month_display(self, obj):
+    def get_month_display(self, obj) -> str:
         return f'{obj.month}月'
 
     def _get_employee_company(self, obj):
@@ -359,7 +359,7 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
         except Company.DoesNotExist:
             return None
 
-    def get_employee_company_display(self, obj):
+    def get_employee_company_display(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if not ec:
             return None
@@ -369,21 +369,21 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
             return f'{emp.name}@{comp.name}({ec.department}/{ec.position})'
         return None
 
-    def get_employee_name(self, obj):
+    def get_employee_name(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if ec:
             emp = self._safe_ec_employee(ec)
             return emp.name if emp else None
         return obj.employee.name if obj.employee else (obj.employee_name or None)
 
-    def get_employee_code(self, obj):
+    def get_employee_code(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if ec:
             emp = self._safe_ec_employee(ec)
             return emp.code if emp else None
         return obj.employee.code if obj.employee else None
 
-    def get_employee_phone(self, obj):
+    def get_employee_phone(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if ec:
             emp = self._safe_ec_employee(ec)
@@ -392,7 +392,7 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
             val = obj.employee.phone if obj.employee else None
         return _mask(val, 3, 4) if val else val
 
-    def get_employee_bank_card(self, obj):
+    def get_employee_bank_card(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if ec:
             emp = self._safe_ec_employee(ec)
@@ -401,13 +401,13 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
             val = obj.employee.bank_card if obj.employee else None
         return _mask(val, 6, 4) if val else val
 
-    def get_department_name(self, obj):
+    def get_department_name(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if ec:
             return ec.department
         return obj.employee.department if obj.employee else obj.department
 
-    def get_position(self, obj):
+    def get_position(self, obj) -> str | None:
         ec = self._get_employee_company(obj)
         if ec:
             return ec.position
@@ -468,24 +468,24 @@ class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
         }
         read_only_fields = ['id', 'tax_amount', 'created_at', 'updated_at']
 
-    def get_is_credited_display(self, obj):
+    def get_is_credited_display(self, obj) -> str:
         return '已认证' if obj.is_credited else '未认证'
 
-    def get_matched_bank_statement_name(self, obj):
+    def get_matched_bank_statement_name(self, obj) -> str | None:
         if obj.matched_bank_statement:
             bs = obj.matched_bank_statement
             return f'{bs.transaction_date} {bs.counterparty_name} ¥{bs.amount}'
         return None
 
-    def get_red_invoice_for_no(self, obj):
+    def get_red_invoice_for_no(self, obj) -> str | None:
         if obj.red_invoice_for:
             return obj.red_invoice_for.invoice_no
         return None
 
-    def get_has_red_invoices(self, obj):
+    def get_has_red_invoices(self, obj) -> bool:
         return obj.red_invoices.exists()
 
-    def get_is_negative(self, obj):
+    def get_is_negative(self, obj) -> bool:
         return float(obj.amount or 0) < 0
 
     def create(self, validated_data):
@@ -522,7 +522,7 @@ class EmployeeCompanySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at']
 
-    def get_status_display(self, obj):
+    def get_status_display(self, obj) -> str:
         return '在职' if obj.status == 'active' else ('已离职' if obj.status == 'resigned' else obj.status)
 
 
@@ -561,13 +561,13 @@ class EmployeeSerializer(serializers.ModelSerializer):
     phone = _phone()
     bank_card = _bank_card()
 
-    def get_has_social_insurance_display(self, obj):
+    def get_has_social_insurance_display(self, obj) -> str:
         return '是' if obj.has_social_insurance else '否'
 
-    def get_has_housing_fund_display(self, obj):
+    def get_has_housing_fund_display(self, obj) -> str:
         return '是' if obj.has_housing_fund else '否'
 
-    def get_companies(self, obj):
+    def get_companies(self, obj) -> list:
         links = obj.company_links.all()
         return EmployeeCompanySerializer(links, many=True, context=self.context).data
 
@@ -644,7 +644,7 @@ class SocialRecordSerializer(serializers.ModelSerializer):
     # 脱敏字段
     id_card = _id_card()
 
-    def get_employee_name(self, obj):
+    def get_employee_name(self, obj) -> str | None:
         if obj.employee:
             return obj.employee.name
         if obj.name:
@@ -652,16 +652,16 @@ class SocialRecordSerializer(serializers.ModelSerializer):
         mask = obj.id_card[-4:] if len(obj.id_card) >= 4 else obj.id_card
         return f'未知({mask})'
 
-    def get_employee_code(self, obj):
+    def get_employee_code(self, obj) -> str | None:
         if obj.employee:
             return obj.employee.code
         return None
 
-    def get_social_total_employee(self, obj):
+    def get_social_total_employee(self, obj) -> float:
         return float(obj.pension_employee or 0) + float(obj.pension_bup_employee or 0) + \
                float(obj.medical_employee or 0) + float(obj.unemployment_employee or 0)
 
-    def get_social_total_company(self, obj):
+    def get_social_total_company(self, obj) -> float:
         return float(obj.pension_company or 0) + float(obj.pension_bup_company or 0) + \
                float(obj.medical_company or 0) + float(obj.unemployment_company or 0) + \
                float(obj.injury_company or 0) + float(obj.birth_company or 0)
@@ -692,12 +692,12 @@ class BankStatementSerializer(serializers.ModelSerializer):
             'source_bank', 'import_batch', 'created_at',
         ]
 
-    def get_matched_income_amount(self, obj):
+    def get_matched_income_amount(self, obj) -> str:
         if obj.matched_income:
             return str(obj.matched_income.amount)
         return ''
 
-    def get_matched_expense_amount(self, obj):
+    def get_matched_expense_amount(self, obj) -> str:
         if obj.matched_expense:
             return str(obj.matched_expense.amount)
         return ''
@@ -722,7 +722,7 @@ class BankAccountSerializer(serializers.ModelSerializer):
     # 脱敏字段
     account_no = _bank_card()
 
-    def get_statement_count(self, obj):
+    def get_statement_count(self, obj) -> int:
         return obj.statements.count()
 
 
