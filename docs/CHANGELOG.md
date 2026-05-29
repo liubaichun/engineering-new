@@ -515,3 +515,31 @@ python manage.py logs --today --count 100       # 今天100条
 - 未认证返回 `{"code": 1004, "message": "身份认证信息未提供。"}` ✅
 - 27个修改文件语法全部通过 ✅
 - 零残留 ad-hoc 错误格式 ✅
+
+## 2026-05-28 P3-8 依赖版本升级 — 11个包批量升级
+
+### 升级清单
+
+| 包名 | 原版本 | 新版本 | 类型 |
+|:----|:------:|:------:|:---:|
+| Django | 5.2.13 | 5.2.14 | patch |
+| cryptography | 47.0.0 | 48.0.0 | major |
+| certifi | 2026.4.22 | 2026.5.20 | minor |
+| requests | 2.33.1 | 2.34.2 | minor |
+| urllib3 | 2.6.3 | 2.7.0 | minor |
+| sentry-sdk | 2.28.0 | 2.61.0 | minor |
+| psycopg2-binary | 2.9.11 | 2.9.12 | patch |
+| packaging | 26.1 | 26.2 | minor |
+| idna | 3.13 | 3.17 | minor |
+| fonttools | 4.62.1 | 4.63.0 | minor |
+| reportlab | 4.5.0 | 4.5.1 | patch |
+| rpds-py | 0.30.0 | 2026.5.1 | scheme |
+
+### 验证
+- Django system check 0 issues ✅
+- 所有关键包导入正常 ✅
+- Gunicorn 启动正常（HTTP 200）✅
+- `django-filter` 和 `drf-spectacular` 已是最新版无需升级 ✅
+
+### 备注
+- 124服务器仍有 Django 6.0.x 历史版本不一致问题，待后续统一
