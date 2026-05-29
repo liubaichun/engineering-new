@@ -114,7 +114,10 @@ class MaterialViewSet(viewsets.ModelViewSet):
 
                 before_stock = material.stock
                 material.stock -= quantity
-                material.save(update_fields=['stock', 'updated_at'])
+                try:
+                    material.save(update_fields=['stock', 'updated_at'])
+                except Exception as e:
+                    return Response({'error': f'出库失败（保存物料库存失败）：{str(e)}'}, status=500)
 
                 logger.info(
                     "[物料出库] material_id=%s, quantity=%s, before_stock=%s, "
@@ -263,7 +266,10 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
             elif child_bom_id:
                 node.child_bom_id = child_bom_id
                 node.child_material = None
-            node.save()
+            try:
+                node.save()
+            except Exception as e:
+                return Response({'error': f'更新BOM节点失败：{str(e)}'}, status=500)
             return Response(MaterialBOMNodeSerializer(node).data)
         except MaterialBOMNode.DoesNotExist:
             return Response({'error': '节点不存在'}, status=404)

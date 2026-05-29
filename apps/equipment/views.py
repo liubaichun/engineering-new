@@ -102,7 +102,10 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             serializer.save(equipment=equipment, action='borrow', operated_at=timezone.now())
             # 更新设备状态
             equipment.status = 'in_use'
-            equipment.save()
+            try:
+                equipment.save()
+            except Exception as e:
+                return Response({'error': f'更新设备状态失败：{str(e)}'}, status=500)
             try:
                 from apps.tasks.notification_service import notify_equipment_action
                 notify_equipment_action(equipment, 'borrow', request.user)
@@ -120,7 +123,10 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             serializer.save(equipment=equipment, action='return', operated_at=timezone.now())
             # 更新设备状态为闲置
             equipment.status = 'idle'
-            equipment.save()
+            try:
+                equipment.save()
+            except Exception as e:
+                return Response({'error': f'更新设备状态失败：{str(e)}'}, status=500)
             try:
                 from apps.tasks.notification_service import notify_equipment_action
                 notify_equipment_action(equipment, 'return', request.user)
@@ -162,7 +168,10 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             serializer.save(equipment=equipment)
             # 更新设备状态为维修中
             equipment.status = 'repair'
-            equipment.save()
+            try:
+                equipment.save()
+            except Exception as e:
+                return Response({'error': f'更新设备状态失败：{str(e)}'}, status=500)
             try:
                 from apps.tasks.notification_service import notify_equipment_action
                 notify_equipment_action(equipment, 'repair', request.user)

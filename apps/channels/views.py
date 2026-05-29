@@ -373,7 +373,10 @@ class BindingListCreateView(APIView):
         )
 
         binding.is_active = False
-        binding.save()
+        try:
+            binding.save()
+        except Exception as e:
+            return Response({'error': f'解除绑定失败：{str(e)}'}, status=500)
 
         return Response({'message': '解除绑定成功'})
 
@@ -571,7 +574,10 @@ class ChannelDetailView(APIView):
             channel.pairing_mode = request.data['pairing_mode']
 
         if changed_fields:
-            channel.save()
+            try:
+                channel.save()
+            except Exception as e:
+                return Response({'error': f'更新渠道失败：{str(e)}'}, status=500)
             write_audit_log(
                 'channel_update', request,
                 channel=channel,
@@ -623,7 +629,10 @@ class ChannelDetailView(APIView):
             channel.is_deleted = True
             channel.deleted_at = timezone.now()
             channel.deleted_by = request.user if request.user.is_authenticated else None
-            channel.save()
+            try:
+                channel.save()
+            except Exception as e:
+                return Response({'error': f'停用渠道失败：{str(e)}'}, status=500)
 
             return Response({'message': '渠道已停用（软删除）'}, status=status.HTTP_200_OK)
         except Exception as e:
@@ -679,7 +688,10 @@ class RoleBindingListView(APIView):
             role_bindings.append({'role_id': role_id, 'enabled': enabled})
         
         channel.config['role_bindings'] = role_bindings
-        channel.save(update_fields=['config'])
+        try:
+            channel.save(update_fields=['config'])
+        except Exception as e:
+            return Response({'error': f'更新角色绑定失败：{str(e)}'}, status=500)
         
         return Response({'message': '角色绑定已更新', 'role_bindings': role_bindings})
     
@@ -694,7 +706,10 @@ class RoleBindingListView(APIView):
         role_bindings = channel.config.get('role_bindings', [])
         role_bindings = [rb for rb in role_bindings if str(rb.get('role_id')) != str(role_id)]
         channel.config['role_bindings'] = role_bindings
-        channel.save(update_fields=['config'])
+        try:
+            channel.save(update_fields=['config'])
+        except Exception as e:
+            return Response({'error': f'删除角色绑定失败：{str(e)}'}, status=500)
         
         return Response({'message': '角色绑定已删除'})
 

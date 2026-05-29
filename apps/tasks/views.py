@@ -97,7 +97,11 @@ class ProjectSerializer(serializers.ModelSerializer):
             instance.viewers.set(viewer_ids)
         if company_id is not None:
             instance.company = Company.objects.filter(id=company_id).first() if company_id else None
-            instance.save(update_fields=['company'])
+            try:
+                instance.save(update_fields=['company'])
+            except Exception as e:
+                import logging
+                logging.getLogger(__name__).exception(f'更新项目公司关联失败: {e}')
         return instance
 
 
@@ -491,12 +495,18 @@ class ProjectViewSet(viewsets.ModelViewSet):
         )
         flow.related_type = 'project'
         flow.related_id = project.id
-        flow.save()
+        try:
+            flow.save()
+        except Exception as e:
+            return Response({'error': f'保存审批流失败：{str(e)}'}, status=500)
 
         # 更新项目状态
         project.approval_flow = flow
         project.approval_status = 'pending'
-        project.save(update_fields=['approval_flow', 'approval_status'])
+        try:
+            project.save(update_fields=['approval_flow', 'approval_status'])
+        except Exception as e:
+            return Response({'error': f'更新项目审批状态失败：{str(e)}'}, status=500)
 
         # 通知审批人（有新的项目立项审批）
         try:
@@ -519,7 +529,10 @@ class ProjectViewSet(viewsets.ModelViewSet):
             return Response({'error': '项目必须先通过审批才能激活'}, status=status.HTTP_400_BAD_REQUEST)
         if project.status != 'active':
             project.status = 'active'
-            project.save(update_fields=['status'])
+            try:
+                project.save(update_fields=['status'])
+            except Exception as e:
+                return Response({'error': f'激活项目失败：{str(e)}'}, status=500)
         return Response({'message': '项目已激活', 'status': project.status})
 
     @action(detail=True, methods=['get'])
@@ -673,7 +686,10 @@ class TaskViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
         task.status = 'in_progress'
-        task.save()
+        try:
+            task.save()
+        except Exception as e:
+            return Response({'error': f'开始任务失败：{str(e)}'}, status=500)
         # 发送任务开始通知
         try:
             from apps.tasks.notification_service import notify_task_started
@@ -695,7 +711,10 @@ class TaskViewSet(viewsets.ModelViewSet):
             )
         task.status = 'completed'
         task.completed_at = timezone.now()
-        task.save()
+        try:
+            task.save()
+        except Exception as e:
+            return Response({'error': f'完成任务失败：{str(e)}'}, status=500)
         # 发送任务完成通知
         try:
             from apps.tasks.notification_service import notify_task_completed
@@ -902,7 +921,10 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             )
         instance.status = 'in_progress'
         instance.started_at = timezone.now()
-        instance.save()
+        try:
+            instance.save()
+        except Exception as e:
+            return Response({'error': f'开始阶段失败：{str(e)}'}, status=500)
         
         StageActivity.objects.create(
             stage_instance=instance,
@@ -927,7 +949,10 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             )
         instance.status = 'approved'
         instance.completed_at = timezone.now()
-        instance.save()
+        try:
+            instance.save()
+        except Exception as e:
+            return Response({'error': f'批准阶段失败：{str(e)}'}, status=500)
         
         remark = request.data.get('remark', '')
         StageActivity.objects.create(
@@ -954,7 +979,10 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
             )
         instance.status = 'rejected'
         instance.completed_at = timezone.now()
-        instance.save()
+        try:
+            instance.save()
+        except Exception as e:
+            return Response({'error': f'拒绝阶段失败：{str(e)}'}, status=500)
         
         remark = request.data.get('remark', '')
         StageActivity.objects.create(

@@ -215,16 +215,15 @@
 | **finance** (views_*.py × 9文件) | ✅ | 18处 | 发票/收支/工资/员工/公司/银行等核心业务save |
 | **approvals** | ✅ | 14处 | 审批流全部操作（审批/拒绝/转交/委托/撤回等） |
 | **crm** | ✅ | 12处 | 合同状态变更/付款计划/商机推进 |
-| purchasing | ❌ | 待修 | |
-| equipment | ❌ | 待修 | |
-| core | ❌ | 待修 | |
-| tasks | ❌ | 待修 | |
-| channels | ❌ | 待修 | |
-| material | ❌ | 待修 | |
-| notifications | ❌ | 待修 | |
+| equipment | ✅ | 3处 | 设备借用/归还状态save |
+| core | ✅ | 9处 | 用户密码/激活/通知/系统设置save |
+| tasks | ✅ | 9处 | 项目/任务/流程状态save |
+| channels | ✅ | 5处 | 渠道配置save |
+| material | ✅ | 2处 | 物料库存/BOM节点save |
+| notifications | ✅ | 1处 | 路由规则save |
 
 ### 在途
-- P0-2: save() 异常处理（剩余7个文件待修）
+- P0-2: ✅ **全部完成**（29处裸save已包裹）
 - P0-3: CSRF中间件（待开始）
 
 ## 2026-05-29 — P2-8: 迁移文件清理 + 旧代码清理

@@ -111,7 +111,10 @@ class NotificationRouterRuleView(APIView):
                        'custom_user_ids', 'is_active', 'remarks']:
             if field in data:
                 setattr(rule, field, data[field])
-        rule.save()
+        try:
+            rule.save()
+        except Exception as e:
+            return Response({'error': f'保存规则失败：{str(e)}'}, status=500)
         return Response(self._rule_to_dict(rule))
 
     def delete(self, request, pk=None):

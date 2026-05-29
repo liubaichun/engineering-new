@@ -135,7 +135,10 @@ class PasswordResetConfirmView(APIView):
             return Response({'status': 'error', 'message': '链接已过期，请重新申请'}, status=status.HTTP_400_BAD_REQUEST)
 
         user.set_password(new_password)
-        user.save()
+        try:
+            user.save()
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'密码重置失败：{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({'status': 'success', 'message': '密码重置成功，请使用新密码登录。'})
 
 
@@ -295,7 +298,13 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.password_changed = True
-        user.save(update_fields=['password', 'password_changed'])
+        try:
+            user.save(update_fields=['password', 'password_changed'])
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'密码修改失败：{str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # 再刷新 session auth hash（用新密码哈希更新 session，否则后续请求 session 验证失败）
         from django.contrib.auth import update_session_auth_hash
@@ -541,7 +550,13 @@ class UserViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
         
         user.set_password(new_password)
-        user.save(update_fields=['password'])
+        try:
+            user.save(update_fields=['password'])
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'密码重置失败：{str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
         return Response({
             'status': 'success',
@@ -553,7 +568,13 @@ class UserViewSet(viewsets.ModelViewSet):
         """切换用户启用状态"""
         user = self.get_object()
         user.is_active = not user.is_active
-        user.save(update_fields=['is_active'])
+        try:
+            user.save(update_fields=['is_active'])
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'操作失败：{str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({
             'status': 'success',
@@ -572,7 +593,13 @@ class UserViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_400_BAD_REQUEST)
 
         user.is_active = True
-        user.save(update_fields=['is_active'])
+        try:
+            user.save(update_fields=['is_active'])
+        except Exception as e:
+            return Response({
+                'status': 'error',
+                'message': f'审批失败：{str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         # === 注册闭环：自动建公司+分配公司管理员角色 ===
         from apps.finance.models import Company
@@ -683,7 +710,12 @@ class UserViewSet(viewsets.ModelViewSet):
                 continue
 
             user.is_active = True
-            user.save(update_fields=['is_active'])
+            try:
+                user.save(update_fields=['is_active'])
+            except Exception as e:
+                logger.exception(f'批量激活用户失败：ID={uid}, error={e}')
+                skipped.append(f'ID:{uid}保存失败')
+                continue
 
             # 注册闭环
             existing_link = UserCompanyRole.objects.filter(user=user).first()
@@ -788,7 +820,10 @@ class NotificationViewSet(viewsets.ModelViewSet):
         """标记单条通知为已读"""
         notification = self.get_object()
         notification.is_read = True
-        notification.save(update_fields=['is_read'])
+        try:
+            notification.save(update_fields=['is_read'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'标记已读失败：{str(e)}'}, status=500)
         return Response({'status': 'success'})
     
     @action(detail=False, methods=['post'], url_path='mark-all-read')
@@ -1010,7 +1045,11 @@ class SystemSettingViewSet(viewsets.ModelViewSet):
             return Response({'status': 'error', 'message': 'value 不能为空'},
                           status=status.HTTP_400_BAD_REQUEST)
         instance.value = new_value
-        instance.save(update_fields=['value', 'updated_at'])
+        try:
+            instance.save(update_fields=['value', 'updated_at'])
+        except Exception as e:
+            return Response({'status': 'error', 'message': f'保存设置失败：{str(e)}'},
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return Response({
             'status': 'success',
             'message': '设置已更新',
@@ -1451,7 +1490,10 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
             if ump.granted_bits == 0:
                 ump.delete()  # 全空 → 删记录
             else:
-                ump.save()
+                try:
+                    ump.save()
+                except Exception as e:
+                    return Response({'status': 'error', 'message': f'保存权限失败：{str(e)}'}, status=500)
 
             updated.append({
                 'company_id': company_id,
