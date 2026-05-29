@@ -586,6 +586,27 @@ python manage.py logs --today --count 100       # 今天100条
 - Django system check 0 issues ✅
 - Gunicorn 正常运行 ✅
 
+## 2026-05-29 权限矩阵全面修复
+
+### P0 — ViewSet action_perms 对齐（13处）
+- `apps/equipment/views.py`: `equipment:equipment:*` → `operations:equipment:*`
+- `apps/repair/views.py`: `repair:repair_request:*` → `operations:repair:*`
+- `apps/material/views.py`: `material:stock/usage:*` → `operations:material:*`
+- `apps/approvals/views.py`: `approval:flow/node/template:*` → `approval:approval:*`
+- `apps/crm/views.py`: 5个子ViewSet合并到父模块(customer/contract)
+- `apps/files/views.py`: `files:category:*`→`files:file:*`; `upload`→`create`
+- `apps/tasks/modules.py`: 注册 `project:flow_template` 模块
+
+### P1 — 侧边栏+模板修复
+- `base.html:108` 预算管理 `finance:report:read` → `finance:budget:read`
+- `core/base.html:100` 同上
+- `contact_followup_list.html`: `crm:contact/followup:*` → `crm:customer:*`
+- `flow_template_list.html`: `tasks:flow_template:*` → `project:flow_template:*`
+
+### 验证
+- 全部 ViewSet action_perms 匹配 DB ✅ | 全部模板 data-perm 匹配 DB ✅
+- 权限矩阵页面正常（项目:4含流程模板）✅ | 双服务器gunicorn重启正常 ✅
+
 ## 2026-05-29 发票导入错误提示优化
 
 ### 修复
