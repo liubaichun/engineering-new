@@ -115,13 +115,13 @@ class EmployeeCompany(models.Model):
     employee = models.ForeignKey(
         'Employee',
         verbose_name='员工',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='company_links'
     )
     company = models.ForeignKey(
         'Company',
         verbose_name='公司',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='employee_links'
     )
     department = models.CharField('部门', max_length=50, blank=True, default='')
@@ -934,7 +934,7 @@ class CompanySocialConfig(models.Model):
     """公司社保公积金配置"""
     company = models.OneToOneField(
         Company,
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='social_config',
         verbose_name='关联公司'
     )
@@ -1013,7 +1013,7 @@ class BankStatement(models.Model):
     )
     bank_account = models.ForeignKey(
         BankAccount, verbose_name='银行账户',
-        on_delete=models.CASCADE, related_name='statements'
+        on_delete=models.PROTECT, related_name='statements'
     )
 
     # 原始字段
@@ -1115,7 +1115,7 @@ class Budget(models.Model):
 
     company = models.ForeignKey(
         Company, verbose_name='公司',
-        on_delete=models.CASCADE, related_name='budgets'
+        on_delete=models.PROTECT, related_name='budgets'
     )
     year = models.IntegerField('年份')
     month = models.IntegerField('月份', null=True, blank=True,
@@ -1180,7 +1180,7 @@ class Account(models.Model):
     sort_order = models.IntegerField('排序', default=0)
     company = models.ForeignKey(
         'Company', verbose_name='所属公司',
-        on_delete=models.CASCADE, null=True, blank=True,
+        on_delete=models.PROTECT, null=True, blank=True,
         related_name='accounts',
         help_text='空=全局科目，有值=公司级专属科目'
     )
@@ -1217,7 +1217,7 @@ class RelatedPartyLedger(models.Model):
     
     company = models.ForeignKey(
         'Company', verbose_name='本公司',
-        on_delete=models.CASCADE, related_name='ledger_entries'
+        on_delete=models.PROTECT, related_name='ledger_entries'
     )
     counterparty = models.CharField(
         verbose_name='对方名称', max_length=200,

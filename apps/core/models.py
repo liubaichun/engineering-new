@@ -71,8 +71,8 @@ class User(AbstractUser):
 class UserCompanyRole(models.Model):
     """用户在公司内的角色 — 支持多公司多角色"""
     id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_roles')
-    company = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='user_roles')
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='company_roles')
+    company = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='user_roles')
     company_role = models.ForeignKey(
         'CompanyRole', on_delete=models.SET_NULL, null=True, blank=True,
         related_name='user_assignments', verbose_name='公司角色'
@@ -100,7 +100,7 @@ class CompanyRole(models.Model):
     """
     id = models.AutoField(primary_key=True)
     company = models.ForeignKey(
-        'finance.Company', on_delete=models.CASCADE,
+        'finance.Company', on_delete=models.PROTECT,
         related_name='company_roles', verbose_name='所属公司'
     )
     name = models.CharField(max_length=100, verbose_name='角色名称')
@@ -135,11 +135,11 @@ class CompanyRolePermission(models.Model):
     """
     id = models.AutoField(primary_key=True)
     company_role = models.ForeignKey(
-        CompanyRole, on_delete=models.CASCADE, related_name='role_permissions',
+        CompanyRole, on_delete=models.PROTECT, related_name='role_permissions',
         verbose_name='公司角色'
     )
     permission = models.ForeignKey(
-        'Permission', on_delete=models.CASCADE, related_name='role_assignments',
+        'Permission', on_delete=models.PROTECT, related_name='role_assignments',
         verbose_name='权限'
     )
     granted_at = models.DateTimeField(
@@ -472,10 +472,10 @@ class UserCompanyPermission(models.Model):
       staff 角色 → staff 权限列表中涉及的动作 is_granted=True
       viewer 角色 → viewer 权限列表中涉及的动作 is_granted=True
     """
-    user        = models.ForeignKey(User, on_delete=models.CASCADE, related_name='company_permissions')
-    company     = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='user_permissions')
-    module      = models.ForeignKey(Module, on_delete=models.CASCADE)
-    action      = models.ForeignKey(ModuleAction, on_delete=models.CASCADE)
+    user        = models.ForeignKey(User, on_delete=models.PROTECT, related_name='company_permissions')
+    company     = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='user_permissions')
+    module      = models.ForeignKey(Module, on_delete=models.PROTECT)
+    action      = models.ForeignKey(ModuleAction, on_delete=models.PROTECT)
     is_granted  = models.BooleanField(default=False, verbose_name='是否授权')
     granted_by  = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
     granted_at  = models.DateTimeField(auto_now_add=True)
@@ -539,9 +539,9 @@ class UserModulePermission(models.Model):
       - 使用 granted_bits 位掩码存储所有动作（取代 1 行/动作）
       - 记录量：用户数 × 公司数 × 模块数（~300 条 vs ~16,000 条）
     """
-    user         = models.ForeignKey(User, on_delete=models.CASCADE, related_name='module_permissions')
-    company      = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='module_permissions')
-    module       = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='user_permissions')
+    user         = models.ForeignKey(User, on_delete=models.PROTECT, related_name='module_permissions')
+    company      = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='module_permissions')
+    module       = models.ForeignKey(Module, on_delete=models.PROTECT, related_name='user_permissions')
     granted_bits = models.BigIntegerField(default=0, verbose_name='授权位掩码')
 
     class Meta:
