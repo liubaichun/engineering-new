@@ -298,3 +298,25 @@
 | check --deploy ERRORS | ✅ 0 | ⚠️ 1个历史遗留（CRM short_name） |
 | 浏览器用户视角 | ✅ 控制台/预算/员工/系统/权限/用户 | ✅ login page / gunicorn running |
 | gunicorn重启验证 | ✅ 200 | ✅ 200 |
+
+---
+
+## 2026-05-29 P2 重要问题修复（Day 5 续）
+
+### 修复内容
+
+| P2 | 项目 | 变更 | 状态 |
+|:---|:-----|:-----|:----:|
+| P2-7 | 临时文件清理 | 删除 `_tmp_archive/` 下19个临时脚本 + 移出git + 加入.gitignore | ✅ |
+| P2-2 | filter()缺少order_by | `reports_v2.py` 4处 + `classification_rules.py` 5处 加 `.order_by()` 保证确定性排序 | ✅ |
+| CSRF | 原P0-3降级处理 | 启用CsrfViewMiddleware中间件（API端通过CSRFExemptSessionAuthentication豁免） | ✅ |
+| P2-6 | AppConfig.ready数据库访问 | `core/apps.py` 改为 `request_finished` 懒加载，消除初始化时访问数据库警告 | ✅ |
+
+### 验证指标
+
+| 检查项 | 43 | 124 |
+|:-------|:---|:----:|
+| makemigrations --check | ✅ No changes | ✅ No changes |
+| check --deploy ERRORS | ✅ 0 | ✅ 0 |
+| gunicorn HTTP状态 | ✅ 200 | ✅ 200 |
+| 两服务器一致 | ✅ 同步完成 | ✅ 同步完成 |
