@@ -1,5 +1,35 @@
 # 变更日志
 
+## 2026-05-29 P2-4 测试覆盖 — 建立测试基础设施
+
+### 新增：测试框架 + 43个测试用例
+
+**基础设施：**
+- `pytest.ini` — pytest-django 配置（--nomigrations模式）
+- `conftest.py` — 7个全局 fixtures（company/user/invoice/employee/income/expense factory）
+- `tests/factories/` — 3个 factory 模块（core/finance/tasks）
+- `tests/__init__.py` 等样板
+
+**测试文件（全部 ✅ 通过）：**
+
+| 文件 | 用例数 | 覆盖内容 |
+|:----|:------:|:---------|
+| `test_invoice_import.py` | 13 | 发票导入核心路径、重复跳过、`--`占位符、龙晟场景、信息汇总表 |
+| `test_invoice_model.py` | 10 | Invoice CRUD、过滤排序、company PROTECT |
+| `test_social_import.py` | 4 | 社保导入正常/多员工/脏数据过滤/无效格式 |
+| `test_reports.py` | 7 | build_qs查询构建器、收入和支出聚合 |
+| `test_auth_perm.py` | 9 | 用户创建、公司归属、is_superuser标识、公司数据隔离 |
+
+**修复：**
+- migration `0033` `AlterField→AddField`：`income_category` 字段从未被 migration 创建过（仅生产库手动 ALTER TABLE）
+- migration `0042`：`AlterField` 更新 `income_category` 的 choices（+other_income/investment_income）
+- 工厂类：`skip_postgeneration_save=True` 修复 DeprecationWarning
+- `IncomeFactory`/`ExpenseFactory`：改用 `SubFactory` 确保 company 字段必填
+
+**运行方式：** `cd /root/engineering-new && source venv/bin/activate && python -m pytest apps/ --nomigrations -v`
+
+**注意事项：** 124服务器 SSH 连接超时，待网络恢复后同步。
+
 ## 2026-05-29 P2-3 大文件拆分完成
 
 ### 重构：P2-3 大文件拆分（5个文件 → 37个文件）
