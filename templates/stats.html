@@ -273,13 +273,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 return Array.isArray(data) ? data : (data.results || data.data || []);
             } catch(e) { return []; }
         };
+        const year = new Date().getFullYear();
         [companies, projects, tasks, wages, incomes, expenses, contracts, equipment, approvals] = await Promise.all([
             safeJson(await fetchWithTimeout('/api/finance/companies/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/tasks/projects/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/tasks/tasks/', {credentials: 'include'})),
-            safeJson(await fetchWithTimeout('/api/finance/wages/?year=' + new Date().getFullYear() + '&page_size=100', {credentials: 'include'})),
-            safeJson(await fetchWithTimeout('/api/finance/incomes/', {credentials: 'include'})),
-            safeJson(await fetchWithTimeout('/api/finance/expenses/', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/wages/?year=' + year + '&page_size=999', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/incomes/?year=' + year + '&page_size=999', {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/expenses/?year=' + year + '&page_size=999', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/crm/contracts/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/equipment/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/approvals/flows/?status=pending&page_size=10', {credentials: 'include'})),
@@ -331,7 +332,7 @@ function renderKPI(companies, projects, tasks, wages, incomes, expenses, contrac
     const inuseEquipment = equipment.filter(e => e.status==='in_use').length;
 
     const kpis = [
-        { cls:'green', icon:'bi-arrow-down-circle', label:'年度收入', value:'¥'+fmtMoney(totalIncome), sub:'已确认 ¥'+fmtMoney(confirmedIncome) },
+        { cls:'green', icon:'bi-arrow-down-circle', label: year+'年收入', value:'¥'+fmtMoney(totalIncome), sub:'已确认 ¥'+fmtMoney(confirmedIncome) },
         { cls:'red', icon:'bi-arrow-up-circle', label:'年度支出', value:'¥'+fmtMoney(totalExpense), sub:'余额 ¥'+fmtMoney(confirmedIncome - totalExpense) },
         { cls:'purple', icon:'bi-wallet2', label:'年度工资', value:'¥'+fmtMoney(totalWage), sub: companies.length+'家公司' },
         { cls:'blue', icon:'bi-briefcase', label:'项目总数', value: projects.length, sub:`进行中 ${activeProjects} / 已完成 ${doneProjects}` },
@@ -361,21 +362,28 @@ function renderKPI(companies, projects, tasks, wages, incomes, expenses, contrac
 }
 
 function renderTrendChart(incomes, expenses) {
-    const year = new Date().getFullYear();
-    const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
-    const incByMonth = Array(12).fill(0);
-    const expByMonth = Array(12).fill(0);
-
+    const now = new Date();
+    const year = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-based (0=Jan, 4=May)
+    const months = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'].slice(0, currentMonth + 1);
+    const incByMonth = Array(currentMonth + 1).fill(0);
+    const expByMonth = Array(currentMonth + 1).fill(0);
     incomes.forEach(i => {
         if (i.date) {
-            const m = new Date(i.date).getMonth();
-            incByMonth[m] += parseFloat(i.amount||0);
+            const d = new Date(i.date);
+            const m = d.getMonth();
+            if (m <= currentMonth && d.getFullYear() === year) {
+                incByMonth[m] += parseFloat(i.amount||0);
+            }
         }
     });
     expenses.forEach(e => {
         if (e.date) {
-            const m = new Date(e.date).getMonth();
-            expByMonth[m] += parseFloat(e.amount||0);
+            const d = new Date(e.date);
+            const m = d.getMonth();
+            if (m <= currentMonth && d.getFullYear() === year) {
+                expByMonth[m] += parseFloat(e.amount||0);
+            }
         }
     });
 
@@ -452,13 +460,20 @@ function renderProjectHealth(projects) {
 }
 
 function renderWageChart(wages) {
-    const byMonth = Array(12).fill(0);
-    wages.forEach(w => { if (w.month) byMonth[parseInt(w.month)-1] += parseFloat(w.gross_salary||0); });
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const monthLabels = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'].slice(0, currentMonth + 1);
+    const byMonth = Array(currentMonth + 1).fill(0);
+    wages.forEach(w => {
+        if (w.month && w.month <= currentMonth + 1) {
+            byMonth[parseInt(w.month)-1] += parseFloat(w.gross_salary||0);
+        }
+    });
 
     new Chart(document.getElementById('wageChart'), {
         type: 'bar',
         data: {
-            labels: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+            labels: monthLabels,
             datasets: [{ label: '工资', data: byMonth, backgroundColor: '#f59e0b' }]
         },
         options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { ticks: { callback: v => fmtMoney(v) } } } }
