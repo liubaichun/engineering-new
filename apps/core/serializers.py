@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.utils import timezone
-from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, Role, RolePermission, UserRole, CompanyRole
+from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, CompanyRole
 from apps.finance.models import Company as FinanceCompany
 
 
@@ -169,14 +169,15 @@ class UserSerializer(serializers.ModelSerializer):
         return role_map.get(obj.role, obj.role) if obj.role else '-'
 
     def get_roles(self, obj):
-        """返回用户通过UserRole关联的所有角色"""
+        """返回用户通过UserCompanyRole关联的所有公司角色"""
         roles = []
-        for ur in obj.user_roles.all():
+        for ucr in obj.company_roles.select_related('company_role', 'company').all():
             roles.append({
-                'role_id': ur.role_id,
-                'role__name': ur.role.name,
-                'role__code': ur.role.code,
-                'assigned_at': ur.assigned_at.isoformat() if ur.assigned_at else None,
+                'role_id': ucr.company_role_id,
+                'role__name': ucr.company_role.name if ucr.company_role else '-',
+                'role__code': ucr.company_role.code if ucr.company_role else '-',
+                'company_name': ucr.company.name if ucr.company else '-',
+                'assigned_at': ucr.assigned_at.isoformat() if ucr.assigned_at else None,
             })
         return roles
 
@@ -196,11 +197,6 @@ class UserSerializer(serializers.ModelSerializer):
             )
         else:
             user = User.objects.create(**validated_data)
-
-        # 分配系统角色
-        if role_ids:
-            for rid in role_ids:
-                UserRole.objects.create(user=user, role_id=rid)
 
         # 分配公司角色
         if company_role_ids:
@@ -237,35 +233,25 @@ class UserSerializer(serializers.ModelSerializer):
         return instance
 
 
-class UserRoleSerializer(serializers.ModelSerializer):
-    """用户角色序列化器"""
-    class Meta:
-        model = UserRole
-        fields = ['id', 'user', 'role', 'assigned_by', 'assigned_at']
-        read_only_fields = ['id', 'assigned_at']
-
-
-class RoleSerializer(serializers.ModelSerializer):
-    """角色序列化器"""
+class CompanyRoleSerializer(serializers.ModelSerializer):
+    """公司角色序列化器"""
+    permission_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
     permissions = serializers.SerializerMethodField()
     user_count = serializers.SerializerMethodField()
-    # 支持创建/更新时传入 permission_ids 直接分配权限
-    permission_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
 
     class Meta:
-        model = Role
-        fields = ['id', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at',
-                  'permissions', 'user_count', 'permission_ids']
+        model = CompanyRole
+        fields = ['id', 'company', 'name', 'code', 'description', 'is_active', 'created_at', 'updated_at',
+                  'permissions', 'permission_ids', 'user_count']
         read_only_fields = ['id', 'created_at', 'updated_at']
 
     def get_permissions(self, obj):
-        """返回角色关联的权限ID列表"""
-        return list(RolePermission.objects.filter(role=obj).values_list('permission_id', flat=True))
+        from .models import CompanyRolePermission, Permission
+        return list(CompanyRolePermission.objects.filter(company_role=obj).values_list('permission_id', flat=True))
 
     def get_user_count(self, obj):
-        """返回拥有该角色的用户数量（通过UserRole关联表）"""
-        from apps.core.models import UserRole
-        return UserRole.objects.filter(role_id=obj.id, user__is_active=True).count()
+        from .models import UserCompanyRole
+        return UserCompanyRole.objects.filter(company_role=obj).count()
 
     def create(self, validated_data):
         permission_ids = validated_data.pop('permission_ids', [])
@@ -281,12 +267,13 @@ class RoleSerializer(serializers.ModelSerializer):
         return role
 
     def _update_permissions(self, role, permission_ids):
-        RolePermission.objects.filter(role=role).delete()
-        # 防御：过滤掉不存在的 permission_id，防止外键约束报错
+        from .models import CompanyRolePermission
+        CompanyRolePermission.objects.filter(company_role=role).delete()
         if permission_ids:
+            from .models import Permission
             valid_ids = Permission.objects.filter(id__in=permission_ids).values_list('id', flat=True)
             for perm_id in valid_ids:
-                RolePermission.objects.create(role=role, permission_id=perm_id)
+                CompanyRolePermission.objects.create(company_role=role, permission_id=perm_id)
 
 
 class PermissionSerializer(serializers.ModelSerializer):
@@ -315,18 +302,6 @@ class ModuleActionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ModuleAction
         fields = ['id', 'code', 'name', 'label', 'module', 'module_name', 'sort_order', 'perm_codes']
-
-
-class RolePermissionSerializer(serializers.ModelSerializer):
-    """角色权限序列化器"""
-    role_name = serializers.CharField(source='role.name', read_only=True)
-    permission_name = serializers.CharField(source='permission.name', read_only=True)
-
-    class Meta:
-        model = RolePermission
-        fields = ['id', 'role', 'role_name', 'permission', 'permission_name',
-                  'granted_by', 'granted_at']
-        read_only_fields = ['id', 'granted_by', 'granted_at']
 
 
 class NotificationSerializer(serializers.ModelSerializer):

@@ -71,7 +71,7 @@ def build_qs(model, company_id=None, year=None, month=None):
     return qs
 
 
-# ─── 1. 现金流量表 ───────────────────────────────────────────────────────
+# ─── 1. 银行余额变动表 ───────────────────────────────────────────────────────
 @api_view(['GET'])
 @require_perms('finance:report:read')
 def cash_flow_report(request):
@@ -177,7 +177,7 @@ def cash_flow_report(request):
 
     return Response({
         'report': 'cash_flow',
-        'title': f'{year}年 现金流量表',
+        'title': f'{year}年 银行余额变动表',
         'params': params,
         'results': rows,
         'summary': {
@@ -215,7 +215,7 @@ def ar_ap_aging_report(request):
             buckets = {'bucket_1_30': 0, 'bucket_31_60': 0, 'bucket_61_90': 0, 'bucket_over_90': 0}
             details = []
             for rec in records:
-                due = getattr(rec, 'due_date', None) or getattr(rec, 'date', None) or today
+                due = getattr(rec, 'due_date', None) or getattr(rec, 'issue_date', None) or getattr(rec, 'date', None) or today
                 bucket = age_bucket(due)
                 amount = float(getattr(rec, 'amount', 0) or 0)
                 tax_amount = float(getattr(rec, 'tax_amount', 0) or 0) if hasattr(rec, 'tax_amount') else 0
@@ -278,17 +278,20 @@ def customer_revenue_report(request):
 
     global_stats = {}
     internal_stats = {'total': 0.0, 'count': 0}
-    for inc in inc_qs.select_related('company'):
+    for inc in inc_qs.select_related('company', 'client_ref'):
         # 内部公司转账不计入外部客户收入
         if inc.customer in INTERNAL_COMPANY_NAMES:
             internal_stats['total'] += float(inc.amount or 0)
             internal_stats['count'] += 1
             continue
-        key = f"{inc.company.name} / {inc.customer or '（未指定）'}"
+        # CRM 标准化：优先使用关联的 CRM Client 名称
+        customer_name = inc.client_ref.name if inc.client_ref_id and inc.client_ref else (inc.customer or '（未指定）')
+        key = f"{inc.company.name} / {customer_name}"
         if key not in global_stats:
             global_stats[key] = {
                 'company': inc.company.name,
-                'customer': inc.customer or '（未指定）',
+                'customer': customer_name,
+                'client_ref_id': inc.client_ref_id,
                 'total': 0.0, 'count': 0
             }
         global_stats[key]['total'] += float(inc.amount or 0)
@@ -358,8 +361,10 @@ def supplier_expense_report(request):
     individual_stats = {}   # 个人/员工供应商
     personal_stats = {'total': 0.0, 'count': 0, 'types': {}}  # 无供应商名（内部转账等）
 
-    for exp in exp_qs.select_related('company', 'project'):
-        supplier = (exp.supplier or '').strip()
+    for exp in exp_qs.select_related('company', 'project', 'supplier_ref'):
+        # CRM 标准化：优先使用关联的 CRM Supplier 名称
+        supplier = exp.supplier_ref.name if exp.supplier_ref_id and exp.supplier_ref else (exp.supplier or '').strip()
+        supplier_ref_id = exp.supplier_ref_id
         amount = float(exp.amount or 0)
         exp_type = exp.expense_type or '未分类'
 
@@ -383,6 +388,7 @@ def supplier_expense_report(request):
             bucket[supplier] = {
                 'company': exp.company.name,
                 'supplier': supplier,
+                'supplier_ref_id': supplier_ref_id,
                 'is_individual': is_individual,
                 'total': 0.0, 'count': 0,
                 'types': {},
@@ -522,50 +528,30 @@ def tax_summary_report(request):
             else:
                 other_tax += float(row.amount)
 
-        # 社保公积金：从 CompanySocialConfig 读取各公司实际费率，走 WageRecord 反推
-        # ── 【P1-2 修复】───────────────────────────────────────────────
-        social_wr_q = WageRecord.objects.filter(company=company)
+        # 社保公积金：统一从 SocialRecord 读取公司缴部分（不再用反推公式）
+        # 【P0-3 修复】直接查 SocialRecord.total_company，费率配置差异由导入数据覆盖
+        from apps.finance.models import SocialRecord
+        sr_q = SocialRecord.objects.filter(company=company)
         if year:
-            social_wr_q = social_wr_q.filter(year=year)
-        if month:
-            social_wr_q = social_wr_q.filter(month=month)
-
-        # 读取该公司社保配置（个人费率=养老+医疗+失业，公司费率=养老+医疗+失业+工伤）
-        # 【P1-3 修复】费率字段存的是小数（0.08=8%），需×100转为百分比再计算
-        social_config = getattr(company, 'social_config', None)
-        if social_config:
-            emp_rate = (float(social_config.pension_rate_employee or 0) * 100 +
-                        float(social_config.medical_rate_employee or 0) * 100 +
-                        float(social_config.unemployment_rate_employee or 0) * 100)
-            com_rate = (float(social_config.pension_rate_company or 0) * 100 +
-                        float(social_config.medical_rate_company or 0) * 100 +
-                        float(social_config.unemployment_rate_company or 0) * 100 +
-                        float(social_config.injury_rate_company or 0) * 100)
-            social_wr_q = WageRecord.objects.filter(company=company, year=year)
-            social_total = sum(
-                (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
-                for wr in social_wr_q if wr.social_insurance > 0
-            )
-        else:
-            # 【已修复】无 CompanySocialConfig 时，从 SocialRecord 汇总单位缴
-            # 正确做法：从 SocialRecord 表汇总，或由用户配置社保基数
-            from apps.finance.models import SocialRecord
-            social_total = float(
-                SocialRecord.objects.filter(company=company, year_month__startswith=str(year))
-                .aggregate(total=Sum('total_company'))['total'] or 0
-            )
+            sr_q = sr_q.filter(year_month__startswith=str(year))
+        social_total = float(sr_q.aggregate(total=Sum('total_company'))['total'] or 0)
 
         # 合计
         company_tax_total = personal_tax + corporate_tax + vat + social_total
+
+        # 应交增值税 = 销项税 - 进项税
+        # 【P1-1 修复】区分发票层面的应交增值税（不考虑留抵/减免等复杂情况）
+        net_vat = invoice_output_tax - invoice_input_tax
 
         results.append({
             'company_id': company.id,
             'company_name': company.name,
             'invoice_input_tax': round(invoice_input_tax, 2),
             'invoice_output_tax': round(invoice_output_tax, 2),
+            'net_vat': round(net_vat, 2),                            # 应交增值税（销项-进项）
             'personal_income_tax': round(personal_tax, 2),        # 代扣个税
             'corporate_income_tax': round(corporate_tax, 2),       # 企业所得税
-            'vat': round(vat, 2),                                  # 增值税
+            'vat': round(vat, 2),                                  # 增值税（银行实缴）
             'social_housing_total': round(social_total, 2),        # 社保公积金
             'other_tax': round(other_tax, 2),                       # 其他税费
             'company_tax_total': round(company_tax_total, 2),
@@ -577,6 +563,7 @@ def tax_summary_report(request):
         grand_vat += vat
         grand_social += social_total
 
+    grand_net_vat = grand_output_tax - grand_input_tax
     grand_company_total = grand_personal_tax + grand_corporate_tax + grand_vat + grand_social
 
     return Response({
@@ -587,6 +574,7 @@ def tax_summary_report(request):
         'summary': {
             'total_invoice_input_tax': round(grand_input_tax, 2),
             'total_invoice_output_tax': round(grand_output_tax, 2),
+            'total_net_vat': round(grand_net_vat, 2),                    # 应交增值税
             'total_personal_income_tax': round(grand_personal_tax, 2),
             'total_corporate_income_tax': round(grand_corporate_tax, 2),
             'total_vat': round(grand_vat, 2),
@@ -603,6 +591,8 @@ def budget_execution_report(request):
     params = parse_date_range(request)
     year = params['year'] or timezone.now().year
     company_id = params['company_id']
+
+    from apps.finance.models import Budget as BudgetModel
 
     # ─────────────────────────────────────────────────────────────────────────────
     # 【P0-1 修复】expense_type 已废弃，改用 expense_category 过滤
@@ -632,6 +622,7 @@ def budget_execution_report(request):
 
     results = []
     grand_actual = 0
+    grand_budget = 0
 
     for company in companies:
         type_totals = []
@@ -639,31 +630,12 @@ def budget_execution_report(request):
             if exp_type == 'salary':
                 total = agg(WageRecord.objects.filter(company=company, year=year), 'gross_salary')
             elif exp_type == 'social':
-                # 公司社保成本：从 CompanySocialConfig 读费率，逐人反推基数后乘公司费率
-                # 【P1-3 修复】费率字段存的是小数（0.08=8%），需×100转为百分比再计算
-                social_config = getattr(company, 'social_config', None)
-                if social_config:
-                    emp_rate = (float(social_config.pension_rate_employee or 0) * 100 +
-                                float(social_config.medical_rate_employee or 0) * 100 +
-                                float(social_config.unemployment_rate_employee or 0) * 100)
-                    com_rate = (float(social_config.pension_rate_company or 0) * 100 +
-                                float(social_config.medical_rate_company or 0) * 100 +
-                                float(social_config.unemployment_rate_company or 0) * 100 +
-                                float(social_config.injury_rate_company or 0) * 100)
-                else:
-                    # 【已修复】无配置时，从 SocialRecord 汇总单位缴
-                    from apps.finance.models import SocialRecord
-                    total = float(
-                        SocialRecord.objects.filter(company=company, year_month__startswith=str(year))
-                        .aggregate(t=Sum('total_company'))['t'] or 0
-                    )
-                    type_totals.append({'type': exp_type, 'label': label, 'actual': total})
-                    continue
-                wr_q = WageRecord.objects.filter(company=company, year=year)
-                total = sum(
-                    (float(wr.social_insurance) / emp_rate * 100) * (com_rate / 100)
-                    for wr in wr_q
-                    if wr.social_insurance > 0
+                # 公司社保成本：统一从 SocialRecord 读取（不再用反推公式）
+                # 【P0-3 修复】直接查 SocialRecord.total_company
+                from apps.finance.models import SocialRecord
+                total = float(
+                    SocialRecord.objects.filter(company=company, year_month__startswith=str(year))
+                    .aggregate(t=Sum('total_company'))['t'] or 0
                 )
             elif cat_kw:
                 # 【P0-1 核心修复】改用 expense_category 关键词匹配（icontains）
@@ -671,24 +643,381 @@ def budget_execution_report(request):
                     company=company, expense_date__year=year,
                     expense_category__icontains=cat_kw), 'amount')
             else:
-                # 无关键词的类型（salary/social 在上面已处理；other 不应计入预算科目）
                 total = 0.0
-            type_totals.append({'type': exp_type, 'label': label, 'actual': total})
+
+            # 【P2-3 修复】查预算数
+            budget = float(
+                BudgetModel.objects.filter(
+                    company=company, year=year, expense_type=exp_type, month__isnull=True
+                ).aggregate(t=Sum('budget_amount'))['t'] or 0
+            )
+            exec_rate = round((total / budget * 100), 1) if budget > 0 else None
+
+            type_totals.append({
+                'type': exp_type, 'label': label,
+                'actual': total, 'budget': budget,
+                'execution_rate': exec_rate,
+            })
 
         total_actual = sum(t['actual'] for t in type_totals)
+        total_budget = sum(t['budget'] for t in type_totals)
         results.append({
             'company_id': company.id,
             'company_name': company.name,
             'year': year,
             'by_type': type_totals,
             'total_actual': total_actual,
+            'total_budget': total_budget,
+            'total_execution_rate': round((total_actual / total_budget * 100), 1) if total_budget > 0 else None,
         })
         grand_actual += total_actual
+        grand_budget += total_budget
 
     return Response({
         'report': 'budget_execution',
         'title': f'{year}年 预算执行表',
         'params': params,
         'results': results,
-        'summary': {'total_actual': grand_actual}
+        'summary': {
+            'total_actual': grand_actual,
+            'total_budget': grand_budget,
+            'total_execution_rate': round((grand_actual / grand_budget * 100), 1) if grand_budget > 0 else None,
+        }
+    })
+
+
+# ─── 6. 发票多维度汇总 ──────────────────────────────────────────────────
+@api_view(['GET'])
+@require_perms('finance:report:read')
+def invoice_dimension_report(request):
+    """发票多维度汇总
+    按对方公司/发票类型/税率三个维度交叉汇总
+    """
+    from django.db.models import Sum, Count
+
+    year = request.query_params.get('year')
+    company_id = request.query_params.get('company')
+    invoice_type = request.query_params.get('type')  # income / expense
+
+    qs = Invoice.objects.all()
+    if year:
+        qs = qs.filter(issue_date__year=year)
+    if invoice_type:
+        qs = qs.filter(type=invoice_type)
+    if company_id:
+        qs = qs.filter(company_id=company_id)
+
+    # 排除作废发票
+    qs = qs.exclude(status='cancelled')
+
+    # ── 维度1: 按对方公司汇总 ──────────────────────────────────────────────
+    by_counterparty = list(
+        qs.values('counterparty')
+        .annotate(
+            count=Count('id'),
+            total_amount=Sum('amount'),
+            total_tax=Sum('tax_amount'),
+        )
+        .order_by('-total_amount')
+    )
+    for item in by_counterparty:
+        item['total_amount'] = float(item['total_amount'] or 0)
+        item['total_tax'] = float(item['total_tax'] or 0)
+        item['net_amount'] = round(item['total_amount'] + item['total_tax'], 2)
+        if not item['counterparty']:
+            item['counterparty'] = '（未指定）'
+
+    # ── 维度2: 按发票类型汇总（专票/普票）───────────────────────────────────
+    by_invoice_type = list(
+        qs.values('invoice_type')
+        .annotate(
+            count=Count('id'),
+            total_amount=Sum('amount'),
+            total_tax=Sum('tax_amount'),
+        )
+        .order_by('-total_amount')
+    )
+    type_label = {'special': '增值税专用发票', 'normal': '普通发票'}
+    for item in by_invoice_type:
+        item['invoice_type_display'] = type_label.get(item['invoice_type'], item['invoice_type'])
+        item['total_amount'] = float(item['total_amount'] or 0)
+        item['total_tax'] = float(item['total_tax'] or 0)
+        item['net_amount'] = round(item['total_amount'] + item['total_tax'], 2)
+
+    # ── 维度3: 按税率汇总 ──────────────────────────────────────────────────
+    by_tax_rate = list(
+        qs.values('tax_rate')
+        .annotate(
+            count=Count('id'),
+            total_amount=Sum('amount'),
+            total_tax=Sum('tax_amount'),
+        )
+        .order_by('-total_amount')
+    )
+    for item in by_tax_rate:
+        item['total_amount'] = float(item['total_amount'] or 0)
+        item['total_tax'] = float(item['total_tax'] or 0)
+        item['net_amount'] = round(item['total_amount'] + item['total_tax'], 2)
+
+    # ── 汇总 ──────────────────────────────────────────────────────────────
+    totals = qs.aggregate(
+        count=Count('id'),
+        total_amount=Sum('amount'),
+        total_tax=Sum('tax_amount'),
+    )
+    total_amount = float(totals['total_amount'] or 0)
+    total_tax = float(totals['total_tax'] or 0)
+
+    return Response({
+        'report': 'invoice_dimension',
+        'title': f'{year or "全部"}年 发票多维度汇总',
+        'params': {
+            'year': int(year) if year else None,
+            'company_id': int(company_id) if company_id else None,
+            'type': invoice_type,
+        },
+        'summary': {
+            'count': totals['count'],
+            'total_amount': total_amount,
+            'total_tax': total_tax,
+            'net_amount': round(total_amount + total_tax, 2),
+        },
+        'by_counterparty': by_counterparty[:20],  # top 20
+        'by_invoice_type': by_invoice_type,
+        'by_tax_rate': by_tax_rate,
+    })
+
+
+# ═══════════════════════════════════════════════════════════════════
+# P3 会计专业化报表
+# ═══════════════════════════════════════════════════════════════════
+
+@api_view(['GET'])
+@require_perms('finance:report:read')
+def income_statement_report(request):
+    """利润表 — P3 新增
+
+    基于科目余额表计算层级利润表
+    API: GET /api/finance/reports/p3/income-statement/?company=X&year=2026
+    """
+    from .classification_rules import compute_trial_balance, get_internal_company_names
+
+    params = parse_date_range(request)
+    year = params['year'] or timezone.now().year
+    company_id = params['company_id']
+
+    # 如果不指定公司，汇总所有公司
+    if not company_id:
+        companies = Company.objects.filter(status='active')
+    else:
+        companies = Company.objects.filter(id=company_id, status='active')
+
+    # 逐公司计算
+    company_results = []
+    totals = {
+        'revenue': 0.0, 'revenue_main': 0.0, 'revenue_other': 0.0,
+        'revenue_non_op': 0.0,
+        'cost': 0.0,
+        'tax_surcharge': 0.0,
+        'admin_expense': 0.0,
+        'wage_expense': 0.0, 'social_expense': 0.0,
+        'office_expense': 0.0, 'travel_expense': 0.0,
+        'entertainment_expense': 0.0, 'comm_expense': 0.0,
+        'marketing_expense': 0.0, 'rd_expense': 0.0,
+        'tax_expense': 0.0, 'other_expense': 0.0,
+        'non_op_expense': 0.0,
+        'total_expense': 0.0,
+        'profit': 0.0,
+    }
+
+    for company in companies:
+        tb = compute_trial_balance(company.id, year)
+
+        # 从科目余额表提取数据
+        revenue = 0.0
+        revenue_main = 0.0
+        revenue_other = 0.0
+        revenue_non_op = 0.0
+        cost = 0.0
+        tax_surcharge = 0.0
+        non_op_expense = 0.0
+
+        for item in tb:
+            credit = float(item['credit_amount'])
+            if item['account_code'] == '4001':
+                revenue_main = credit
+                revenue += credit
+            elif item['account_code'] == '4002':
+                revenue_other = credit
+                revenue += credit
+            elif item['account_code'] == '4003':
+                revenue_non_op = credit
+            elif item['account_code'] == '5001':
+                cost += float(item['debit_amount'])
+            elif item['account_code'] == '5003':
+                tax_surcharge += float(item['debit_amount'])
+            elif item['account_code'] == '5004':
+                non_op_expense += float(item['debit_amount'])
+
+        # 管理费明细
+        expense_by_code = {item['account_code']: float(item['debit_amount']) for item in tb}
+        wage_exp = expense_by_code.get('5002-01', 0.0)
+        social_exp = expense_by_code.get('5002-02', 0.0)
+        office_exp = expense_by_code.get('5002-03', 0.0)
+        travel_exp = expense_by_code.get('5002-04', 0.0)
+        ent_exp = expense_by_code.get('5002-05', 0.0)
+        comm_exp = expense_by_code.get('5002-06', 0.0)
+        mkt_exp = expense_by_code.get('5002-07', 0.0)
+        rd_exp = expense_by_code.get('5002-08', 0.0)
+        tax_exp = expense_by_code.get('5002-09', 0.0)
+        other_exp = expense_by_code.get('5002-10', 0.0)
+        admin_exp = wage_exp + social_exp + office_exp + travel_exp + ent_exp + comm_exp + mkt_exp + rd_exp + tax_exp + other_exp
+
+        total_expense = cost + tax_surcharge + admin_exp + non_op_expense
+        profit = revenue + revenue_non_op - total_expense
+
+        row = {
+            'company_id': company.id,
+            'company_name': company.name,
+            'revenue': round(revenue, 2),
+            'revenue_main': round(revenue_main, 2),
+            'revenue_other': round(revenue_other, 2),
+            'revenue_non_operating': round(revenue_non_op, 2),
+            'cost': round(cost, 2),
+            'tax_surcharge': round(tax_surcharge, 2),
+            'admin_expense': round(admin_exp, 2),
+            'wage_expense': round(wage_exp, 2),
+            'social_expense': round(social_exp, 2),
+            'office_expense': round(office_exp, 2),
+            'travel_expense': round(travel_exp, 2),
+            'entertainment_expense': round(ent_exp, 2),
+            'communication_expense': round(comm_exp, 2),
+            'marketing_expense': round(mkt_exp, 2),
+            'rd_expense': round(rd_exp, 2),
+            'tax_expense': round(tax_exp, 2),
+            'other_expense': round(other_exp, 2),
+            'non_operating_expense': round(non_op_expense, 2),
+            'total_expense': round(total_expense, 2),
+            'profit': round(profit, 2),
+            'profit_margin': round(profit / revenue * 100, 2) if revenue else 0,
+        }
+        company_results.append(row)
+
+        # 累加汇总
+        for k in totals:
+            totals[k] += row.get(k, 0.0)
+
+    # 最终汇总
+    if len(company_results) > 1:
+        profit_margin = round(totals['profit'] / totals['revenue'] * 100, 2) if totals['revenue'] else 0
+        totals_row = {**totals, 'profit_margin': profit_margin}
+    else:
+        totals_row = company_results[0] if company_results else totals
+
+    return Response({
+        'report': 'income_statement',
+        'title': f'{year}年 利润表（会计科目版）',
+        'params': {'year': year, 'company_id': company_id},
+        'summary': totals_row,
+        'details': company_results,
+    })
+
+
+@api_view(['GET'])
+@require_perms('finance:report:read')
+def balance_sheet_report(request):
+    """资产负债表（真正的版本）— P3 新增
+
+    基于科目余额表编制，遵守 资产 = 负债 + 所有者权益
+    API: GET /api/finance/reports/p3/balance-sheet/?company=X&year=2026
+    """
+    from .classification_rules import compute_trial_balance
+
+    params = parse_date_range(request)
+    year = params['year'] or timezone.now().year
+    company_id = params['company_id']
+
+    if not company_id:
+        companies = Company.objects.filter(status='active')
+    else:
+        companies = Company.objects.filter(id=company_id, status='active')
+
+    company_results = []
+    totals = {'total_assets': 0.0, 'total_liabilities': 0.0, 'total_equity': 0.0}
+
+    for company in companies:
+        tb = compute_trial_balance(company.id, year)
+
+        balance = {'company_id': company.id, 'company_name': company.name}
+
+        # 资产
+        assets = {
+            'bank_balance': 0.0,
+            'accounts_receivable': 0.0,
+            'other_receivable': 0.0,
+        }
+        # 负债
+        liabilities = {
+            'accounts_payable': 0.0,
+            'payroll_payable': 0.0,
+            'tax_payable': 0.0,
+            'other_payable': 0.0,
+        }
+        # 权益
+        equity = {
+            'paid_in_capital': 0.0,
+            'retained_earnings': 0.0,
+        }
+
+        for item in tb:
+            closing = float(item['closing_balance'])
+            if item['account_code'] == '1001':
+                assets['bank_balance'] = closing
+            elif item['account_code'] == '1002':
+                assets['accounts_receivable'] = closing
+            elif item['account_code'] == '1003':
+                assets['other_receivable'] = closing
+            elif item['account_code'] == '2001':
+                liabilities['accounts_payable'] = closing
+            elif item['account_code'] == '2002':
+                liabilities['payroll_payable'] = closing
+            elif item['account_code'] == '2003':
+                liabilities['tax_payable'] = closing
+            elif item['account_code'] == '2004':
+                liabilities['other_payable'] = closing
+            elif item['account_code'] == '3001':
+                equity['paid_in_capital'] = closing
+            elif item['account_code'] == '3002':
+                equity['retained_earnings'] = closing
+
+        total_assets = sum(assets.values())
+        total_liabilities = sum(liabilities.values())
+        total_equity = sum(equity.values())
+
+        balance['assets'] = {k: round(v, 2) for k, v in assets.items()}
+        balance['total_assets'] = round(total_assets, 2)
+        balance['liabilities'] = {k: round(v, 2) for k, v in liabilities.items()}
+        balance['total_liabilities'] = round(total_liabilities, 2)
+        balance['equity'] = {k: round(v, 2) for k, v in equity.items()}
+        balance['total_equity'] = round(total_equity, 2)
+        balance['liabilities_plus_equity'] = round(total_liabilities + total_equity, 2)
+        balance['diff'] = round(total_assets - (total_liabilities + total_equity), 2)
+
+        company_results.append(balance)
+
+        totals['total_assets'] += total_assets
+        totals['total_liabilities'] += total_liabilities
+        totals['total_equity'] += total_equity
+
+    return Response({
+        'report': 'balance_sheet',
+        'title': f'{year}年 资产负债表（会计科目版）',
+        'params': {'year': year, 'company_id': company_id},
+        'summary': {
+            'total_assets': round(totals['total_assets'], 2),
+            'total_liabilities': round(totals['total_liabilities'], 2),
+            'total_equity': round(totals['total_equity'], 2),
+            'liabilities_plus_equity': round(totals['total_liabilities'] + totals['total_equity'], 2),
+        },
+        'details': company_results,
     })

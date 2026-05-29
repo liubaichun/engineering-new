@@ -10,6 +10,7 @@ from .views import (
     PasswordResetRequestView,
     PasswordResetConfirmView,
     CurrentUserView,
+    SwitchCompanyView,
     MyPermissionsView,
     UserViewSet,
     NotificationViewSet,
@@ -48,6 +49,8 @@ urlpatterns = [
     path('auth/password-reset/', PasswordResetRequestView.as_view(), name='password-reset-request'),
     path('auth/password-reset/<uidb64>/<token>/', PasswordResetConfirmView.as_view(), name='password-reset-confirm'),
     path('auth/user/', CurrentUserView.as_view(), name='current-user'),
+    path('auth/switch-company/', SwitchCompanyView.as_view(), name='switch-company'),
+    path('switch_company/', SwitchCompanyView.as_view(), name='switch-company-old'),
     
     # 健康检查
     path('health/', health_check, name='health'),

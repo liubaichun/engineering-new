@@ -36,6 +36,11 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
         </a>
     </li>
     <li class="nav-item" role="presentation">
+        <a class="nav-link{% if active_tab == 'permissions' %} active{% endif %}" href="#" onclick="showTab('permissions');return false;">
+            <i class="bi bi-grid-3x3 me-1"></i>权限矩阵
+        </a>
+    </li>
+    <li class="nav-item" role="presentation">
         <a class="nav-link{% if active_tab == 'api' %} active{% endif %}" href="#" onclick="showTab('api');return false;">
             <i class="bi bi-code-slash me-1"></i>API文档
         </a>
@@ -58,6 +63,9 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
     <div id="channels" style="display:{% if active_tab == 'channels' %}block{% else %}none{% endif %};">
         <iframe src="/system/notification-channels/" class="tab-iframe" id="frame-channels" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
+    <div id="permissions" style="display:{% if active_tab == 'permissions' %}block{% else %}none{% endif %};">
+        <iframe src="/system/permission-matrix/" class="tab-iframe" id="frame-permissions" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+    </div>
     <div id="api" style="display:{% if active_tab == 'api' %}block{% else %}none{% endif %};">
         <iframe src="/api/docs/" class="tab-iframe" id="frame-api" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
     </div>
@@ -65,7 +73,7 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
 
 <script>
 function showTab(tab) {
-    var tabs = ['companies','users','audit','settings','channels','api'];
+    var tabs = ['companies','users','audit','settings','channels','permissions','api'];
     tabs.forEach(function(t) {
         var div = document.getElementById(t);
         var link = document.querySelector('#systemTab .nav-link[onclick*="'+t+'"]');

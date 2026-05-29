@@ -1,6 +1,6 @@
 from django.urls import path, include
 from config.routers import IntegerPkRouter
-from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet, BankAccountViewSet, SocialRecordViewSet
+from .views import CompanyViewSet, IncomeViewSet, ExpenseViewSet, WageRecordViewSet, InvoiceViewSet, ReportViewSet, EmployeeViewSet, CompanySocialConfigViewSet, ARAPViewSet, EmployeeCompanyViewSet, BankAccountViewSet, SocialRecordViewSet, BudgetViewSet
 from . import import_views
 from . import bank_import_views
 from . import tax_invoice_import
@@ -22,6 +22,7 @@ router.register(r'social-configs', CompanySocialConfigViewSet, basename='social-
 router.register(r'employee-companies', EmployeeCompanyViewSet, basename='employee-company')
 router.register(r'bank-accounts', BankAccountViewSet, basename='bank-account')
 router.register(r'social-records', SocialRecordViewSet, basename='social-record')
+router.register(r'budgets', BudgetViewSet, basename='budget')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -40,6 +41,11 @@ urlpatterns = [
     path('reports/supplier-expense/', reports_v2.supplier_expense_report, name='report-supplier-expense'),
     path('reports/tax-summary/', reports_v2.tax_summary_report, name='report-tax-summary'),
     path('reports/budget-execution/', reports_v2.budget_execution_report, name='report-budget-execution'),
-    path('reports/balance-sheet/', ReportViewSet.as_view({'get': 'balance_sheet'}), name='report-balance-sheet'),
+    path('reports/revenue-expense-summary/', ReportViewSet.as_view({'get': 'revenue_expense_summary'}), name='report-revenue-expense-summary'),
     path('reports/invoice-summary/', ReportViewSet.as_view({'get': 'invoice_summary'}), name='report-invoice-summary'),
+    path('reports/invoice-aging/', ReportViewSet.as_view({'get': 'invoice_aging'}), name='report-invoice-aging'),
+    path('reports/invoice-dimension/', reports_v2.invoice_dimension_report, name='report-invoice-dimension'),
+    # P3 会计专业化报表
+    path('reports/p3/income-statement/', reports_v2.income_statement_report, name='report-income-statement'),
+    path('reports/p3/balance-sheet/', reports_v2.balance_sheet_report, name='report-balance-sheet'),
 ]

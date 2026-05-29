@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django.utils import timezone
 from django.db.models import Sum, Count, F
 from datetime import datetime
-from apps.core.permissions import RoleRequired
+from apps.core.permissions import RoleRequired, get_module_companies
 from .models import PurchaseRequest, PurchaseRequestItem, PurchaseOrder, PurchaseOrderItem, PurchaseReceive, PurchaseReceiveItem
 from .serializers import (
     PurchaseRequestListSerializer, PurchaseRequestDetailSerializer, PurchaseRequestItemSerializer,
@@ -19,13 +19,13 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
     queryset = PurchaseRequest.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:request:read',
-        'create': 'purchasing:request:create',
-        'submit': 'purchasing:request:update',
-        'approve': 'purchasing:request:update',
-        'reject': 'purchasing:request:update',
-        'close': 'purchasing:request:update',
-        'summary': 'purchasing:request:read',
+        None: 'purchasing:purchase_request:read',
+        'create': 'purchasing:purchase_request:create',
+        'submit': 'purchasing:purchase_request:update',
+        'approve': 'purchasing:purchase_request:update',
+        'reject': 'purchasing:purchase_request:update',
+        'close': 'purchasing:purchase_request:update',
+        'summary': 'purchasing:purchase_request:read',
     }
 
     def get_serializer_class(self):
@@ -39,9 +39,11 @@ class PurchaseRequestViewSet(viewsets.ModelViewSet):
         qs = PurchaseRequest.objects.select_related(
             'applicant', 'company', 'project', 'created_by'
         ).prefetch_related('items')
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            qs = qs.filter(company_id=company_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            cids = get_module_companies(user, 'purchase_request')
+            if cids is not None:
+                qs = qs.filter(company_id__in=cids)
         status_filter = self.request.query_params.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
@@ -121,8 +123,8 @@ class PurchaseRequestItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseRequestItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:request:read',
-        'create': 'purchasing:request:create',
+        None: 'purchasing:purchase_request:read',
+        'create': 'purchasing:purchase_request:create',
     }
 
     def get_queryset(self):
@@ -168,13 +170,13 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
     queryset = PurchaseOrder.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:order:read',
-        'create': 'purchasing:order:create',
-        'confirm': 'purchasing:order:update',
-        'ship': 'purchasing:order:update',
-        'cancel': 'purchasing:order:update',
-        'complete': 'purchasing:order:update',
-        'summary': 'purchasing:order:read',
+        None: 'purchasing:purchase_order:read',
+        'create': 'purchasing:purchase_order:create',
+        'confirm': 'purchasing:purchase_order:update',
+        'ship': 'purchasing:purchase_order:update',
+        'cancel': 'purchasing:purchase_order:update',
+        'complete': 'purchasing:purchase_order:update',
+        'summary': 'purchasing:purchase_order:read',
     }
 
     def get_serializer_class(self):
@@ -188,9 +190,11 @@ class PurchaseOrderViewSet(viewsets.ModelViewSet):
         qs = PurchaseOrder.objects.select_related(
             'supplier', 'company', 'project', 'purchase_request', 'created_by'
         ).prefetch_related('items')
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            qs = qs.filter(company_id=company_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            cids = get_module_companies(user, 'purchase_order')
+            if cids is not None:
+                qs = qs.filter(company_id__in=cids)
         status_filter = self.request.query_params.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
@@ -268,8 +272,8 @@ class PurchaseOrderItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseOrderItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:order:read',
-        'create': 'purchasing:order:create',
+        None: 'purchasing:purchase_order:read',
+        'create': 'purchasing:purchase_order:create',
     }
 
     def get_queryset(self):
@@ -319,9 +323,9 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
     queryset = PurchaseReceive.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:receive:read',
-        'create': 'purchasing:receive:create',
-        'complete': 'purchasing:receive:update',
+        None: 'purchasing:purchase_receive:read',
+        'create': 'purchasing:purchase_receive:create',
+        'complete': 'purchasing:purchase_receive:update',
     }
 
     def get_serializer_class(self):
@@ -335,9 +339,11 @@ class PurchaseReceiveViewSet(viewsets.ModelViewSet):
         qs = PurchaseReceive.objects.select_related(
             'order', 'supplier', 'company', 'received_by', 'created_by'
         ).prefetch_related('items')
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            qs = qs.filter(company_id=company_id)
+        user = self.request.user
+        if user.is_authenticated and not user.is_superuser:
+            cids = get_module_companies(user, 'purchase_receive')
+            if cids is not None:
+                qs = qs.filter(company_id__in=cids)
         order_id = self.request.query_params.get('order_id')
         if order_id:
             qs = qs.filter(order_id=order_id)
@@ -368,8 +374,8 @@ class PurchaseReceiveItemViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseReceiveItemSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
-        None: 'purchasing:receive:read',
-        'create': 'purchasing:receive:create',
+        None: 'purchasing:purchase_receive:read',
+        'create': 'purchasing:purchase_receive:create',
     }
 
     def get_queryset(self):

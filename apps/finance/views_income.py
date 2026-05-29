@@ -1,0 +1,237 @@
+import functools
+from django.db.models import F, Q, Sum
+from urllib.parse import urlparse
+from rest_framework import viewsets, filters, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+from django.shortcuts import render
+from rest_framework.permissions import AllowAny
+from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
+from django.db import models
+from django.db.models import F, Q, Sum, Sum, Count
+from django.db.models.functions import TruncMonth
+from django.utils import timezone
+from .models import Company, Income, Expense, WageRecord, Invoice, Employee, CompanySocialConfig, EmployeeCompany, SocialRecord, Budget
+from .models_bank import BankAccount, BankStatement
+from .serializers import (
+    CompanySerializer,
+    IncomeSerializer,
+    ExpenseSerializer,
+    WageRecordSerializer,
+    InvoiceSerializer,
+    EmployeeSerializer,
+    CompanySocialConfigSerializer,
+    EmployeeCompanySerializer,
+    BankAccountSerializer,
+    SocialRecordSerializer,
+    BudgetSerializer,
+)
+from .filters import WageRecordFilter, CompanyFilter, IncomeFilter, ExpenseFilter, InvoiceFilter
+from apps.approvals.models import ApprovalFlow, ApprovalNode
+from apps.approvals.flow_builder import build_approval_flow
+from apps.core.auth import CSRFExemptSessionAuthentication
+from apps.core.permissions import RoleRequired
+
+# 从共享模块导入工具函数
+from .views_common import (
+    SafePageNumberPagination,
+    get_user_companies,
+    _get_user_company_id,
+    _check_perm,
+    _require_perms,
+)
+
+
+class IncomeViewSet(viewsets.ModelViewSet):
+    """收入视图集"""
+    queryset = Income.objects.all()
+    serializer_class = IncomeSerializer
+    pagination_class = SafePageNumberPagination
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_class = IncomeFilter
+    search_fields = ['description', 'customer', 'source']
+    ordering_fields = ['date', 'amount', 'created_at']
+    ordering = ['-date', '-created_at']
+    authentication_classes = [CSRFExemptSessionAuthentication]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'finance:income:read',
+        'partial_update': 'finance:income:update',
+        'confirm': 'finance:income:update',
+        'unconfirm': 'finance:income:update',
+        'summary': 'finance:income:read',
+        'export': 'finance:income:read',
+        'import_records': 'finance:income:create',
+    }
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        # 自动多租户：普通用户看所有关联公司数据，超管看全部
+        cids = get_user_companies(self.request.user)
+        if cids is not None:
+            qs = qs.filter(company_id__in=cids)
+        return qs.select_related('company', 'project', 'operator', 'approval_flow')
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if user and user.is_authenticated:
+            income = serializer.save(operator=user)
+        else:
+            income = serializer.save()
+        # 自动触发审批流（金额 >= 5000 时，且尚未创建审批流）
+        if float(income.amount or 0) >= 5000 and not income.approval_flow_id:
+            self._trigger_approval_flow(income, user)
+
+    def _trigger_approval_flow(self, income, user):
+        """为收入创建审批流（智能多级审批）"""
+        flow = build_approval_flow(
+            flow_type='income',
+            amount=income.amount,
+            name=f'收入确认-{income.description[:30] or income.id}',
+            requester=user if user and user.is_authenticated else None,
+            description=f'{income.source or "收入"} | {income.company.name} | {income.amount}元 | {income.description}',
+            related_id=income.id,
+            company=income.company,
+        )
+        if flow:
+            income.approval_flow = flow
+            income.save(update_fields=['approval_flow'])
+
+    @action(detail=True, methods=['post'])
+    def confirm(self, request, pk=None):
+        """确认收入（手工录入审批通过）"""
+        income = self.get_object()
+        if income.status not in ('pending',):
+            return Response({'status': 'error', 'message': f'当前状态不允许确认（状态：{income.status}）'}, status=400)
+        income.status = 'approved'
+        income.save()
+        return Response({'status': 'success', 'message': '收入已确认'})
+
+    @action(detail=True, methods=['post'])
+    def unconfirm(self, request, pk=None):
+        """取消确认收入"""
+        income = self.get_object()
+        if income.status != 'approved':
+            return Response({'status': 'error', 'message': f'当前状态不允许取消确认（状态：{income.status}）'}, status=400)
+        income.status = 'pending'
+        income.save()
+        return Response({'status': 'success', 'message': '收入已取消确认'})
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """收入汇总统计"""
+        queryset = self.get_queryset()
+
+        # 按状态统计
+        pending_total = queryset.filter(status='pending').aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        confirmed_total = queryset.filter(status__in=('approved', 'received')).aggregate(
+            total=Sum('amount')
+        )['total'] or 0
+        total_count = queryset.count()
+        pending_count = queryset.filter(status='pending').count()
+        confirmed_count = queryset.filter(status__in=('approved', 'received')).count()
+
+        # 按月份统计
+        monthly_stats = queryset.annotate(
+            month=TruncMonth('date')
+        ).values('month').annotate(
+            total=Sum('amount')
+        ).order_by('-month')[:12]
+
+        return Response({
+            'total_count': total_count,
+            'pending_count': pending_count,
+            'confirmed_count': confirmed_count,
+            'pending_total': float(pending_total),
+            'confirmed_total': float(confirmed_total),
+            'monthly_stats': [
+                {'month': str(item['month']), 'total': float(item['total'])}
+                for item in monthly_stats
+            ]
+        })
+
+    @action(detail=False, methods=['get'])
+    def export(self, request):
+        """导出收入 Excel"""
+        from apps.core.export_excel import export_income_records, make_export_response
+        queryset = self.get_queryset()
+        company_id = request.GET.get('company_id')
+        date_start = request.GET.get('date_start')
+        date_end = request.GET.get('date_end')
+        if company_id:
+            queryset = queryset.filter(company_id=company_id)
+        if date_start:
+            queryset = queryset.filter(date__gte=date_start)
+        if date_end:
+            queryset = queryset.filter(date__lte=date_end)
+        records = queryset.select_related('company', 'project', 'operator')
+        buf = export_income_records(list(records))
+        return make_export_response(buf, f'收入记录_{timezone.now().strftime("%Y%m%d")}.xlsx')
+
+    @action(detail=False, methods=['post'])
+    def import_records(self, request):
+        """批量导入收入 Excel"""
+        from apps.core.import_excel import import_income
+        from apps.finance.models import Income
+        import io
+
+        file = request.FILES.get('file')
+        if not file:
+            return Response({'success': False, 'message': '请上传 Excel 文件'}, status=400)
+
+        try:
+            result = import_income(file)
+        except Exception as e:
+            return Response({'success': False, 'message': f'解析失败：{str(e)}'}, status=400)
+
+        # 批量创建
+        if not result.rows:
+            return Response({'success': False, 'message': '解析后无有效数据行，请检查文件格式和列名'}, status=400)
+
+        created = 0
+        errors = []
+        user = request.user
+        import datetime as dt
+        for i, row_data in enumerate(result.rows):
+            try:
+                # 解析交易时间（字符串 → time对象）
+                tx_time = None
+                tx_time_str = row_data.get('transaction_time', '')
+                if tx_time_str:
+                    try:
+                        tx_time = dt.datetime.strptime(str(tx_time_str).strip()[:8], '%H:%M:%S').time()
+                    except ValueError:
+                        tx_time = None
+
+                income = Income.objects.create(
+                    company_id=row_data.get('company'),
+                    project_id=row_data.get('project'),
+                    source=row_data.get('source', ''),
+                    amount=row_data['amount'],
+                    date=row_data['date'],
+                    status=row_data.get('status', 'pending'),
+                    description=row_data.get('description', ''),
+                    operator=user,
+                    # ── 银行流水11字段扩展 ─────────────────────────────
+                    transaction_time=tx_time,
+                    balance=row_data.get('balance'),
+                    counterparty_account=row_data.get('counterparty_account', ''),
+                    counterparty_bank=row_data.get('counterparty_bank', ''),
+                    transaction_type=row_data.get('transaction_type', ''),
+                    summary=row_data.get('summary', ''),
+                )
+                created += 1
+                # 触发审批流（与 perform_create 保持一致）
+                if float(income.amount or 0) >= 5000 and not income.approval_flow_id:
+                    self._trigger_approval_flow(income, user)
+            except Exception as e:
+                errors.append(f"第{i+2}行：{str(e)}")
+
+        return Response({
+            'success': created > 0,
+            'message': f'成功导入 {created} 条记录' + (f'，失败 {len(errors)} 条' if errors else ''),
+            'errors': errors[:20],
+        })

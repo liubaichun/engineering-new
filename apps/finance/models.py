@@ -37,6 +37,8 @@ class Employee(models.Model):
     has_housing_fund = models.BooleanField('是否购买公积金', default=False)
     social_insurance_deduction = models.DecimalField('社保扣款（个人部分）', max_digits=10, decimal_places=2, default=0)
     housing_fund_deduction = models.DecimalField('公积金扣款（个人部分）', max_digits=10, decimal_places=2, default=0)
+    housing_fund_employee = models.DecimalField('个人公积金', max_digits=10, decimal_places=2, default=0)
+    housing_fund_company = models.DecimalField('公司公积金', max_digits=10, decimal_places=2, default=0)
     base_salary = models.DecimalField('基本工资', max_digits=10, decimal_places=2, default=0)
     position_salary = models.DecimalField('岗位工资', max_digits=10, decimal_places=2, default=0)
     meal_allowance = models.DecimalField('餐补', max_digits=10, decimal_places=2, default=0)
@@ -161,7 +163,7 @@ class Income(models.Model):
     company = models.ForeignKey(
         Company,
         verbose_name='公司',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='incomes'
     )
     # ── 银行流水11字段扩展（从 ParsedTransaction 写入） ────────────────
@@ -200,6 +202,20 @@ class Income(models.Model):
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     date = models.DateField(verbose_name='日期')
     source = models.CharField(verbose_name='来源', max_length=200, blank=True, default='')
+    income_category = models.CharField(
+        verbose_name='收入科目',
+        max_length=50, blank=True, default='',
+        choices=[
+            ('main_business', '主营业务收入'),
+            ('other_business', '其他业务收入'),
+            ('non_operating', '营业外收入'),
+            ('other_income', '其他收益'),
+            ('investment_income', '投资收益'),
+            ('internal_transfer', '内部往来'),
+            ('equity', '实收资本'),
+        ],
+        help_text='收入科目分类：主营业务/其他业务/营业外收入/其他收益/投资收益/内部往来/实收资本'
+    )
     status = models.CharField(verbose_name='状态', max_length=20, choices=STATUS_CHOICES, default='pending')
     project = models.ForeignKey(
         'tasks.Project',
@@ -208,6 +224,15 @@ class Income(models.Model):
         related_name='finance_incomes',
         blank=True,
         null=True
+    )
+    # ── CRM 标准化：关联到 CRM Client ──────────────────────────────────────
+    client_ref = models.ForeignKey(
+        'crm.Client',
+        verbose_name='关联客户(CRM)',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='finance_incomes',
+        help_text='关联到CRM客户表，用于标准化名称'
     )
     customer = models.CharField(verbose_name='客户', max_length=200, blank=True, default='')
     description = models.TextField(verbose_name='描述', blank=True, default='')
@@ -244,17 +269,16 @@ class Income(models.Model):
 class Expense(models.Model):
     """支出模型"""
     EXPENSE_TYPE_CHOICES = [
-        ('salary',      '工资薪酬'),
-        ('social',      '社保公积金'),
-        ('office',      '办公费用'),
-        ('travel',      '差旅费用'),
-        ('communication', '通讯费用'),
-        ('entertainment','业务招待'),
-        ('marketing',   '市场营销'),
-        ('rd',          '研发费用'),
-        ('tax',         '税费'),
-        ('advance',     '预付款'),
-        ('other',       '其他'),
+        ('salary',          '工资薪酬'),
+        ('main_cost',       '主营业务成本'),
+        ('admin_expense',   '管理费用'),
+        ('finance_expense', '财务费用'),
+        ('tax',             '税费'),
+        ('office',          '办公费用'),
+        ('travel',          '差旅费用'),
+        ('internal_transfer','内部往来'),
+        ('agency',          '代收代付'),
+        ('other',           '其他'),
     ]
 
     EXPENSE_STATUS_CHOICES = [
@@ -267,7 +291,7 @@ class Expense(models.Model):
     company = models.ForeignKey(
         Company,
         verbose_name='公司',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='expenses'
     )
     # ── 银行流水11字段扩展（从 ParsedTransaction 写入） ────────────────
@@ -306,7 +330,20 @@ class Expense(models.Model):
     amount = models.DecimalField(verbose_name='金额', max_digits=14, decimal_places=2)
     source = models.CharField(verbose_name='来源', max_length=200, blank=True, default='')
     expense_type = models.CharField(
-        verbose_name='支出类型', max_length=50, blank=True, default=''
+        verbose_name='支出类型', max_length=50, blank=True, default='',
+        choices=[
+            ('salary', '工资薪酬'),
+            ('main_cost', '主营业务成本'),
+            ('admin_expense', '管理费用'),
+            ('finance_expense', '财务费用'),
+            ('tax', '税费'),
+            ('office', '办公费用'),
+            ('travel', '差旅费用'),
+            ('internal_transfer', '内部往来'),
+            ('agency', '代收代付'),
+            ('other', '其他'),
+        ],
+        help_text='支出类型：工资/主营业务成本/管理费用/财务费用/税费/办公费/差旅/内部往来/代收代付/其他'
     )
     expense_date = models.DateField(verbose_name='日期', help_text='支出日期', default=date.today)
     date = models.DateField(verbose_name='日期', help_text='兼容性别名', blank=True, null=True)
@@ -318,6 +355,15 @@ class Expense(models.Model):
         related_name='finance_expenses',
         blank=True,
         null=True
+    )
+    # ── CRM 标准化：关联到 CRM Supplier ────────────────────────────────────
+    supplier_ref = models.ForeignKey(
+        'crm.Supplier',
+        verbose_name='关联供应商(CRM)',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='finance_expenses',
+        help_text='关联到CRM供应商表，用于标准化名称'
     )
     supplier = models.CharField(verbose_name='供应商', max_length=200, blank=True, default='')
     note = models.CharField(verbose_name='备注', max_length=500, blank=True, default='')
@@ -376,7 +422,7 @@ class WageRecord(models.Model):
     company = models.ForeignKey(
         Company,
         verbose_name='公司',
-        on_delete=models.CASCADE,
+        on_delete=models.PROTECT,
         related_name='wage_records'
     )
     # employee_company: 员工在哪家公司的任职记录（工资发在这家公司）
@@ -746,6 +792,8 @@ class Invoice(models.Model):
         null=True
     )
     is_credited = models.BooleanField('已认证抵扣', default=False)
+    credited_period = models.CharField('认证所属期', max_length=7, blank=True, default='',
+        help_text='如 2026-05（实际抵扣的税款所属期）')
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
     payment_date = models.DateField('实际收/付款日期', blank=True, null=True, help_text='银行到账/扣款后自动填入')
     matched_bank_statement = models.ForeignKey(
@@ -756,6 +804,15 @@ class Invoice(models.Model):
     issue_date = models.DateField('开票日期', blank=True, null=True)
     due_date = models.DateField('到期日期', blank=True, null=True)
     remarks = models.TextField('备注', blank=True, default='')
+    red_invoice_for = models.ForeignKey(
+        'self', verbose_name='红冲原发票',
+        on_delete=models.SET_NULL, blank=True, null=True,
+        related_name='red_invoices',
+        help_text='负数发票冲红的原始发票'
+    )
+    attachment = models.FileField('发票附件', upload_to='invoice_attachments/%Y/%m/',
+        blank=True, null=True, help_text='上传发票扫描件/PDF')
+    attachment_name = models.CharField('附件名', max_length=300, blank=True, default='')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
 
@@ -763,7 +820,7 @@ class Invoice(models.Model):
         db_table = 'finance_invoice'
         verbose_name = '发票'
         verbose_name_plural = '发票管理'
-        ordering = ['-created_at']
+        ordering = ['-issue_date']
 
     def __str__(self):
         return self.invoice_no
@@ -772,6 +829,19 @@ class Invoice(models.Model):
         # 自动计算税额
         if self.tax_rate and self.amount:
             self.tax_amount = round(float(self.amount) * float(self.tax_rate) / 100, 2)
+        # 红冲发票自动匹配原始发票（仅新建时）
+        if not self.pk and float(self.amount or 0) < 0 and not self.red_invoice_for:
+            orig = Invoice.objects.filter(
+                counterparty=self.counterparty,
+                amount__exact=abs(float(self.amount)),
+                type=self.type,
+                company_id=self.company_id,
+                red_invoice_for__isnull=True,
+            ).exclude(id=self.id).order_by('issue_date').first()
+            if orig:
+                self.red_invoice_for = orig
+                if not self.status or self.status != 'cancelled':
+                    self.status = 'cancelled'
         super().save(*args, **kwargs)
 
 
@@ -780,12 +850,14 @@ class SocialRecord(models.Model):
 
     company = models.ForeignKey(
         Company, verbose_name='公司',
-        on_delete=models.CASCADE, related_name='social_records'
+        on_delete=models.PROTECT, related_name='social_records'
     )
     employee = models.ForeignKey(
         Employee, verbose_name='员工',
-        on_delete=models.CASCADE, related_name='social_records'
+        null=True, blank=True,
+        on_delete=models.PROTECT, related_name='social_records'
     )
+    name = models.CharField('姓名', max_length=50, blank=True, default='')
     id_card = models.CharField('身份证号', max_length=18, blank=True, default='')
     year_month = models.CharField('费款所属期', max_length=7)  # YYYY-MM
 
@@ -827,8 +899,8 @@ class SocialRecord(models.Model):
         verbose_name = '社保申报记录'
         verbose_name_plural = verbose_name
         # 复合唯一：员工+费款所属期，防止重复导入
-        unique_together = [['employee', 'year_month']]
-        ordering = ['-year_month', 'employee__name']
+        unique_together = [['company', 'id_card', 'year_month']]
+        ordering = ['-year_month', 'id_card']
 
     def save(self, *args, **kwargs):
         # 合计包含社保+公积金（分开显示，合计参与运算）
@@ -846,8 +918,16 @@ class SocialRecord(models.Model):
         self.total = self.total_employee + self.total_company
         super().save(*args, **kwargs)
 
+    def employee_display(self):
+        if self.employee and self.employee.name:
+            return self.employee.name
+        if self.name:
+            return self.name
+        mask = self.id_card[-4:] if len(self.id_card) >= 4 else self.id_card
+        return f'未知({mask})'
+
     def __str__(self):
-        return f"{self.employee.name} {self.year_month} 社保"
+        return f"{self.employee_display()} {self.year_month} 社保"
 
 
 class CompanySocialConfig(models.Model):
@@ -900,7 +980,7 @@ class BankAccount(models.Model):
 
     company = models.ForeignKey(
         Company, verbose_name='所属公司',
-        on_delete=models.CASCADE, related_name='bank_accounts'
+        on_delete=models.PROTECT, related_name='bank_accounts'
     )
     bank_code = models.CharField('银行代码', max_length=20, choices=BANK_CHOICES, default='OTHER')
     bank_name = models.CharField('银行名称', max_length=100, blank=True, default='')
@@ -929,7 +1009,7 @@ class BankStatement(models.Model):
 
     company = models.ForeignKey(
         Company, verbose_name='公司',
-        on_delete=models.CASCADE, related_name='bank_statements'
+        on_delete=models.PROTECT, related_name='bank_statements'
     )
     bank_account = models.ForeignKey(
         BankAccount, verbose_name='银行账户',
@@ -1015,3 +1095,175 @@ class BankStatement(models.Model):
 
     def __str__(self):
         return f"{self.transaction_date} {self.direction} {self.amount}"
+
+
+# ─── 预算模型 ──────────────────────────────────────────────────────────
+class Budget(models.Model):
+    """预算模型 - 按公司×年份×费用类型设置预算额度"""
+    BUDGET_EXPENSE_TYPES = [
+        ('salary',          '工资薪酬'),
+        ('main_cost',       '主营业务成本'),
+        ('admin_expense',   '管理费用'),
+        ('finance_expense', '财务费用'),
+        ('tax',             '税费'),
+        ('office',          '办公费用'),
+        ('travel',          '差旅费用'),
+        ('internal_transfer','内部往来'),
+        ('agency',          '代收代付'),
+        ('other',           '其他'),
+    ]
+
+    company = models.ForeignKey(
+        Company, verbose_name='公司',
+        on_delete=models.CASCADE, related_name='budgets'
+    )
+    year = models.IntegerField('年份')
+    month = models.IntegerField('月份', null=True, blank=True,
+        help_text='留空表示全年预算；填写表示月度预算')
+    expense_type = models.CharField(
+        '费用类型', max_length=30,
+        choices=BUDGET_EXPENSE_TYPES
+    )
+    budget_amount = models.DecimalField(
+        '预算金额', max_digits=14, decimal_places=2, default=0
+    )
+    note = models.CharField('备注', max_length=200, blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField('更新时间', auto_now=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        verbose_name='录入人',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='created_budgets'
+    )
+
+    class Meta:
+        db_table = 'finance_budget'
+        verbose_name = '预算'
+        verbose_name_plural = '预算管理'
+        unique_together = [('company', 'year', 'month', 'expense_type')]
+        ordering = ['year', 'company__name', 'expense_type']
+
+    def __str__(self):
+        m = f'{self.month}月/' if self.month else ''
+        return f'{self.company.name} {self.year}年{m}{self.get_expense_type_display()}: ¥{self.budget_amount}'
+
+
+# ─── 会计科目表 ──────────────────────────────────────────────────────────
+class Account(models.Model):
+    """会计科目表（Chart of Accounts）
+    参照小企业会计准则简化版，支持多级科目
+    """
+    ACCOUNT_TYPES = [
+        ('asset',      '资产'),
+        ('liability',  '负债'),
+        ('equity',     '所有者权益'),
+        ('income',     '收入'),
+        ('expense',    '费用'),
+    ]
+
+    code = models.CharField('科目编码', max_length=20,
+        help_text='如 4001-01（一级-二级）')
+    name = models.CharField('科目名称', max_length=100)
+    account_type = models.CharField(
+        '科目类型', max_length=20, choices=ACCOUNT_TYPES
+    )
+    level = models.IntegerField('层级', default=1,
+        help_text='1=一级科目，2=二级科目')
+    parent = models.ForeignKey(
+        'self', verbose_name='父科目',
+        on_delete=models.CASCADE, null=True, blank=True,
+        related_name='children'
+    )
+    is_leaf = models.BooleanField('是否叶子科目', default=True)
+    sort_order = models.IntegerField('排序', default=0)
+    company = models.ForeignKey(
+        'Company', verbose_name='所属公司',
+        on_delete=models.CASCADE, null=True, blank=True,
+        related_name='accounts',
+        help_text='空=全局科目，有值=公司级专属科目'
+    )
+    is_active = models.BooleanField('是否启用', default=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'finance_account'
+        verbose_name = '会计科目'
+        verbose_name_plural = '会计科目表'
+        ordering = ['sort_order', 'code']
+        unique_together = [('code', 'company')]
+
+    def __str__(self):
+        return f'{self.code} {self.name}'
+
+
+class RelatedPartyLedger(models.Model):
+    """关联方往来台账 — 跟踪每笔借出/借入/还款的完整生命周期"""
+    
+    DIRECTION_CHOICES = [
+        ('lend_out', '借出'),
+        ('lend_in', '借入'),
+        ('repay', '还款'),
+    ]
+    COUNTERPARTY_TYPE_CHOICES = [
+        ('company', '公司'),
+        ('personal', '个人'),
+    ]
+    STATUS_CHOICES = [
+        ('active', '未结清'),
+        ('settled', '已结清'),
+    ]
+    
+    company = models.ForeignKey(
+        'Company', verbose_name='本公司',
+        on_delete=models.CASCADE, related_name='ledger_entries'
+    )
+    counterparty = models.CharField(
+        verbose_name='对方名称', max_length=200,
+        help_text='对方公司名或个人姓名'
+    )
+    counterparty_type = models.CharField(
+        verbose_name='对方类型', max_length=20,
+        choices=COUNTERPARTY_TYPE_CHOICES, default='company'
+    )
+    direction = models.CharField(
+        verbose_name='方向', max_length=20,
+        choices=DIRECTION_CHOICES
+    )
+    amount = models.DecimalField(
+        verbose_name='金额', max_digits=14, decimal_places=2
+    )
+    balance = models.DecimalField(
+        verbose_name='当前余额', max_digits=14, decimal_places=2,
+        default=0, help_text='该笔往来当前未还余额'
+    )
+    transaction_date = models.DateField(verbose_name='发生日期')
+    description = models.TextField(verbose_name='说明', blank=True, default='')
+    source_type = models.CharField(
+        verbose_name='来源表', max_length=20, blank=True, default='',
+        help_text='income / expense'
+    )
+    source_id = models.IntegerField(
+        verbose_name='来源记录ID', blank=True, null=True
+    )
+    status = models.CharField(
+        verbose_name='状态', max_length=20,
+        choices=STATUS_CHOICES, default='active'
+    )
+    group_id = models.CharField(
+        verbose_name='分组ID', max_length=50, blank=True, default='',
+        help_text='同一组分组的借出-还款记录共享此ID，便于追踪'
+    )
+    remarks = models.TextField(verbose_name='备注', blank=True, default='')
+    created_at = models.DateTimeField(verbose_name='创建时间', auto_now_add=True)
+    updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
+    
+    class Meta:
+        db_table = 'finance_related_party_ledger'
+        verbose_name = '关联方往来'
+        verbose_name_plural = '关联方往来台账'
+        ordering = ['company', 'transaction_date', 'id']
+    
+    def __str__(self):
+        return f'{self.company.name} → {self.counterparty} [{self.get_direction_display()}] ¥{self.amount}'

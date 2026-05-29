@@ -37,7 +37,7 @@
         <p class="text-muted mb-0" style="font-size: 0.9rem;">管理员工信息、社保公积金及入职离职</p>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-primary btn-sm" onclick="showEmployeeModal()" data-perm="employee.add">
+        <button class="btn btn-primary btn-sm" onclick="showEmployeeModal()" data-perm="finance:employee:create">
             <i class="bi bi-plus-lg me-1"></i>新建员工
         </button>
     </div>
@@ -72,6 +72,14 @@
                     <option value="行政部">行政部</option>
                     <option value="商务部">商务部</option>
                     <option value="市场部">市场部</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+                    <option value="15">15条/页</option>
+                    <option value="20">20条/页</option>
+                    <option value="50">50条/页</option>
+                    <option value="100">100条/页</option>
                 </select>
             </div>
         </div>
@@ -288,7 +296,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" onclick="confirmDeleteEmployee()" data-perm="employee.delete">
+                <button type="button" class="btn btn-danger" onclick="confirmDeleteEmployee()" data-perm="finance:employee:delete">
                     <i class="bi bi-trash me-1"></i>确认删除
                 </button>
             </div>
@@ -623,5 +631,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadCompanies();
     loadEmployees();
 });
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    filterEmployees();
+}
 </script>
 {% endblock %}

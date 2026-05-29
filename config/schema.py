@@ -36,7 +36,7 @@ ACTION_SUMMARY_MAP = {
     'yearly': '年度报表',
     'wage_summary': '工资汇总',
     'invoice_summary': '发票汇总',
-    'balance_sheet': '资产负债表',
+    'revenue_expense_summary': '收支汇总表',
     'unread_count': '未读数量',
     'toggle': '切换',
     'all_settings': '全部设置',
@@ -66,6 +66,11 @@ RESOURCE_LABEL_MAP = {
     'channels': '通知渠道', 'bindings': '通知绑定',
     'equipment': '设备', 'material': '物料',
     'categories': '分类', 'files': '文件',
+    # 导入相关
+    'import': '导入', 'bank-import': '银行导入', 'preview': '预览',
+    'confirm': '确认', 'import-clients': '客户导入', 'import-suppliers': '供应商导入',
+    'import-contracts': '合同导入', 'import-invoices': '发票导入',
+    'import-incomes': '收入导入', 'import-expenses': '支出导入',
 }
 
 

@@ -66,6 +66,9 @@ class CompanyFileViewSet(viewsets.ModelViewSet):
         # 管理员/超级用户：看全部
         if user.is_superuser or user.is_staff:
             return qs
+        # 多租户隔离：按 company_id 过滤
+        if hasattr(user, 'company_id') and user.company_id:
+            return qs.filter(company_id=user.company_id)
         # 普通用户：只看自己上传的文件
         return qs.filter(uploaded_by=user)
 

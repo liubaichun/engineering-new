@@ -109,42 +109,12 @@
 ## ADR-007：权限体系改造方案
 
 **日期**：2026-05-21
-**状态**：✅ 已采纳（方案 B — apps/permission_registry）
+**状态**：❌ 已废弃（2026-05-22）
 
 **决策**：
-采用独立 `apps/permission_registry` app + `@register_module` 装饰器 + `AppConfig.ready()` 机制，实现模块自注册 + 用户×公司×模块五档权限矩阵。
+采用独立 `apps/permission_registry` app + `@register_module` 装饰器 + `AppConfig.ready()` 机制实现模块自注册 + 五档权限矩阵。
 
-**核心设计**：
-- `Module` 模型：注册所有功能模块（income/expense/invoice/employee/project...）
-- `ModulePermission` 模型：每个模块的权限定义（view/create/edit/delete/approve）
-- `UserCompanyPermission` 模型：用户×公司×模块 权限矩阵
-- `@register_module` 装饰器：代码声明 → 重启服务 → 自动同步到 DB
-- `AppConfig.ready()`：Django 启动时执行一次幂等同步
-
-**理由**：
-- Django AppConfig.ready() 是 Django 原生机制，稳定可靠
-- 独立 app 设计，架构上可复用其他系统
-- 只做 update_or_create，不删除已有记录，幂等安全
-- 新增模块只需写装饰器，无需人工维护权限表
-
-**备选方案对比**：
-| 方案 | 结果 |
-|------|------|
-| A: pip 包独立仓库 | 不适合当前阶段，需要单独维护 |
-| B: apps/permission_registry | ✅ 采用 |
-| C: 集成到 core app | 不推荐，权限代码和业务代码混杂 |
-
-**与旧体系共存策略**：
-- `core_role` / `core_permission` / `core_role_permission` 保留（用于系统管理：用户管理、角色分配）
-- `core_user_company_role` 保留（向后兼容，新旧并存）
-- 新模块用 `ModulePermission`，旧模块（finance 等）逐步迁移
-
-**迁移路径**（渐进式，不影响业务）：
-1. 先建 `apps/permission_registry` 基础设施
-2. 建 `UserCompanyPermission` 表 + 数据迁移
-3. 重写 `get_queryset`（解决多公司数据丢失）
-4. 开发前端权限矩阵 UI
-5. 逐步废弃旧架构
+**废弃原因**：与 Phase2 UCP 冲突，v2.2.1 当天确认删除。详见 `PERMISSION_REGISTRY_REQUIREMENTS.md` 第五节。
 
 ---
 
@@ -165,3 +135,60 @@
 **风险**：
 - `company_id=NULL` 的历史数据会被 `__in` 过滤掉（不影响普通用户，因为普通用户没有 NULL 关联）
 - 超管仍可看到所有数据（包括 NULL）
+
+---
+
+## ADR-009：敏感数据脱敏方案（MaskedCharField）
+
+**日期**：2026-05-22
+**状态**：✅ 已采纳
+
+**决策**：自定义 `MaskedCharField`（继承 `serializers.CharField`），写入时存完整值，读取时脱敏返回。仅影响Serializer层（controller），不破坏数据库原始数据。
+
+**脱敏规则**：
+- 身份证号：保留前6位+后4位，中间星号（`110101****1234`）
+- 银行卡号：保留前6位+后4位，中间星号（`622202****0123`）
+- 手机号：保留前3位+后4位，中间星号（`138****8000`）
+- 银行账号：保留前4位+后4位，中间星号（`3100****7890`）
+
+**理由**：
+- 不改变数据库存储，不影响搜索/排序/统计
+- 前端无需额外处理，直接展示
+- 导出Excel时也自动脱敏
+
+**涉及文件**：`finance/serializers.py`
+
+---
+
+## ADR-010：Serializer 公司归属校验（CompanyAccessValidatorMixin）
+
+**日期**：2026-05-22
+**状态**：✅ 已采纳
+
+**决策**：`CompanyAccessValidatorMixin` — 在 Serializer `validate()` 阶段校验 `company` 字段是否属于用户可访问的公司范围。超级用户豁免。
+
+**理由**：
+- 防止用户通过 API 直接指定他人公司的 company_id
+- 不修改 create 逻辑（只校验不注入）
+- 利用 DRF `validate()` 天然位置，不增加请求次数
+- 超级用户豁免（管理后台正常使用）
+
+**风险**：
+- `company` 字段不在 request.data 中时不做校验（如 inherit 场景）
+- 与 `UserCompanyPermission` 权限体系配合使用，不做重复校验
+
+---
+
+## ADR-011：导入视图公司来源统一方案
+
+**日期**：2026-05-25
+**状态**：✅ 已采纳
+
+**决策**：所有导入视图（CRM/财务/银行/员工）统一使用 `request.auth_company` 作为公司默认值来源替代硬编码 `Company.objects.first()`。
+
+**优先级链**：
+1. Excel 中明确指定了公司列 → 取Excel值
+2. 无公司列 → `request.auth_company`（当前选中公司/默认公司）
+3. 无选中公司 → `user.company_id` 后备
+
+**涉及文件**：`crm/import_views.py`, `finance/import_views.py`, `apps/equipment/bank_import_views.py`

@@ -121,18 +121,17 @@
                 <select class="form-select form-select-sm" id="filterCompany" onchange="loadExpenses(1)" style="width:auto;">
                     <option value="">全部公司</option>
                 </select>
-                <select class="form-select form-select-sm" id="filterExpenseType" onchange="loadExpenses(1)" style="width:auto;">
+                <select class="form-select form-select-sm" id="filterExpenseType" onchange="loadExpenses(1)" style="width:auto;min-width:150px;">
                     <option value="">全部类型</option>
                     <option value="salary">工资薪酬</option>
-                    <option value="social">社保公积金</option>
+                    <option value="main_cost">主营业务成本</option>
+                    <option value="admin_expense">管理费用</option>
+                    <option value="finance_expense">财务费用</option>
+                    <option value="tax">税费</option>
                     <option value="office">办公费用</option>
                     <option value="travel">差旅费用</option>
-                    <option value="communication">通讯费用</option>
-                    <option value="entertainment">业务招待</option>
-                    <option value="marketing">市场营销</option>
-                    <option value="rd">研发费用</option>
-                    <option value="tax">税费</option>
-                    <option value="advance">预付款</option>
+                    <option value="internal_transfer">内部往来</option>
+                    <option value="agency">代收代付</option>
                     <option value="other">其他</option>
                 </select>
                 <input type="date" class="form-control form-control-sm" id="filterDateStart" placeholder="开始日期" style="width:auto;">
@@ -141,13 +140,18 @@
                 <button class="btn btn-outline-secondary btn-sm" onclick="loadExpenses(1)">
                     <i class="bi bi-search me-1"></i>筛选
                 </button>
-                <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()" data-perm="expense.add">
+                <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changeExpensePageSize()">
+                    <option value="20">20条/页</option>
+                    <option value="50">50条/页</option>
+                    <option value="100">100条/页</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()" data-perm="finance:expense:create">
                     <i class="bi bi-plus-lg me-1"></i>新建支出
                 </button>
                 <button class="btn btn-success btn-sm" onclick="exportExpenses()">
                     <i class="bi bi-download me-1"></i>导出
                 </button>
-                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('expense')" data-perm="expense.add">
+                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('expense')" data-perm="finance:expense:create">
                     <i class="bi bi-upload me-1"></i>导入
                 </button>
             </div>
@@ -242,15 +246,14 @@
                         <select class="form-select" id="expenseType" required>
                             <option value="">选择类型</option>
                             <option value="salary">工资薪酬</option>
-                            <option value="social">社保公积金</option>
+                            <option value="main_cost">主营业务成本</option>
+                            <option value="admin_expense">管理费用</option>
+                            <option value="finance_expense">财务费用</option>
+                            <option value="tax">税费</option>
                             <option value="office">办公费用</option>
                             <option value="travel">差旅费用</option>
-                            <option value="communication">通讯费用</option>
-                            <option value="entertainment">业务招待</option>
-                            <option value="marketing">市场营销</option>
-                            <option value="rd">研发费用</option>
-                            <option value="tax">税费</option>
-                            <option value="advance">预付款</option>
+                            <option value="internal_transfer">内部往来</option>
+                            <option value="agency">代收代付</option>
                             <option value="other">其他</option>
                         </select>
                     </div>
@@ -330,7 +333,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="expense.delete">删除</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="finance:expense:delete">删除</button>
             </div>
         </div>
     </div>
@@ -391,7 +394,7 @@
 <script>
 var expenseModal, deleteModal;
 var currentPage = 1;
-var pageSize = 20;
+let pageSize = 20;
 var currentYear = new Date().getFullYear();
 var companies = [];
 var projects = [];
@@ -543,6 +546,16 @@ function renderExpenses(expenses) {
     }
     
     const typeMap = {
+        'salary': '工资薪酬',
+        'main_cost': '主营业务成本',
+        'admin_expense': '管理费用',
+        'finance_expense': '财务费用',
+        'tax': '税费',
+        'office': '办公费用',
+        'travel': '差旅费用',
+        'internal_transfer': '内部往来',
+        'agency': '代收代付',
+        'other': '其他',
         'expense': '费用报销',
         'advance': '预付款',
         'deposit': '押金',
@@ -550,6 +563,16 @@ function renderExpenses(expenses) {
         'bank_import': '网银'
     };
     const sourceMap = {
+        'salary': '工资薪酬',
+        'main_cost': '主营业务成本',
+        'admin_expense': '管理费用',
+        'finance_expense': '财务费用',
+        'tax': '税费',
+        'office': '办公费用',
+        'travel': '差旅费用',
+        'internal_transfer': '内部往来',
+        'agency': '代收代付',
+        'other': '其他',
         'expense': '费用报销',
         'advance': '预付款',
         'deposit': '押金',
@@ -617,6 +640,12 @@ function renderExpensePagination(data) {
     pagination.innerHTML = html;
     paginationInfo.textContent = '显示 ' + Math.min((current - 1) * pageSize + 1, total) + '-' + Math.min(current * pageSize, total) + ' 条，共 ' + total + ' 条';
     document.getElementById('recordCount').textContent = total;
+}
+
+function changeExpensePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentExpensePage = 1;
+    goToPage(1);
 }
 
 function goToPage(page) {

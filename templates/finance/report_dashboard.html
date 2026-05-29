@@ -171,6 +171,11 @@
         <h5>发票汇总</h5>
         <p>按公司统计发票开具和收取情况</p>
     </div>
+    <div class="report-card" data-report="invoice_dimension">
+        <div class="icon purple"><i class="bi bi-grid-3x3-gap"></i></div>
+        <h5>发票多维度</h5>
+        <p>按对方公司/类型/税率汇总</p>
+    </div>
 </div>
 
 <!-- 补充报表 -->
@@ -180,7 +185,7 @@
 <div class="report-cards">
     <div class="report-card" data-report="cash_flow">
         <div class="icon blue"><i class="bi bi-water"></i></div>
-        <h5>现金流量表</h5>
+        <h5>银行余额变动表</h5>
         <p>按月列示期初余额+收入+支出+期末余额</p>
     </div>
     <div class="report-card" data-report="ar_ap_aging">
@@ -188,10 +193,20 @@
         <h5>应收应付账龄</h5>
         <p>客户未收/供应商未付款账龄分析</p>
     </div>
+    <div class="report-card" data-report="invoice_aging">
+        <div class="icon purple"><i class="bi bi-clipboard-data"></i></div>
+        <h5>发票账龄分析</h5>
+        <p>按公司+账龄段统计未付发票金额分布</p>
+    </div>
     <div class="report-card" data-report="customer_revenue">
         <div class="icon green"><i class="bi bi-trophy"></i></div>
         <h5>客户收入排行</h5>
         <p>各客户收入贡献排行与趋势</p>
+    </div>
+    <div class="report-card" data-report="related_party">
+        <div class="icon purple"><i class="bi bi-people"></i></div>
+        <h5>关联方往来</h5>
+        <p>借出/还款跟踪，谁还欠谁一目了然</p>
     </div>
     <div class="report-card" data-report="supplier_expense">
         <div class="icon purple"><i class="bi bi-truck"></i></div>
@@ -207,6 +222,22 @@
         <div class="icon blue"><i class="bi bi-graph-up-arrow"></i></div>
         <h5>预算执行表</h5>
         <p>各费用类型实际支出与执行率</p>
+    </div>
+    <div class="report-card" data-report="revenue_expense_summary">
+        <div class="icon green"><i class="bi bi-calculator"></i></div>
+        <h5>收支汇总表</h5>
+        <p>按公司汇总收入、支出、工资与其他费用</p>
+    </div>
+    <!-- P3 会计专业化报表 -->
+    <div class="report-card" data-report="income_statement">
+        <div class="icon purple"><i class="bi bi-bar-chart-line"></i></div>
+        <h5>利润表</h5>
+        <p>基于会计科目的层级利润表</p>
+    </div>
+    <div class="report-card" data-report="balance_sheet">
+        <div class="icon purple"><i class="bi bi-pie-chart"></i></div>
+        <h5>资产负债表</h5>
+        <p>资产＝负债＋所有者权益</p>
     </div>
 </div>
 
@@ -306,10 +337,13 @@ async function loadYearOptions() {
                 opt.textContent = y + '年';
                 select.appendChild(opt);
             });
-            // 自动选中第一个非当前年份（有完整数据的最近年份）
+            // 默认选中当前年份
             const currentYear = new Date().getFullYear();
-            const validYear = years.find(y => y !== currentYear);
-            if (validYear) select.value = validYear;
+            if (years.includes(currentYear)) {
+                select.value = currentYear;
+            } else {
+                select.value = years[years.length - 1];
+            }
         }
     } catch (err) {
         console.error('加载年份失败', err);
@@ -348,14 +382,23 @@ async function loadReport() {
         case 'invoice_summary':
             url = `${API_BASE}/reports/invoice_summary/?year=${year}${company ? '&company=' + company : ''}`;
             break;
+        case 'invoice_dimension':
+            url = `${API_BASE}/reports/invoice-dimension/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
         case 'cash_flow':
             url = `${API_BASE}/reports/cash-flow/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
             break;
         case 'ar_ap_aging':
             url = `${API_BASE}/reports/ar-ap-aging/?year=${year}${company ? '&company=' + company : ''}`;
             break;
+        case 'invoice_aging':
+            url = `${API_BASE}/reports/invoice_aging/?${company ? 'company=' + company : ''}`;
+            break;
         case 'customer_revenue':
             url = `${API_BASE}/reports/customer-revenue/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
+            break;
+        case 'related_party':
+            url = `${API_BASE}/reports/related_party_balance/?${company ? 'company=' + company : ''}`;
             break;
         case 'supplier_expense':
             url = `${API_BASE}/reports/supplier-expense/?year=${year}${month ? '&month=' + month : ''}${company ? '&company=' + company : ''}`;
@@ -365,6 +408,15 @@ async function loadReport() {
             break;
         case 'budget_execution':
             url = `${API_BASE}/reports/budget-execution/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        case 'revenue_expense_summary':
+            url = `${API_BASE}/reports/revenue-expense-summary/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        case 'income_statement':
+            url = `${API_BASE}/reports/p3/income-statement/?year=${year}${company ? '&company=' + company : ''}`;
+            break;
+        case 'balance_sheet':
+            url = `${API_BASE}/reports/p3/balance-sheet/?year=${year}${company ? '&company=' + company : ''}`;
             break;
         default:
             content.innerHTML = '<div class="loading"><span>请选择一个报表类型查看</span></div>';
@@ -395,14 +447,23 @@ function renderReport(data) {
         case 'invoice_summary':
             renderInvoiceReport(data, content);
             break;
+        case 'invoice_dimension':
+            renderInvoiceDimensionReport(data, content);
+            break;
         case 'cash_flow':
             renderCashFlowReport(data, content);
             break;
         case 'ar_ap_aging':
             renderARAPAgingReport(data, content);
             break;
+        case 'invoice_aging':
+            renderInvoiceAgingReport(data, content);
+            break;
         case 'customer_revenue':
             renderCustomerRevenueReport(data, content);
+            break;
+        case 'related_party':
+            renderRelatedPartyReport(data, content);
             break;
         case 'supplier_expense':
             renderSupplierExpenseReport(data, content);
@@ -412,6 +473,15 @@ function renderReport(data) {
             break;
         case 'budget_execution':
             renderBudgetExecutionReport(data, content);
+            break;
+        case 'revenue_expense_summary':
+            renderRevenueExpenseSummaryReport(data, content);
+            break;
+        case 'income_statement':
+            renderIncomeStatementReport(data, content);
+            break;
+        case 'balance_sheet':
+            renderBalanceSheetReport(data, content);
             break;
     }
 }
@@ -467,6 +537,48 @@ function renderIncomeExpenseReport(data, container) {
     }
     
     html += '</tbody></table></div>';
+    
+    // 收入分类明细 — 从每个公司的 income_by_category 汇总
+    if (data.results && data.results.length > 0 && data.results.some(r => r.income_by_category && Object.keys(r.income_by_category).length > 0)) {
+        html += `
+        <div class="mt-4">
+            <h6 class="mb-3"><i class="bi bi-pie-chart me-1"></i>收入分类明细</h6>
+            <div class="table-responsive">
+                <table class="table report-table">
+                    <thead>
+                        <tr>
+                            <th>公司</th>
+                            <th>主营业务收入</th>
+                            <th>其他业务收入</th>
+                            <th>营业外收入</th>
+                            <th>未分类</th>
+                            <th>合计</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        const catLabels = {'main_business':'主营业务收入','other_business':'其他业务收入','non_operating':'营业外收入','unclassified':'未分类'};
+        data.results.forEach(r => {
+            const cats = r.income_by_category || {};
+            const mainBiz = cats['main_business'] || 0;
+            const otherBiz = cats['other_business'] || 0;
+            const nonOp = cats['non_operating'] || 0;
+            const uncl = cats['unclassified'] || 0;
+            const total = mainBiz + otherBiz + nonOp + uncl;
+            if (total > 0) {
+                html += `<tr>
+                    <td>${escapeHtml(r.company_name)}</td>
+                    <td>${mainBiz > 0 ? '¥' + formatNumber(mainBiz) : '-'}</td>
+                    <td>${otherBiz > 0 ? '¥' + formatNumber(otherBiz) : '-'}</td>
+                    <td>${nonOp > 0 ? '¥' + formatNumber(nonOp) : '-'}</td>
+                    <td>${uncl > 0 ? '¥' + formatNumber(uncl) : '-'}</td>
+                    <td><strong>¥${formatNumber(total)}</strong></td>
+                </tr>`;
+            }
+        });
+        html += '</tbody></table></div></div>';
+    }
+
     container.innerHTML = html;
 }
 
@@ -477,43 +589,66 @@ function renderWageReport(data, container) {
     
     let html = `
         <h5 class="mb-4"><i class="bi bi-wallet2 me-2"></i>${title}</h5>
+        <p class="text-muted mb-3" style="font-size:0.85rem;">
+            <strong>公式：</strong>实发金额 = 应发合计 − 个人社保 − 个人公积金 − 个税 &nbsp;|&nbsp;
+            <strong>公司总承担 = 应发合计 + 公司社保 + 公司公积金</strong>
+        </p>
         <div class="table-responsive">
             <table class="table report-table">
                 <thead>
                     <tr>
-                        <th>公司</th>
-                        <th>人数</th>
-                        <th>应发合计</th>
-                        <th>社保公积金</th>
-                        <th>个税</th>
-                        <th>实发合计</th>
+                        <th rowspan="2" style="vertical-align:middle;">公司</th>
+                        <th rowspan="2" style="vertical-align:middle;">人数</th>
+                        <th rowspan="2" style="vertical-align:middle;">应发合计</th>
+                        <th colspan="2" class="text-center" style="border-bottom: none;">个人扣款</th>
+                        <th colspan="2" class="text-center" style="border-bottom: none;">公司缴纳</th>
+                        <th rowspan="2" style="vertical-align:middle;">个税</th>
+                        <th rowspan="2" style="vertical-align:middle;">实发金额</th>
+                        <th rowspan="2" style="vertical-align:middle; background:#f0f4ff;">公司总承担</th>
+                    </tr>
+                    <tr>
+                        <th style="font-weight:400;">个人社保</th>
+                        <th style="font-weight:400;">个人公积金</th>
+                        <th style="font-weight:400;">公司社保</th>
+                        <th style="font-weight:400;">公司公积金</th>
                     </tr>
                 </thead>
                 <tbody>
     `;
     
     data.results?.forEach(r => {
+        const personalTotal = (r.personal_si || 0) + (r.personal_hf || 0);
+        const companyTotal = (r.company_si || 0) + (r.company_hf || 0);
         html += `
             <tr>
                 <td><strong>${r.company_name}</strong></td>
                 <td>${r.employee_count} 人</td>
-                <td>¥${formatNumber(r.total_gross)}</td>
-                <td>¥${formatNumber((r.total_social_insurance_emp || 0) + (r.total_housing_fund_emp || 0) + (r.total_social_insurance_com || 0) + (r.total_housing_fund_com || 0))}</td>
+                <td><strong>¥${formatNumber(r.total_gross)}</strong></td>
+                <td>¥${formatNumber(r.personal_si || 0)}</td>
+                <td>¥${formatNumber(r.personal_hf || 0)}</td>
+                <td>¥${formatNumber(r.company_si || 0)}</td>
+                <td>¥${formatNumber(r.company_hf || 0)}</td>
                 <td>¥${formatNumber(r.total_tax)}</td>
                 <td class="text-success"><strong>¥${formatNumber(r.total_net)}</strong></td>
+                <td style="background:#f0f4ff;"><strong>¥${formatNumber(r.company_total_cost)}</strong></td>
             </tr>
         `;
     });
     
     if (data.results?.length > 0) {
+        const s = data.summary || {};
         html += `
             <tr class="summary-row">
                 <td><strong>合计</strong></td>
-                <td>${data.summary?.total_records || 0} 人</td>
-                <td>¥${formatNumber(data.summary?.total_gross || 0)}</td>
-                <td>¥${formatNumber((data.summary?.total_social_insurance_emp || 0) + (data.summary?.total_housing_fund_emp || 0) + (data.summary?.total_social_insurance_com || 0) + (data.summary?.total_housing_fund_com || 0))}</td>
-                <td>¥${formatNumber(data.summary?.total_tax || 0)}</td>
-                <td class="text-success"><strong>¥${formatNumber(data.summary?.total_net || 0)}</strong></td>
+                <td>${s.total_employees || 0} 人</td>
+                <td><strong>¥${formatNumber(s.total_gross || 0)}</strong></td>
+                <td>¥${formatNumber(s.total_personal_si || 0)}</td>
+                <td>¥${formatNumber(s.total_personal_hf || 0)}</td>
+                <td>¥${formatNumber(s.total_company_si || 0)}</td>
+                <td>¥${formatNumber(s.total_company_hf || 0)}</td>
+                <td>¥${formatNumber(s.total_tax || 0)}</td>
+                <td class="text-success"><strong>¥${formatNumber(s.total_net || 0)}</strong></td>
+                <td style="background:#e8eeff;"><strong>¥${formatNumber(s.company_total_cost || 0)}</strong></td>
             </tr>
         `;
     }
@@ -562,12 +697,88 @@ function renderInvoiceReport(data, container) {
     container.innerHTML = html;
 }
 
+function renderInvoiceDimensionReport(data, container) {
+    const title = data.title || '发票多维度汇总';
+    
+    // 汇总行
+    const s = data.summary || {};
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-grid-3x3-gap me-2"></i>${title}</h5>
+        <div class="row mb-3">
+            <div class="col-auto">
+                <div class="card bg-light p-3">
+                    <small class="text-muted">发票总数</small>
+                    <strong class="fs-5">${s.count || 0}</strong>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="card bg-light p-3">
+                    <small class="text-muted">不含税金额</small>
+                    <strong class="fs-5 text-primary">¥${formatNumber(s.total_amount || 0)}</strong>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="card bg-light p-3">
+                    <small class="text-muted">税额</small>
+                    <strong class="fs-5 text-warning">¥${formatNumber(s.total_tax || 0)}</strong>
+                </div>
+            </div>
+            <div class="col-auto">
+                <div class="card bg-light p-3">
+                    <small class="text-muted">价税合计</small>
+                    <strong class="fs-5 text-success">¥${formatNumber(s.net_amount || 0)}</strong>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // 维度1: 按发票类型
+    if (data.by_invoice_type?.length) {
+        html += '<h6 class="mt-4"><i class="bi bi-tag me-1"></i>按发票类型</h6>';
+        html += '<div class="table-responsive"><table class="table table-sm report-table"><thead><tr><th>类型</th><th>数量</th><th>不含税金额</th><th>税额</th><th>价税合计</th></tr></thead><tbody>';
+        data.by_invoice_type.forEach(r => {
+            html += `<tr><td>${r.invoice_type_display || r.invoice_type}</td><td>${r.count}</td><td>¥${formatNumber(r.total_amount)}</td><td>¥${formatNumber(r.total_tax)}</td><td>¥${formatNumber(r.net_amount)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // 维度2: 按税率
+    if (data.by_tax_rate?.length) {
+        html += '<h6 class="mt-4"><i class="bi bi-percent me-1"></i>按税率</h6>';
+        html += '<div class="table-responsive"><table class="table table-sm report-table"><thead><tr><th>税率</th><th>数量</th><th>不含税金额</th><th>税额</th><th>价税合计</th></tr></thead><tbody>';
+        data.by_tax_rate.forEach(r => {
+            const rateLabel = r.tax_rate != null ? parseFloat(r.tax_rate).toFixed(1) + '%' : '（未指定）';
+            html += `<tr><td>${rateLabel}</td><td>${r.count}</td><td>¥${formatNumber(r.total_amount)}</td><td>¥${formatNumber(r.total_tax)}</td><td>¥${formatNumber(r.net_amount)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    // 维度3: 按对方公司 Top 20
+    if (data.by_counterparty?.length) {
+        html += '<h6 class="mt-4"><i class="bi bi-building me-1"></i>按对方公司 Top 20</h6>';
+        html += '<div class="table-responsive"><table class="table table-sm report-table"><thead><tr><th>#</th><th>对方公司</th><th>数量</th><th>不含税金额</th><th>税额</th><th>价税合计</th></tr></thead><tbody>';
+        data.by_counterparty.forEach((r, i) => {
+            html += `<tr><td>${i + 1}</td><td>${r.counterparty || '（未指定）'}</td><td>${r.count}</td><td>¥${formatNumber(r.total_amount)}</td><td>¥${formatNumber(r.total_tax)}</td><td>¥${formatNumber(r.net_amount)}</td></tr>`;
+        });
+        html += '</tbody></table></div>';
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+}
+
 function formatNumber(num) {
     return parseFloat(num || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function exportExcel() {
-    if (!currentReportData || !currentReportData.results) {
+    if (!currentReportData) {
+        showToast('请先加载报表数据', 'warning');
+        return;
+    }
+    
+    const hasResults = currentReportData.results && Array.isArray(currentReportData.results);
+    if (!hasResults && currentReport !== 'invoice_dimension') {
         showToast('请先加载报表数据', 'warning');
         return;
     }
@@ -680,7 +891,7 @@ function fmt(v, decimals=2) {
 
 function renderCashFlowReport(data, container) {
     const rows = data.results || [];
-    let html = `<h5 class="mb-4"><i class="bi bi-water me-2"></i>${escapeHtml(data.title || '现金流量表')}</h5>`;
+    let html = `<h5 class="mb-4"><i class="bi bi-water me-2"></i>${escapeHtml(data.title || '银行余额变动表')}</h5>`;
 
     rows.forEach(r => {
         html += `<div class="card mb-3">
@@ -891,19 +1102,354 @@ function renderBudgetExecutionReport(data, container) {
     rows.forEach(r => {
         html += `<div class="card mb-3"><div class="card-header fw-bold">${escapeHtml(r.company_name)}</div>
 <div class="card-body p-0"><div class="table-responsive"><table class="table report-table mb-0">
-<thead><tr><th>费用类型</th><th>实际支出</th></tr></thead><tbody>`;
+<thead><tr><th>费用类型</th><th>实际支出</th><th>预算金额</th><th>执行率</th></tr></thead><tbody>`;
         (r.by_type || []).forEach(t => {
-            html += `<tr><td>${escapeHtml(t.label)}</td><td class="text-danger fw-bold">¥${fmt(t.actual)}</td></tr>`;
+            let rateHtml = '-';
+            if (t.execution_rate !== null && t.execution_rate !== undefined) {
+                const rate = parseFloat(t.execution_rate);
+                const color = rate > 100 ? 'danger' : (rate > 90 ? 'warning' : 'success');
+                rateHtml = `<span class="badge bg-${color}">${rate.toFixed(1)}%</span>`;
+            }
+            html += `<tr><td>${escapeHtml(t.label)}</td><td class="text-danger fw-bold">¥${fmt(t.actual)}</td><td>¥${fmt(t.budget||0)}</td><td>${rateHtml}</td></tr>`;
         });
-        html += `<tr class="summary-row"><td>合计</td><td class="fw-bold">¥${fmt(r.total_actual)}</td></tr>`;
+        const totalRate = r.total_execution_rate !== null ? 
+            `<span class="badge bg-${r.total_execution_rate > 100 ? 'danger' : (r.total_execution_rate > 90 ? 'warning' : 'success')}">${parseFloat(r.total_execution_rate).toFixed(1)}%</span>` : '-';
+        html += `<tr class="summary-row"><td>合计</td><td class="fw-bold">¥${fmt(r.total_actual)}</td><td class="fw-bold">¥${fmt(r.total_budget||0)}</td><td>${totalRate}</td></tr>`;
         html += `</tbody></table></div></div></div>`;
     });
 
     if (data.summary) {
-        html += `<div class="alert alert-primary">
-<b>实际支出总计: ¥${fmt(data.summary.total_actual)}</b>
+        const s = data.summary;
+        const grandRate = s.total_execution_rate !== null ?
+            `<span class="badge bg-${s.total_execution_rate > 100 ? 'danger' : (s.total_execution_rate > 90 ? 'warning' : 'success')}">${parseFloat(s.total_execution_rate).toFixed(1)}%</span>` : '无预算';
+        html += `<div class="alert alert-primary d-flex justify-content-between">
+<b>实际支出总计: ¥${fmt(s.total_actual)}</b>
+<b>预算总计: ¥${fmt(s.total_budget||0)}</b>
+<b>总执行率: ${grandRate}</b>
 </div>`;
     }
+    container.innerHTML = html;
+}
+
+function renderRevenueExpenseSummaryReport(data, container) {
+    const year = data.results?.[0]?.year || '';
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-calculator me-2"></i>${year ? year + '年 ' : ''}收支汇总表</h5>
+        <div class="table-responsive">
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>收入</th>
+                        <th>支出</th>
+                        <th>工资</th>
+                        <th>其他费用</th>
+                        <th>结余</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    if (data.results && data.results.length > 0) {
+        data.results.forEach(r => {
+            const balance = r.total_income - r.total_expense;
+            const balanceClass = balance >= 0 ? 'balance-positive' : 'balance-negative';
+            html += `<tr>
+                <td>${escapeHtml(r.company_name)}</td>
+                <td>¥${formatNumber(r.total_income)}</td>
+                <td>¥${formatNumber(r.total_expense)}</td>
+                <td>¥${formatNumber(r.wage_expense || 0)}</td>
+                <td>¥${formatNumber(r.other_expense || 0)}</td>
+                <td class="${balanceClass}">¥${formatNumber(balance)}</td>
+            </tr>`;
+        });
+    }
+    if (data.summary) {
+        const totalBalance = (data.summary.total_income || 0) - (data.summary.total_expense || 0);
+        html += `<tr class="summary-row">
+            <td><strong>合计</strong></td>
+            <td><strong>¥${formatNumber(data.summary.total_income)}</strong></td>
+            <td><strong>¥${formatNumber(data.summary.total_expense)}</strong></td>
+            <td><strong>¥${formatNumber(data.summary.total_wage || 0)}</strong></td>
+            <td><strong>¥${formatNumber(data.summary.total_other || 0)}</strong></td>
+            <td class="${totalBalance >= 0 ? 'balance-positive' : 'balance-negative'}"><strong>¥${formatNumber(totalBalance)}</strong></td>
+        </tr>`;
+    }
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
+
+function renderIncomeStatementReport(data, container) {
+    const year = data.params?.year || '';
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-bar-chart-line me-2"></i>${year}年 利润表（会计科目版）</h5>
+        <div class="table-responsive" style="overflow-x: auto;">
+            <table class="table report-table" style="min-width:700px;">
+                <thead>
+                    <tr>
+                        <th style="min-width:80px;max-width:140px;">公司</th>
+                        <th class="text-nowrap">营业收入</th>
+                        <th class="text-nowrap">营业成本</th>
+                        <th class="text-nowrap">税金</th>
+                        <th class="text-nowrap">管理费用</th>
+                        <th class="text-nowrap">营业外收支</th>
+                        <th class="text-nowrap">总支出</th>
+                        <th class="text-nowrap">净利润</th>
+                        <th class="text-nowrap">利润率</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    if (data.details && data.details.length > 0) {
+        data.details.forEach(r => {
+            const profitClass = r.profit >= 0 ? 'balance-positive' : 'balance-negative';
+            const nonOp = r.revenue_non_operating - r.non_operating_expense;
+            html += `<tr>
+                <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escapeHtml(r.company_name)}">${escapeHtml(r.company_name)}</td>
+                <td class="text-nowrap">¥${formatNumber(r.revenue)}</td>
+                <td class="text-nowrap">¥${formatNumber(r.cost)}</td>
+                <td class="text-nowrap">¥${formatNumber(r.tax_surcharge)}</td>
+                <td class="text-nowrap">¥${formatNumber(r.admin_expense)}</td>
+                <td class="text-nowrap">¥${formatNumber(nonOp)}</td>
+                <td class="text-nowrap">¥${formatNumber(r.total_expense)}</td>
+                <td class="${profitClass} text-nowrap">¥${formatNumber(r.profit)}</td>
+                <td class="text-nowrap">${r.profit_margin}%</td>
+            </tr>`;
+        });
+    }
+    if (data.summary) {
+        const s = data.summary;
+        const cls = s.profit >= 0 ? 'balance-positive' : 'balance-negative';
+        const nonOpSum = (s.revenue_non_op || s.revenue_non_operating || 0) - (s.non_op_expense || s.non_operating_expense || 0);
+        html += `<tr class="summary-row">
+            <td><strong>合计</strong></td>
+            <td class="text-nowrap"><strong>¥${formatNumber(s.revenue)}</strong></td>
+            <td class="text-nowrap"><strong>¥${formatNumber(s.cost)}</strong></td>
+            <td class="text-nowrap"><strong>¥${formatNumber(s.tax_surcharge)}</strong></td>
+            <td class="text-nowrap"><strong>¥${formatNumber(s.admin_expense)}</strong></td>
+            <td class="text-nowrap"><strong>¥${formatNumber(nonOpSum)}</strong></td>
+            <td class="text-nowrap"><strong>¥${formatNumber(s.total_expense)}</strong></td>
+            <td class="${cls} text-nowrap"><strong>¥${formatNumber(s.profit)}</strong></td>
+            <td class="text-nowrap"><strong>${s.profit_margin}%</strong></td>
+        </tr>`;
+    }
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
+
+function renderBalanceSheetReport(data, container) {
+    const year = data.params?.year || '';
+    let html = `
+        <h5 class="mb-4"><i class="bi bi-pie-chart me-2"></i>${year}年 资产负债表（会计科目版）</h5>
+        <div class="table-responsive">
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>银行存款</th>
+                        <th>应收账款</th>
+                        <th>资产总计</th>
+                        <th>应付账款</th>
+                        <th>应付薪酬</th>
+                        <th>应交税费</th>
+                        <th>负债总计</th>
+                        <th>实收资本</th>
+                        <th>未分配利润</th>
+                        <th>权益总计</th>
+                        <th>负债+权益</th>
+                        <th>差额</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    if (data.details && data.details.length > 0) {
+        data.details.forEach(r => {
+            const diffClass = Math.abs(r.diff) < 1 ? 'balance-positive' : 'balance-negative';
+            html += `<tr>
+                <td>${escapeHtml(r.company_name)}</td>
+                <td>¥${formatNumber(r.assets.bank_balance)}</td>
+                <td>¥${formatNumber(r.assets.accounts_receivable)}</td>
+                <td><strong>¥${formatNumber(r.total_assets)}</strong></td>
+                <td>¥${formatNumber(r.liabilities.accounts_payable)}</td>
+                <td>¥${formatNumber(r.liabilities.payroll_payable)}</td>
+                <td>¥${formatNumber(r.liabilities.tax_payable)}</td>
+                <td><strong>¥${formatNumber(r.total_liabilities)}</strong></td>
+                <td>¥${formatNumber(r.equity.paid_in_capital)}</td>
+                <td>¥${formatNumber(r.equity.retained_earnings)}</td>
+                <td><strong>¥${formatNumber(r.total_equity)}</strong></td>
+                <td>¥${formatNumber(r.liabilities_plus_equity)}</td>
+                <td class="${diffClass}">¥${formatNumber(r.diff)}</td>
+            </tr>`;
+        });
+    }
+    if (data.summary) {
+        const s = data.summary;
+        const diff = s.total_assets - s.liabilities_plus_equity;
+        html += `<tr class="summary-row">
+            <td><strong>合计</strong></td>
+            <td colspan="2"></td>
+            <td><strong>¥${formatNumber(s.total_assets)}</strong></td>
+            <td colspan="3"></td>
+            <td><strong>¥${formatNumber(s.total_liabilities)}</strong></td>
+            <td colspan="1"></td>
+            <td><strong>¥${formatNumber(s.total_equity)}</strong></td>
+            <td><strong>¥${formatNumber(s.liabilities_plus_equity)}</strong></td>
+            <td class="${Math.abs(diff) < 1 ? 'balance-positive' : 'balance-negative'}"><strong>¥${formatNumber(diff)}</strong></td>
+        </tr>`;
+    }
+    html += `</tbody></table></div>`;
+    container.innerHTML = html;
+}
+
+function renderRelatedPartyReport(data, container) {
+    const rows = data.results || [];
+    let html = `<h5 class="mb-4"><i class="bi bi-people me-2"></i>关联方往来余额表</h5>
+    <div class="table-responsive">
+    <table class="table table-hover table-sm">
+    <thead class="table-light"><tr>
+        <th>公司</th><th>对方名称</th><th>类型</th><th>累计借出</th><th>累计还款</th><th>净余额</th><th>状态</th>
+    </tr></thead><tbody>`;
+    
+    const activeRows = rows.filter(r => r.net_balance !== 0);
+    
+    if (activeRows.length === 0) {
+        html += `<tr><td colspan="7" class="text-center text-muted">暂无未结清往来</td></tr>`;
+    } else {
+        activeRows.forEach(r => {
+            const isActive = r.net_balance > 0;
+            const statusClass = isActive ? 'text-danger' : 'text-success';
+            const statusText = isActive ? '未结清' : '已结清';
+            const amountClass = r.net_balance > 0 ? 'text-danger' : 'text-success';
+            html += `<tr>
+                <td>${escapeHtml(r.company)}</td>
+                <td><strong>${escapeHtml(r.counterparty)}</strong></td>
+                <td>${r.type === 'personal' ? '个人' : '公司'}</td>
+                <td>¥${formatNumber(r.total_lend)}</td>
+                <td>¥${formatNumber(r.total_repay)}</td>
+                <td class="${amountClass}"><strong>¥${formatNumber(Math.abs(r.net_balance))}</strong></td>
+                <td class="${statusClass}">${statusText}</td>
+            </tr>`;
+        });
+    }
+    
+    html += `</tbody></table></div>`;
+    
+    const summary = data.summary || {};
+    html += `<div class="row mt-3">
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <small class="text-muted">应收（对方欠我们）</small>
+                    <h5 class="text-danger">¥${formatNumber(summary.total_receivable || 0)}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <small class="text-muted">应付（我们欠对方）</small>
+                    <h5 class="text-warning">¥${formatNumber(summary.total_payable || 0)}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <small class="text-muted">未结清笔数</small>
+                    <h5>${summary.active_count || 0}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-light">
+                <div class="card-body text-center">
+                    <small class="text-muted">总笔数</small>
+                    <h5 class="text-success">${activeRows.length}</h5>
+                </div>
+            </div>
+        </div>
+    </div>`;
+    
+    html += `<div class="alert alert-info mt-3 mb-0 py-2">
+        <small><i class="bi bi-info-circle me-1"></i>
+        正数余额=对方欠我们钱（应收）；负数余额=我们还欠对方钱（应付）。
+        投资款（实收资本）不在此表展示。</small>
+    </div>`;
+    
+    container.innerHTML = html;
+}
+
+function renderInvoiceAgingReport(data, container) {
+    const results = data.results || [];
+    const dateLabel = data.date || '';
+    const invType = data.type || 'all';
+    
+    let html = `
+        <h5 class="mb-3"><i class="bi bi-clipboard-data me-2"></i>发票账龄分析
+            <small class="text-muted ms-2">${dateLabel} | ${invType === 'income' ? '开出发票' : invType === 'expense' ? '收到发票' : '全部'}</small>
+        </h5>
+        <div class="table-responsive">
+            <table class="table report-table">
+                <thead>
+                    <tr>
+                        <th>公司</th>
+                        <th>未付笔数</th>
+                        <th>未付合计</th>
+                        <th>0-30天</th>
+                        <th>31-60天</th>
+                        <th>61-90天</th>
+                        <th>90+天</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+    
+    let grandTotal = {count: 0, amount: 0, b0: 0, b1: 0, b2: 0, b3: 0};
+    
+    results.forEach(r => {
+        const b = r.buckets || {};
+        const b0 = b['0_30'] || {count:0, amount:0};
+        const b1 = b['31_60'] || {count:0, amount:0};
+        const b2 = b['61_90'] || {count:0, amount:0};
+        const b3 = b['91_plus'] || {count:0, amount:0};
+        
+        grandTotal.count += r.total_count || 0;
+        grandTotal.amount += r.total || 0;
+        grandTotal.b0 += b0.amount;
+        grandTotal.b1 += b1.amount;
+        grandTotal.b2 += b2.amount;
+        grandTotal.b3 += b3.amount;
+        
+        html += `<tr>
+            <td><strong>${escapeHtml(r.company_name)}</strong></td>
+            <td>${r.total_count}</td>
+            <td class="fw-bold text-danger">¥${formatNumber(r.total)}</td>
+            <td>¥${formatNumber(b0.amount)}<br><small class="text-muted">${b0.count}笔</small></td>
+            <td>¥${formatNumber(b1.amount)}<br><small class="text-muted">${b1.count}笔</small></td>
+            <td>¥${formatNumber(b2.amount)}<br><small class="text-muted">${b2.count}笔</small></td>
+            <td>¥${formatNumber(b3.amount)}<br><small class="text-muted">${b3.count}笔</small></td>
+        </tr>`;
+    });
+    
+    if (results.length > 1) {
+        html += `<tr class="summary-row">
+            <td><strong>合计</strong></td>
+            <td>${grandTotal.count}</td>
+            <td class="fw-bold">¥${formatNumber(grandTotal.amount)}</td>
+            <td>¥${formatNumber(grandTotal.b0)}</td>
+            <td>¥${formatNumber(grandTotal.b1)}</td>
+            <td>¥${formatNumber(grandTotal.b2)}</td>
+            <td>¥${formatNumber(grandTotal.b3)}</td>
+        </tr>`;
+    }
+    
+    html += `</tbody></table></div>`;
+    
+    const now = new Date();
+    html += `<div class="alert alert-info mt-2 mb-0 py-2">
+        <small><i class="bi bi-info-circle me-1"></i>
+        基于 <b>${results.length}</b> 家公司的未付款发票（不含已作废），
+        按到期日(due_date)计算账龄。截止日期：${dateLabel}</small>
+    </div>`;
+    
     container.innerHTML = html;
 }
 </script>

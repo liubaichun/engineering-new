@@ -91,7 +91,7 @@
         <p class="text-muted mb-0" style="font-size: 0.9rem;">社保申报记录导入、查询及工资单联动</p>
     </div>
     <div class="d-flex gap-2">
-        <button class="btn btn-success btn-sm" onclick="showImportModal()" data-perm="finance:company:update">
+        <button class="btn btn-success btn-sm" onclick="showImportModal()" data-perm="finance:social_security:import">
             <i class="bi bi-upload me-1"></i>导入社保记录
         </button>
     </div>
@@ -171,6 +171,12 @@
                     支持多Sheet格式，每Sheet对应一个险种，系统自动识别员工和费款所属期。
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">选择公司</label>
+                    <select class="form-select" id="importCompany">
+                        <option value="">自动识别（从Sheet名）</option>
+                    </select>
+                </div>
+                <div class="mb-3">
                     <label class="form-label">选择 Excel 文件</label>
                     <input type="file" class="form-control" id="importFile" accept=".xlsx">
                 </div>
@@ -207,17 +213,29 @@ async function loadCompanies() {
         const resp = await fetch('/api/finance/companies/');
         if (!resp.ok) return;
         const data = await resp.json();
-        const select = document.getElementById('filterCompany');
-        data.results?.forEach ? data.results.forEach(c => {
-            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-        }) : data.forEach ? data.forEach(c => {
-            select.innerHTML += `<option value="${c.id}">${c.name}</option>`;
-        }) : null;
+        const filterSelect = document.getElementById('filterCompany');
+        const importSelect = document.getElementById('importCompany');
+        const items = data.results?.length ? data.results : (data.length ? data : []);
+        items.forEach(c => {
+            filterSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            importSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
     } catch(e) {}
 }
 
 async function loadYearMonths() {
     const select = document.getElementById('filterYearMonth');
+    try {
+        const resp = await fetch('/api/finance/social-records/year_months/');
+        if (resp.ok) {
+            const data = await resp.json();
+            data.forEach(ym => {
+                select.innerHTML += `<option value="${ym}">${ym}</option>`;
+            });
+            return;
+        }
+    } catch(e) {}
+    // 降级：最近12个月
     const now = new Date();
     for (let i = 0; i < 12; i++) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -231,9 +249,9 @@ async function loadRecords() {
     const year_month = document.getElementById('filterYearMonth').value;
     const reconciled = document.getElementById('filterReconciled').value;
     const search = document.getElementById('searchText').value;
-    const offset = (currentPage - 1) * pageSize;
+    const page = currentPage;
 
-    let url = `/api/finance/social-records/?offset=${offset}&limit=${pageSize}&ordering=-year_month`;
+    let url = `/api/finance/social-records/?page=${page}&page_size=${pageSize}&ordering=-year_month`;
     if (company) url += `&company=${company}`;
     if (year_month) url += `&year_month=${year_month}`;
     if (reconciled !== '') url += `&is_reconciled=${reconciled}`;
@@ -331,6 +349,8 @@ async function doImport() {
 
     const formData = new FormData();
     formData.append('file', file);
+    const companyId = document.getElementById('importCompany').value;
+    if (companyId) formData.append('company_id', companyId);
 
     try {
         const resp = await fetch('/api/finance/social-records/import_records/', {
@@ -344,7 +364,19 @@ async function doImport() {
         if (data.success) {
             resultDiv.className = 'alert alert-success';
             resultDiv.innerHTML = `<strong>导入完成：</strong>${data.message}<br>新建：${data.created || 0}，更新：${data.updated || 0}`;
-            setTimeout(() => { importModal.hide(); loadRecords(); }, 1500);
+            if (data.errors && data.errors.length > 0) {
+                resultDiv.innerHTML += '<br><div class="mt-2"><strong>异常记录：</strong><ul class="mb-0" style="font-size:0.85rem;">' +
+                    data.errors.slice(0, 5).map(function(e) { 
+                        return '<li>' + e.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</li>';
+                    }).join('') +
+                    '</ul></div>';
+            }
+            setTimeout(() => { 
+                importModal.hide(); 
+                currentPage = 1;
+                loadRecords(); 
+                loadYearMonths();
+            }, 1500);
         } else {
             resultDiv.className = 'alert alert-danger';
             resultDiv.innerHTML = `<strong>导入失败：</strong>${data.message}`;

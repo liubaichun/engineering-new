@@ -94,7 +94,7 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
         None: 'approval:flow:read',
-        'create': 'approval:flow:read',
+        'create': 'approval:flow:create',
         'submit': 'approval:flow:read',
         'approve': 'approval:flow:approve',
         'reject': 'approval:flow:approve',

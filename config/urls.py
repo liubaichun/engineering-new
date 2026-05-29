@@ -9,7 +9,7 @@ from django.conf import settings
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from apps.core.views import ChangePasswordView
 from apps.core.views_doc import DocPageView
-from apps.finance.views import render_bank_import_page
+from apps.finance.views_common import render_bank_import_page
 
 # 页面视图
 def home_page(request):
@@ -106,12 +106,6 @@ def notifications_page(request):
 
 def user_list_page(request):
     return TemplateView.as_view(template_name='system/user_list.html')(request)
-
-def role_list_page(request):
-    return TemplateView.as_view(template_name='system/role_list.html')(request)
-
-def permission_list_page(request):
-    return TemplateView.as_view(template_name='system/permission_list.html')(request)
 
 def permission_matrix_page(request):
     """权限矩阵页 — 用户 × 公司 × 模块 细粒度权限配置"""
@@ -360,6 +354,7 @@ urlpatterns = [
     path('projects/devices/', project_devices_page, name='project_devices'),
     path('finance/ar-ap/', ar_ap_page, name='ar_ap_list'),
     path('finance/invoices/', invoice_list_page, name='invoice_list'),
+    path('finance/budgets/', lambda request: TemplateView.as_view(template_name='finance/budget_list.html')(request), name='budget_list'),
     path('finance/bank-import/', bank_import_page, name='bank_import'),
     path('stats/', stats_page, name='stats'),
     path('notifications/', notifications_page, name='notifications'),
@@ -409,8 +404,6 @@ urlpatterns = [
     path('api/repair/', include('apps.repair.urls')),
     # 页面路由
     path('system/users/', user_list_page, name='user_list'),
-    path('system/roles/', role_list_page, name='role_list'),
-    path('system/permissions/', permission_list_page, name='permission_list'),
     path('system/permission-matrix/', permission_matrix_page, name='permission_matrix'),
     path('crm/clients/', client_list_page, name='client_list'),
     path('crm/contracts/expiring/', lambda request: render(request, 'contracts/contract_expiring_list.html'), name='contract_expiring'),

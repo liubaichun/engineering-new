@@ -124,6 +124,7 @@ def import_clients(request):
                     contact_email=str(_cell(ws, row_num, cm.get('contact_email')) or '').strip(),
                     address=str(_cell(ws, row_num, cm.get('address')) or '').strip(),
                     remark=str(_cell(ws, row_num, cm.get('remark')) or '').strip(),
+                    company=getattr(request, 'auth_company', None) or request.user.company,
                     created_by=request.user,
                 )
                 result.created_ids.append(obj.id)
@@ -180,6 +181,7 @@ def import_suppliers(request):
                     address=str(_cell(ws, row_num, cm.get('address')) or '').strip(),
                     remark=str(_cell(ws, row_num, cm.get('remark')) or '').strip(),
                     status='active',
+                    company=getattr(request, 'auth_company', None) or request.user.company,
                     created_by=request.user,
                 )
                 result.created_ids.append(obj.id)
@@ -280,6 +282,7 @@ def import_contracts(request):
                     expire_date=expire_date,
                     status=str(_cell(ws, row_num, cm.get('status')) or 'draft').strip(),
                     remark=str(_cell(ws, row_num, cm.get('remark')) or '').strip(),
+                    company=getattr(request, 'auth_company', None) or request.user.company,
                     created_by=request.user,
                 )
                 result.created_ids.append(obj.id)

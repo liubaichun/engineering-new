@@ -129,15 +129,20 @@
         <button class="btn btn-outline-secondary btn-sm" onclick="showExportOptions()">
             <i class="bi bi-download me-1"></i>导出
         </button>
-        <button class="btn btn-outline-dark btn-sm" onclick="showBankExportModal()" data-perm="wage.view">
+        <button class="btn btn-outline-dark btn-sm" onclick="showBankExportModal()" data-perm="finance:wage:read">
             <i class="bi bi-bank me-1"></i>银行代发
         </button>
-        <button class="btn btn-outline-info btn-sm" onclick="showSendWageSlipModal()" data-perm="wage.add">
+        <button class="btn btn-outline-info btn-sm" onclick="showSendWageSlipModal()" data-perm="finance:wage:create">
             <i class="bi bi-envelope me-1"></i>发送工资条邮件
         </button>
-        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('wage')" data-perm="wage.add">
+        <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('wage')" data-perm="finance:wage:create">
             <i class="bi bi-upload me-1"></i>导入
         </button>
+        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changeWagePageSize()">
+            <option value="20">20条/页</option>
+            <option value="50">50条/页</option>
+            <option value="100">100条/页</option>
+        </select>
         <button class="btn btn-primary btn-sm" onclick="showAddWageModal()">
             <i class="bi bi-plus-lg me-1"></i>录入工资
         </button>
@@ -287,7 +292,14 @@ function collectWageData() {
 }
 
 var currentPage = 1;
-var pageSize = 20;
+let pageSize = 20;
+
+function changeWagePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadWages(1);
+}
+
 var companies = [];
 var employees = [];
 var socialConfigs = {};  // company_id -> config

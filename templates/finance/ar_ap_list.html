@@ -175,6 +175,14 @@
     </div>
 </div>
 
+<div class="d-flex gap-2 mb-3">
+    <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+        <option value="20">20条/页</option>
+        <option value="50">50条/页</option>
+        <option value="100">100条/页</option>
+    </select>
+</div>
+
 <!-- 标签页 -->
 <ul class="nav nav-tabs mb-3" id="arapTabs">
     <li class="nav-item">
@@ -281,6 +289,13 @@
 {{ block.super }}
 <script>
 let currentTab = 'ar';
+let pageSize = 20;
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    if (currentTab === 'ar') loadARList(1);
+    else loadAPList(1);
+}
 
 function formatCurrency(val) {
     if (val === null || val === undefined || val === '') return '¥0.00';
@@ -356,7 +371,7 @@ function loadARList(page) {
     const company = getCompanyId();
     const counterparty = document.getElementById('arCounterparty') ? document.getElementById('arCounterparty').value : '';
     const status = document.getElementById('arStatusFilter') ? document.getElementById('arStatusFilter').value : '';
-    let params = new URLSearchParams({ page });
+    let params = new URLSearchParams({ page, page_size: pageSize });
     if (company) params.set('company', company);
     if (counterparty) params.set('counterparty', counterparty);
     if (status) params.set('status', status);
@@ -377,7 +392,7 @@ function loadAPList(page) {
     const company = getCompanyId();
     const counterparty = document.getElementById('apCounterparty') ? document.getElementById('apCounterparty').value : '';
     const status = document.getElementById('apStatusFilter') ? document.getElementById('apStatusFilter').value : '';
-    let params = new URLSearchParams({ page });
+    let params = new URLSearchParams({ page, page_size: pageSize });
     if (company) params.set('company', company);
     if (counterparty) params.set('counterparty', counterparty);
     if (status) params.set('status', status);

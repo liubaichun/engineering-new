@@ -277,7 +277,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             safeJson(await fetchWithTimeout('/api/finance/companies/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/tasks/projects/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/tasks/tasks/', {credentials: 'include'})),
-            safeJson(await fetchWithTimeout('/api/finance/wages/?year=' + new Date().getFullYear(), {credentials: 'include'})),
+            safeJson(await fetchWithTimeout('/api/finance/wages/?year=' + new Date().getFullYear() + '&page_size=100', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/finance/incomes/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/finance/expenses/', {credentials: 'include'})),
             safeJson(await fetchWithTimeout('/api/crm/contracts/', {credentials: 'include'})),

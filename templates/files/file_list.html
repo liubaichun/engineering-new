@@ -32,7 +32,7 @@
         <select class="form-select form-select-sm" id="categoryFilter" onchange="loadFiles()" style="width: auto;">
             <option value="">全部分类</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="showUploadModal()" data-perm="file.add">
+        <button class="btn btn-primary btn-sm" onclick="showUploadModal()" data-perm="files:file:create">
             <i class="bi bi-upload me-1"></i>上传文件
         </button>
     </div>
@@ -491,7 +491,7 @@ function renderFiles() {
         html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="previewFile(' + f.id + ')"><i class="bi bi-eye"></i></button>';
         html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="downloadFile(' + f.id + ')"><i class="bi bi-download"></i></button>';
         if (f.version_count > 1) html += '<button class="btn btn-sm btn-outline-info me-1" onclick="showFileVersions(' + f.id + ')"><i class="bi bi-clock-history"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteFile(' + f.id + ')" data-perm="file.delete"><i class="bi bi-trash"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteFile(' + f.id + ')" data-perm="files:file:delete"><i class="bi bi-trash"></i></button>';
         html += '</td></tr>';
     });
 

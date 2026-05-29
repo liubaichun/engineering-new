@@ -161,53 +161,6 @@ class CompanyRolePermission(models.Model):
         return f"{self.company_role.name} -> {self.permission.code}"
 
 
-class Role(models.Model):
-    """系统级角色（废弃，仅存储层保留，无业务逻辑）"""
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=100, unique=True, verbose_name='角色名称')
-    code = models.CharField(max_length=50, unique=True, verbose_name='角色代码')
-    description = models.TextField(blank=True, verbose_name='描述')
-    is_active = models.BooleanField(default=True, verbose_name='是否激活')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        db_table = 'core_role'
-        verbose_name = '角色'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return self.name
-
-
-class RolePermission(models.Model):
-    """角色权限关联（废弃，仅存储层保留）"""
-    id = models.AutoField(primary_key=True)
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    permission = models.ForeignKey('Permission', on_delete=models.CASCADE)
-    granted_by = models.ForeignKey('User', on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    granted_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'core_role_permission'
-        unique_together = [['role', 'permission']]
-        verbose_name = '角色权限'
-        verbose_name_plural = verbose_name
-
-
-class UserRole(models.Model):
-    """用户系统角色关联（废弃，仅存储层保留）"""
-    id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_roles')
-    role = models.ForeignKey(Role, on_delete=models.CASCADE)
-    assigned_at = models.DateTimeField(auto_now_add=True)
-    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='+')
-
-    class Meta:
-        db_table = 'core_user_role'
-        unique_together = [['user', 'role']]
-
-
 class Notification(models.Model):
     LEVEL_CHOICES = [
         ('info', '通知'), ('warning', '预警'), ('error', '错误'), ('success', '成功'),
@@ -217,6 +170,7 @@ class Notification(models.Model):
         ('approval', '待审批'), ('approval_pending', '审批待处理'),
         ('contract_expiring', '合同到期'), ('large_expense', '大额支出'),
         ('project_overdue', '项目超时'), ('wage_pending', '工资待发放'),
+        ('invoice_expiry', '发票到期'),
     ]
     id = models.AutoField(primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notifications')
@@ -482,6 +436,7 @@ class ModuleAction(models.Model):
     action_group = models.CharField(max_length=20, default='basic', verbose_name='动作分组')
     # 关联到系统权限码（桥接到 RoleRequired 的权限码体系）
     perm_codes  = models.JSONField(default=list, verbose_name='对应权限码列表')
+    bit_position = models.IntegerField(default=0, verbose_name='位掩码位置')
 
     ACTION_GROUP_CHOICES = [
         ('basic',      '基础'),       # 查看/新建
@@ -541,6 +496,105 @@ class UserCompanyPermission(models.Model):
 
 
 # ─────────────────────────────────────────────────────────────
+# ACTION_BITS（位掩码定义）
+# ─────────────────────────────────────────────────────────────
+
+# 标准 CRUD 动作（bit 0-3）
+ACTION_BITS = {
+    'read':   0b0000000000000001,
+    'create': 0b0000000000000010,
+    'update': 0b0000000000000100,
+    'delete': 0b0000000000001000,
+    'approve': 0b0000000000010000,   # 审批
+    'submit': 0b0000000000100000,    # 提交（工资审批流）
+    'pay':    0b0000000001000000,    # 发放（工资）
+    'export': 0b0000000010000000,    # 导出
+    'import': 0b0000000100000000,    # 导入
+    'use':    0b0000001000000000,    # 使用（设备）
+    'return': 0b0000010000000000,    # 归还（设备）
+    'repair': 0b0000100000000000,    # 维修（设备）
+    'manage': 0b0001000000000000,    # 管理（角色/设置/配置）
+    'reject': 0b0010000000000000,    # 驳回（采购审批）
+    '_RESERVED': 0b0100000000000000,  # 预留
+}
+
+ACTION_LABELS = {
+    'read': '查看', 'create': '新建', 'update': '编辑', 'delete': '删除',
+    'approve': '审批', 'submit': '提交', 'pay': '发放',
+    'export': '导出', 'import': '导入',
+    'use': '使用', 'return': '归还', 'repair': '维修',
+    'manage': '管理', 'reject': '驳回',
+}
+
+# 标准 CRUD 动作列表（作为权限矩阵 UI 的默认列）
+STANDARD_ACTIONS = ['read', 'create', 'update', 'delete', 'approve']
+
+
+class UserModulePermission(models.Model):
+    """
+    用户 × 公司 × 模块 权限记录（位掩码存储）
+
+    与旧 UserCompanyPermission 的区别：
+      - 一条记录 = 一个用户在一个公司对一个模块的所有动作权限
+      - 使用 granted_bits 位掩码存储所有动作（取代 1 行/动作）
+      - 记录量：用户数 × 公司数 × 模块数（~300 条 vs ~16,000 条）
+    """
+    user         = models.ForeignKey(User, on_delete=models.CASCADE, related_name='module_permissions')
+    company      = models.ForeignKey('finance.Company', on_delete=models.CASCADE, related_name='module_permissions')
+    module       = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='user_permissions')
+    granted_bits = models.BigIntegerField(default=0, verbose_name='授权位掩码')
+
+    class Meta:
+        db_table = 'core_user_module_permission'
+        unique_together = ('user', 'company', 'module')
+        verbose_name = '用户模块权限'
+        verbose_name_plural = verbose_name
+
+    def __str__(self):
+        return f"{self.user.username}@{self.company.name}/{self.module.name} bits={self.granted_bits:b}"
+
+    def has_action(self, action_name):
+        """检查是否拥有某动作的权限"""
+        bit = ACTION_BITS.get(action_name)
+        return bool(self.granted_bits & bit) if bit else False
+
+    def grant(self, action_name):
+        """授予某动作权限"""
+        bit = ACTION_BITS.get(action_name)
+        if bit:
+            self.granted_bits |= bit
+            self.save(update_fields=['granted_bits'])
+
+    def revoke(self, action_name):
+        """撤销某动作权限"""
+        bit = ACTION_BITS.get(action_name)
+        if bit:
+            self.granted_bits &= ~bit
+            self.save(update_fields=['granted_bits'])
+
+    @property
+    def granted_actions(self):
+        """返回已授予的动作名列表"""
+        return [name for name, bit in ACTION_BITS.items()
+                if name != '_RESERVED' and (self.granted_bits & bit)]
+
+    @property
+    def is_full(self):
+        """是否所有可用动作都已授权（用于侧边栏 ☑ 三态指示）"""
+        return self.granted_bits == self._available_bits()
+
+    def _available_bits(self):
+        """该模块所有可用动作的位掩码"""
+        from apps.core.models import ModuleAction
+        bits = 0
+        for act in ModuleAction.objects.filter(module=self.module):
+            bit = ACTION_BITS.get(act.name)
+            if bit:
+                bits |= bit
+        return bits
+
+
+# ─────────────────────────────────────────────────────────────
 # 注册表（内存缓存，App.ready() 时写入）
 # ─────────────────────────────────────────────────────────────
 
@@ -571,13 +625,16 @@ def register_module(name, label, icon='', category='', description='',
 
 def sync_modules_to_db():
     """
-    将内存中的模块注册表写入 DB。只在 post_migrate 信号中调用，
-    此时表已存在。
+    将内存中的模块注册表写入 DB，并清理已废弃的旧模块。
+    只在 post_migrate 信号或启动时调用，此时表已存在。
     """
     from django.db import transaction
     from apps.core.models import Module, ModuleAction
 
+    registered_names = set()
+
     for name, data in _MODULE_REGISTRY.items():
+        registered_names.add(name)
         defaults = {
             'label': data['label'],
             'icon': data.get('icon', ''),
@@ -588,6 +645,8 @@ def sync_modules_to_db():
         module_obj, _ = Module.objects.update_or_create(name=name, defaults=defaults)
 
         if data.get('actions'):
+            # 收集当前注册的动作名
+            current_action_names = {act['name'] for act in data['actions']}
             with transaction.atomic():
                 for act in data['actions']:
                     act_name = act['name']
@@ -598,5 +657,20 @@ def sync_modules_to_db():
                             'label': act.get('label', act_name),
                             'sort_order': act.get('sort_order', 0),
                             'perm_codes': perm_codes,
+                            'bit_position': act.get('bit_position', 0),
                         }
                     )
+                # 清理：删除该模块中已废弃的动作
+                stale_actions = module_obj.actions.exclude(name__in=current_action_names)
+                stale_action_count = stale_actions.count()
+                if stale_action_count:
+                    stale_actions.delete()
+
+    # ── 清理：删除已废弃的旧模块 ──────────────────────────────
+    # 凡是当前 _MODULE_REGISTRY 中不存在的模块，全部删除（连带 ModuleAction）
+    if registered_names:
+        stale_modules = Module.objects.exclude(name__in=registered_names)
+        stale_count = stale_modules.count()
+        if stale_count:
+            stale_modules.delete()
+    

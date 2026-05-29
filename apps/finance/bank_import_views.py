@@ -653,6 +653,16 @@ def list_banks(request):
 @require_perms('bank:import')
 def preview_bank_statement(request):
     """预览银行流水（不写库），返回11个核心字段。"""
+    # 公司权限校验
+    company_id = request.data.get('company_id')
+    if company_id:
+        from apps.core.models import UserCompanyRole
+        has_company = UserCompanyRole.objects.filter(
+            user=request.user, company_id=company_id
+        ).exists()
+        if not has_company and not request.user.is_superuser:
+            return Response({'error': '无权操作该公司'}, status=403)
+
     import base64
     import os
 
@@ -900,6 +910,16 @@ def confirm_bank_import(request):
     try:
         body = request.data
         company_id = body.get('company_id')
+
+        # 公司权限校验
+        if company_id:
+            from apps.core.models import UserCompanyRole
+            has_company = UserCompanyRole.objects.filter(
+                user=request.user, company_id=company_id
+            ).exists()
+            if not has_company and not request.user.is_superuser:
+                return Response({'error': '无权操作该公司'}, status=403)
+
         rows       = body.get('transactions', []) or body.get('rows', [])
     
         if not rows:

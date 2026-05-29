@@ -498,18 +498,26 @@
         </div>
 
         <!-- 分组2：项目 -->
+        {% if user_has_project_perm or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">项目</div>
+            {% if 'project:project:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/projects/" class="nav-link {% if '/projects' in request.path and '/gantt' not in request.path %}active{% endif %}">
                 <i class="bi bi-briefcase"></i><span>项目管理</span>
             </a>
+            {% endif %}
+            {% if 'project:gantt:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/projects/gantt/" class="nav-link {% if '/projects/gantt' in request.path %}active{% endif %}">
                 <i class="bi bi-bar-chart-fill"></i><span>甘特图</span>
             </a>
+            {% endif %}
+            {% if 'project:taskboard:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/tasks/board/" class="nav-link {% if '/tasks' in request.path %}active{% endif %}">
                 <i class="bi bi-kanban"></i><span>任务看板</span>
             </a>
+            {% endif %}
         </div>
+        {% endif %}
 
         <!-- 分组3：审批 -->
         {% if user_has_approval_perm or request.user.is_superuser %}
@@ -530,12 +538,12 @@
                 <i class="bi bi-wallet2"></i><span>工资管理</span>
             </a>
             {% endif %}
-            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
+            {% if 'finance:employee:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/employees/" class="nav-link {% if '/finance/employees' in request.path %}active{% endif %}">
                 <i class="bi bi-person-badge"></i><span>员工管理</span>
             </a>
             {% endif %}
-            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
+            {% if 'finance:social_security:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/social-records/" class="nav-link {% if '/finance/social-records' in request.path %}active{% endif %}">
                 <i class="bi bi-shield-check"></i><span>社保管理</span>
             </a>
@@ -555,7 +563,12 @@
                 <i class="bi bi-bar-chart"></i><span>财务报表</span>
             </a>
             {% endif %}
-            {% if 'bank:statement:import' in user_menu_codes or request.user.is_superuser %}
+            {% if request.user.is_superuser or 'finance:report:read' in user_menu_codes %}
+            <a href="/finance/budgets/" class="nav-link {% if '/finance/budgets' in request.path %}active{% endif %}">
+                <i class="bi bi-graph-up-arrow"></i><span>预算管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:bank:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/finance/bank-import/" class="nav-link {% if '/finance/bank-import' in request.path %}active{% endif %}">
                 <i class="bi bi-bank"></i><span>银行流水</span>
             </a>
@@ -563,82 +576,62 @@
         </div>
         {% endif %}
 
-        <!-- 分组5：CRM（Tab切换：客户|合同|供应商|商机） -->
-        {% if 'crm:customer:read' in user_menu_codes or 'crm:contract:read' in user_menu_codes or 'crm:opportunity:read' in user_menu_codes or request.user.is_superuser %}
-        <div class="sidebar-section">
-            <div class="sidebar-section-title">CRM</div>
+        <!-- 客户管理（Tab切换：客户|合同|供应商|商机） -->
+        {% if user_has_crm_perm or request.user.is_superuser %}
+            {% if 'crm:customer:read' in user_menu_codes or 'crm:contract:read' in user_menu_codes or 'crm:supplier:read' in user_menu_codes or 'crm:opportunity:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/crm/" class="nav-link {% if '/crm' in request.path %}active{% endif %}">
-                <i class="bi bi-people"></i><span>CRM管理</span>
+                <i class="bi bi-people"></i><span>客户管理</span>
             </a>
-        </div>
+            {% endif %}
         {% endif %}
 
-        <!-- 分组6：采购（Tab切换：申请|订单|入库） -->
-        {% if request.user.is_superuser %}
-        <div class="sidebar-section">
-            <div class="sidebar-section-title">采购</div>
+        <!-- 采购管理（Tab切换：申请|订单|入库） -->
+        {% if user_has_purchasing_perm or request.user.is_superuser %}
+            {% if 'purchasing:purchase_request:read' in user_menu_codes or 'purchasing:purchase_order:read' in user_menu_codes or 'purchasing:purchase_receive:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/purchasing/" class="nav-link {% if '/purchasing' in request.path %}active{% endif %}">
                 <i class="bi bi-cart"></i><span>采购管理</span>
             </a>
-        </div>
+            {% endif %}
         {% endif %}
 
-        <!-- 分组7：运营（物料|设备|报修 Tab） -->
-        {% if 'material:stock:read' in user_menu_codes or 'equipment:equipment:read' in user_menu_codes or request.user.is_superuser %}
-        <div class="sidebar-section">
-            <div class="sidebar-section-title">运营</div>
+        <!-- 运营管理（物料|设备|报修 Tab） -->
+        {% if user_has_operations_perm or request.user.is_superuser %}
+            {% if 'operations:material:read' in user_menu_codes or 'operations:equipment:read' in user_menu_codes or 'operations:repair:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or '/equipment' in request.path and '/repair' not in request.path %}active{% endif %}">
                 <i class="bi bi-box-seam"></i><span>运营管理</span>
             </a>
-        </div>
+            {% endif %}
         {% endif %}
 
-        <!-- 分组7b：文件管理（独立） -->
-        {% if 'files:file:read' in user_menu_codes or request.user.is_superuser %}
-        <div class="sidebar-section">
-            <div class="sidebar-section-title">文件</div>
+        <!-- 文件管理（独立） -->
+        {% if user_has_files_perm or request.user.is_superuser %}
+            {% if 'files:file:read' in user_menu_codes or request.user.is_superuser %}
             <a href="/files/" class="nav-link {% if '/files' in request.path %}active{% endif %}">
                 <i class="bi bi-folder"></i><span>文件管理</span>
             </a>
-        </div>
+            {% endif %}
         {% endif %}
 
-        <!-- 分组8：系统（公司|用户|角色|权限|审计|API|参数|渠道|预警） -->
-        {% if 'system:user:read' in user_menu_codes or 'system:role:manage' in user_menu_codes or 'system:setting:read' in user_menu_codes or 'system:log:read' in user_menu_codes or request.user.is_superuser %}
+        <!-- 分组8：系统（统一入口：公司|用户|角色|权限|审计|API|参数|通知） -->
+        {% if user_has_system_perm or request.user.is_superuser %}
         <div class="sidebar-section">
             <div class="sidebar-section-title">系统</div>
-            <a href="/system/" class="nav-link {% if '/system' in request.path and '/roles' not in request.path and '/permissions' not in request.path %}active{% endif %}">
+            {% if 'system:company:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/system/" class="nav-link {% if '/system' in request.path %}active{% endif %}">
                 <i class="bi bi-gear"></i><span>系统管理</span>
             </a>
-            <a href="/system/roles/" class="nav-link {% if '/system/roles' in request.path %}active{% endif %}">
-                <i class="bi bi-person-badge"></i><span>角色管理</span>
-            </a>
-            
-            <a href="/system/permission-matrix/" class="nav-link {% if '/permission-matrix' in request.path %}active{% endif %}">
-                <i class="bi bi-grid-3x3"></i><span>权限矩阵</span>
-            </a>
-
-            <a href="/system/notification-channels/" class="nav-link {% if '/system/notification-channels' in request.path %}active{% endif %}">
-                <i class="bi bi-broadcast"></i><span>通知渠道</span>
-            </a>
-            <a href="/system/notification-logs/" class="nav-link {% if '/system/notification-logs' in request.path %}active{% endif %}">
-                <i class="bi bi-journal-text"></i><span>通知日志</span>
-            </a>
+            {% endif %}
         </div>
         {% endif %}
 
-        <!-- 分组9：数据统计（仅超级用户可见） -->
-        {% if request.user.is_superuser %}
+        <!-- 数据 -->
         <div class="sidebar-section">
             <div class="sidebar-section-title">数据</div>
+            {% if request.user.is_superuser %}
             <a href="/stats/" class="nav-link {% if '/stats' in request.path %}active{% endif %}">
                 <i class="bi bi-pie-chart"></i><span>数据统计</span>
             </a>
-        </div>
-        {% endif %}
-
-        <!-- 分组10：通知（所有登录用户可见） -->
-        <div class="sidebar-section">
+            {% endif %}
             <a href="/notifications/" class="nav-link {% if '/notifications' in request.path %}active{% endif %}">
                 <i class="bi bi-inbox"></i><span>我的通知</span>
             </a>
@@ -814,6 +807,15 @@ function hasPermission(permCode) {
     if (!permCode) return true;
     if (USER_PERMS.is_superuser) return true;
     var codes = USER_PERMS.codes || [];
+    // 超级用户标记 '*' 放行所有
+    if (codes.length === 1 && codes[0] === '*') return true;
+    // 兼容 .add↔.create、.remove↔.delete、.change↔.update 写法
+    if (!codes.includes(permCode)) {
+        var altCode = permCode.replace('.add', '.create').replace('.create', '.add')
+                               .replace('.remove', '.delete').replace('.delete', '.remove')
+                               .replace('.change', '.update').replace('.update', '.change');
+        if (altCode !== permCode) return codes.includes(altCode);
+    }
     return codes.includes(permCode);
 }
 

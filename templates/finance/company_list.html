@@ -90,10 +90,16 @@
             <option value="inactive">停用</option>
             <option value="pending">待审核</option>
         </select>
+        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+            <option value="10">10条/页</option>
+            <option value="20">20条/页</option>
+            <option value="50">50条/页</option>
+            <option value="100">100条/页</option>
+        </select>
         <button class="btn btn-outline-secondary btn-sm" onclick="exportCompanies()">
             <i class="bi bi-download me-1"></i>导出
         </button>
-        <button class="btn btn-primary btn-sm" onclick="showAddCompanyModal()" data-perm="company.add">
+        <button class="btn btn-primary btn-sm" onclick="showAddCompanyModal()" data-perm="system:company:create">
             <i class="bi bi-plus-lg me-1"></i>新建公司
         </button>
     </div>
@@ -240,7 +246,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="company.delete">删除</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="system:company:delete">删除</button>
             </div>
         </div>
     </div>
@@ -252,7 +258,7 @@
 var companyModal;
 var deleteModal;
 var currentPage = 1;
-var pageSize = 10;
+let pageSize = 10;
 var deleteTargetId = null;
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -335,7 +341,7 @@ function renderCompanies(data) {
         html += '<td>' + createdTime + '</td>';
         html += '<td>';
         html += '<button class="btn btn-sm btn-outline-secondary me-1" onclick="editCompany(' + company.id + ')" title="编辑"><i class="bi bi-pencil"></i></button>';
-        html += '<button class="btn btn-sm btn-outline-secondary" onclick="deleteCompany(' + company.id + ', \'' + (company.name || '') + '\')" title="删除" data-perm="company.delete"><i class="bi bi-trash"></i></button>';
+        html += '<button class="btn btn-sm btn-outline-secondary" onclick="deleteCompany(' + company.id + ', \'' + (company.name || '') + '\')" title="删除" data-perm="system:company:delete"><i class="bi bi-trash"></i></button>';
         html += '</td>';
         html += '</tr>';
     });
@@ -411,6 +417,12 @@ function goToPage(page) {
     loadCompanies();
 }
 
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadCompanies();
+}
+
 function showAddCompanyModal() {
     document.getElementById('companyModalTitle').textContent = '新建公司';
     document.getElementById('companyId').value = '';
@@ -447,7 +459,7 @@ async function editCompany(id) {
         document.getElementById('companyStatus').value = company.status || 'active';
         document.getElementById('contactPerson').value = company.contact_person || '';
         document.getElementById('contactPhone').value = company.contact_phone || '';
-        document.getElementById('companyAddress').value = company.address || '';
+        document.getElementById('companyAddress').value = company.createress || '';
         document.getElementById('companyRemark').value = company.remark || '';
         
         companyModal.show();

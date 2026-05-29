@@ -2,6 +2,7 @@
 飞书渠道插件
 支持：二维码扫码绑定 + 发送通知
 """
+import json
 import requests
 from django.http import HttpRequest
 from apps.channels.base import BaseChannelPlugin
@@ -36,7 +37,7 @@ class FeishuPlugin(BaseChannelPlugin):
     
     def _get_tenant_access_token(self) -> tuple[bool, str]:
         """获取tenant_access_token"""
-        url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token'
+        url = 'https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal'
         data = {
             'app_id': self.app_id,
             'app_secret': self.app_secret,
@@ -116,7 +117,8 @@ class FeishuPlugin(BaseChannelPlugin):
     def send_message(self, open_id: str, title: str, content: str, extra: dict = None) -> tuple[bool, str]:
         """发送飞书消息
 
-        - open_id 有值 → IM 应用消息（需要用户已绑定）
+        - open_id 以 oc_ 开头 → 群聊消息（receive_id_type=chat_id）
+        - open_id 以 ou_ 开头 → 个人消息（receive_id_type=open_id）
         - open_id 为空 + webhook_url 有值 → Webhook 群播（兼容旧系统）
         """
         # 群播模式：open_id 为空且配置了 webhook_url
@@ -130,7 +132,13 @@ class FeishuPlugin(BaseChannelPlugin):
         if not self._token:
             self._get_tenant_access_token()
 
-        url = 'https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=open_id'
+        # 自动判断 ID 类型
+        if open_id.startswith('oc_'):
+            receive_id_type = 'chat_id'
+        else:
+            receive_id_type = 'open_id'
+
+        url = f'https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type={receive_id_type}'
         headers = {
             'Authorization': f'Bearer {self._token}',
             'Content-Type': 'application/json',
@@ -138,7 +146,7 @@ class FeishuPlugin(BaseChannelPlugin):
 
         msg_content = {
             'msg_type': 'interactive',
-            'content': {
+            'content': json.dumps({
                 'card': {
                     'header': {
                         'title': {'tag': 'plain_text', 'content': title},
@@ -152,7 +160,7 @@ class FeishuPlugin(BaseChannelPlugin):
                         ]},
                     ],
                 }
-            }
+            }, ensure_ascii=False),
         }
 
         try:

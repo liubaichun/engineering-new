@@ -181,17 +181,34 @@ def import_social_records(file_obj, company_id=None):
                 if comp:
                     actual_company_id = comp.id
         if not actual_company_id:
-            # 取系统第一个公司作为默认值（避免 company_id 为 None）
-            first = Company.objects.first()
-            if first:
-                actual_company_id = first.id
+            return {
+                'success': False,
+                'message': f'未能从文件Sheet名「{sheet_name}」识别到公司，请手动选择公司后重试'
+            }
 
     created = 0
     updated = 0
     errors = []
+    skipped_dirty = []  # 跳过的脏数据（仅工伤无其他险）
 
     for rec in records_to_save:
         if not rec['id_card'] or len(rec['id_card']) < 15 or not rec['year_month']:
+            continue
+
+        # --- 脏数据检测：仅工伤>0且其他险种全部为0 → 跳过（非在职人员） ---
+        other_total = (
+            float(rec['pension_company_amount'] or 0) +
+            float(rec['pension_employee_amount'] or 0) +
+            float(rec['medical_company_amount'] or 0) +
+            float(rec['medical_employee_amount'] or 0) +
+            float(rec['maternity_company_amount'] or 0) +
+            float(rec['unemployment_company_amount'] or 0) +
+            float(rec['unemployment_employee_amount'] or 0) +
+            float(rec['local_pension_company_amount'] or 0)
+        )
+        injury_only = float(rec['injury_company_amount'] or 0)
+        if injury_only > 0 and other_total == 0:
+            skipped_dirty.append(f"{rec['name']}({rec['id_card']}): 仅工伤¥{injury_only}")
             continue
 
         # 查找员工
@@ -204,28 +221,33 @@ def import_social_records(file_obj, company_id=None):
             housing_fund_employee = 0.0
             housing_fund_company = 0.0
             if employee and employee.has_housing_fund:
-                # 优先从 WageRecord 读当月公积金扣款，没有则用员工档案的固定扣款
-                from apps.finance.models import WageRecord
-                wr = WageRecord.objects.filter(
-                    employee=employee,
-                    year=rec['year_month'][:4],
-                    month=rec['year_month'][5:7]
-                ).first()
-                if wr and wr.housing_fund:
-                    housing_fund_employee = float(wr.housing_fund)
-                elif employee.housing_fund_deduction:
-                    housing_fund_employee = float(employee.housing_fund_deduction)
-                # 公司公积金 = 个人公积金 × 公司费率/个人费率（通常1:1）
-                if employee.company:
-                    sc = getattr(employee.company, 'social_config', None)
-                    if sc and sc.housing_fund_rate_employee and float(sc.housing_fund_rate_employee) > 0:
-                        housing_fund_company = housing_fund_employee * (
-                            float(sc.housing_fund_rate_company) / float(sc.housing_fund_rate_employee)
-                        )
-                    else:
-                        housing_fund_company = housing_fund_employee  # 默认1:1
+                # 优先级：新字段 housing_fund_employee > WageRecord > 旧字段 housing_fund_deduction
+                if employee.housing_fund_employee and float(employee.housing_fund_employee) > 0:
+                    housing_fund_employee = float(employee.housing_fund_employee)
+                    housing_fund_company = float(employee.housing_fund_company or 0)
+                else:
+                    from apps.finance.models import WageRecord
+                    wr = WageRecord.objects.filter(
+                        employee=employee,
+                        year=rec['year_month'][:4],
+                        month=rec['year_month'][5:7]
+                    ).first()
+                    if wr and wr.housing_fund:
+                        housing_fund_employee = float(wr.housing_fund)
+                    elif employee.housing_fund_deduction:
+                        housing_fund_employee = float(employee.housing_fund_deduction)
+                    # 公司公积金 = 个人公积金 × 公司费率/个人费率（通常1:1）
+                    if employee.company:
+                        sc = getattr(employee.company, 'social_config', None)
+                        if sc and sc.housing_fund_rate_employee and float(sc.housing_fund_rate_employee) > 0:
+                            housing_fund_company = housing_fund_employee * (
+                                float(sc.housing_fund_rate_company) / float(sc.housing_fund_rate_employee)
+                            )
+                        else:
+                            housing_fund_company = housing_fund_employee  # 默认1:1
 
             float_vals = {
+                'name': rec['name'],
                 'pension_company':     float(rec['pension_company_amount'] or 0),
                 'pension_employee':     float(rec['pension_employee_amount'] or 0),
                 'medical_company':      float(rec['medical_company_amount'] or 0),
@@ -239,12 +261,24 @@ def import_social_records(file_obj, company_id=None):
                 'housing_fund_company': housing_fund_company,
                 'is_reconciled': True,
             }
-            obj, is_new = SocialRecord.objects.update_or_create(
-                company_id=actual_company_id,
-                id_card=rec['id_card'],
-                year_month=rec['year_month'],
-                defaults={**float_vals, 'employee': employee, 'id_card': rec['id_card']}
-            )
+            # 去重查找：匹配唯一约束 (employee, year_month)
+            # 如果未匹配到员工，则降级为 (company_id, id_card, year_month) 查找
+            if employee:
+                obj, is_new = SocialRecord.objects.update_or_create(
+                    employee=employee,
+                    year_month=rec['year_month'],
+                    defaults={
+                        'company_id': actual_company_id, 'id_card': rec['id_card'],
+                        **float_vals
+                    }
+                )
+            else:
+                obj, is_new = SocialRecord.objects.update_or_create(
+                    company_id=actual_company_id,
+                    id_card=rec['id_card'],
+                    year_month=rec['year_month'],
+                    defaults={**float_vals, 'employee': None, 'id_card': rec['id_card']}
+                )
             if is_new:
                 created += 1
             else:
@@ -252,11 +286,18 @@ def import_social_records(file_obj, company_id=None):
         except Exception as e:
             errors.append(f"员工 {rec['name']}({rec['id_card']}): {str(e)}")
 
+    msg = f'导入完成，共处理 {len(records_to_save)} 条员工记录'
+    if skipped_dirty:
+        msg += f'，跳过 {len(skipped_dirty)} 条非在职人员（仅工伤）：{"; ".join(skipped_dirty)}'
+    if errors:
+        msg += f'，{len(errors)} 条记录有错误'
+
     return {
         'success': True,
-        'message': f'导入完成，共处理 {len(records_to_save)} 条员工记录',
+        'message': msg,
         'created': created,
         'updated': updated,
+        'skipped_dirty': skipped_dirty,
         'errors': errors[:50]  # 最多返回50条
     }
 

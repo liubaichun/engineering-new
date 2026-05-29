@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+
+{% block title %}预算管理 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.budget-stat {
+    background: #fff;
+    border-radius: 8px;
+    padding: 12px 14px;
+    box-shadow: var(--card-shadow);
+    min-width: 0;
+}
+.budget-stat .label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+.budget-stat .value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+.budget-stat .value.success { color: var(--success); }
+.editable-row:hover { background: #f8f9ff; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
+    <div>
+        <h4><i class="bi bi-graph-up-arrow me-2"></i>预算管理</h4>
+        <p class="text-muted mb-0" style="font-size: 0.9rem;">设置各公司年度/月度预算额度，跟踪实际执行情况</p>
+    </div>
+    <div class="d-flex gap-2">
+        <button class="btn btn-success btn-sm" onclick="loadBudgets()"><i class="bi bi-arrow-clockwise me-1"></i>刷新</button>
+    </div>
+</div>
+
+<!-- 统计行 -->
+<div class="row g-3 mb-3" id="budgetStats">
+    <div class="col-md-3 col-6">
+        <div class="budget-stat"><div class="label">预算条目</div><div class="value" id="statCount">0</div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="budget-stat"><div class="label">涉及公司</div><div class="value" id="statCompanies">0</div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="budget-stat"><div class="label">费用类型</div><div class="value" id="statTypes">0</div></div>
+    </div>
+    <div class="col-md-3 col-6">
+        <div class="budget-stat"><div class="label">预算总额</div><div class="value success" id="statTotal">¥0.00</div></div>
+    </div>
+</div>
+
+<!-- 过滤器 -->
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label mb-1" style="font-size:0.78rem;color:var(--text-secondary)">公司</label>
+                <select id="filterCompany" class="form-select form-select-sm" onchange="loadBudgets()">
+                    <option value="">全部公司</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-1" style="font-size:0.78rem;color:var(--text-secondary)">年份</label>
+                <select id="filterYear" class="form-select form-select-sm" onchange="loadBudgets()"></select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label mb-1" style="font-size:0.78rem;color:var(--text-secondary)">费用类型</label>
+                <select id="filterType" class="form-select form-select-sm" onchange="loadBudgets()">
+                    <option value="">全部类型</option>
+                </select>
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button class="btn btn-primary btn-sm" onclick="showAddModal()">
+                    <i class="bi bi-plus-lg me-1"></i>新增预算
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 预算表格 -->
+<div class="card">
+    <div class="card-body p-0">
+        <div id="budgetTable" class="table-responsive"></div>
+    </div>
+</div>
+
+<!-- 新增/编辑弹窗 -->
+<div class="modal fade" id="budgetModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i><span id="modalTitle">新增预算</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editId">
+                <div class="mb-3">
+                    <label class="form-label">公司</label>
+                    <select id="editCompany" class="form-select"></select>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">年份</label>
+                        <select id="editYear" class="form-select"></select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">月份 <small class="text-muted">(留空=全年)</small></label>
+                        <select id="editMonth" class="form-select">
+                            <option value="">全年预算</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">费用类型</label>
+                    <select id="editType" class="form-select"></select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">预算金额（元）</label>
+                    <input type="number" id="editAmount" class="form-control" step="0.01" min="0" placeholder="如：100000">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">备注</label>
+                    <input type="text" id="editNote" class="form-control" placeholder="可选备注">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveBudget()"><i class="bi bi-check2 me-1"></i>保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">确认删除</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+            <div class="modal-body"><p id="deleteConfirmText">确定删除此预算记录？</p></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()"><i class="bi bi-trash me-1"></i>删除</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const TYPE_LABELS = {
+    'salary':'工资薪酬','social':'社保公积金','office':'办公费用','travel':'差旅费用',
+    'communication':'通讯费用','entertainment':'业务招待','marketing':'市场营销',
+    'rd':'研发费用','tax':'税费','other':'其他'
+};
+let budgetModal, deleteModal, deleteId = null;
+
+document.addEventListener('DOMContentLoaded', function() {
+    budgetModal = new bootstrap.Modal(document.getElementById('budgetModal'));
+    deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    loadCompanies();
+    loadYearOptions();
+    loadTypeOptions();
+    loadBudgets();
+});
+
+async function loadCompanies() {
+    try {
+        const r = await fetch('/api/finance/companies/', {credentials:'include'});
+        const data = await r.json();
+        const companies = data.results || data || [];
+        const sel = document.getElementById('filterCompany');
+        const editSel = document.getElementById('editCompany');
+        sel.innerHTML = '<option value="">全部公司</option>';
+        editSel.innerHTML = '';
+        companies.forEach(c => {
+            sel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+            editSel.innerHTML += `<option value="${c.id}">${c.name}</option>`;
+        });
+    } catch(e) {}
+}
+
+function loadYearOptions() {
+    const year = new Date().getFullYear();
+    const sel = document.getElementById('filterYear');
+    const editSel = document.getElementById('editYear');
+    for (let y = year; y >= year-3; y--) {
+        sel.innerHTML += `<option value="${y}" ${y===year?'selected':''}>${y}年</option>`;
+        editSel.innerHTML += `<option value="${y}" ${y===year?'selected':''}>${y}年</option>`;
+    }
+    const monthSel = document.getElementById('editMonth');
+    for (let m=1; m<=12; m++) {
+        monthSel.innerHTML += `<option value="${m}">${m}月</option>`;
+    }
+}
+
+function loadTypeOptions() {
+    const sel = document.getElementById('filterType');
+    const editSel = document.getElementById('editType');
+    for (const [k,v] of Object.entries(TYPE_LABELS)) {
+        sel.innerHTML += `<option value="${k}">${v}</option>`;
+        editSel.innerHTML += `<option value="${k}">${v}</option>`;
+    }
+}
+
+async function loadBudgets() {
+    const company = document.getElementById('filterCompany').value;
+    const year = document.getElementById('filterYear').value;
+    const type = document.getElementById('filterType').value;
+    let url = '/api/finance/budgets/?page_size=200';
+    if (company) url += '&company=' + company;
+    if (year) url += '&year=' + year;
+    if (type) url += '&expense_type=' + type;
+
+    const container = document.getElementById('budgetTable');
+    container.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary"></div></div>';
+
+    try {
+        const r = await fetch(url, {credentials:'include'});
+        const data = await r.json();
+        const items = data.results || [];
+        renderStats(items);
+        renderTable(items);
+    } catch(e) {
+        container.innerHTML = '<div class="text-center py-5 text-danger">加载失败</div>';
+    }
+}
+
+function renderStats(items) {
+    const totalBudget = items.reduce((s, i) => s + parseFloat(i.budget_amount||0), 0);
+    const companies = new Set(items.map(i => i.company_name)).size;
+    const types = new Set(items.map(i => i.expense_type)).size;
+    document.getElementById('statCount').textContent = items.length;
+    document.getElementById('statCompanies').textContent = companies;
+    document.getElementById('statTypes').textContent = types;
+    document.getElementById('statTotal').textContent = '¥' + totalBudget.toLocaleString('zh-CN',{minimumFractionDigits:2});
+}
+
+function renderTable(items) {
+    const container = document.getElementById('budgetTable');
+    if (!items.length) {
+        container.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-inbox me-2"></i>暂无预算数据</div>';
+        return;
+    }
+    let html = `<table class="table table-hover mb-0"><thead class="table-light"><tr>
+        <th>公司</th><th>年份</th><th>月份</th><th>费用类型</th><th class="text-end">预算金额</th><th>备注</th><th class="text-center">操作</th>
+    </tr></thead><tbody>`;
+    items.forEach(i => {
+        const monthLabel = i.month ? i.month + '月' : '全年';
+        const typeLabel = TYPE_LABELS[i.expense_type] || i.expense_type;
+        html += `<tr class="editable-row">
+            <td><strong>${i.company_name||'—'}</strong></td>
+            <td>${i.year||'—'}</td>
+            <td>${monthLabel}</td>
+            <td>${typeLabel}</td>
+            <td class="text-end fw-bold">¥${parseFloat(i.budget_amount||0).toLocaleString('zh-CN',{minimumFractionDigits:2})}</td>
+            <td class="text-muted">${i.note||'—'}</td>
+            <td class="text-center">
+                <button class="btn btn-sm btn-outline-secondary me-1" onclick="editBudget(${i.id})" title="编辑"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger" onclick="showDelete(${i.id},'${(i.company_name||'')} ${typeLabel}')" title="删除"><i class="bi bi-trash"></i></button>
+            </td>
+        </tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function showAddModal() {
+    document.getElementById('modalTitle').textContent = '新增预算';
+    document.getElementById('editId').value = '';
+    document.getElementById('editAmount').value = '';
+    document.getElementById('editNote').value = '';
+    budgetModal.show();
+}
+
+async function editBudget(id) {
+    try {
+        const r = await fetch('/api/finance/budgets/'+id+'/', {credentials:'include'});
+        const d = await r.json();
+        document.getElementById('modalTitle').textContent = '编辑预算';
+        document.getElementById('editId').value = d.id;
+        document.getElementById('editCompany').value = d.company;
+        document.getElementById('editYear').value = d.year;
+        document.getElementById('editMonth').value = d.month || '';
+        document.getElementById('editType').value = d.expense_type;
+        document.getElementById('editAmount').value = d.budget_amount;
+        document.getElementById('editNote').value = d.note || '';
+        budgetModal.show();
+    } catch(e) {
+        alert('加载失败');
+    }
+}
+
+async function saveBudget() {
+    const id = document.getElementById('editId').value;
+    const data = {
+        company: parseInt(document.getElementById('editCompany').value),
+        year: parseInt(document.getElementById('editYear').value) || new Date().getFullYear(),
+        month: parseInt(document.getElementById('editMonth').value) || null,
+        expense_type: document.getElementById('editType').value,
+        budget_amount: parseFloat(document.getElementById('editAmount').value) || 0,
+        note: document.getElementById('editNote').value,
+    };
+    if (!data.company) { alert('请选择公司'); return; }
+    if (!data.budget_amount) { alert('请输入预算金额'); return; }
+    try {
+        const url = id ? '/api/finance/budgets/'+id+'/' : '/api/finance/budgets/';
+        const method = id ? 'PATCH' : 'POST';
+        const r = await fetch(url, {
+            method, headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(data), credentials:'include'
+        });
+        if (!r.ok) { const e = await r.json(); alert(e.detail || '保存失败'); return; }
+        budgetModal.hide();
+        loadBudgets();
+    } catch(e) { alert('保存失败'); }
+}
+
+function showDelete(id, label) {
+    deleteId = id;
+    document.getElementById('deleteConfirmText').textContent = `确定删除「${label}」预算记录？`;
+    deleteModal.show();
+}
+
+async function confirmDelete() {
+    try {
+        await fetch('/api/finance/budgets/'+deleteId+'/', {
+            method: 'DELETE', credentials:'include'
+        });
+        deleteModal.hide();
+        loadBudgets();
+    } catch(e) { alert('删除失败'); }
+}
+</script>
+{% endblock %}

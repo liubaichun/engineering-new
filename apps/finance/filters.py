@@ -32,6 +32,7 @@ class IncomeFilter(django_filters.FilterSet):
     counterparty_bank = django_filters.CharFilter(field_name='counterparty_bank', lookup_expr='icontains')
     transaction_type = django_filters.CharFilter(field_name='transaction_type', lookup_expr='icontains')
     summary = django_filters.CharFilter(field_name='summary', lookup_expr='icontains')
+    income_category = django_filters.CharFilter(field_name='income_category', lookup_expr='exact')
 
     class Meta:
         model = Income
@@ -39,7 +40,7 @@ class IncomeFilter(django_filters.FilterSet):
             'company_id', 'year', 'month', 'status', 'source',
             'project_id', 'min_amount', 'max_amount', 'date_from', 'date_to',
             'counterparty_account', 'counterparty_bank',
-            'transaction_type', 'summary',
+            'transaction_type', 'summary', 'income_category',
         ]
 
 
@@ -99,7 +100,9 @@ class InvoiceFilter(django_filters.FilterSet):
     company_id = django_filters.NumberFilter(field_name='company__id')
     year = django_filters.NumberFilter(field_name='issue_date__year')
     month = django_filters.NumberFilter(field_name='issue_date__month')
+    issue_date_min = django_filters.DateFilter(field_name='issue_date', lookup_expr='gte')
+    issue_date_max = django_filters.DateFilter(field_name='issue_date', lookup_expr='lte')
 
     class Meta:
         model = Invoice
-        fields = ['company_id', 'year', 'month', 'type', 'status']
+        fields = ['company_id', 'year', 'month', 'type', 'status', 'issue_date_min', 'issue_date_max']

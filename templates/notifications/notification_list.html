@@ -89,6 +89,11 @@
         <button class="btn btn-outline-secondary btn-sm" onclick="markAllRead()">
             <i class="bi bi-check-all me-1"></i>全部标为已读
         </button>
+        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+            <option value="20">20条/页</option>
+            <option value="50">50条/页</option>
+            <option value="100">100条/页</option>
+        </select>
     </div>
 </div>
 
@@ -259,6 +264,12 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadNotifications();
 }
 </script>
 {% endblock %}

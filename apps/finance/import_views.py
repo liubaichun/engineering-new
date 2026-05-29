@@ -219,6 +219,7 @@ def import_invoices(request):
                     issue_date=issue_date,
                     due_date=due_date,
                     remarks=remarks,
+                    company=getattr(request, 'auth_company', None) or request.user.company,
                 )
                 result.created_ids.append(obj.id)
                 result.success_count += 1
@@ -262,9 +263,6 @@ def import_incomes(request):
     result = ImportResult()
     STATUS_MAP = {'待审批': 'pending', '已批准': 'approved', '已拒绝': 'rejected'}
 
-    # 默认公司（如果有的话取第一个）
-    default_company = Company.objects.first()
-
     for row_num in range(2, ws.max_row + 1):
         row_errors = []
         for f, label in [('amount', '金额'), ('date', '收入日期'), ('customer', '客户名称')]:
@@ -297,7 +295,7 @@ def import_incomes(request):
         try:
             with transaction.atomic():
                 obj = Income.objects.create(
-                    company=default_company,
+                    company=getattr(request, 'auth_company', None) or request.user.company,
                     amount=amount,
                     date=date,
                     source=source,
@@ -352,7 +350,6 @@ def import_expenses(request):
     result = ImportResult()
     TYPE_MAP = {'费用报销': 'expense', '预付款': 'advance', '押金': 'deposit', '工资支出': 'wage'}
     STATUS_MAP = {'草稿': 'draft', '待审批': 'pending', '已批准': 'approved', '已拒绝': 'rejected'}
-    default_company = Company.objects.first()
 
     for row_num in range(2, ws.max_row + 1):
         row_errors = []
@@ -384,7 +381,7 @@ def import_expenses(request):
         try:
             with transaction.atomic():
                 obj = Expense.objects.create(
-                    company=default_company,
+                    company=getattr(request, 'auth_company', None) or request.user.company,
                     amount=amount,
                     date=date,
                     expense_date=expense_date,
@@ -478,7 +475,7 @@ def import_employees(request):
             continue
 
         # 公司
-        company = None
+        company = getattr(request, 'auth_company', None) or request.user.company
         if company_col is not None:
             company_name = str(_cell(ws, row_num, company_col) or '').strip()
             if company_name:

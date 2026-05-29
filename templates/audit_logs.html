@@ -196,6 +196,11 @@
         <button class="btn btn-outline-secondary btn-sm" onclick="clearFilters()">
             <i class="bi bi-x-circle"></i> 清空
         </button>
+        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+            <option value="20">20条/页</option>
+            <option value="50">50条/页</option>
+            <option value="100">100条/页</option>
+        </select>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -386,6 +391,12 @@ function exportLogs() {
     const action = document.getElementById('filterAction').value;
     const params = new URLSearchParams({ page_size: 1000, app_label: appLabel, action: action });
     window.open(`/api/core/operation-audit-logs/?${params}`, '_blank');
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadLogs(1);
 }
 
 document.addEventListener('DOMContentLoaded', () => loadLogs(1));

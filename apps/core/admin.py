@@ -15,4 +15,4 @@ class UserAdmin(BaseUserAdmin):
 # @admin.register(Role)        # Role: 废弃
 # @admin.register(Permission)  # Permission: 废弃
 # @admin.register(RolePermission)  # RolePermission: 废弃
-# @admin.register(UserRole)     # UserRole: 废弃
+# Note: UserRole (Phase1) model has been removed — cleaned up in migration 0024

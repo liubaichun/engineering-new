@@ -2,6 +2,7 @@
 通知渠道URL路由
 """
 from django.urls import path
+from .wecom_callback import wecom_verify, wecom_callback
 from . import views
 
 app_name = 'channels'
@@ -35,4 +36,8 @@ urlpatterns = [
 
     # 通知日志
     path('logs/', views.NotificationLogView.as_view(), name='notification-logs'),
+
+    # 企业微信回调验证
+    path('wecom/verify/', wecom_verify, name='wecom-verify'),
+    path('wecom/callback/', wecom_callback, name='wecom-callback'),
 ]

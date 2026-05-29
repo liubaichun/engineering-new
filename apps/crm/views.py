@@ -10,7 +10,7 @@ from .serializers import (
     OpportunitySerializer, OpportunityStageStatsSerializer,
 )
 from rest_framework.permissions import IsAuthenticated
-from apps.core.permissions import RoleRequired
+from apps.core.permissions import RoleRequired, get_module_companies
 
 class ClientSourceViewSet(viewsets.ModelViewSet):
     """客户来源管理"""
@@ -29,8 +29,9 @@ class ClientSourceViewSet(viewsets.ModelViewSet):
         base_qs = ClientSource.objects.select_related('company')
         if user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'client_source')
+        if cids is not None:
+            return base_qs.filter(company_id__in=cids)
         return ClientSource.objects.none()
 
 class SupplierViewSet(viewsets.ModelViewSet):
@@ -45,14 +46,16 @@ class SupplierViewSet(viewsets.ModelViewSet):
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'brands']
     filterset_fields = ['status']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
         base_qs = Supplier.objects.select_related('created_by', 'company')
         if user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'supplier')
+        if cids is not None:
+            return base_qs.filter(company_id__in=cids)
         return Supplier.objects.none()
 
     def perform_create(self, serializer):
@@ -83,14 +86,16 @@ class ClientViewSet(viewsets.ModelViewSet):
     }
     search_fields = ['name', 'contact_person', 'contact_phone', 'code']
     filterset_fields = ['category', 'is_active']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
         base_qs = Client.objects.select_related('source', 'created_by', 'company')
         if user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'customer')
+        if cids is not None:
+            return base_qs.filter(company_id__in=cids)
         return Client.objects.none()
 
     def perform_create(self, serializer):
@@ -118,11 +123,11 @@ class ContractViewSet(viewsets.ModelViewSet):
         None: 'crm:contract:read',
         'create': 'crm:contract:create',
         'export': 'crm:contract:read',
-        'approve': 'crm:client_source:update',
-        'reject': 'crm:client_source:update',
-        'activate': 'crm:client_source:update',
-        'complete': 'crm:client_source:update',
-        'terminate': 'crm:client_source:update',
+        'approve': 'crm:contract:update',
+        'reject': 'crm:contract:update',
+        'activate': 'crm:contract:update',
+        'complete': 'crm:contract:update',
+        'terminate': 'crm:contract:update',
         'payment_plans': 'crm:contract:read',
         'add_payment_plan': 'crm:contract:update',
         'change_logs': 'crm:contract:read',
@@ -130,14 +135,16 @@ class ContractViewSet(viewsets.ModelViewSet):
     }
     search_fields = ['name', 'contract_no']
     filterset_fields = ['counterparty_type', 'client', 'supplier', 'project', 'status']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
         base_qs = Contract.objects.select_related('client', 'supplier', 'project', 'created_by', 'company')
         if user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'contract')
+        if cids is not None:
+            return base_qs.filter(company_id__in=cids)
         return Contract.objects.none()
 
     def perform_create(self, serializer):
@@ -287,10 +294,11 @@ class PaymentPlanViewSet(viewsets.ModelViewSet):
         company_id = self.request.query_params.get('company_id')
         if company_id:
             base_qs = base_qs.filter(contract__company_id=company_id)
-        elif user.is_superuser:
+        if user.is_superuser:
             return base_qs
-        elif hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(contract__company_id=user.company_id)
+        cids = get_module_companies(user, 'payment_plan')
+        if cids is not None:
+            return base_qs.filter(contract__company_id__in=cids)
         return PaymentPlan.objects.none()
 
     def perform_create(self, serializer):
@@ -364,10 +372,11 @@ class ContractChangeLogViewSet(viewsets.ModelViewSet):
         company_id = self.request.query_params.get('company_id')
         if company_id:
             base_qs = base_qs.filter(contract__company_id=company_id)
-        elif user.is_superuser:
+        if user.is_superuser:
             return base_qs
-        elif hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(contract__company_id=user.company_id)
+        cids = get_module_companies(user, 'contract_change_log')
+        if cids is not None:
+            return base_qs.filter(contract__company_id__in=cids)
         return ContractChangeLog.objects.none()
 
     def perform_create(self, serializer):
@@ -398,8 +407,9 @@ class ContactViewSet(viewsets.ModelViewSet):
         base_qs = Contact.objects.select_related('client', 'company')
         if user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'contact')
+        if cids is not None:
+            return base_qs.filter(company_id__in=cids)
         return Contact.objects.none()
 
     def perform_create(self, serializer):
@@ -430,8 +440,9 @@ class FollowUpRecordViewSet(viewsets.ModelViewSet):
         base_qs = FollowUpRecord.objects.select_related('contact', 'client', 'created_by', 'company')
         if user.is_superuser:
             return base_qs
-        if hasattr(user, 'company') and user.company_id:
-            return base_qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'followup')
+        if cids is not None:
+            return base_qs.filter(company_id__in=cids)
         return FollowUpRecord.objects.none()
 
     def perform_create(self, serializer):
@@ -466,8 +477,9 @@ class OpportunityViewSet(viewsets.ModelViewSet):
         qs = Opportunity.objects.select_related('client', 'contact', 'created_by')
         if user.is_superuser:
             return qs
-        if hasattr(user, 'company') and user.company_id:
-            return qs.filter(company_id=user.company_id)
+        cids = get_module_companies(user, 'opportunity')
+        if cids is not None:
+            return qs.filter(company_id__in=cids)
         return qs.none()
 
     def perform_create(self, serializer):

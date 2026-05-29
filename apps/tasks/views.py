@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.parsers import JSONParser, MultiPartParser, FormParser
 from apps.core.auth import CSRFExemptSessionAuthentication
-from apps.core.permissions import RoleRequired
+from apps.core.permissions import RoleRequired, get_module_companies
 from rest_framework.permissions import AllowAny
 from django.utils import timezone
 from django.contrib.auth import get_user_model
@@ -394,6 +394,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'name', 'description']
     list_filter_fields = ['status', 'owner']
     ordering_fields = ['created_at', 'updated_at', 'start_date', 'end_date']
+    ordering = ['-created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -409,11 +410,13 @@ class ProjectViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # 多租户隔离：普通用户看本公司项目、自己是负责人、或自己是关联查看人员
+        # 多租户隔离：基于模块级权限过滤可见公司
         if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                queryset = queryset.filter(company_id=user.company_id)
+            cids = get_module_companies(user, 'project')
+            if cids is not None:
+                queryset = queryset.filter(company_id__in=cids)
             else:
+                # 无公司归属时，退回到个人项目
                 from django.db.models import Q
                 queryset = queryset.filter(
                     Q(owner=user) | Q(viewers=user)
@@ -603,6 +606,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     search_fields = ['code', 'title', 'description']
     list_filter_fields = ['status', 'priority', 'project', 'assignee']
     ordering_fields = ['created_at', 'updated_at', 'due_date']
+    ordering = ['-created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -634,10 +638,11 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
-        # 多租户隔离：普通用户只看本公司项目下的任务
+        # 多租户隔离：基于模块级权限过滤可见公司下的任务
         if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                queryset = queryset.filter(project__company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(project__company_id__in=cids)
         queryset = queryset.select_related('project', 'assignee', 'reporter').prefetch_related('flow_instance__template', 'flow_instance__current_node')
         project_id = self.request.query_params.get('project', None)
         if project_id:
@@ -810,7 +815,9 @@ class FlowTemplateViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(company_id__in=cids)
         return queryset
 
     def perform_create(self, serializer):
@@ -843,7 +850,9 @@ class FlowNodeTemplateViewSet(viewsets.ModelViewSet):
         queryset = super().get_queryset()
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(company_id__in=cids)
         return queryset
 
     def perform_create(self, serializer):
@@ -868,11 +877,12 @@ class TaskStageInstanceViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         queryset = super().get_queryset()
-        # 多租户隔离：通过 task__project__company_id 间接过滤
+        # 多租户隔离：基于模块级权限过滤可见公司下的阶段实例
         user = self.request.user
         if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                queryset = queryset.filter(task__project__company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(task__project__company_id__in=cids)
         task_id = self.request.query_params.get('task', None)
         if task_id:
             queryset = queryset.filter(task_id=task_id)
@@ -981,7 +991,9 @@ class StageActivityViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(stage_instance_id=stage_instance_id)
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(company_id__in=cids)
         return queryset
 
 
@@ -1005,7 +1017,9 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(task_id=task_id)
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(company_id__in=cids)
         return queryset
 
     def perform_create(self, serializer):
@@ -1044,7 +1058,9 @@ class TaskFlowInstanceViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(started_by=self.request.user)
         user = self.request.user
         if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(company_id=user.company_id)
+            cids = get_module_companies(user, 'task')
+            if cids is not None:
+                queryset = queryset.filter(company_id__in=cids)
         return queryset
     
     @action(detail=True, methods=['post'])

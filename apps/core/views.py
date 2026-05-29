@@ -20,8 +20,8 @@ from django.template.loader import render_to_string
 from django.core.mail import send_mail
 from django.conf import settings
 
-from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, CompanyRole, Role, RolePermission
-from .permissions import RoleRequired
+from .models import User, Notification, Permission, PermissionAuditLog, LoginLog, UserCompanyRole, OperationAuditLog, SystemSetting, UserCompanyPermission, Module, ModuleAction, CompanyRole
+from apps.core.permissions import RoleRequired, get_module_companies
 from apps.finance.models import Company as FinanceCompany
 
 logger = logging.getLogger(__name__)
@@ -337,11 +337,79 @@ class CurrentUserView(APIView):
             'errors': serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=False, methods=['post'])
-    def switch_company(self, request):
-        """切换当前活跃公司 — POST /api/core/auth/user/switch_company/
-        请求体: {company_id: int}
+    def post(self, request):
         """
+        POST /api/core/auth/user/ - 切换公司
+        请求体: {action: 'switch_company', company_id: int}
+        或兼容旧格式直接发 {company_id: int}
+        """
+        action = request.data.get('action', '')
+        company_id = request.data.get('company_id')
+
+        if action == 'switch_company' or company_id:
+            return self._switch_company(request, company_id)
+        elif action == 'my_companies':
+            return self._my_companies(request)
+
+        return Response({'status': 'error', 'message': '不支持的操作。使用 action=switch_company+company_id 或 action=my_companies'},
+                        status=status.HTTP_400_BAD_REQUEST)
+
+    def _switch_company(self, request, company_id):
+        """切换当前活跃公司"""
+        if not company_id:
+            return Response({'status': 'error', 'message': 'company_id 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            company_id = int(company_id)
+        except (ValueError, TypeError):
+            return Response({'status': 'error', 'message': 'company_id 必须是整数'}, status=status.HTTP_400_BAD_REQUEST)
+
+        from apps.core.models import UserCompanyPermission
+        # 使用 UCP（新权限系统）验证用户是否属于该公司
+        has_access = UserCompanyPermission.objects.filter(
+            user=request.user, company_id=company_id, is_granted=True
+        ).exists()
+        if not has_access:
+            return Response({'status': 'error', 'message': '您不属于该公司，无权访问'}, status=status.HTTP_403_FORBIDDEN)
+
+        request.session['current_company_id'] = company_id
+        from apps.finance.models import Company
+        try:
+            company = Company.objects.get(id=company_id)
+            company_name = company.name
+        except Company.DoesNotExist:
+            company_name = '未知'
+
+        return Response({
+            'status': 'success',
+            'message': '已切换到公司',
+            'current_company_id': company_id,
+            'company_name': company_name,
+        }, status=status.HTTP_200_OK)
+
+    def _my_companies(self, request):
+        """获取当前用户可访问的公司列表"""
+        from apps.core.models import UserCompanyPermission
+        from apps.finance.models import Company
+        ucp_companies = UserCompanyPermission.objects.filter(
+            user=request.user, is_granted=True
+        ).values_list('company_id', flat=True).distinct()
+        companies = Company.objects.filter(id__in=list(ucp_companies))
+        current_company_id = request.session.get('current_company_id')
+        data = []
+        for c in companies:
+            data.append({
+                'company_id': c.id,
+                'company_name': c.name,
+                'is_current': c.id == current_company_id,
+            })
+        return Response({'status': 'success', 'companies': data}, status=status.HTTP_200_OK)
+
+
+class SwitchCompanyView(APIView):
+    """兼容旧版：POST /api/core/switch_company/"""
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+
+    def post(self, request):
         company_id = request.data.get('company_id')
         if not company_id:
             return Response({'status': 'error', 'message': 'company_id 不能为空'}, status=status.HTTP_400_BAD_REQUEST)
@@ -350,79 +418,55 @@ class CurrentUserView(APIView):
         except (ValueError, TypeError):
             return Response({'status': 'error', 'message': 'company_id 必须是整数'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 验证用户是否属于该公司
-        link = UserCompanyRole.objects.filter(user=request.user, company_id=company_id).first()
-        if not link:
+        from apps.core.models import UserCompanyPermission
+        has_access = UserCompanyPermission.objects.filter(
+            user=request.user, company_id=company_id, is_granted=True
+        ).exists()
+        if not has_access:
             return Response({'status': 'error', 'message': '您不属于该公司，无权访问'}, status=status.HTTP_403_FORBIDDEN)
 
-        # 切换成功（这里把当前公司ID存在 session 中）
         request.session['current_company_id'] = company_id
+        from apps.finance.models import Company
+        try:
+            company = Company.objects.get(id=company_id)
+            company_name = company.name
+        except Company.DoesNotExist:
+            company_name = '未知'
+
         return Response({
             'status': 'success',
             'message': '已切换到公司',
             'current_company_id': company_id,
-            'company_name': link.company.name,
-            'role': link.role,
-            'role_display': link.get_role_display(),
+            'company_name': company_name,
         }, status=status.HTTP_200_OK)
-
-    @action(detail=False, methods=['get'])
-    def my_companies(self, request):
-        """获取当前用户可访问的公司列表 — GET /api/core/auth/user/my_companies/"""
-        links = UserCompanyRole.objects.filter(user=request.user)
-        current_company_id = request.session.get('current_company_id')
-        data = []
-        for link in links:
-            data.append({
-                'company_id': link.company_id,
-                'company_name': link.company.name,
-                'role': link.role,
-                'role_display': link.get_role_display(),
-                'is_current': link.company_id == current_company_id,
-            })
-        return Response({'status': 'success', 'companies': data}, status=status.HTTP_200_OK)
 
 
 class MyPermissionsView(APIView):
-    """当前用户权限列表（用于前端按钮级权限控制）"""
+    """当前用户权限列表（用于前端按钮级权限控制）
+    
+    返回统一格式的权限码：category:resource:action
+    超级用户返回 ['*']，前端 hasPermission('*') 放行所有。
+    """
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
-    # action 映射：UCP标准action → 前端权限码格式
-    _ACTION_MAP = {'create': 'add', 'update': 'change', 'delete': 'delete', 'read': 'view'}
-    # DRF权限码的 category→module 映射（DRF格式用 category:resource:action）
-    # UCP的module名 → 对应的DRF category前缀
-    _CATEGORY_MODULE_MAP = {
-        'material': 'material',  # stock模块 → material前缀（资源名=stock）
-        'crm': 'crm',            # customer模块 → crm前缀（资源名=customer）
-        'approval': 'approval',   # flow模块 → approval前缀（资源名=flow）
-        'customer': 'crm',        # customer模块在finance/crm app → crm category
-        'stock': 'material',     # stock模块在material app → material category
-        'flow': 'approval',       # flow模块在approvals app → approval category
-    }
-
-    def _generate_codes_from_ucp(self, user, company_id):
-        """从 UserCompanyPermission 生成前端权限码（两种格式）"""
-        from apps.core.models import UserCompanyPermission
-        ucp_qs = UserCompanyPermission.objects.filter(
-            user=user, company_id=company_id, is_granted=True
-        ).select_related('module', 'action')
-
+    def _generate_codes_from_ump(self, user, company_id):
+        """从 UserModulePermission 生成前端权限码（统一格式）"""
+        from apps.core.models import UserModulePermission, ACTION_BITS
+        
         codes = set()
-        for r in ucp_qs:
-            action_name = r.action.name
-            mapped = self._ACTION_MAP.get(action_name)
-            if mapped:
-                # 格式1: module.action （如 equipment.add）
-                codes.add(f'{r.module.name}.{mapped}')
-                # 格式2: category:resource:action （如 crm:customer:create）
-                # resource 名 = _CATEGORY_MODULE_MAP.get(module_name, module_name)
-                resource = self._CATEGORY_MODULE_MAP.get(r.module.name, r.module.name)
-                codes.add(f'{r.module.name}:{resource}:{action_name}')
+        for perm in UserModulePermission.objects.filter(
+            user=user, company_id=company_id, granted_bits__gt=0
+        ).select_related('module'):
+            # 遍历所有 action bit
+            for action_name, bit in ACTION_BITS.items():
+                if action_name == '_RESERVED':
+                    continue
+                if perm.granted_bits & bit:
+                    codes.add(f'{perm.module.category}:{perm.module.name}:{action_name}')
         return codes
 
     def get(self, request):
         user = request.user
-        # 获取公司ID：优先从session，其次从UserCompanyRole第一笔
         company_id = request.session.get('current_company_id')
         if not company_id:
             from apps.core.models import UserCompanyRole
@@ -430,10 +474,9 @@ class MyPermissionsView(APIView):
             company_id = first_link.company_id if first_link else None
 
         if user.is_superuser:
-            from apps.core.models import ModuleAction
-            codes = list(ModuleAction.objects.values_list('code', flat=True).distinct())
+            codes = ['*']  # 超级用户特殊标记
         elif company_id:
-            codes = list(self._generate_codes_from_ucp(user, company_id))
+            codes = list(self._generate_codes_from_ump(user, company_id))
         else:
             codes = []
 
@@ -449,11 +492,16 @@ class UserViewSet(viewsets.ModelViewSet):
     """用户管理视图集"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, RoleRequired]
+    action_perms = {
+        None: 'system:user:read',
+        'create': 'system:user:create',
+        'update': 'system:user:update',
+        'partial_update': 'system:user:update',
+        'destroy': 'system:user:delete',
+    }
 
     def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            return [permissions.IsAuthenticated()]
         return [permissions.IsAuthenticated(), RoleRequired()]
 
     def get_queryset(self):
@@ -461,7 +509,7 @@ class UserViewSet(viewsets.ModelViewSet):
         from apps.finance.models import Company
         queryset = User.objects.all().prefetch_related(
             'company_roles__company',
-            'user_roles__role',
+            'company_roles__company_role',
         )
         role = self.request.query_params.get('role')
         is_active = self.request.query_params.get('is_active')
@@ -715,13 +763,6 @@ class UserViewSet(viewsets.ModelViewSet):
             'rows': rows,
         }])
         return make_export_response(buf, f'用户_{timezone.now().strftime("%Y%m%d")}.xlsx')
-
-
-# ── 旧权限系统（已废弃，RolePermission/UserRole 表无数据）──────────────────
-# class RoleViewSet(viewsets.ModelViewSet): ...      # 废弃
-# class PermissionViewSet(viewsets.ModelViewSet): ... # 废弃
-# class RolePermissionViewSet(viewsets.ModelViewSet): ... # 废弃
-# class UserRoleViewSet(viewsets.ModelViewSet): ... # 废弃
 
 
 class NotificationViewSet(viewsets.ModelViewSet):
@@ -1258,16 +1299,17 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def matrix(self, request):
         """
-        权限矩阵页核心接口。
+        权限矩阵页核心接口（从 UMP 位掩码读取）。
 
         GET /api/core/user-company-permissions/matrix/?user_id=X
 
         返回：
         {
-          modules: [{id, name, label, actions: [{id, name, label}]}],
+          modules: [{id, name, label, category, actions: [{id, name, label}]}],
           companies: [{id, name}],
           matrix: [{user_id, company_id, module_id, action_id, is_granted, has_record}]
         }
+        为兼容旧 UI，matrix 数据按 action 展开为 flat 格式。
         """
         user_id = request.query_params.get('user_id')
         if not user_id:
@@ -1282,7 +1324,7 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 'name': m.name,
                 'label': m.label,
                 'icon': m.icon,
-                'category': m.category,     # 用于菜单分组折叠
+                'category': m.category,
                 'sort_order': m.sort_order,
                 'actions': [
                     {'id': a.id, 'name': a.name, 'label': a.label, 'action_group': a.action_group}
@@ -1293,58 +1335,88 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
         # 所有公司
         companies = list(FinanceCompany.objects.filter(status='active').order_by('name').values('id', 'name'))
 
-        # 已有权限记录
-        records = UserCompanyPermission.objects.filter(user_id=user_id).values(
-            'user_id', 'company_id', 'module_id', 'action_id', 'is_granted'
-        )
+        # 从 UMP 位掩码展开为 flat 格式（兼容旧 UI）
+        from apps.core.models import UserModulePermission, ACTION_BITS
+        matrix_records = []
+        ump_records = UserModulePermission.objects.filter(user_id=user_id).select_related('module')
+
+        for ump in ump_records:
+            for action_name, bit in ACTION_BITS.items():
+                if action_name == '_RESERVED':
+                    continue
+                # 找到对应的 ModuleAction id
+                try:
+                    action_obj = ModuleAction.objects.get(module=ump.module, name=action_name)
+                    is_granted = bool(ump.granted_bits & bit)
+                    matrix_records.append({
+                        'user_id': int(user_id),
+                        'company_id': ump.company_id,
+                        'module_id': ump.module_id,
+                        'action_id': action_obj.id,
+                        'is_granted': is_granted,
+                        'has_record': True,
+                    })
+                except ModuleAction.DoesNotExist:
+                    pass
 
         return Response({
             'modules': module_data,
             'companies': companies,
-            'matrix': list(records),
+            'matrix': matrix_records,
         })
 
     @action(detail=False, methods=['post'])
     def matrix_bulk_update(self, request):
         """
-        批量更新权限矩阵。
+        批量更新权限矩阵（写入 UMP 位掩码）。
 
         POST /api/core/user-company-permissions/matrix_bulk_update/
         Body: {
           user_id: int,
           updates: [
             {company_id, module_name, action_name, is_granted: bool},
-            {company_id, module_id, action_id, is_granted: bool},
             ...
           ]
         }
-        支持 name 或 id 两种方式传入模块/动作，优先用 name（可混用）。
         """
         user_id = request.data.get('user_id')
         updates = request.data.get('updates', [])
         if not user_id or not updates:
             return Response({'detail': 'user_id 和 updates 是必填参数'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # 权限校验：只有 superuser 或修改自己的权限
+        # 权限校验
         if not request.user.is_superuser and request.user.id != int(user_id):
             return Response({'detail': '您没有权限修改他人的权限'}, status=status.HTTP_403_FORBIDDEN)
 
-        # 预加载所有 Module/Action 用于 name→id 转换
+        # 预加载所有 Module/Action
         modules = {m.name: m.id for m in Module.objects.all()}
-        actions = {a.name: a.id for a in ModuleAction.objects.all()}
-        module_ids = {m.id: m.name for m in Module.objects.all()}
-        action_ids = {a.id: a.name for a in ModuleAction.objects.all()}
+        # 反向映射：id → name
+        module_names = {v: k for k, v in modules.items()}
+        # ⚠️ 注意：ModuleAction 同名动作分布在不同模块（read/create/update/delete 等）
+        #   {a.name: a.id} 会因 key 重复而丢失大部分记录，导致 action_names 映射不全。
+        #   必须直接从 DB 构建 id→name 的完全映射。
+        action_names = {a.id: a.name for a in ModuleAction.objects.all()}
+
+        from apps.core.models import UserModulePermission, ACTION_BITS
 
         updated = []
         for upd in updates:
-            # 支持 name 方式或 id 方式，name 优先
             company_id = upd['company_id']
             if 'module_name' in upd:
                 module_id = modules.get(upd['module_name'])
             else:
                 module_id = upd.get('module_id')
             if 'action_name' in upd:
-                action_id = actions.get(upd['action_name'])
+                # action_name 路径：需要同时知道 module 才能唯一定位
+                # 构建快速查询：{module_id: {action_name: action_id}}
+                module_for_action = upd.get('module_name') or module_names.get(upd.get('module_id'))
+                if module_for_action:
+                    action_id = ModuleAction.objects.filter(
+                        module__name=module_for_action,
+                        name=upd['action_name']
+                    ).values_list('id', flat=True).first()
+                else:
+                    action_id = None
             else:
                 action_id = upd.get('action_id')
 
@@ -1354,23 +1426,38 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            obj, created = UserCompanyPermission.objects.update_or_create(
+            # 获取 action_name 和对应的 bit
+            action_name = action_names[action_id]
+            bit = ACTION_BITS.get(action_name)
+            if not bit:
+                return Response(
+                    {'detail': f'未知动作: {action_name}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # 使用 UMP 位掩码
+            ump, ump_created = UserModulePermission.objects.get_or_create(
                 user_id=user_id,
                 company_id=company_id,
                 module_id=module_id,
-                action_id=action_id,
-                defaults={
-                    'is_granted': upd['is_granted'],
-                    'granted_by': request.user,
-                }
+                defaults={'granted_bits': 0},
             )
+
+            if upd['is_granted']:
+                ump.granted_bits |= bit  # 设置 bit
+            else:
+                ump.granted_bits &= ~bit  # 清除 bit
+
+            if ump.granted_bits == 0:
+                ump.delete()  # 全空 → 删记录
+            else:
+                ump.save()
+
             updated.append({
-                'id': obj.id,
-                'company_id': obj.company_id,
-                'module_id': obj.module_id,
-                'action_id': obj.action_id,
-                'is_granted': obj.is_granted,
-                'created': created,
+                'company_id': company_id,
+                'module_id': module_id,
+                'action_id': action_id,
+                'is_granted': upd['is_granted'],
             })
 
         return Response({

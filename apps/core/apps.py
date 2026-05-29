@@ -1,4 +1,33 @@
 from django.apps import AppConfig
+from importlib import import_module
+from django.conf import settings
+
+
+# 哪些 app_label 跳过（无业务模块的辅助app）
+SKIP_APPS = {
+    'django.contrib.admin', 'django.contrib.auth',
+    'django.contrib.contenttypes', 'django.contrib.sessions',
+    'django.contrib.messages', 'django.contrib.staticfiles',
+    'rest_framework', 'django_filters', 'corsheaders',
+    'drf_spectacular', 'drf_spectacular_sidecar',
+    'apps.channels',  # 通知渠道系统，不是业务模块
+}
+
+
+def auto_discover():
+    """扫描所有 INSTALLED_APPS，import 其 modules.py（如果存在）"""
+    imported = []
+    for app_label in settings.INSTALLED_APPS:
+        if app_label in SKIP_APPS:
+            continue
+        try:
+            import_module(f'{app_label}.modules')
+            imported.append(app_label)
+        except ModuleNotFoundError:
+            pass  # 没有 modules.py 的 app 跳过
+        except Exception:
+            pass  # 其他错误跳过
+    return imported
 
 
 class CoreConfig(AppConfig):
@@ -16,23 +45,20 @@ class CoreConfig(AppConfig):
         audit.autodiscover()
 
         # ── Phase2 权限矩阵自注册 ────────────────────────────────
-        # 在 post_migrate 信号中把已注册的模块同步到 DB
-        # finance.modules 必须在信号注册前 import，这样 finance 的
-        # register_module() 调用才能被 post_migrate 捕捉到
         from django.db.models.signals import post_migrate
         post_migrate.connect(_sync_modules_on_migrate, sender=self)
 
-        # 启动后立即同步模块到 DB（每次启动都跑，覆盖所有 app 的 modules.py）
+        # 启动后立即同步模块到 DB（每次启动都跑）
         try:
-            from apps.finance import modules as _fm  # noqa: F401
+            imported = auto_discover()
             from apps.core.models import sync_modules_to_db
             sync_modules_to_db()
         except Exception:
-            pass  # 表不存在时跳过，migrate 会触发 post_migrate 再次同步
+            pass  # 表不存在时跳过
 
 
 def _sync_modules_on_migrate(sender, **kwargs):
     """post_migrate 信号的处理器：将已注册的模块写入 DB"""
     from apps.core.models import sync_modules_to_db
-    from apps.finance import modules as _fm  # noqa: F401
+    auto_discover()
     sync_modules_to_db()

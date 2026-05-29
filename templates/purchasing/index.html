@@ -10,21 +10,27 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
 
 {% block content %}
 <ul class="nav nav-tabs mb-4" id="purchasingTab" role="tablist">
+    {% if 'purchasing:purchase_request:read' in user_menu_codes or request.user.is_superuser %}
     <li class="nav-item" role="presentation">
         <a class="nav-link{% if active_tab == 'requests' or not active_tab %} active{% endif %}" href="#" onclick="showTab('requests');return false;">
             <i class="bi bi-card-list me-1"></i>采购申请
         </a>
     </li>
+    {% endif %}
+    {% if 'purchasing:purchase_order:read' in user_menu_codes or request.user.is_superuser %}
     <li class="nav-item" role="presentation">
         <a class="nav-link{% if active_tab == 'orders' %} active{% endif %}" href="#" onclick="showTab('orders');return false;">
             <i class="bi bi-file-earming-text me-1"></i>采购订单
         </a>
     </li>
+    {% endif %}
+    {% if 'purchasing:purchase_receive:read' in user_menu_codes or request.user.is_superuser %}
     <li class="nav-item" role="presentation">
         <a class="nav-link{% if active_tab == 'receives' %} active{% endif %}" href="#" onclick="showTab('receives');return false;">
             <i class="bi bi-box-seam me-1"></i>采购入库
         </a>
     </li>
+    {% endif %}
 </ul>
 
 <div class="tab-content" style="width:100%; margin:0 -32px;">

@@ -54,15 +54,6 @@ class RoleRequired(BasePermission):
         if user.is_superuser:
             return True
 
-        # ── 角色校验（仅限系统级，公司级权限由 UCP 统一处理）───
-        required_roles = getattr(view, 'required_roles', [])
-        if required_roles:
-            # 只校验系统级角色（User.role 字段 + UserRole 表）
-            # 公司级权限不再通过 role 判断，统一由下方的 UCP 权限校验处理
-            if user.role in required_roles or user.user_roles.filter(role__name__in=required_roles).exists():
-                return True
-            # required_roles 都不满足 → 走权限校验，由 UCP 决定
-
         # ── 权限校验 ──────────────────────────────────────────────────────────
         perm_code = self._resolve_action_perm(request, view)
 
@@ -76,69 +67,38 @@ class RoleRequired(BasePermission):
         return True
 
     def _user_has_perm_for_company(self, user, perm_code, request, view):
-        import logging
-        log = logging.getLogger("perm_debug")
-        company_id = self._get_company_id(request, view)
-        parts = perm_code.split(":")
-        action_name = parts[-1]
-        module_name = len(parts) == 3 and parts[1] or parts[0]
-        with open("/tmp/perm_call.log", "a") as f:
-            f.write("user=%s perm=%s company=%s module=%s action=%s\n" % (getattr(user, "username", "?"), perm_code, company_id, module_name, action_name))
         """
-        检查用户在当前公司是否有指定权限。
+        检查用户在任意关联公司是否有指定权限（跨公司感知）。
 
-        优先级（任何一步命中即放行）：
-        1. 超级用户 is_superuser → 全局放行
-        2. 有公司上下文 → 查 UserCompanyPermission（user × company × module × action，is_granted=True）
-           - granted=True → 放行
-           - 有记录（即使是 False）→ 已表态，直接拒绝
-           - 无记录 → 拒绝
-        3. 无公司上下文 → 拒绝（不再降级走 RolePermission/UserRole）
+        跨公司模式：不再只检查"当前公司"，而是检查用户在所有关联公司中
+        是否有该模块的对应权限。只要有一个公司有权限，就放行。
 
-        perm_code 格式：模块:资源:动作（如 finance:income:read）
+        perm_code 格式：category:resource:action（如 finance:income:read）
         """
-        # 超级用户 bypass
+        # 超级用户 bypass（冗余校验，has_permission 中已做）
         if user.is_superuser:
             return True
 
-        # 拿公司上下文
-        company_id = self._get_company_id(request, view)
+        # 从 perm_code 解析
+        parts = perm_code.split(':')
+        action_name = parts[-1]
+        if len(parts) == 3:
+            module_name = parts[1]
+        else:
+            module_name = parts[0]
 
-        # 查 UserCompanyPermission（user × company × module × action）
-        if company_id:
-            # 从 perm_code 解析出 module_name 和 action_name
-            # 格式: finance:income:read → module='income', action='read'
-            parts = perm_code.split(':')
-            action_name = parts[-1]   # 'read' / 'create' / 'update' / ...
-            if len(parts) == 3:
-                module_name = parts[1]   # 'finance:income:read' → module='income'
-                                         # 'project:task:read'   → module='task'
-            else:
-                module_name = parts[0]   # 'bank:import'         → module='bank'
-
-            from apps.core.models import UserCompanyPermission, Module, ModuleAction
-            # 查 UserCompanyPermission(user, company, module, action, is_granted=True)
-            granted = UserCompanyPermission.objects.filter(
-                user=user,
-                company_id=company_id,
-                module__name=module_name,
-                action__name=action_name,
-                is_granted=True,
-            ).exists()
-            if granted:
-                return True
-            # 如果 UserCompanyPermission 有记录（即使是 False）→ 已表态，精确拒绝
-            has_explicit_record = UserCompanyPermission.objects.filter(
-                user=user, company_id=company_id,
-                module__name=module_name, action__name=action_name,
-            ).exists()
-            # UCP granted=True → 放行
-            # UCP 有记录（即使是 False）→ 已表态，直接拒绝
-            # UCP 无记录 → 拒绝
+        from apps.core.models import UserModulePermission, ACTION_BITS
+        bit = ACTION_BITS.get(action_name)
+        if not bit:
             return False
 
-        # 无公司上下文 → 无权
-        return False
+        # 跨公司权限检查：只要用户在任意公司有这个模块的对应权限就放行
+        # 数据过滤由 get_queryset() 中的 get_module_companies() 精确控制
+        return UserModulePermission.objects.filter(
+            user=user,
+            module__name=module_name,
+            granted_bits__gte=bit,
+        ).extra(where=["granted_bits & %s = %s"], params=[bit, bit]).exists()
     def _resolve_action_perm(self, request, view):
         """
         解析当前 action 对应的权限码。
@@ -214,10 +174,6 @@ class RoleRequired(BasePermission):
     VIEW_CATEGORY_MAP = {
         # core app → DB category 是 'system'（不是 'core'）
         'UserViewSet':                ('system', 'user'),
-        'RoleViewSet':                ('system', 'role'),
-        'PermissionViewSet':          ('system', 'permission'),
-        'RolePermissionViewSet':      ('system', 'role'),
-        'UserRoleViewSet':            ('system', 'user'),
         'CompanyRoleViewSet':         ('system', 'role'),
         'LoginLogViewSet':            ('system', 'log'),
         'OperationAuditLogViewSet':   ('system', 'log'),
@@ -370,24 +326,52 @@ def _resolve_company_id(request):
 
 
 def _check_ucp(user, company_id, perm_code):
-    """检查用户在指定公司+权限码下是否有 UCP 授权
-    perm_code 格式: 'module:action' 如 'finance:report:read'
-    """
-    from apps.core.models import UserCompanyPermission, Module, ModuleAction
-    parts = perm_code.rsplit(':', 2)
-    # perm_code 格式: 'category:resource:action' (3段，如 finance:report:read, project:task:read)
-    #              或 'module:action'        (2段，如 bank:import)
-    if len(parts) < 2:
-        return False
-    if len(parts) == 3:
-        _, module_name, action_name = parts  # parts[1] = resource = module name
-    else:
-        module_name, action_name = parts[0], parts[1]
+    """检查用户在指定公司+权限码下是否有 UMP 授权（位掩码）"""
+    from apps.core.models import UserModulePermission, ACTION_BITS
+    parts = perm_code.split(':')
+    action_name = parts[-1]
+    module_name = parts[1] if len(parts) == 3 else parts[0]
 
-    return UserCompanyPermission.objects.filter(
+    bit = ACTION_BITS.get(action_name)
+    if not bit:
+        return False
+
+    return UserModulePermission.objects.filter(
         user=user,
         company_id=company_id,
         module__name=module_name,
-        action__name=action_name,
-        is_granted=True
-    ).exists()
+    ).extra(where=["granted_bits & %s = %s"], params=[bit, bit]).exists()
+
+
+def get_module_companies(user, module_name, action='read'):
+    """
+    返回用户对指定模块有 action 权限的所有公司 ID 列表。
+
+    跨公司数据过滤的核心工具：
+      - 看收入页面 → get_module_companies(user, 'income') → 只显示有 income:read 的公司数据
+      - 超管 → 返回 None（不过滤，等于全公司可见）
+      - 无任何权限 → 返回 []（无数据）
+
+    用法：
+        cids = get_module_companies(request.user, 'income')
+        if cids is not None:
+            qs = qs.filter(company_id__in=cids)
+    """
+    if not user or not user.is_authenticated:
+        return []
+    if user.is_superuser:
+        return None  # 超管：不过滤
+
+    from apps.core.models import UserModulePermission, ACTION_BITS
+    bit = ACTION_BITS.get(action)
+    if not bit:
+        return []
+
+    cids = list(
+        UserModulePermission.objects.filter(
+            user=user,
+            module__name=module_name,
+        ).extra(where=["granted_bits & %s = %s"], params=[bit, bit])
+        .values_list('company_id', flat=True).distinct()
+    )
+    return cids if cids else []

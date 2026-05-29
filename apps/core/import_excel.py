@@ -484,80 +484,60 @@ def import_wage(file_obj, company_id=None):
 
 # ─── 发票导入 ─────────────────────────────────────────────────────────
 
+# 税局导出文件中的发票号码表头变体（按优先级排序）
+INVOICE_NO_HEADERS = [
+    '数电发票号码',    # 标准税局导出（全量发票查询）
+    '全电发票号码',    # 旧版税局导出（2024年及以前）
+    '发票号码',        # 纸质发票或旧版导出
+]
+
+
+def _find_invoice_header_row(ws):
+    """在Sheet中查找包含发票号码表头的行。
+
+    返回值：(header_row_idx, matched_header_keyword, headers_list)
+    若找不到返回 (None, None, None)
+    """
+    for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
+        if all(v is None for v in row):
+            continue
+        row_str = str(row)
+        for keyword in INVOICE_NO_HEADERS:
+            if keyword in row_str:
+                header_strs = [str(h).strip() if h else '' for h in row]
+                return i, keyword, header_strs
+    return None, None, None
+
+
 def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
     """
     导入数电发票记录（收到或开出的发票）。
 
+    支持两种 Excel 格式（税局全量发票查询导出）：
+      信息汇总表 — 含「税率」+「货物或应税劳务名称」，多行明细需按发票号聚合
+      发票基础信息 — 不含税率列，一行=一张完整发票，无需聚合
+
+    兼容多种表头变体：数电发票号码 / 全电发票号码 / 发票号码
+
+    遍历文件所有Sheet，合并结果后按发票号去重，确保导入数据与导出一致。
+
     invoice_type: 'income' = 收到的发票（我方是购方，从供应商取得）
                   'expense' = 开出的发票（我方是销方，开给客户）
-
-    Excel 格式：标准数电发票「发票基础信息」Sheet
     """
     result = ImportResult()
     data = file_obj.read() if hasattr(file_obj, 'read') else file_obj
     wb = load_workbook(io.BytesIO(data))
 
-    # 优先找「发票基础信息」sheet
-    # 优先选择包含「税率」列的 sheet（税率在「信息汇总表」而非「发票基础信息」）
-    ws = None
-    best_sheet = None
-    for sheet_name in wb.sheetnames:
-        ws_candidate = wb[sheet_name]
-        # 扫描前10行找表头
-        for row in ws_candidate.iter_rows(min_row=1, max_row=10, values_only=True):
-            if any(cell is not None for cell in row) and '数电发票号码' in str(row):
-                has_tax_rate = '税率' in [str(h).strip() if h else '' for h in row]
-                if has_tax_rate:
-                    ws = ws_candidate
-                    best_sheet = sheet_name
-                    break
-        if ws is not None:
-            break
-    if ws is None:
-        ws = wb.active
+    from apps.finance.models import Invoice
 
-    # 找到表头行（含「数电发票号码」关键字）
-    header_row_idx = None
-    for i, row in enumerate(ws.iter_rows(values_only=True), start=1):
-        if any(cell is not None for cell in row) and '数电发票号码' in str(row):
-            header_row_idx = i
-            break
-    if header_row_idx is None:
-        result.add_error(0, '未找到「数电发票号码」表头，请确认文件格式')
-        return result
+    # ─── 全局已存在发票号缓存 ────────────────────────────────────
+    all_existing_nos = set(Invoice.objects.values_list('invoice_no', flat=True))
 
-    header_row = list(ws.iter_rows(
-        min_row=header_row_idx, max_row=header_row_idx, values_only=True))[0]
-    headers = [str(h).strip() if h is not None else '' for h in header_row]
+    # ─── 全局合并容器（按发票号去重） ────────────────────────────
+    merged_map = {}  # inv_no -> row_dict
+    matched_sheets = []  # 记录匹配到的Sheet名，用于调试
 
-    def col(*kw):
-        return match_header(headers, *kw)
-
-    c_invoice_no       = col('数电发票号码')
-    c_seller_name      = col('销方名称')
-    c_seller_tax       = col('销方识别号')
-    c_buyer_name       = col('购买方名称')
-    c_buyer_tax        = col('购方识别号')
-    c_date             = col('开票日期')
-    c_amount           = col('金额')
-    c_tax              = col('税额')
-    c_total            = col('价税合计')
-    c_status           = col('发票状态')
-    c_invoice_type_col = col('发票票种')
-    c_issuer           = col('开票人')
-    c_remark           = col('备注')
-    # 税率列：精确匹配列名含「税率」且不含「劳务」（避免匹配到「货物或应税劳务服务」）
-    # 在 headers 中找「税率」列，但要排除「劳务税率」等误匹配
-    c_tax_rate = -1
-    for i, h in enumerate(headers):
-        h_str = str(h)
-        if '税率' in h_str and '劳务' not in h_str and '服务' not in h_str and '编码' not in h_str:
-            c_tax_rate = i
-            break
-
-    # 预先把所有数据行读入列表（避免 read_only 模式下 iter_rows 只能遍历一次的问题）
-    all_data_rows = [list(row) for row in ws.iter_rows(min_row=header_row_idx + 1, values_only=True) if not all(v is None for v in row)]
-
+    # ─── 辅助函数 ────────────────────────────────────────────────
     def get_val(row, ci):
         if ci < 0 or ci >= len(row):
             return None
@@ -587,14 +567,11 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
     def map_invoice_type(v):
         if not v:
             return 'normal'
-        s = str(v)
-        if '专用' in s:
-            return 'special'
-        return 'normal'
+        return 'special' if '专用' in str(v) else 'normal'
 
     def map_status(status_val, inv_type):
         if not status_val:
-            return 'paid' if inv_type == 'income' else 'paid'
+            return 'paid'
         s = str(status_val)
         if '正常' in s:
             return 'paid'
@@ -609,132 +586,284 @@ def import_invoice(file_obj, invoice_type, company_id=None, operator=None):
         company = Company.objects.filter(tax_id=str(tax_id).strip()).first()
         return company.id if company else default
 
-    # 聚合：同发票号多行明细合并为一条
-    invoice_map = {}
-    for row in all_data_rows:
-        if all(v is None for v in row):
-            continue
-        inv_no = get_val(row, c_invoice_no)
-        if not inv_no:
-            continue
-        inv_no = str(inv_no).strip()
-        if inv_no not in invoice_map:
-            invoice_map[inv_no] = {
-                'rows': [row],
-                'seller_name': get_val(row, c_seller_name),
-                'seller_tax':  get_val(row, c_seller_tax),
-                'buyer_name':  get_val(row, c_buyer_name),
-                'buyer_tax':   get_val(row, c_buyer_tax),
-                'date':        parse_date(get_val(row, c_date)),
-                '票种':        get_val(row, c_invoice_type_col),
-                'issuer':      get_val(row, c_issuer),
-                'remark':      get_val(row, c_remark),
-                'status_raw':  get_val(row, c_status),
-            }
-        else:
-            invoice_map[inv_no]['rows'].append(row)
+    def calc_tax_rate(amount, tax_amount):
+        if amount and float(amount) > 0 and tax_amount is not None:
+            return Decimal(str(round(float(tax_amount) / float(amount) * 100, 2)))
+        return None
 
-    # income（开出发票，我方是销方）→ 交易对手是购方（buyer/客户）
-    # expense（收到发票，我方是购方）→ 交易对手是销方（seller/供应商）
-    # counterparty = 对方公司名，counterparty_tax_id = 对方税号
+    # income（开出发票，我方是销方）→ 交易对手是购方
+    # expense（收到发票，我方是购方）→ 交易对手是销方
     if invoice_type == 'income':
-        counterparty_field     = 'buyer_name'    # 购方名称 = 对方公司（我方开票给购方）
-        counterparty_tax_field = 'buyer_tax'     # 购方识别号 = 对方税号
+        counterparty_field     = 'buyer_name'
+        counterparty_tax_field = 'buyer_tax'
     else:
-        counterparty_field     = 'seller_name'   # 销方名称 = 对方公司（我方收票从销方）
-        counterparty_tax_field = 'seller_tax'    # 销方识别号 = 对方税号
+        counterparty_field     = 'seller_name'
+        counterparty_tax_field = 'seller_tax'
 
-    from apps.finance.models import Invoice
+    # ══════════════════════════════════════════════════════════════
+    # 遍历所有Sheet，只要包含发票号码表头就处理
+    # ══════════════════════════════════════════════════════════════
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
 
-    for inv_no, info in invoice_map.items():
-        first_row = info['rows'][0]
-        seq = first_row[0]
+        # 找表头行 — 支持多种表头变体
+        header_row_idx, matched_keyword, headers = _find_invoice_header_row(ws)
+        if header_row_idx is None:
+            continue  # 无发票数据的Sheet跳过
 
-        try:
-            # 判断正负（红冲票金额为负）
-            is_negative = any(
-                get_val(r, c_amount) is not None and float(get_val(r, c_amount)) < 0
-                for r in info['rows']
-            )
+        matched_sheets.append(f'{sheet_name}({matched_keyword})')
 
-            # 汇总金额（取绝对值）
-            total_amount = 0.0
-            total_tax = 0.0
-            for r in info['rows']:
-                amt = get_val(r, c_amount)
-                tax = get_val(r, c_tax)
-                if amt is not None:
-                    total_amount += abs(float(amt))
-                if tax is not None:
-                    total_tax += abs(float(tax))
+        def col(*kw):
+            return match_header(headers, *kw)
 
-            # 若金额列为0但价税合计有值，用价税合计反推
-            if total_amount == 0:
-                raw_total = get_val(first_row, c_total)
-                if raw_total:
-                    total_amount = abs(float(raw_total))
+        # 根据匹配到的关键字确定数电发票号码列
+        c_invoice_no = col(matched_keyword)
+        # 纸质「发票号码」列：排除数电/全电发票号码的误匹配
+        c_legacy_invoice_no = col('发票号码')
+        if c_legacy_invoice_no == c_invoice_no:
+            c_legacy_invoice_no = -1  # 同列说明只有数电号码，无纸质号码可回退
+        c_invoice_code = col('发票代码')
+        if c_invoice_code == c_invoice_no:
+            c_invoice_code = -1
+        c_seller_name       = col('销方名称')
+        c_seller_tax        = col('销方识别号')
+        c_buyer_name        = col('购买方名称')
+        c_buyer_tax         = col('购方识别号')
+        c_date              = col('开票日期')
+        c_amount            = col('金额')
+        c_tax               = col('税额')
+        c_total             = col('价税合计')
+        c_status            = col('发票状态')
+        c_invoice_type_col  = col('发票票种')
+        c_issuer            = col('开票人')
+        c_remark            = col('备注')
+        # 税率列（仅信息汇总表才有）
+        c_tax_rate = -1
+        for i, h in enumerate(headers):
+            h_str = str(h)
+            if '税率' in h_str and '劳务' not in h_str and '服务' not in h_str and '编码' not in h_str:
+                c_tax_rate = i
+                break
+
+        # 判断Sheet类型
+        has_tax_rate = c_tax_rate >= 0
+        has_line_items = '货物或应税劳务名称' in headers
+        is_detail_sheet = has_tax_rate and has_line_items
+
+        # 预读所有数据行
+        all_data_rows = [list(row) for row in ws.iter_rows(
+            min_row=header_row_idx + 1, values_only=True)
+            if not all(v is None for v in row)]
+
+        # ──────────────────────────────────────────────────────────
+        # 信息汇总表模式：按发票号聚合明细行
+        # ──────────────────────────────────────────────────────────
+        if is_detail_sheet:
+            detail_map = {}
+            for row in all_data_rows:
+                raw_inv_no = get_val(row, c_invoice_no)
+                if not raw_inv_no:
+                    continue
+                inv_no = str(raw_inv_no).strip()
+                if inv_no not in detail_map:
+                    detail_map[inv_no] = {
+                        'rows': [row],
+                        'seller_name': get_val(row, c_seller_name),
+                        'seller_tax':  get_val(row, c_seller_tax),
+                        'buyer_name':  get_val(row, c_buyer_name),
+                        'buyer_tax':   get_val(row, c_buyer_tax),
+                        'date':        parse_date(get_val(row, c_date)),
+                        '票种':        get_val(row, c_invoice_type_col),
+                        'issuer':      get_val(row, c_issuer),
+                        'remark':      get_val(row, c_remark),
+                        'status_raw':  get_val(row, c_status),
+                    }
+                else:
+                    detail_map[inv_no]['rows'].append(row)
+
+            for inv_no, info in detail_map.items():
+                first_row = info['rows'][0]
+                seq = first_row[0] if len(first_row) > 0 else 0
+
+                try:
+                    # 汇总金额（保留符号：红冲票明细行为负，应累加而非abs）
+                    total_amount = 0.0
                     total_tax = 0.0
+                    for r in info['rows']:
+                        amt = get_val(r, c_amount)
+                        tax = get_val(r, c_tax)
+                        if amt is not None:
+                            total_amount += float(amt)
+                        if tax is not None:
+                            total_tax += float(tax)
 
-            counterparty       = str(info[counterparty_field] or '').strip()
-            counterparty_tax_id = str(info[counterparty_tax_field] or '').strip()
-            issue_date = info['date']
+                    # 若金额为0但价税合计有值，用价税合计
+                    if total_amount == 0:
+                        raw_total = get_val(first_row, c_total)
+                        if raw_total:
+                            total_amount = abs(float(raw_total))
+                            total_tax = 0.0
 
-            # 公司匹配：优先用税号匹配我方公司
-            # - income（我方开出发票，我方是销方）→ 用 seller_tax
-            # - expense（我方收到发票，我方是购方）→ 用 buyer_tax
-            if invoice_type == 'income':
-                resolved_company_id = resolve_company_by_tax(
-                    info.get('seller_tax'), default=company_id)
-            else:
-                resolved_company_id = resolve_company_by_tax(
-                    info.get('buyer_tax'), default=company_id)
+                    counterparty       = str(info[counterparty_field] or '').strip()
+                    counterparty_tax_id = str(info[counterparty_tax_field] or '').strip()
+                    issue_date = info['date']
 
-            inv_status     = map_status(info.get('status_raw'), invoice_type)
-            inv_invoice_type = map_invoice_type(info.get('票种'))
+                    # 公司匹配
+                    if invoice_type == 'income':
+                        resolved_company_id = resolve_company_by_tax(
+                            info.get('seller_tax'), default=company_id)
+                    else:
+                        resolved_company_id = resolve_company_by_tax(
+                            info.get('buyer_tax'), default=company_id)
 
-            # 税率解析：Excel存为 "1%" "13%" 等字符串
-            tax_rate_val = None
-            if c_tax_rate >= 0:
-                raw_rate = get_val(first_row, c_tax_rate)
-                if raw_rate is not None:
-                    s = str(raw_rate).strip().replace('%', '').replace(' ', '')
-                    try:
-                        tax_rate_val = Decimal(s)
-                    except Exception:
-                        tax_rate_val = None
+                    inv_status     = map_status(info.get('status_raw'), invoice_type)
+                    inv_invoice_type = map_invoice_type(info.get('票种'))
 
-            # 备注拼接开票人
-            issuer = str(info.get('issuer') or '').strip()
-            remark_base = str(info.get('remark') or '').strip()
-            remarks = (remark_base + (' | 开票人:' + issuer) if issuer else remark_base)
+                    # 税率
+                    tax_rate_val = None
+                    if c_tax_rate >= 0:
+                        raw_rate = get_val(first_row, c_tax_rate)
+                        if raw_rate is not None:
+                            s = str(raw_rate).strip().replace('%', '').replace(' ', '')
+                            try:
+                                tax_rate_val = Decimal(s)
+                            except Exception:
+                                tax_rate_val = None
+                    if tax_rate_val is None:
+                        tax_rate_val = calc_tax_rate(total_amount, total_tax)
 
-            # 跳过已存在的发票号
-            if Invoice.objects.filter(invoice_no=inv_no).exists():
-                result.add_error(seq, f'发票号 {inv_no} 已存在，跳过')
-                continue
+                    # 备注拼接开票人
+                    issuer = str(info.get('issuer') or '').strip()
+                    remark_base = str(info.get('remark') or '').strip()
+                    remarks = (remark_base + (' | 开票人:' + issuer) if issuer else remark_base)
 
-            row_dict = {
-                'invoice_no':          inv_no,
-                'type':                invoice_type,
-                'invoice_type':        inv_invoice_type,
-                'amount':              round(total_amount, 2),
-                'counterparty':        counterparty,
-                'counterparty_tax_id': counterparty_tax_id,
-                'issue_date':          issue_date,
-                'status':              inv_status,
-                'is_credited':         False,  # Excel无认证列，默认未认证，用户可后期修改
-                'company_id':          resolved_company_id or company_id,
-                'remarks':             remarks,
-            }
-            if tax_rate_val is not None:
-                row_dict['tax_rate'] = tax_rate_val
-            if total_tax is not None:
-                row_dict['tax_amount'] = round(total_tax, 2)
-            result.rows.append(row_dict)
-            result.success += 1
+                    row_dict = {
+                        'invoice_no':          inv_no,
+                        'type':                invoice_type,
+                        'invoice_type':        inv_invoice_type,
+                        'amount':              round(total_amount, 2),
+                        'tax_amount':          abs(round(total_tax, 2)) if total_tax else None,
+                        'counterparty':        counterparty,
+                        'counterparty_tax_id': counterparty_tax_id,
+                        'issue_date':          issue_date,
+                        'status':              inv_status,
+                        'is_credited':         False,
+                        'company_id':          resolved_company_id or company_id,
+                        'remarks':             remarks,
+                    }
+                    if tax_rate_val is not None:
+                        row_dict['tax_rate'] = float(tax_rate_val)
 
-        except Exception as e:
-            result.add_error(seq, f'发票 {inv_no} 解析异常：{str(e)}')
+                    # 已存在跳过（先用全局缓存，再用按发票号的merged_map去重）
+                    if inv_no in all_existing_nos:
+                        result.add_error(seq, f'发票号 {inv_no} 已存在，跳过')
+                        continue
+                    if inv_no in merged_map:
+                        result.add_error(seq, f'发票号 {inv_no} 在多个Sheet中重复，跳过')
+                        continue
+
+                    merged_map[inv_no] = row_dict
+                except Exception as e:
+                    result.add_error(seq, f'发票 {inv_no} 解析异常：{str(e)}')
+
+        # ──────────────────────────────────────────────────────────
+        # 发票基础信息模式：逐行处理（一行=一张完整发票，无需聚合）
+        # ──────────────────────────────────────────────────────────
+        else:
+            dash_counter = 0
+            for row in all_data_rows:
+                raw_inv_no = str(get_val(row, c_invoice_no) or '').strip()
+                # 无数电号码时，尝试用纸质发票号码
+                legacy_check = ''
+                if not raw_inv_no:
+                    legacy_check = str(get_val(row, c_legacy_invoice_no) or '').strip()
+                    if not legacy_check:
+                        continue  # 两个号码都没有才跳过
+
+                seq = row[0] if len(row) > 0 else 0
+                try:
+                    amount_val = float(get_val(row, c_amount) or 0)
+                    tax_val = float(get_val(row, c_tax) or 0) if get_val(row, c_tax) is not None else None
+                    date_val = parse_date(get_val(row, c_date))
+
+                    seller_name = str(get_val(row, c_seller_name) or '').strip()
+                    seller_tax  = str(get_val(row, c_seller_tax) or '').strip()
+                    buyer_name  = str(get_val(row, c_buyer_name) or '').strip()
+                    buyer_tax   = str(get_val(row, c_buyer_tax) or '').strip()
+                    inv_type_raw = get_val(row, c_invoice_type_col)
+                    status_raw   = get_val(row, c_status)
+                    issuer_val   = str(get_val(row, c_issuer) or '').strip()
+                    remark_val   = str(get_val(row, c_remark) or '').strip()
+
+                    inv_type_val  = map_invoice_type(inv_type_raw)
+                    status_val    = map_status(status_raw, invoice_type)
+                    remark_full   = (remark_val + (' | 开票人:' + issuer_val) if issuer_val else remark_val)
+                    counterparty  = seller_name if invoice_type == 'expense' else buyer_name
+                    counterparty_tax_id = seller_tax if invoice_type == 'expense' else buyer_tax
+
+                    # 公司匹配
+                    if invoice_type == 'income':
+                        resolved_company_id = resolve_company_by_tax(seller_tax, default=company_id)
+                    else:
+                        resolved_company_id = resolve_company_by_tax(buyer_tax, default=company_id)
+
+                    # 税率：从金额和税额计算（发票基础信息无税率列）
+                    tax_rate_val = calc_tax_rate(amount_val, tax_val)
+
+                    # 发票号处理：优先用数电号码，回退到纸质号码
+                    if raw_inv_no == '--' or not raw_inv_no:
+                        legacy_no = str(get_val(row, c_legacy_invoice_no) or '').strip()
+                        inv_code = str(get_val(row, c_invoice_code) or '').strip()
+                        if legacy_no:
+                            inv_no = f'{inv_code}_{legacy_no}' if inv_code else legacy_no
+                        else:
+                            dash_counter += 1
+                            date_str = date_val.strftime('%Y%m%d') if date_val else 'unknown'
+                            inv_no = f'N/A-{date_str}_{dash_counter:03d}'
+                    else:
+                        inv_no = raw_inv_no
+
+                    row_dict = {
+                        'invoice_no':          inv_no,
+                        'type':                invoice_type,
+                        'invoice_type':        inv_type_val,
+                        'amount':              round(amount_val, 2),
+                        'tax_amount':          round(tax_val, 2) if tax_val is not None else None,
+                        'counterparty':        counterparty,
+                        'counterparty_tax_id': counterparty_tax_id,
+                        'issue_date':          date_val,
+                        'status':              status_val,
+                        'is_credited':         False,
+                        'company_id':          resolved_company_id or company_id,
+                        'remarks':             remark_full,
+                    }
+                    if tax_rate_val is not None:
+                        row_dict['tax_rate'] = float(tax_rate_val)
+
+                    # 去重：全局已存在 + merged_map 同文件重复
+                    if inv_no in all_existing_nos:
+                        result.add_error(seq, f'发票号 {inv_no} 已存在，跳过')
+                        continue
+                    if inv_no in merged_map:
+                        result.add_error(seq, f'发票号 {inv_no} 在多个Sheet中重复，跳过')
+                        continue
+
+                    merged_map[inv_no] = row_dict
+                except Exception as e:
+                    result.add_error(seq, f'发票 {raw_inv_no} 解析异常：{str(e)}')
+
+    # ══════════════════════════════════════════════════════════════
+    # 合并结果写入 result.rows
+    # ══════════════════════════════════════════════════════════════
+    if not merged_map and not result.errors:
+        sheet_list = ', '.join(wb.sheetnames)
+        if matched_sheets:
+            result.add_error(0, f'找到了发票Sheet（{", ".join(matched_sheets)}），但所有行解析后均为空')
+        else:
+            result.add_error(0, f'文件中未找到包含发票号码的Sheet（Sheet列表：{sheet_list}）')
+
+    for row_dict in merged_map.values():
+        result.rows.append(row_dict)
+        result.success += 1
 
     return result
-    

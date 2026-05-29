@@ -79,12 +79,18 @@
             <input class="form-check-input" type="checkbox" id="filterStockAlert" onchange="loadMaterials()">
             <label class="form-check-label" for="filterStockAlert">库存告警</label>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="showAddMaterialModal()" data-perm="material.add">
+        <button class="btn btn-primary btn-sm" onclick="showAddMaterialModal()" data-perm="operations:material:create">
             <i class="bi bi-plus-lg me-1"></i>新建物料
         </button>
-        <button class="btn btn-outline-primary btn-sm" onclick="location.href='/material/bom/'" data-perm="material.add">
+        <button class="btn btn-outline-primary btn-sm" onclick="location.href='/material/bom/'" data-perm="operations:material:create">
             <i class="bi bi-diagram-3 me-1"></i>BOM清单
         </button>
+        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+            <option value="15">15条/页</option>
+            <option value="20">20条/页</option>
+            <option value="50">50条/页</option>
+            <option value="100">100条/页</option>
+        </select>
     </div>
 </div>
 
@@ -406,7 +412,7 @@ function renderMaterialTable(items) {
                     <button class="btn btn-outline-secondary" onclick="editMaterial(${m.id})" title="编辑">
                         <i class="bi bi-pencil"></i>
                     </button>
-                    <button class="btn btn-outline-danger" onclick="deleteMaterial(${m.id})" title="删除" data-perm="material.delete">
+                    <button class="btn btn-outline-danger" onclick="deleteMaterial(${m.id})" title="删除" data-perm="operations:material:delete">
                         <i class="bi bi-trash"></i>
                     </button>
                 </div>
@@ -433,6 +439,12 @@ function renderPagination(data) {
 
 function goToPage(page) {
     currentPage = page;
+    loadMaterials();
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
     loadMaterials();
 }
 

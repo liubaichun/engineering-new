@@ -143,6 +143,16 @@
                         <option value="">加载中…</option>
                     </select>
                 </div>
+                <select class="form-select form-select-sm" id="filterIncomeCategory" onchange="loadIncomes()" style="width:auto;min-width:150px;">
+                    <option value="">全部科目</option>
+                    <option value="main_business">主营业务收入</option>
+                    <option value="other_business">其他业务收入</option>
+                    <option value="non_operating">营业外收入</option>
+                    <option value="other_income">其他收益</option>
+                    <option value="investment_income">投资收益</option>
+                    <option value="internal_transfer">内部往来</option>
+                    <option value="equity">实收资本</option>
+                </select>
                 <select class="form-select form-select-sm" id="filterCompany" onchange="loadIncomes()" style="width:auto;">
                     <option value="">全部公司</option>
                 </select>
@@ -152,13 +162,18 @@
                 <button class="btn btn-outline-secondary btn-sm" onclick="loadIncomes()">
                     <i class="bi bi-search me-1"></i>筛选
                 </button>
-                <button class="btn btn-primary btn-sm" onclick="showAddIncomeModal()" data-perm="income.add">
+                <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changeIncomePageSize()">
+                    <option value="20">20条/页</option>
+                    <option value="50">50条/页</option>
+                    <option value="100">100条/页</option>
+                </select>
+                <button class="btn btn-primary btn-sm" onclick="showAddIncomeModal()" data-perm="finance:income:create">
                     <i class="bi bi-plus-lg me-1"></i>新建收入
                 </button>
                 <button class="btn btn-success btn-sm" onclick="exportIncomes()">
                     <i class="bi bi-download me-1"></i>导出
                 </button>
-                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('income')" data-perm="income.add">
+                <button class="btn btn-outline-primary btn-sm" onclick="showImportModal('income')" data-perm="finance:income:create">
                     <i class="bi bi-upload me-1"></i>导入
                 </button>
             </div>
@@ -203,6 +218,7 @@
                                 <th>来源</th>
                                 <th>交易类型</th>
                                 <th>摘要</th>
+                                <th>收入科目</th>
                                 <th>金额</th>
                                 <th>余额</th>
                                 <th>日期</th>
@@ -274,9 +290,25 @@
                     </div>
                 </div>
                 <div class="mb-3">
+                    <label class="form-label">收入科目</label>
+                    <select class="form-select" id="incomeCategory">
+                        <option value="">请选择科目</option>
+                        <option value="main_business">主营业务收入</option>
+                        <option value="other_business">其他业务收入</option>
+                        <option value="non_operating">营业外收入</option>
+                        <option value="other_income">其他收益</option>
+                        <option value="investment_income">投资收益</option>
+                        <option value="internal_transfer">内部往来</option>
+                        <option value="equity">实收资本</option>
+                    </select>
+                </div>
+                <div class="mb-3">
                     <label class="form-label">备注</label>
                     <textarea class="form-control" id="incomeRemark" rows="2" placeholder="备注信息（可选）"></textarea>
                 </div>
+                <div class="mb-3">
+                    <label class="form-label">状态</label>
+                    <select class="form-select" id="incomeStatus">
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
@@ -325,7 +357,7 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="income.delete">删除</button>
+                <button type="button" class="btn btn-danger" onclick="confirmDelete()" data-perm="finance:income:delete">删除</button>
             </div>
         </div>
     </div>
@@ -516,12 +548,14 @@ async function fetchIncomesPage(page = 1) {
     const year = document.getElementById('filterYear') ? document.getElementById('filterYear').value : new Date().getFullYear();
     const dateStart = document.getElementById('filterDateStart').value;
     const dateEnd = document.getElementById('filterDateEnd').value;
+    const incomeCategory = document.getElementById('filterIncomeCategory').value;
 
     let url = '/api/finance/incomes/?page=' + page + '&page_size=' + incomePageSize;
     if (company) url += `&company_id=${company}`;
     if (year) url += '&year=' + year;
     if (dateStart) url += '&date_from=' + dateStart;
     if (dateEnd) url += '&date_to=' + dateEnd;
+    if (incomeCategory) url += '&income_category=' + incomeCategory;
 
     const response = await fetch(url, { credentials: 'include' });
     if (!response.ok) throw new Error('加载失败');
@@ -531,7 +565,7 @@ async function fetchIncomesPage(page = 1) {
 async function loadIncomes(page = 1) {
     currentPage = page;
     const tableBody = document.getElementById('incomeTableBody');
-    tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">加载中...</td></tr>';
+    tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">加载中...</td></tr>';
 
     try {
         const data = await fetchIncomesPage(page);
@@ -539,7 +573,7 @@ async function loadIncomes(page = 1) {
         updateSummary(data);
     } catch (error) {
         console.error('加载收入数据失败:', error);
-        tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-danger py-4">网络错误</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-danger py-4">网络错误</td></tr>';
         showToast('网络错误', 'error');
     }
 }
@@ -549,7 +583,7 @@ function renderIncomes(data) {
     const incomes = data.results || data;
     
     if (!incomes || incomes.length === 0) {
-        tableBody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无数据</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="12" class="text-center text-muted py-4">暂无数据</td></tr>';
         document.getElementById('recordCount').textContent = '0';
         return;
     }
@@ -567,6 +601,19 @@ function renderIncomes(data) {
         const companyName = income.company_name || income.company || '-';
         const transactionTime = income.transaction_time ? income.transaction_time.substring(0, 5) : '-';
         const balance = income.balance != null ? `¥${formatNumber(income.balance)}` : '-';
+        
+        // 收入科目标签映射
+        const categoryMap = {
+            'main_business': '主营业务收入',
+            'other_business': '其他业务收入',
+            'non_operating': '营业外收入',
+            'other_income': '其他收益',
+            'investment_income': '投资收益',
+            'internal_transfer': '内部往来',
+            'equity': '实收资本',
+        };
+        const categoryKey = income.income_category || income.income_category_display;
+        const categoryDisplay = categoryMap[categoryKey] || categoryKey || '-';
 
         html += `
         <tr>
@@ -576,6 +623,7 @@ function renderIncomes(data) {
             <td><span class="source-badge ${sourceClass}">${sourceText}</span></td>
             <td>${income.transaction_type || '-'}</td>
             <td class="summary-cell">${income.summary || '-'}</td>
+            <td><span class="source-badge" style="background:#e8f5e9;color:#2e7d32;">${categoryDisplay}</span></td>
             <td class="amount-display">¥${formatNumber(income.amount)}</td>
             <td>${balance}</td>
             <td>${income.date || '-'}</td>
@@ -637,7 +685,13 @@ function updateSummary(data) {
     }).length;
 }
 
-var incomePageSize = 20;
+let incomePageSize = 20;
+
+function changeIncomePageSize() {
+    incomePageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadIncomes(1);
+}
 
 function renderPagination(data) {
     var total = data.count || 0;
@@ -675,6 +729,7 @@ function showAddIncomeModal() {
     document.getElementById('incomeSource').value = 'contract';
     document.getElementById('incomeClient').value = '';
     document.getElementById('incomeProject').value = '';
+    document.getElementById('incomeCategory').value = '';
     document.getElementById('incomeRemark').value = '';
     incomeModal.show();
 }
@@ -693,6 +748,9 @@ async function editIncome(id) {
             document.getElementById('incomeClient').value = income.customer || '';
             document.getElementById('incomeProject').value = income.project || '';
             document.getElementById('incomeRemark').value = income.description || '';
+            if (document.getElementById('incomeCategory')) {
+                document.getElementById('incomeCategory').value = income.income_category || '';
+            }
             if (document.getElementById('incomeStatus')) {
                 document.getElementById('incomeStatus').value = income.status || 'pending';
             }
@@ -714,6 +772,7 @@ async function saveIncome() {
     const source = document.getElementById('incomeSource').value;
     const client = document.getElementById('incomeClient').value;
     const project = document.getElementById('incomeProject').value;
+    const incomeCategory = document.getElementById('incomeCategory').value;
     const remark = document.getElementById('incomeRemark').value;
     
     if (!company || !amount || !date) {
@@ -728,6 +787,7 @@ async function saveIncome() {
         source: source,
         customer: client,
         project: project ? parseInt(project) : null,
+        income_category: incomeCategory || null,
         description: remark
     };
     
@@ -1091,7 +1151,23 @@ async function loadExpenses() {
         tbody.innerHTML = results.map(function(r) {
             var statusMap = {'pending':'badge-pending','approved':'badge-approved','rejected':'badge-rejected'};
             var statusTextMap = {'pending':'待审批','approved':'已批准','rejected':'已拒绝'};
-            var expTypeMap = {'expense':'费用报销','advance':'预付款','deposit':'押金','wage':'工资支出','other':'其他','tax':'税费','salary':'薪资','social':'社保公积金','entertainment':'业务招待','travel':'差旅','office':'办公费用','income':'收入'};
+            var expTypeMap = {
+                'salary':'工资薪酬',
+                'main_cost':'主营业务成本',
+                'admin_expense':'管理费用',
+                'finance_expense':'财务费用',
+                'tax':'税费',
+                'office':'办公费用',
+                'travel':'差旅费用',
+                'internal_transfer':'内部往来',
+                'agency':'代收代付',
+                'other':'其他',
+                'expense':'费用报销',
+                'advance':'预付款',
+                'deposit':'押金',
+                'wage':'工资支出',
+                'income':'收入'
+            };
             return '<tr>' +
                 '<td><input class="form-check-input" type="checkbox" value="' + r.id + '"></td>' +
                 '<td>' + (r.company_name || '-') + '</td>' +

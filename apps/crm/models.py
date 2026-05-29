@@ -175,11 +175,11 @@ class Contract(models.Model):
         default='client'
     )
     client = models.ForeignKey(
-        Client, on_delete=models.CASCADE, related_name='contracts',
+        Client, on_delete=models.PROTECT, related_name='contracts',
         verbose_name='客户', null=True, blank=True
     )
     supplier = models.ForeignKey(
-        Supplier, on_delete=models.CASCADE, related_name='contracts',
+        Supplier, on_delete=models.PROTECT, related_name='contracts',
         verbose_name='供应商', null=True, blank=True
     )
     project = models.ForeignKey('tasks.Project', on_delete=models.SET_NULL, null=True, blank=True, related_name='contracts', verbose_name='关联项目')
@@ -309,7 +309,7 @@ class Contact(models.Model):
         related_name='crm_contacts', null=True, blank=True, verbose_name='所属公司'
     )
     client = models.ForeignKey(
-        Client, on_delete=models.CASCADE, related_name='contacts',
+        Client, on_delete=models.PROTECT, related_name='contacts',
         verbose_name='所属客户', null=True, blank=True
     )
     name = models.CharField('姓名', max_length=100)
@@ -396,7 +396,7 @@ class Opportunity(models.Model):
         related_name='opportunities', null=True, blank=True, verbose_name='所属公司'
     )
     client = models.ForeignKey(
-        Client, on_delete=models.CASCADE, related_name='opportunities',
+        Client, on_delete=models.PROTECT, related_name='opportunities',
         verbose_name='客户', null=True, blank=True
     )
     contact = models.ForeignKey(

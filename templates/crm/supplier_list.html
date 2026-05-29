@@ -72,6 +72,11 @@
                 <span class="text-muted mx-1" style="font-size:0.8rem;">跳至</span>
                 <input type="number" class="form-control form-control-sm" id="supplierJumpPage" min="1" style="width:60px;" onkeypress="if(event.key==='Enter')supplierJumpPage()">
                 <button class="btn btn-sm btn-outline-primary" onclick="supplierJumpPage()">跳转</button>
+                <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+                    <option value="20">20条/页</option>
+                    <option value="50">50条/页</option>
+                    <option value="100">100条/页</option>
+                </select>
             </div>
         </div>
     </div>
@@ -161,7 +166,7 @@
 var supplierModal;
 var allSuppliers = [];
 var currentPage = 1;
-var pageSize = 20;
+let pageSize = 20;
 
 document.addEventListener('DOMContentLoaded', function() {
     supplierModal = new bootstrap.Modal(document.getElementById('supplierModal'));
@@ -389,6 +394,12 @@ async function deleteSupplier(id) {
     } catch (error) {
         showToast('删除失败', 'error');
     }
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    renderSuppliers();
 }
 
 function formatDate(dateStr) {

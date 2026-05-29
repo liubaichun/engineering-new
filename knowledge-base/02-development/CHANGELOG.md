@@ -1,5 +1,34 @@
 # 变更日志
 
+## [v2.2.1] 2026-05-25 — 安全审计收官（17项权限修复）
+
+### 安全加固
+- 敏感数据脱敏：身份证号/银行卡号/手机号 `MaskedCharField` 自动脱敏
+- Serializer 公司归属校验：`CompanyAccessValidatorMixin`（非超管校验）
+- 银行导入 preview/confirm 加 `UserCompanyRole` 公司权限校验
+- 6个 ViewSet 从未生效的 `action_perms` 补全（Company/Income/Expense/WageRecord/Invoice/ARAP）
+
+### 权限修复
+- CRM合同5个动作 approve/reject/activate/complete/terminate 权限码修正
+- 审批流 create=read 修复
+- finance 5个 ViewSet 权限前缀修正（company→employee/bank/social_security/employee）
+- Equipment record_repair/export 权限注册
+- user_list.html 权限码旧格式 `user.add` → `system:user:create`
+- UserViewSet 补全 action-level 权限码
+
+### 导入修复
+- CRM导入（客户/供应商/合同）创建记录添加 company 关联
+- 财务导入（收入/支出）改用 `auth_company` 替代硬编码 `Company.objects.first()`
+- 发票导入优先 `auth_company`（当前选中公司）
+- 员工导入缺公司列时 `auth_company` 兜底
+
+### 涉及文件统计
+- 修改文件：12个（views × 5, import_views × 3, serializers × 2, templates × 2）
+- 函数/视图：17个修复点
+- 部署：43服务器 ✅ 124服务器 ✅
+
+---
+
 ## [v2.0] 2026-04-29 — 商业版开发启动
 
 ### 新增

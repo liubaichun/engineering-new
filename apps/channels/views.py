@@ -404,6 +404,8 @@ class ChannelListView(APIView):
                 'id': ch.id,
                 'channel_type': ch.channel_type,
                 'channel_name': ch.get_channel_type_display(),
+                'usage': ch.usage,
+                'usage_display': ch.get_usage_display(),
                 'plugin_name': ch.plugin_name,
                 'app_name': ch.app_name,
                 'connection_mode': ch.connection_mode,
@@ -434,11 +436,15 @@ class ChannelListView(APIView):
             return Response({'error': '无法确定公司'}, status=status.HTTP_400_BAD_REQUEST)
         
         channel_type = request.data.get('channel_type')
+        usage = request.data.get('usage', 'personal')
         app_name = request.data.get('app_name', '')
         config = request.data.get('config', {})
 
         if not channel_type:
             return Response({'error': '缺少channel_type'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if usage not in ('broadcast', 'personal'):
+            return Response({'error': '用途必须为 broadcast 或 personal'}, status=status.HTTP_400_BAD_REQUEST)
 
         plugin_class = ChannelRegistry._plugins.get(channel_type)
         if not plugin_class:
@@ -452,6 +458,7 @@ class ChannelListView(APIView):
             channel = ChannelPlugin.objects.create(
                 company_id=company_id,
                 channel_type=channel_type,
+                usage=usage,
                 plugin_name=channel_type,
                 app_name=app_name,
                 config=encrypted_config,
@@ -499,6 +506,8 @@ class ChannelDetailView(APIView):
             'id': channel.id,
             'channel_type': channel.channel_type,
             'channel_name': channel.get_channel_type_display(),
+            'usage': channel.usage,
+            'usage_display': channel.get_usage_display(),
             'app_name': channel.app_name,
             'connection_mode': channel.connection_mode,
             'pairing_mode': channel.pairing_mode,
@@ -528,6 +537,16 @@ class ChannelDetailView(APIView):
                 new_values['is_active'] = new_is_active
                 changed_fields.append('is_active')
                 channel.is_active = new_is_active
+
+        if 'usage' in request.data:
+            new_usage = request.data['usage']
+            if new_usage not in ('broadcast', 'personal'):
+                return Response({'error': '用途必须为 broadcast 或 personal'}, status=status.HTTP_400_BAD_REQUEST)
+            if channel.usage != new_usage:
+                old_values['usage'] = channel.usage
+                new_values['usage'] = new_usage
+                changed_fields.append('usage')
+                channel.usage = new_usage
 
         if 'config' in request.data:
             new_config = request.data['config']

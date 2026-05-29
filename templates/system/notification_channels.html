@@ -13,6 +13,7 @@
     <li class="nav-item"><a class="nav-link active" href="/system/notification-channels/" id="tab-channels"><i class="bi bi-broadcast me-1"></i>渠道配置</a></li>
     <li class="nav-item"><a class="nav-link" href="/system/notification-router/" id="tab-router"><i class="bi bi-router me-1"></i>路由规则</a></li>
     <li class="nav-item"><a class="nav-link" href="/system/notification-logs/" id="tab-logs"><i class="bi bi-journal-text me-1"></i>通知日志</a></li>
+    <li class="nav-item"><a class="nav-link" href="/system/notification-preferences/" id="tab-prefs"><i class="bi bi-sliders me-1"></i>通知偏好</a></li>
 </ul>
 
 <!-- 渠道配置卡片 -->
@@ -91,13 +92,13 @@
                     <div class="form-check form-check-inline">
                         <input class="form-check-input" type="radio" name="channelUsage" id="usageBroadcast" value="broadcast" checked onchange="toggleChannelFields()">
                         <label class="form-check-label" for="usageBroadcast">
-                            <strong>📢 广播</strong><br><small class="text-muted">Webhook群播，所有人收到相同消息</small>
+                            <strong>📢 群通知</strong><br><small class="text-muted">发到群机器人，群里所有人都能收到</small>
                         </label>
                     </div>
                     <div class="form-check form-check-inline ms-3">
-                        <input class="form-check-input" type="radio" name="channelUsage" id="usagePrivate" value="private" onchange="toggleChannelFields()">
-                        <label class="form-check-label" for="usagePrivate">
-                            <strong>👤 私人</strong><br><small class="text-muted">应用消息，精确推送给绑定用户</small>
+                        <input class="form-check-input" type="radio" name="channelUsage" id="usagePersonal" value="personal" onchange="toggleChannelFields()">
+                        <label class="form-check-label" for="usagePersonal">
+                            <strong>✉️ 私信通知</strong><br><small class="text-muted">点对点推送给指定用户（需绑定）</small>
                         </label>
                     </div>
                 </div>
@@ -133,11 +134,11 @@
                     </div>
                 </div>
 
-                <!-- 私人专用 -->
-                <div id="privateFields" style="display:none">
+                <!-- 私信通知专用 -->
+                <div id="personalFields" style="display:none">
                     <div class="alert alert-warning small">
                         <i class="bi bi-exclamation-triangle me-1"></i>
-                        <strong>私人渠道</strong>需要搭配「用户绑定」使用。先在此保存应用凭证，再去下方「用户绑定」为每个员工绑定其在平台上的账号标识（open_id / userid / 邮箱）。
+                        <strong>私信通知渠道</strong>需要搭配「用户绑定」使用。先在此保存应用凭证，再去下方「用户绑定」为每个员工绑定其在平台上的账号标识（open_id / userid / 邮箱）。
                     </div>
                     <div class="mb-3">
                         <label class="form-label">App ID <span class="text-danger">*</span></label>
@@ -242,15 +243,14 @@ async function loadChannels() {
             return;
         }
         tbody.innerHTML = channelList.map(c => {
-            const usage = (c.config?.app_id && !c.config?.webhook_url) ? 'private' : 'broadcast';
-            const usageLabel = usage === 'private'
-                ? '<span class="badge bg-primary">私人</span>'
-                : '<span class="badge bg-success">广播</span>';
+            const usageLabel = c.usage === 'broadcast'
+                ? '<span class="badge bg-success">群通知</span>'
+                : '<span class="badge bg-primary">私信通知</span>';
             let configDesc = '';
-            if (usage === 'broadcast') {
+            if (c.usage === 'broadcast') {
                 configDesc = '<span class="text-muted small">Webhook: ' + escapeHtml((c.config?.webhook_url || '').replace('https://','')) + '</span>';
             } else {
-                configDesc = '<span class="text-muted small">App ID: ' + escapeHtml(c.config?.app_id || '—') + '</span>';
+                configDesc = '<span class="text-muted small">App ID: ' + escapeHtml(c.config?.app_id || c.config?.app_key || '—') + '</span>';
             }
             return '<tr>' +
                 '<td><strong>' + escapeHtml(c.app_name || '-') + '</strong></td>' +
@@ -273,19 +273,19 @@ async function loadChannels() {
 function toggleChannelFields() {
     const usage = document.querySelector('input[name="channelUsage"]:checked').value;
     document.getElementById('broadcastFields').style.display = usage === 'broadcast' ? '' : 'none';
-    document.getElementById('privateFields').style.display = usage === 'private' ? '' : 'none';
+    document.getElementById('personalFields').style.display = usage === 'personal' ? '' : 'none';
     // Required attribute
     document.getElementById('webhookUrl').required = usage === 'broadcast';
-    document.getElementById('appId').required = usage === 'private';
-    document.getElementById('appSecret').required = usage === 'private';
+    document.getElementById('appId').required = usage === 'personal';
+    document.getElementById('appSecret').required = usage === 'personal';
 }
 
 function onChannelTypeChange() {
     const type = document.getElementById('channelType').value;
     // Show/hide usage options based on type
     const isFeishu = type === 'feishu';
-    document.getElementById('usagePrivate').disabled = !isFeishu;
-    if (!isFeishu && document.getElementById('usagePrivate').checked) {
+    document.getElementById('usagePersonal').disabled = !isFeishu;
+    if (!isFeishu && document.getElementById('usagePersonal').checked) {
         document.getElementById('usageBroadcast').checked = true;
         toggleChannelFields();
     }
@@ -318,9 +318,9 @@ async function editChannel(id) {
         document.getElementById('channelStatus').value = c.is_active ? 'active' : 'inactive';
 
         // Determine usage
-        const usage = (c.config?.app_id && !c.config?.webhook_url) ? 'private' : 'broadcast';
+        const usage = (c.config?.app_id && !c.config?.webhook_url) ? 'personal' : 'broadcast';
         document.getElementById('usageBroadcast').checked = usage === 'broadcast';
-        document.getElementById('usagePrivate').checked = usage === 'private';
+        document.getElementById('usagePersonal').checked = usage === 'personal';
         toggleChannelFields();
 
         document.getElementById('webhookUrl').value = c.config?.webhook_url || '';
@@ -344,7 +344,7 @@ async function saveChannel() {
     let config = {};
     if (usage === 'broadcast') {
         const webhook_url = document.getElementById('webhookUrl').value.trim();
-        if (!webhook_url) { showToast('广播渠道必须填写 Webhook 地址', 'warning'); return; }
+        if (!webhook_url) { showToast('群通知渠道必须填写 Webhook 地址', 'warning'); return; }
         config = {
             webhook_url: webhook_url,
             webhook_secret: document.getElementById('webhookSecret').value.trim(),
@@ -352,7 +352,7 @@ async function saveChannel() {
     } else {
         const app_id = document.getElementById('appId').value.trim();
         const app_secret = document.getElementById('appSecret').value.trim();
-        if (!app_id || !app_secret) { showToast('私人渠道必须填写 App ID 和 App Secret', 'warning'); return; }
+        if (!app_id || !app_secret) { showToast('私信通知渠道必须填写 App ID 和 App Secret', 'warning'); return; }
         config = {
             app_id: app_id,
             app_secret: app_secret,
@@ -362,6 +362,7 @@ async function saveChannel() {
     const payload = {
         app_name: name,
         channel_type: channel_type,
+        usage: usage,
         is_active: status === 'active',
         config: config,
     };

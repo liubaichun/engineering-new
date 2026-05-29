@@ -20,6 +20,15 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 X_FRAME_OPTIONS = 'SAMEORIGIN'  # 允许同源iframe嵌入（CRM/采购/运营/系统聚合页需要）
 
+# ─── 安全配置（等保二级） ───
+# X_FRAME_OPTIONS = 'DENY'  # 等保要求：禁止iframe嵌入
+# 以下选项在生产环境配置HTTPS后取消注释：
+# SECURE_HSTS_SECONDS = 31536000  # 1年HSTS
+# SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+# SECURE_SSL_REDIRECT = True  # HTTP→HTTPS
+# SESSION_COOKIE_SECURE = True  # Session仅HTTPS
+# CSRF_COOKIE_SECURE = True  # CSRF Token仅HTTPS
+
 ALLOWED_HOSTS = [
     h.strip()
     for h in os.environ.get('ALLOWED_HOSTS', '*').split(',')
@@ -191,7 +200,6 @@ GREEN 企业信息化管理系统 RESTful API
     'TAGS': [
         {'name': 'auth', 'description': '认证相关 — 登录/登出/注册/密码重置'},
         {'name': 'core-user', 'description': '用户管理 — 用户 CRUD / 注册审批 / 密码重置 / 角色分配'},
-        {'name': 'core-role', 'description': '角色管理 — 角色 CRUD / 权限分配（通过 role-permissions/toggle）'},
         {'name': 'core-permission', 'description': '权限管理 — 权限定义 CRUD'},
         {'name': 'core-audit', 'description': '审计日志 — 操作日志 / 登录日志 / 权限变更记录'},
         {'name': 'core-setting', 'description': '系统参数 — 审批规则（expense≥1000/income≥5000自动触发）/ 工资规则'},

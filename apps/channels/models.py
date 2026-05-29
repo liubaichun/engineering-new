@@ -29,6 +29,11 @@ class ChannelPlugin(models.Model):
 
     company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='channel_plugins')
     channel_type = models.CharField('渠道类型', max_length=20, choices=CHANNEL_TYPES)
+    USAGE_CHOICES = [
+        ('broadcast', '群通知'),
+        ('personal', '私信通知'),
+    ]
+    usage = models.CharField('用途', max_length=20, choices=USAGE_CHOICES, default='personal')
     plugin_name = models.CharField('插件名称', max_length=50)
     app_name = models.CharField('应用名称', max_length=100, blank=True)
     

@@ -119,7 +119,12 @@
             <option value="rejected">已拒绝</option>
             <option value="cancelled">已取消</option>
         </select>
-        <button class="btn btn-primary btn-sm" onclick="showAddApprovalModal()" data-perm="approval.add">
+        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
+            <option value="20">20条/页</option>
+            <option value="50">50条/页</option>
+            <option value="100">100条/页</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="showAddApprovalModal()" data-perm="approval:approval:create">
             <i class="bi bi-plus-lg me-1"></i>新建审批
         </button>
     </div>
@@ -262,7 +267,7 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-success" id="confirmApproveBtn" onclick="confirmApprove()">批准</button>
-                <button type="button" class="btn btn-danger" id="confirmRejectBtn" onclick="confirmReject()" data-perm="approval.change">拒绝</button>
+                <button type="button" class="btn btn-danger" id="confirmRejectBtn" onclick="confirmReject()" data-perm="approval:approval:update">拒绝</button>
             </div>
         </div>
     </div>
@@ -372,7 +377,7 @@
 <script>
 var approvalModal, approvalActionModal, detailModal;
 var currentPage = 1;
-var pageSize = 20;
+let pageSize = 20;
 var currentUserId = {{ request.user.id|default:0 }};
 
 function _e(text) {
@@ -553,16 +558,16 @@ function renderActions(approval) {
             <button class="btn btn-sm btn-success" onclick="showApproveAction(${approval.id})">
                 <i class="bi bi-check-lg"></i>
             </button>
-            <button class="btn btn-sm btn-danger" onclick="showRejectAction(${approval.id})" data-perm="approval.change">
+            <button class="btn btn-sm btn-danger" onclick="showRejectAction(${approval.id})" data-perm="approval:approval:update">
                 <i class="bi bi-x-lg"></i>
             </button>
-            <button class="btn btn-sm btn-warning" onclick="showRejectToRequesterAction(${approval.id})" data-perm="approval.edit">
+            <button class="btn btn-sm btn-warning" onclick="showRejectToRequesterAction(${approval.id})" data-perm="approval:approval:update">
                 <i class="bi bi-arrow-return-left"></i>
             </button>
-            <button class="btn btn-sm btn-info" onclick="showTransferModal(${approval.id})" data-perm="approval.edit">
+            <button class="btn btn-sm btn-info" onclick="showTransferModal(${approval.id})" data-perm="approval:approval:update">
                 <i class="bi bi-people"></i>
             </button>
-            <button class="btn btn-sm btn-secondary" onclick="showDelegateModal(${approval.id})" data-perm="approval.edit">
+            <button class="btn btn-sm btn-secondary" onclick="showDelegateModal(${approval.id})" data-perm="approval:approval:update">
                 <i class="bi bi-person-plus"></i>
             </button>
         `;
@@ -1101,6 +1106,12 @@ function renderDetail(approval) {
         ` : ''}
         ${nodesHtml}
     `;
+}
+
+function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    loadApprovals();
 }
 </script>
 {% endblock %}

@@ -45,9 +45,11 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         'create': 'equipment:equipment:create',
         'record_usage': 'equipment:equipment:use',   # 领用设备
         'record_return': 'equipment:equipment:return',  # 归还设备
+        'record_repair': 'equipment:equipment:update',  # 记录维修
         'get_usage_logs': 'equipment:equipment:read',
         'get_repair_logs': 'equipment:equipment:read',
         'linked_boms': 'equipment:equipment:read',
+        'export': 'equipment:equipment:read',
     }
 
     def get_queryset(self):

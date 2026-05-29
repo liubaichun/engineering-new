@@ -1,149 +1,158 @@
-# finance 模块定义 — 使用 register_module() 自注册到 DB
-# 自注册动作 → 权限矩阵动态列
-
+"""
+财务模块定义 — 对应系统侧边栏「财务」分类的所有菜单项
+排序对应侧边栏顺序：工资管理→员工管理→社保管理→收支管理(收入/支出)→发票管理→财务报表→银行流水
+"""
 from apps.core.models import register_module
 
-# ── 9大模块自注册 ──────────────────────────────────────────────────────────
-
-register_module(
-    name='income',
-    label='收入管理',
-    icon='money',
-    category='finance',
-    description='收入记录管理',
-    sort_order=1,
-    actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:income:read']},
-        {'name': 'create',  'label': '新建',   'sort_order': 2, 'perm_codes': ['finance:income:create']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 3, 'perm_codes': ['finance:income:update']},
-        {'name': 'delete',  'label': '删除',   'sort_order': 4, 'perm_codes': ['finance:income:delete']},
-    ]
-)
-
-register_module(
-    name='expense',
-    label='支出管理',
-    icon='expense',
-    category='finance',
-    description='支出记录管理',
-    sort_order=2,
-    actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:expense:read']},
-        {'name': 'create',  'label': '新建',   'sort_order': 2, 'perm_codes': ['finance:expense:create']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 3, 'perm_codes': ['finance:expense:update']},
-        {'name': 'delete',  'label': '删除',   'sort_order': 4, 'perm_codes': ['finance:expense:delete']},
-        {'name': 'approve', 'label': '审批',   'sort_order': 5, 'perm_codes': ['finance:expense:approve']},
-    ]
-)
-
-register_module(
-    name='invoice',
-    label='发票管理',
-    icon='invoice',
-    category='finance',
-    description='发票开具与作废',
-    sort_order=3,
-    actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:invoice:read']},
-        {'name': 'create',  'label': '新建',   'sort_order': 2, 'perm_codes': ['finance:invoice:create']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 3, 'perm_codes': ['finance:invoice:update']},
-        {'name': 'delete',  'label': '作废',   'sort_order': 4, 'perm_codes': ['finance:invoice:delete']},
-    ]
-)
-
+# 工资管理
 register_module(
     name='wage',
     label='工资管理',
-    icon='wage',
+    icon='💰',
     category='finance',
     description='员工工资管理',
-    sort_order=4,
+    sort_order=10,
     actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:wage:read']},
-        {'name': 'create',  'label': '新建',   'sort_order': 2, 'perm_codes': ['finance:wage:create']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 3, 'perm_codes': ['finance:wage:update']},
-        {'name': 'submit',  'label': '提交',   'sort_order': 4, 'perm_codes': ['finance:wage:submit']},
-        {'name': 'approve', 'label': '审批',   'sort_order': 5, 'perm_codes': ['finance:wage:approve']},
-        {'name': 'pay',     'label': '发放',   'sort_order': 6, 'perm_codes': ['finance:wage:pay']},
-        {'name': 'export',  'label': '导出',   'sort_order': 7, 'perm_codes': ['finance:wage:export']},
-    ]
+        {'name': 'read',    'label': '查看', 'sort_order': 1,  'bit_position': 0},
+        {'name': 'create',  'label': '新建', 'sort_order': 2,  'bit_position': 1},
+        {'name': 'update',  'label': '编辑', 'sort_order': 3,  'bit_position': 2},
+        {'name': 'delete',  'label': '删除', 'sort_order': 4,  'bit_position': 3},
+        {'name': 'submit',  'label': '提交', 'sort_order': 5,  'bit_position': 5},
+        {'name': 'approve', 'label': '审批', 'sort_order': 6,  'bit_position': 4},
+        {'name': 'pay',     'label': '发放', 'sort_order': 7,  'bit_position': 6},
+        {'name': 'export',  'label': '导出', 'sort_order': 8,  'bit_position': 7},
+    ],
 )
 
-register_module(
-    name='report',
-    label='财务报表',
-    icon='report',
-    category='finance',
-    description='收支汇总报表',
-    sort_order=5,
-    actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:report:read']},
-        {'name': 'export',  'label': '导出',   'sort_order': 2, 'perm_codes': ['finance:report:export']},
-    ]
-)
-
-register_module(
-    name='bank',
-    label='银行流水',
-    icon='bank',
-    category='finance',
-    description='银行流水导入与核销',
-    sort_order=6,
-    actions=[
-        {'name': 'read',      'label': '查看',     'sort_order': 1, 'perm_codes': ['bank:read']},
-        {'name': 'import',    'label': '导入',     'sort_order': 2, 'perm_codes': ['bank:import']},
-        {'name': 'create',    'label': '新建',     'sort_order': 3, 'perm_codes': ['bank:create']},
-        {'name': 'update',    'label': '编辑',     'sort_order': 4, 'perm_codes': ['bank:update']},
-        {'name': 'delete',    'label': '删除',     'sort_order': 5, 'perm_codes': ['bank:delete']},
-        {'name': 'reconcile', 'label': '核销',     'sort_order': 6, 'perm_codes': ['bank:reconcile']},
-        {'name': 'match',     'label': '匹配',     'sort_order': 7, 'perm_codes': ['bank:match']},
-        {'name': 'export',    'label': '导出',     'sort_order': 8, 'perm_codes': ['bank:export']},
-        {'name': 'manage',    'label': '管理',     'sort_order': 9, 'perm_codes': ['bank:manage']},
-    ]
-)
-
-register_module(
-    name='company',
-    label='公司信息',
-    icon='company',
-    category='finance',
-    description='公司信息管理',
-    sort_order=7,
-    actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:company:read']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 2, 'perm_codes': ['finance:company:update']},
-        {'name': 'manage',  'label': '管理',   'sort_order': 3, 'perm_codes': ['finance:company:manage']},
-    ]
-)
-
+# 员工管理
 register_module(
     name='employee',
     label='员工管理',
-    icon='employee',
+    icon='👥',
     category='finance',
     description='员工信息管理',
-    sort_order=8,
+    sort_order=20,
     actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['finance:employee:read']},
-        {'name': 'create',  'label': '新建',   'sort_order': 2, 'perm_codes': ['finance:employee:create']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 3, 'perm_codes': ['finance:employee:update']},
-        {'name': 'delete',  'label': '删除',   'sort_order': 4, 'perm_codes': ['finance:employee:delete']},
-    ]
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete', 'label': '删除', 'sort_order': 4, 'bit_position': 3},
+    ],
 )
 
+# 社保管理
 register_module(
-    name='approval',
-    label='审批流程',
-    icon='approval',
+    name='social_security',
+    label='社保管理',
+    icon='🛡️',
     category='finance',
-    description='审批流程配置',
-    sort_order=9,
+    description='社保公积金管理',
+    sort_order=30,
     actions=[
-        {'name': 'read',    'label': '查看',   'sort_order': 1, 'perm_codes': ['approval:read']},
-        {'name': 'create',  'label': '新建',   'sort_order': 2, 'perm_codes': ['approval:create']},
-        {'name': 'update',  'label': '编辑',   'sort_order': 3, 'perm_codes': ['approval:update']},
-        {'name': 'delete',  'label': '删除',   'sort_order': 4, 'perm_codes': ['approval:delete']},
-        {'name': 'approve', 'label': '审批',   'sort_order': 5, 'perm_codes': ['approval:approve']},
-        {'name': 'manage',  'label': '管理',   'sort_order': 6, 'perm_codes': ['approval:manage']},
-    ]
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'import', 'label': '导入', 'sort_order': 2, 'bit_position': 8},
+        {'name': 'delete', 'label': '删除', 'sort_order': 3, 'bit_position': 3},
+    ],
 )
+
+# 收入管理（收支管理→收入管理）
+register_module(
+    name='income',
+    label='收入管理',
+    icon='📈',
+    category='finance',
+    description='收入记录管理',
+    sort_order=40,
+    actions=[
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete', 'label': '删除', 'sort_order': 4, 'bit_position': 3},
+        {'name': 'export', 'label': '导出', 'sort_order': 5, 'bit_position': 7},
+        {'name': 'import', 'label': '导入', 'sort_order': 6, 'bit_position': 8},
+    ],
+)
+
+# 支出管理（收支管理→支出管理）
+register_module(
+    name='expense',
+    label='支出管理',
+    icon='📉',
+    category='finance',
+    description='支出记录管理',
+    sort_order=50,
+    actions=[
+        {'name': 'read',    'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create',  'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update',  'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete',  'label': '删除', 'sort_order': 4, 'bit_position': 3},
+        {'name': 'export',  'label': '导出', 'sort_order': 5, 'bit_position': 7},
+        {'name': 'import',  'label': '导入', 'sort_order': 6, 'bit_position': 8},
+    ],
+)
+
+# 发票管理
+register_module(
+    name='invoice',
+    label='发票管理',
+    icon='🧾',
+    category='finance',
+    description='发票管理',
+    sort_order=60,
+    actions=[
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete', 'label': '作废', 'sort_order': 4, 'bit_position': 3},
+        {'name': 'import', 'label': '导入', 'sort_order': 5, 'bit_position': 8},
+        {'name': 'export', 'label': '导出', 'sort_order': 6, 'bit_position': 7},
+    ],
+)
+
+# 财务报表
+register_module(
+    name='report',
+    label='财务报表',
+    icon='📊',
+    category='finance',
+    description='财务报表',
+    sort_order=70,
+    actions=[
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'export', 'label': '导出', 'sort_order': 2, 'bit_position': 7},
+    ],
+)
+
+# 预算管理
+register_module(
+    name='budget',
+    label='预算管理',
+    icon='📊',
+    category='finance',
+    description='预算编制与执行跟踪',
+    sort_order=75,
+    actions=[
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'create', 'label': '新建', 'sort_order': 2, 'bit_position': 1},
+        {'name': 'update', 'label': '编辑', 'sort_order': 3, 'bit_position': 2},
+        {'name': 'delete', 'label': '删除', 'sort_order': 4, 'bit_position': 3},
+    ],
+)
+
+# 银行流水
+register_module(
+    name='bank',
+    label='银行流水',
+    icon='🏦',
+    category='finance',
+    description='银行流水导入与查看',
+    sort_order=80,
+    actions=[
+        {'name': 'read',   'label': '查看', 'sort_order': 1, 'bit_position': 0},
+        {'name': 'import', 'label': '导入', 'sort_order': 2, 'bit_position': 8},
+    ],
+)
+
+# 补充发票模块的导入/导出/认证动作
+# 注：已注册的 invoice 模块在上面第95-108行，这里只做追加说明
+# 实际修改用 patch 方式

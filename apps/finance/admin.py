@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Company, Income, Expense, WageRecord, Invoice
+from .models import Company, Income, Expense, WageRecord, Invoice, Account, Budget
 
 
 @admin.register(Company)
@@ -182,3 +182,22 @@ class InvoiceAdmin(admin.ModelAdmin):
             invoice.save()
             count += 1
         self.message_user(request, f'已作废 {count} 张发票')
+
+
+@admin.register(Account)
+class AccountAdmin(admin.ModelAdmin):
+    """会计科目表管理"""
+    list_display = ['code', 'name', 'account_type', 'level', 'is_leaf', 'parent', 'is_active', 'sort_order']
+    list_filter = ['account_type', 'level', 'is_active']
+    search_fields = ['code', 'name']
+    ordering = ['sort_order', 'code']
+    list_per_page = 50
+
+
+@admin.register(Budget)
+class BudgetAdmin(admin.ModelAdmin):
+    """预算管理"""
+    list_display = ['company', 'year', 'month', 'expense_type', 'budget_amount', 'note']
+    list_filter = ['company', 'year', 'expense_type']
+    search_fields = ['company__name', 'note']
+    ordering = ['-year', 'company__name']
