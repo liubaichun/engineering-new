@@ -4,12 +4,15 @@ POST /api/finance/import/bank-statement/        — 预览（不写库）
 POST /api/finance/import/bank-statement/confirm/ — 确认导入
 GET  /api/finance/import/bank-statement/banks/  — 支持的银行列表
 """
+import logging
 from apps.core.audit import pause_audit, resume_audit
 import datetime
 import os
 import re
 import uuid
 from decimal import Decimal
+
+logger = logging.getLogger(__name__)
 
 from django.db import transaction
 from django.utils import timezone
@@ -455,7 +458,8 @@ def _upsert_counterparty(company, cp_name: str, cp_account: str, cp_bank: str, c
                 Supplier.objects.get_or_create(
                     company=company, name=name, defaults=base_fields)
             return supplier
-    except Exception:
+    except Exception as e:
+        logger.exception('对手方档案创建失败')
         return None
 
 
@@ -733,6 +737,7 @@ def preview_bank_statement(request):
                     detected_bank = cls.bank_code
                     break
         except Exception:
+            logger.exception('openpyxl 解析失败，尝试 xlrd 降级')
             try:
                 # 降级到 xlrd（xls 格式）
                 xlrd_wb = xlrd.open_workbook(file_contents=content)
@@ -742,6 +747,7 @@ def preview_bank_statement(request):
                         detected_bank = cls.bank_code
                         break
             except Exception:
+                logger.exception('xlrd 降级解析也失败')
                 pass
         if detected_bank and detected_bank != bank_account.bank_code and detected_bank != ('PINGAN' if bank_account.bank_code == 'PA' else bank_account.bank_code):
             bank_display_map = {
@@ -787,6 +793,7 @@ def preview_bank_statement(request):
                         detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
                         break
             except Exception:
+                logger.exception('openpyxl 自动识别失败，尝试 xlrd 降级')
                 try:
                     xlrd_wb = xlrd.open_workbook(file_contents=content)
                     xlrd_ws = XlrdSheetWrapper(xlrd_wb.sheet_by_index(0))
@@ -795,6 +802,7 @@ def preview_bank_statement(request):
                             detected_bank = bank_display_map.get(cls.bank_code, cls.bank_code)
                             break
                 except Exception:
+                    logger.exception('xlrd 自动识别降级也失败')
                     pass
             if detected_bank:
                 hint = f'您选择的是 [{expected_name}]，但上传的文件似乎是 [{detected_bank}] 格式，请重新选择正确的银行对账单'
@@ -993,6 +1001,7 @@ def confirm_bank_import(request):
             try:
                 amount = Decimal(str(row.get('amount', '0')))
             except Exception:
+                logger.exception('金额解析失败，使用默认值 0')
                 amount = Decimal('0')
             direction  = row.get('direction', '')
             cp_name    = row.get('counterparty_name', '').strip()
@@ -1005,6 +1014,7 @@ def confirm_bank_import(request):
             try:
                 bal = Decimal(str(row.get('balance', '0')))
             except Exception:
+                logger.exception('余额解析失败，使用默认值 0')
                 bal = Decimal('0')
 
             # 日期解析
@@ -1091,6 +1101,7 @@ def confirm_bank_import(request):
                               f"exp_id={exp_obj.id if exp_obj else None}\n")
     
             except Exception as e:
+                logger.exception(f'原子事务回滚 idx={idx}')
                 import traceback
                 tb = traceback.format_exc()
                 with open(LOG_PATH, 'a') as _lf:
@@ -1107,6 +1118,7 @@ def confirm_bank_import(request):
                         date_tolerance=5
                     )
                 except Exception as rec_err:
+                    logger.exception(f'发票核销异常 {tx_date}')
                     errors.append(f"核销异常 {tx_date}: {rec_err}")
     
         # ── 汇总写入 ───────────────────────────────────────────────────

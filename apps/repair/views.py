@@ -1,5 +1,8 @@
 # repair/views.py
+import logging
 from rest_framework import viewsets, status, permissions
+
+logger = logging.getLogger(__name__)
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
@@ -82,6 +85,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             from apps.tasks.notification_service import notify_repair_action
             notify_repair_action(obj, 'assigned', request.user)
         except Exception:
+            logger.exception('通知发送失败(派工)')
             pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
@@ -97,6 +101,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             from apps.tasks.notification_service import notify_repair_action
             notify_repair_action(obj, 'started', request.user)
         except Exception:
+            logger.exception('通知发送失败(开始维修)')
             pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
@@ -116,6 +121,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             from apps.tasks.notification_service import notify_repair_action
             notify_repair_action(obj, 'completed', request.user)
         except Exception:
+            logger.exception('通知发送失败(维修完成)')
             pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
@@ -133,6 +139,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             from apps.tasks.notification_service import notify_repair_action
             notify_repair_action(obj, 'accepted', request.user)
         except Exception:
+            logger.exception('通知发送失败(验收通过)')
             pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
@@ -148,6 +155,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             from apps.tasks.notification_service import notify_repair_action
             notify_repair_action(obj, 'rejected', request.user)
         except Exception:
+            logger.exception('通知发送失败(验收不通过)')
             pass
         return Response(RepairRequestDetailSerializer(obj).data)
 
@@ -163,6 +171,7 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
             from apps.tasks.notification_service import notify_repair_action
             notify_repair_action(obj, 'cancelled', request.user)
         except Exception:
+            logger.exception('通知发送失败(取消报修)')
             pass
         return Response(RepairRequestDetailSerializer(obj).data)
 

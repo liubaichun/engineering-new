@@ -3,10 +3,13 @@
 支持：ICBC(工商银行) / CMB(招商银行) / CCB(建设银行) / BOC(中国银行) / ABC(农业银行) / COMM(交通银行) / PSBC(邮储银行)
 """
 import datetime
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -108,6 +111,7 @@ class ICBCAdapter(BankStatementAdapter):
         try:
             return str(ws.cell(1, 1).value or '').strip() == '[HISTORYDETAIL]'
         except Exception:
+            logger.exception('ICBCAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -202,9 +206,11 @@ class ICBCAdapter(BankStatementAdapter):
                     account_no=file_account_no,
                 ))
             except Exception:
+                logger.exception('ICBCAdapter.parse 行解析失败')
                 continue
 
         return records
+
 
 # ─── 招商银行 ACCOUNT v2.0 ──────────────────────────────────────────────
 class CMBAdapter(BankStatementAdapter):
@@ -229,6 +235,7 @@ class CMBAdapter(BankStatementAdapter):
                                 return True
             return False
         except Exception:
+            logger.exception('CMBAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -301,6 +308,7 @@ class CMBAdapter(BankStatementAdapter):
                     account_no=file_account_no,
                 ))
             except Exception:
+                logger.exception('CMBAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -325,6 +333,7 @@ class CCBAdapter(BankStatementAdapter):
                         return True
             return False
         except Exception:
+            logger.exception('CCBAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -385,6 +394,7 @@ class CCBAdapter(BankStatementAdapter):
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
             except Exception:
+                logger.exception('CCBAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -408,6 +418,7 @@ class BOCAdapter(BankStatementAdapter):
                         return True
             return False
         except Exception:
+            logger.exception('BOCAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -461,6 +472,7 @@ class BOCAdapter(BankStatementAdapter):
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
             except Exception:
+                logger.exception('BOCAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -483,6 +495,7 @@ class ABCAdapter(BankStatementAdapter):
                         return True
             return False
         except Exception:
+            logger.exception('ABCAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -536,6 +549,7 @@ class ABCAdapter(BankStatementAdapter):
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
             except Exception:
+                logger.exception('ABCAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -558,6 +572,7 @@ class COMMAdapter(BankStatementAdapter):
                         return True
             return False
         except Exception:
+            logger.exception('COMMAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -611,6 +626,7 @@ class COMMAdapter(BankStatementAdapter):
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
             except Exception:
+                logger.exception('COMMAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -633,6 +649,7 @@ class PSBCAdapter(BankStatementAdapter):
                         return True
             return False
         except Exception:
+            logger.exception('PSBCAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -686,6 +703,7 @@ class PSBCAdapter(BankStatementAdapter):
                     raw_data=dict(zip(headers, [ws.cell(row_idx, c).value for c in range(1, len(headers) + 1)]))
                 ))
             except Exception:
+                logger.exception('PSBCAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -751,6 +769,7 @@ class PingAnAdapter(BankStatementAdapter):
                         return True
             return False
         except Exception:
+            logger.exception('PingAnAdapter.detect 失败')
             return False
 
     def parse(self, ws) -> list[ParsedTransaction]:
@@ -789,6 +808,7 @@ class PingAnAdapter(BankStatementAdapter):
                     file_account_no = str(get_col(row_idx, '账号') or '').strip()
                     break
             except Exception:
+                logger.exception('PingAnAdapter.parse 账号提取失败')
                 continue
 
         for row_idx in range(header_row + 1, ws.max_row + 1):
@@ -830,6 +850,7 @@ class PingAnAdapter(BankStatementAdapter):
                     account_no=file_account_no,
                 ))
             except Exception:
+                logger.exception('PingAnAdapter.parse 行解析失败')
                 continue
 
         return records
@@ -852,6 +873,7 @@ def detect_and_parse(file_content):
         wb = openpyxl.load_workbook(file_obj, data_only=True)
         ws = wb.active
     except Exception:
+        logger.exception('detect_and_parse openpyxl 加载失败，尝试 xlrd 降级')
         import xlrd
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
@@ -904,6 +926,7 @@ def parse_with_adapter(file_content, bank_code: str):
         wb = openpyxl.load_workbook(file_obj, data_only=True)
         ws = wb.active
     except Exception:
+        logger.exception('parse_with_adapter openpyxl 加载失败，尝试 xlrd 降级')
         import xlrd
         if hasattr(file_obj, 'seek'):
             file_obj.seek(0)
@@ -936,6 +959,7 @@ def detect_with_adapter(file_content, bank_code: str) -> bool:
         wb = openpyxl.load_workbook(file_obj, data_only=True)
         ws = wb.active
     except Exception:
+        logger.exception('detect_with_adapter openpyxl 加载失败，尝试 xlrd 降级')
         try:
             import xlrd
             if hasattr(file_obj, 'seek'):
@@ -944,6 +968,7 @@ def detect_with_adapter(file_content, bank_code: str) -> bool:
             wb = xlrd.open_workbook(file_contents=xlrd_content)
             ws = XlrdSheetWrapper(wb.sheet_by_index(0))
         except Exception:
+            logger.exception('detect_with_adapter xlrd 降级也失败')
             return False
 
     return adapters[bank_code].detect(ws)
