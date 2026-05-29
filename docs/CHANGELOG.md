@@ -1,5 +1,34 @@
 # 变更日志
 
+## 2026-05-29 P3-3 Pre-commit hooks — 代码提交自动检查
+
+### 新增
+- `.pre-commit-config.yaml` — 6类自动检查：
+  - **ruff lint + format** — 代码质量/风格自动修复
+  - **trailing-whitespace + end-of-file-fixer** — 文件整洁
+  - **check-merge-conflict** — 防止合并冲突标记泄露
+  - **debug-statements** — 拦截 print/pdb/ipdb
+  - **check-added-large-files (>10MB)** — 防止大文件入库
+  - **name-tests-test** — 测试文件命名规范
+
+### 设计考虑
+- `--fix` 模式自动修复可修复问题，开发只需处理无法自动修的
+- migration 文件排除在检查之外（自动生成）
+
+## 2026-05-29 P3-2 CI/CD自动化 — GitHub Actions
+
+### 新增
+- `.github/workflows/ci.yml` — push/PR时自动执行：
+  - **test**（主门禁）：PostgreSQL 16容器 + 43个pytest用例
+  - **lint**（参考）：ruff pyflakes检查，不影响CI通过
+- `pyproject.toml` — ruff配置（目标Python 3.11）
+- `requirements-ci.txt` — CI专用依赖（ruff, bandit）
+
+### 设计考虑
+- test job是**必须通过**的主门禁，保障代码不破坏已有功能
+- lint job `continue-on-error`，不阻塞开发进度，逐步修复
+- 预配置 PostgreSQL service，CI中自动启动
+
 ## 2026-05-29 P3-1 Settings 重构 — 目录包模式
 
 ### 背景
