@@ -2,6 +2,7 @@ import os
 import re
 
 from django.conf import settings
+from django.db import models
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework import viewsets
@@ -178,11 +179,10 @@ class ClientViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        # 2. 发票汇总（通过合同关联）
+        # 2. 发票汇总（通过合同关联 + 按名称直接匹配）
         from apps.finance.models_invoice import Invoice
 
         invoices = Invoice.objects.filter(contract__client=client)
-        total_invoice_amount = invoices.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         invoices_data = []
         for inv in invoices:
             invoices_data.append(
@@ -194,8 +194,66 @@ class ClientViewSet(viewsets.ModelViewSet):
                     'status': inv.status,
                     'issue_date': inv.issue_date.isoformat() if inv.issue_date else None,
                     'due_date': inv.due_date.isoformat() if inv.due_date else None,
+                    'source': '合同关联',
                 }
             )
+
+        # 2b. 直接按名称匹配发票（客户名称出现在发票对方名称中）
+        if client.name:
+            direct_invoices = Invoice.objects.filter(counterparty__icontains=client.name).exclude(
+                contract__client=client
+            )
+            for inv in direct_invoices:
+                invoices_data.append(
+                    {
+                        'id': inv.id,
+                        'invoice_no': inv.invoice_no,
+                        'type': inv.type,
+                        'amount': float(inv.amount or 0),
+                        'status': inv.status,
+                        'issue_date': inv.issue_date.isoformat() if inv.issue_date else None,
+                        'due_date': inv.due_date.isoformat() if inv.due_date else None,
+                        'source': '按名称匹配',
+                    }
+                )
+
+        # 2c. 收入记录（按 customer 或 client_ref 匹配）
+        from apps.finance.models_income import Income
+
+        incomes_data = []
+        if client.name:
+            matched_income = Income.objects.filter(
+                models.Q(customer__icontains=client.name) | models.Q(client_ref__name__icontains=client.name)
+            )
+            for inc in matched_income:
+                incomes_data.append(
+                    {
+                        'id': inc.id,
+                        'customer': inc.customer,
+                        'amount': float(inc.amount or 0),
+                        'date': inc.date.isoformat() if inc.date else None,
+                        'summary': inc.summary or '',
+                        'status': inc.status,
+                    }
+                )
+
+        # 2d. 银行流水（按 counterparty_name 匹配）
+        from apps.finance.models_bank import BankStatement
+
+        bank_data = []
+        if client.name:
+            matched_bank = BankStatement.objects.filter(counterparty_name__icontains=client.name)
+            for bs in matched_bank:
+                bank_data.append(
+                    {
+                        'id': bs.id,
+                        'counterparty_name': bs.counterparty_name,
+                        'amount': float(bs.amount or 0),
+                        'direction': bs.direction,
+                        'transaction_date': bs.transaction_date.isoformat() if bs.transaction_date else None,
+                        'summary': bs.summary or '',
+                    }
+                )
 
         # 3. 项目汇总（通过合同关联）
         from apps.tasks.models import Project
@@ -271,7 +329,9 @@ class ClientViewSet(viewsets.ModelViewSet):
             'total_receivable': round(receivable, 2),
             'contracts_count': contracts.count(),
             'active_contracts_count': contracts.filter(status='active').count(),
-            'invoices_count': invoices.count(),
+            'invoices_count': len(invoices_data),
+            'incomes_count': len(incomes_data),
+            'bank_count': len(bank_data),
             'projects_count': projects.count(),
             'contacts_count': contacts.count(),
         }
@@ -294,6 +354,8 @@ class ClientViewSet(viewsets.ModelViewSet):
                 'summary': summary,
                 'contracts': contracts_data,
                 'invoices': invoices_data,
+                'incomes': incomes_data,
+                'bank_statements': bank_data,
                 'projects': projects_data,
                 'contacts': contacts_data,
                 'follow_ups': follow_ups_data,
@@ -636,8 +698,6 @@ class ContractViewSet(viewsets.ModelViewSet):
 
         # 提取日期
         date_pattern = r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'
-        dates = re.findall(date_pattern, payment_section)
-
         # 用分隔符拆分付款条款（按 ①②③ 或 (1)(2)(3) 或 1、2、3、）
         lines = re.split(r'[（(]?\s*[①②③④⑤⑥⑦⑧⑨⑩\d+]+\s*[））\)\]》、,，.\s]', payment_section)
         lines = [l.strip() for l in lines if len(l.strip()) > 10]

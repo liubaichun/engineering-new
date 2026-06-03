@@ -33,6 +33,91 @@
     </div>
   </div>
 </div>
+
+<!-- 里程碑 Modal -->
+<div class="modal fade" id="milestoneModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-signpost-2 me-2"></i><span id="milestoneModalTitle">添加里程碑</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="milestoneEditId">
+        <input type="hidden" id="milestoneContractId">
+        <div class="mb-3">
+          <label class="form-label">里程碑名称</label>
+          <input type="text" class="form-control" id="milestoneName" placeholder="如：首付款条件">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">描述</label>
+          <input type="text" class="form-control" id="milestoneDesc" placeholder="详细说明">
+        </div>
+        <div class="row mb-3">
+          <div class="col">
+            <label class="form-label">计划日期</label>
+            <input type="date" class="form-control" id="milestonePlanDate">
+          </div>
+          <div class="col">
+            <label class="form-label">金额</label>
+            <input type="number" class="form-control" id="milestoneAmount" step="0.01" min="0" placeholder="0.00">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">排序</label>
+          <input type="number" class="form-control" id="milestoneSortOrder" min="1" value="1">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveMilestone()"><i class="bi bi-check-lg me-1"></i>保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 变更记录 Modal -->
+<div class="modal fade" id="changeLogModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2"></i>添加变更记录</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="changeLogContractId">
+        <div class="mb-3">
+          <label class="form-label">变更类型</label>
+          <select class="form-select" id="changeLogType">
+            <option value="amount">金额变更</option>
+            <option value="term">期限变更</option>
+            <option value="party">对方主体变更</option>
+            <option value="content">合同内容变更</option>
+            <option value="terminate">终止</option>
+          </select>
+        </div>
+        <div class="row mb-3">
+          <div class="col">
+            <label class="form-label">变更前</label>
+            <input type="text" class="form-control" id="changeLogOld" placeholder="变更前的值">
+          </div>
+          <div class="col">
+            <label class="form-label">变更后</label>
+            <input type="text" class="form-control" id="changeLogNew" placeholder="变更后的值">
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">变更原因</label>
+          <textarea class="form-control" id="changeLogReason" rows="2" placeholder="说明变更原因"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="saveChangeLog()"><i class="bi bi-check-lg me-1"></i>保存</button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block styles %}
@@ -263,6 +348,9 @@
             <div class="sub-card">
                 <div class="sub-card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-signpost-2 me-2"></i>里程碑</span>
+                    <button class="btn btn-sm btn-outline-primary" onclick="addMilestone({{ contract.id }})">
+                        <i class="bi bi-plus-lg me-1"></i>添加里程碑
+                    </button>
                 </div>
                 <div class="sub-card-body">
                     {% if milestones %}
@@ -275,6 +363,7 @@
                                 <th>实际完成</th>
                                 <th>金额</th>
                                 <th>状态</th>
+                                <th style="width:120px">操作</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -296,6 +385,13 @@
                                     <span class="badge bg-secondary">待开始</span>
                                     {% endif %}
                                 </td>
+                                <td class="text-nowrap">
+                                    {% if m.status != 'completed' %}
+                                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="editMilestone({{ m.id }}, '{{ m.name|escapejs }}', '{{ m.description|default:""|escapejs }}', '{{ m.plan_date|date:"Y-m-d" }}', {{ m.amount|default:0 }}, {{ m.sort_order|default:0 }})" title="编辑"><i class="bi bi-pencil"></i></button>
+                                    <button class="btn btn-sm btn-outline-success py-0 px-1" onclick="completeMilestone({{ m.id }})" title="标记完成"><i class="bi bi-check-lg"></i></button>
+                                    {% endif %}
+                                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deleteMilestone({{ m.id }})" title="删除"><i class="bi bi-trash"></i></button>
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -313,8 +409,11 @@
         <!-- 变更记录 -->
         <div class="tab-pane fade" id="changes" role="tabpanel">
             <div class="sub-card">
-                <div class="sub-card-header">
-                    <i class="bi bi-arrow-repeat me-2"></i>合同变更记录
+                <div class="sub-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-arrow-repeat me-2"></i>合同变更记录</span>
+                    <button class="btn btn-sm btn-outline-warning" onclick="addChangeLog({{ contract.id }})">
+                        <i class="bi bi-plus-lg me-1"></i>添加变更记录
+                    </button>
                 </div>
                 <div class="sub-card-body">
                     {% if changes %}
@@ -630,6 +729,107 @@ function updatePaymentSummary() {
         const ph = document.getElementById('noPaymentPlaceholder');
         if (ph) ph.classList.remove('d-none');
     }
+}
+
+// ─── 里程碑操作 ─────────────────────────────
+function addMilestone(contractId) {
+    document.getElementById('milestoneModalTitle').textContent = '添加里程碑';
+    document.getElementById('milestoneEditId').value = '';
+    document.getElementById('milestoneContractId').value = contractId;
+    document.getElementById('milestoneName').value = '';
+    document.getElementById('milestoneDesc').value = '';
+    document.getElementById('milestonePlanDate').value = '';
+    document.getElementById('milestoneAmount').value = '';
+    document.getElementById('milestoneSortOrder').value = '1';
+    new bootstrap.Modal(document.getElementById('milestoneModal')).show();
+}
+
+function editMilestone(id, name, desc, planDate, amount, sortOrder) {
+    document.getElementById('milestoneModalTitle').textContent = '编辑里程碑';
+    document.getElementById('milestoneEditId').value = id;
+    document.getElementById('milestoneName').value = name;
+    document.getElementById('milestoneDesc').value = desc;
+    document.getElementById('milestonePlanDate').value = planDate;
+    document.getElementById('milestoneAmount').value = amount;
+    document.getElementById('milestoneSortOrder').value = sortOrder;
+    new bootstrap.Modal(document.getElementById('milestoneModal')).show();
+}
+
+function saveMilestone() {
+    const id = document.getElementById('milestoneEditId').value;
+    const contractId = document.getElementById('milestoneContractId').value;
+    const data = {
+        contract: parseInt(contractId),
+        name: document.getElementById('milestoneName').value.trim(),
+        description: document.getElementById('milestoneDesc').value.trim(),
+        plan_date: document.getElementById('milestonePlanDate').value,
+        amount: parseFloat(document.getElementById('milestoneAmount').value) || 0,
+        sort_order: parseInt(document.getElementById('milestoneSortOrder').value) || 1,
+    };
+    if (!data.name) { alert('请输入里程碑名称'); return; }
+    const btn = document.querySelector('#milestoneModal .btn-primary');
+    btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>保存中...';
+    const method = id ? 'PATCH' : 'POST';
+    const url = id ? '/api/crm/milestones/' + id + '/' : '/api/crm/milestones/';
+    fetch(url, {
+        method: method,
+        headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    })
+    .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(d.detail || '操作失败'); }); location.reload(); })
+    .catch(err => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>保存'; alert('失败: ' + err.message); });
+}
+
+function completeMilestone(id) {
+    if (!confirm('确认标记此里程碑为已完成？')) return;
+    fetch('/api/crm/milestones/' + id + '/complete/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCsrfToken()},
+    })
+    .then(r => { if (r.ok) location.reload(); else r.json().then(d => alert('失败: ' + (d.detail || '操作失败'))); })
+    .catch(err => alert('网络错误: ' + err.message));
+}
+
+function deleteMilestone(id) {
+    if (!confirm('确认删除此里程碑？')) return;
+    fetch('/api/crm/milestones/' + id + '/', {
+        method: 'DELETE',
+        headers: {'X-CSRFToken': getCsrfToken()},
+    })
+    .then(r => { if (r.ok) location.reload(); else alert('删除失败'); })
+    .catch(err => alert('网络错误: ' + err.message));
+}
+
+// ─── 变更记录操作 ─────────────────────────────
+function addChangeLog(contractId) {
+    document.getElementById('changeLogContractId').value = contractId;
+    document.getElementById('changeLogType').value = 'amount';
+    document.getElementById('changeLogOld').value = '';
+    document.getElementById('changeLogNew').value = '';
+    document.getElementById('changeLogReason').value = '';
+    new bootstrap.Modal(document.getElementById('changeLogModal')).show();
+}
+
+function saveChangeLog() {
+    const contractId = document.getElementById('changeLogContractId').value;
+    const data = {
+        change_type: document.getElementById('changeLogType').value,
+        old_value: document.getElementById('changeLogOld').value.trim(),
+        new_value: document.getElementById('changeLogNew').value.trim(),
+        reason: document.getElementById('changeLogReason').value.trim(),
+    };
+    if (!data.old_value && !data.new_value && !data.reason) {
+        alert('请填写变更内容或原因'); return;
+    }
+    const btn = document.querySelector('#changeLogModal .btn-primary');
+    btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>保存中...';
+    fetch('/api/crm/contracts/' + contractId + '/add_change_log/', {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json'},
+        body: JSON.stringify(data),
+    })
+    .then(r => { if (!r.ok) return r.json().then(d => { throw new Error(JSON.stringify(d)); }); bootstrap.Modal.getInstance(document.getElementById('changeLogModal')).hide(); btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>保存'; location.reload(); })
+    .catch(err => { btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>保存'; alert('失败: ' + err.message); });
 }
 </script>
 {% endblock %}

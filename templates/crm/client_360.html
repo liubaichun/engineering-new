@@ -164,6 +164,12 @@
                     <div class="label">执行中合同 / 总数</div>
                 </div>
             </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #1a2d3d, #15202d); border: 1px solid #2a4a5a;">
+                    <div class="number" style="color: #38bdf8;"><span v-text="data.summary.incomes_count || 0"></span> / <span v-text="data.summary.bank_count || 0"></span></div>
+                    <div class="label">收入记录 / 银行流水</div>
+                </div>
+            </div>
         </div>
 
         <!-- 主内容：左2/3 右1/3 -->
@@ -234,6 +240,72 @@
                                             <span class="status-badge" :class="invoiceStatusClass(inv.status)" v-text="invoiceStatusLabel(inv.status)"></span>
                                         </td>
                                         <td v-text="inv.issue_date || '-'"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 收入记录 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-cash-stack"></i> 收入记录
+                            <span class="badge bg-success ms-auto" v-text="data.incomes.length + ' 条'"></span>
+                        </div>
+                        <div v-if="data.incomes.length === 0" class="empty-360">暂无收入记录</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>客户名称</th>
+                                        <th>金额</th>
+                                        <th>日期</th>
+                                        <th>摘要</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="inc in data.incomes" :key="inc.id">
+                                        <td v-text="inc.customer"></td>
+                                        <td>¥<span v-text="formatMoney(inc.amount)"></span></td>
+                                        <td v-text="inc.date || '-'"></td>
+                                        <td v-text="inc.summary || '-'"></td>
+                                        <td><span class="status-badge" :class="inc.status === 'confirmed' ? 'bg-success' : 'bg-secondary'" v-text="inc.status === 'confirmed' ? '已确认' : '待确认'"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 银行流水 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-bank"></i> 银行流水
+                            <span class="badge bg-info ms-auto" v-text="data.bank_statements.length + ' 条'"></span>
+                        </div>
+                        <div v-if="data.bank_statements.length === 0" class="empty-360">暂无匹配流水</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>对方名称</th>
+                                        <th>金额</th>
+                                        <th>方向</th>
+                                        <th>日期</th>
+                                        <th>摘要</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="bs in data.bank_statements" :key="bs.id">
+                                        <td v-text="bs.counterparty_name"></td>
+                                        <td>¥<span v-text="formatMoney(bs.amount)"></span></td>
+                                        <td><span class="badge" :class="bs.direction === 'income' || bs.direction === '收款' ? 'bg-success' : 'bg-danger'" v-text="bs.direction === 'income' ? '收款' : (bs.direction === 'expense' ? '付款' : bs.direction)"></span></td>
+                                        <td v-text="bs.transaction_date || '-'"></td>
+                                        <td v-text="bs.summary || '-'"></td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -374,6 +446,8 @@ const app = Vue.createApp({
                 summary: null,
                 contracts: [],
                 invoices: [],
+                incomes: [],
+                bank_statements: [],
                 projects: [],
                 contacts: [],
                 follow_ups: [],

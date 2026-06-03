@@ -264,6 +264,7 @@ class Contract(models.Model):
         # 同步附件到 CompanyFile（文件管理）
         if self.attachment:
             from apps.files.models import CompanyFile, FileCategory
+
             # 获取或创建合同文件分类
             cat, _ = FileCategory.objects.get_or_create(name='合同文件', defaults={'description': '合同附件'})
             # 检查是否已有同文件的 CompanyFile 记录
@@ -279,14 +280,15 @@ class Contract(models.Model):
                     file_size=self.attachment.size if hasattr(self.attachment, 'size') else 0,
                     category=cat,
                     contract=self,
-                    company_id=self.company_id or 0,
+                    company_id=self.company_id
+                    or (getattr(self.created_by, 'company_id', None) if self.created_by else None),
                     uploaded_by=self.created_by,
                 )
         # 如果附件被移除，同步删除对应的 CompanyFile
         elif old_attachment and not self.attachment:
             from apps.files.models import CompanyFile
-            CompanyFile.objects.filter(contract=self, is_current=True).delete()
 
+            CompanyFile.objects.filter(contract=self, is_current=True).delete()
 
 
 class PaymentPlan(models.Model):

@@ -33,7 +33,9 @@ class CompanyFile(models.Model):
     contract = models.ForeignKey(
         'crm.Contract', verbose_name='关联合同', on_delete=models.SET_NULL, blank=True, null=True, related_name='files'
     )
-    company = models.ForeignKey(Company, on_delete=models.CASCADE, related_name='files', verbose_name='公司')
+    company = models.ForeignKey(
+        Company, on_delete=models.CASCADE, related_name='files', verbose_name='公司', null=True, blank=True
+    )
     project = models.ForeignKey(
         'tasks.Project',
         on_delete=models.SET_NULL,
