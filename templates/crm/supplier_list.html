@@ -231,6 +231,7 @@ function renderSuppliers() {
             html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
             html += '<td>' + createdAt + '</td>';
             html += '<td>';
+            html += '<button class="btn btn-sm btn-outline-info me-1" onclick="window.location.href=\'/crm/suppliers/' + s.id + '/360/\'" title="供应商360°视图"><i class="bi bi-compass"></i></button>';
             html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editSupplier(' + s.id + ')"><i class="bi bi-pencil"></i></button>';
             html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteSupplier(' + s.id + ')" data-perm="crm:supplier:delete"><i class="bi bi-trash"></i></button>';
             html += '</td></tr>';

@@ -109,6 +109,177 @@ class SupplierViewSet(viewsets.ModelViewSet):
         buf = export_suppliers(list(records))
         return make_export_response(buf, f'供应商列表_{timezone.now().strftime("%Y%m%d")}.xlsx')
 
+    @action(detail=True, methods=['get'])
+    def profile(self, request, pk=None):
+        """供应商360°视图 - 聚合供应商全量数据"""
+        from django.db.models import Sum
+        from decimal import Decimal
+        from apps.purchasing.models import PurchaseOrder, PurchaseReceive
+        from apps.finance.models_invoice import Invoice
+        from apps.finance.models_expense import Expense
+        from apps.finance.models_bank import BankStatement
+
+        supplier = self.get_object()
+
+        # 1. 采购订单
+        orders = PurchaseOrder.objects.filter(supplier=supplier).select_related('project')
+        total_order_amount = orders.aggregate(total=Sum('actual_amount'))['total'] or Decimal('0')
+        orders_data = []
+        for o in orders:
+            orders_data.append(
+                {
+                    'id': o.id,
+                    'order_no': o.order_no,
+                    'title': o.title,
+                    'amount': float(o.actual_amount or 0),
+                    'status': o.status,
+                    'order_date': o.order_date.isoformat() if o.order_date else None,
+                    'project_name': o.project.name if o.project else '',
+                }
+            )
+
+        # 2a. 采购入库
+        receives = PurchaseReceive.objects.filter(supplier=supplier).select_related('order')
+        receives_data = []
+        for r in receives:
+            receives_data.append(
+                {
+                    'id': r.id,
+                    'receive_no': r.receive_no,
+                    'order_no': r.order.order_no if r.order else '',
+                    'receive_date': r.receive_date.isoformat() if r.receive_date else '',
+                    'status': r.status,
+                }
+            )
+
+        # 2b. 关联合同（supplier FK）
+        contracts = Contract.objects.filter(supplier=supplier).select_related('project')
+        contracts_data = []
+        total_contract_amount = Decimal('0')
+        total_paid = Decimal('0')
+        for c in contracts:
+            total_contract_amount += c.amount or Decimal('0')
+            total_paid += c.total_paid or Decimal('0')
+            contracts_data.append(
+                {
+                    'id': c.id,
+                    'contract_no': c.contract_no,
+                    'name': c.name,
+                    'amount': float(c.amount or 0),
+                    'total_paid': float(c.total_paid or 0),
+                    'status': c.status,
+                }
+            )
+
+        # 3. 费用/支出（通过 supplier_ref FK 和名称匹配）
+        expenses_data = []
+        if supplier.name:
+            expenses = Expense.objects.filter(
+                models.Q(supplier_ref=supplier) | models.Q(supplier__icontains=supplier.name)
+            )
+            for e in expenses:
+                expenses_data.append(
+                    {
+                        'id': e.id,
+                        'amount': float(e.amount or 0),
+                        'date': e.date.isoformat() if e.date else None,
+                        'expense_type': e.expense_type,
+                        'status': e.status,
+                        'summary': e.summary or '',
+                    }
+                )
+
+        # 4. 发票（支出类型，通过合同 supplier 反向匹配或对方名称匹配）
+        invoices_data = []
+        # 4a. 通过关联合同的发票
+        contract_ids = list(contracts.values_list('id', flat=True))
+        if contract_ids:
+            invs = Invoice.objects.filter(type='expense', contract_id__in=contract_ids)
+            for inv in invs:
+                invoices_data.append(
+                    {
+                        'id': inv.id,
+                        'invoice_no': inv.invoice_no,
+                        'amount': float(inv.amount or 0),
+                        'status': inv.status,
+                        'issue_date': inv.issue_date.isoformat() if inv.issue_date else None,
+                        'due_date': inv.due_date.isoformat() if inv.due_date else None,
+                        'source': '合同关联',
+                    }
+                )
+        # 4b. 直接按名称匹配
+        if supplier.name:
+            direct_invs = Invoice.objects.filter(type='expense', counterparty__icontains=supplier.name)
+            existing_ids = {inv['id'] for inv in invoices_data}
+            for inv in direct_invs:
+                if inv.id not in existing_ids:
+                    invoices_data.append(
+                        {
+                            'id': inv.id,
+                            'invoice_no': inv.invoice_no,
+                            'amount': float(inv.amount or 0),
+                            'status': inv.status,
+                            'issue_date': inv.issue_date.isoformat() if inv.issue_date else None,
+                            'due_date': inv.due_date.isoformat() if inv.due_date else None,
+                            'source': '按名称匹配',
+                        }
+                    )
+
+        # 5. 银行流水（按 counterparty_name 匹配）
+        bank_data = []
+        if supplier.name:
+            matched_bank = BankStatement.objects.filter(counterparty_name__icontains=supplier.name)
+            for bs in matched_bank:
+                bank_data.append(
+                    {
+                        'id': bs.id,
+                        'counterparty_name': bs.counterparty_name,
+                        'amount': float(bs.amount or 0),
+                        'direction': bs.direction,
+                        'transaction_date': bs.transaction_date.isoformat() if bs.transaction_date else None,
+                        'summary': bs.summary or '',
+                    }
+                )
+
+        # 6. 摘要
+        summary = {
+            'total_order_amount': float(total_order_amount),
+            'orders_count': orders.count(),
+            'receives_count': receives.count(),
+            'contracts_count': contracts.count(),
+            'invoices_count': len(invoices_data),
+            'expenses_count': len(expenses_data),
+            'bank_count': len(bank_data),
+        }
+
+        return Response(
+            {
+                'supplier': {
+                    'id': supplier.id,
+                    'code': supplier.code,
+                    'name': supplier.name,
+                    'counterparty_type': supplier.counterparty_type,
+                    'status': supplier.status,
+                    'contact_person': supplier.contact_person,
+                    'contact_phone': supplier.contact_phone,
+                    'contact_email': supplier.contact_email,
+                    'address': supplier.address,
+                    'bank_account': supplier.bank_account,
+                    'bank_name': supplier.bank_name,
+                    'brands': supplier.brands,
+                    'remark': supplier.remark,
+                    'created_at': supplier.created_at.isoformat(),
+                },
+                'summary': summary,
+                'purchase_orders': orders_data,
+                'purchase_receives': receives_data,
+                'contracts': contracts_data,
+                'invoices': invoices_data,
+                'expenses': expenses_data,
+                'bank_statements': bank_data,
+            }
+        )
+
 
 class ClientViewSet(viewsets.ModelViewSet):
     """客户管理"""
@@ -697,7 +868,6 @@ class ContractViewSet(viewsets.ModelViewSet):
         ]
 
         # 提取日期
-        date_pattern = r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'
         # 用分隔符拆分付款条款（按 ①②③ 或 (1)(2)(3) 或 1、2、3、）
         lines = re.split(r'[（(]?\s*[①②③④⑤⑥⑦⑧⑨⑩\d+]+\s*[））\)\]》、,，.\s]', payment_section)
         lines = [l.strip() for l in lines if len(l.strip()) > 10]

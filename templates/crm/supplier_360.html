@@ -1,0 +1,412 @@
+{% extends "base_content.html" %}
+{% load static %}
+
+{% block title %}供应商360° - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.supplier-360-header {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    color: #e2e8f0;
+}
+.supplier-360-header h3 {
+    color: #f1f5f9;
+    margin: 0;
+}
+.supplier-360-header .supplier-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.875rem;
+}
+.supplier-360-header .supplier-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.summary-card {
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.summary-card .number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.summary-card .label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+.section-header {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-header .badge {
+    font-size: 0.75rem;
+}
+.table-360 {
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+.table-360 th {
+    border-top: none;
+    font-weight: 600;
+    color: #94a3b8;
+    padding: 8px 12px;
+    white-space: nowrap;
+}
+.table-360 td {
+    padding: 8px 12px;
+    vertical-align: middle;
+}
+.status-badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.empty-360 {
+    color: #64748b;
+    text-align: center;
+    padding: 24px;
+    font-size: 0.85rem;
+}
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="supplier360App">
+    <!-- Header -->
+    <div class="supplier-360-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h3><i class="bi bi-compass me-2"></i>供应商360° 视图</h3>
+                <div class="supplier-meta" v-if="data.supplier">
+                    <span><i class="bi bi-hash"></i> 编码: <span v-text="data.supplier.code"></span></span>
+                    <span><i class="bi bi-tag"></i> 供应商: <span v-text="data.supplier.name"></span></span>
+                    <span><i class="bi bi-person"></i> 联系人: <span v-text="data.supplier.contact_person || '-'"></span></span>
+                    <span><i class="bi bi-telephone"></i> <span v-text="data.supplier.contact_phone || '-'"></span></span>
+                    <span><i class="bi bi-credit-card"></i> 银行: <span v-text="data.supplier.bank_name || '-'"></span></span>
+                    <span><i class="bi bi-box-seam"></i> 品牌: <span v-text="data.supplier.brands || '-'"></span></span>
+                </div>
+            </div>
+            <a href="/crm/suppliers/" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回供应商列表
+            </a>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading-spinner" v-if="loading">
+        <div class="spinner-border text-primary"></div>
+    </div>
+
+    <!-- Data -->
+    <template v-if="!loading">
+        <!-- Summary Cards -->
+        <div class="row g-3 mb-4" v-if="data.summary">
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #1e3a5f, #1a2d47); border: 1px solid #2a4a6f;">
+                    <div class="number" style="color: #60a5fa;">¥<span v-text="formatMoney(data.summary.total_order_amount)"></span></div>
+                    <div class="label">采购订单总额</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #1a3d2a, #152d20); border: 1px solid #2a5a3a;">
+                    <div class="number" style="color: #34d399;"><span v-text="data.summary.orders_count"></span></div>
+                    <div class="label">采购订单数</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #3d1a1a, #2d1515); border: 1px solid #5a2a2a;">
+                    <div class="number" style="color: #f87171;"><span v-text="data.summary.expenses_count || 0"></span></div>
+                    <div class="label">支出记录</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #2d2d1a, #1f1f15); border: 1px solid #4a4a2a;">
+                    <div class="number" style="color: #fbbf24;"><span v-text="data.summary.contracts_count"></span> / <span v-text="data.summary.invoices_count || 0"></span></div>
+                    <div class="label">合同 / 发票</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="row g-4">
+            <!-- Left: Orders + Contracts -->
+            <div class="col-lg-8">
+                <!-- Purchase Orders -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-cart"></i> 采购订单
+                            <span class="badge bg-primary ms-auto" v-text="(data.purchase_orders || []).length + ' 笔'"></span>
+                        </div>
+                        <div v-if="!data.purchase_orders || data.purchase_orders.length === 0" class="empty-360">暂无采购订单</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>订单号</th>
+                                        <th>标题</th>
+                                        <th>金额</th>
+                                        <th>项目</th>
+                                        <th>下单日期</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="o in data.purchase_orders" :key="o.id">
+                                        <td><a :href="'/purchasing/orders/' + o.id + '/'" class="text-info" v-text="o.order_no"></a></td>
+                                        <td v-text="o.title"></td>
+                                        <td>¥<span v-text="formatMoney(o.amount)"></span></td>
+                                        <td v-text="o.project_name || '-'"></td>
+                                        <td v-text="o.order_date || '-'"></td>
+                                        <td><span class="badge" :class="orderStatusClass(o.status)" v-text="orderStatusLabel(o.status)"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contracts -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-file-earmark-text"></i> 关联合同
+                            <span class="badge bg-primary ms-auto" v-text="(data.contracts || []).length + ' 份'"></span>
+                        </div>
+                        <div v-if="!data.contracts || data.contracts.length === 0" class="empty-360">暂无关联合同</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>编号</th>
+                                        <th>名称</th>
+                                        <th>金额</th>
+                                        <th>已付款</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="c in data.contracts" :key="c.id">
+                                        <td><a :href="'/crm/contracts/' + c.id + '/'" class="text-info" v-text="c.contract_no"></a></td>
+                                        <td v-text="c.name"></td>
+                                        <td>¥<span v-text="formatMoney(c.amount)"></span></td>
+                                        <td>¥<span v-text="formatMoney(c.total_paid)"></span></td>
+                                        <td><span class="badge" :class="contractStatusClass(c.status)" v-text="contractStatusLabel(c.status)"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoices -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-receipt"></i> 关联发票
+                            <span class="badge bg-primary ms-auto" v-text="(data.invoices || []).length + ' 张'"></span>
+                        </div>
+                        <div v-if="!data.invoices || data.invoices.length === 0" class="empty-360">暂无关联发票</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>发票号</th>
+                                        <th>金额</th>
+                                        <th>开票日期</th>
+                                        <th>到期日期</th>
+                                        <th>来源</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="inv in data.invoices" :key="inv.id">
+                                        <td v-text="inv.invoice_no"></td>
+                                        <td>¥<span v-text="formatMoney(inv.amount)"></span></td>
+                                        <td v-text="inv.issue_date || '-'"></td>
+                                        <td v-text="inv.due_date || '-'"></td>
+                                        <td><span class="badge bg-secondary" v-text="inv.source"></span></td>
+                                        <td><span class="badge" :class="invoiceStatusClass(inv.status)" v-text="invoiceStatusLabel(inv.status)"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right sidebar: Receives + Expenses + Bank -->
+            <div class="col-lg-4">
+                <!-- Purchase Receives -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-box-seam"></i> 采购入库
+                            <span class="badge bg-primary ms-auto" v-text="(data.purchase_receives || []).length + ' 笔'"></span>
+                        </div>
+                        <div v-if="!data.purchase_receives || data.purchase_receives.length === 0" class="empty-360">暂无入库记录</div>
+                        <div v-else>
+                            <div v-for="r in data.purchase_receives" :key="r.id" style="border-left:3px solid #3b82f6;padding:6px 10px;margin-bottom:6px;background:#1e293b;border-radius:0 6px 6px 0;font-size:0.85rem;">
+                                <div><span class="text-info" v-text="r.receive_no"></span></div>
+                                <div class="text-muted" style="font-size:0.75rem;">订单: <span v-text="r.order_no"></span><span class="ms-2" v-text="r.receive_date"></span></div>
+                                <div><span class="badge" :class="receiveStatusClass(r.status)" v-text="receiveStatusLabel(r.status)"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Expenses -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-cash-stack"></i> 支出记录
+                            <span class="badge bg-primary ms-auto" v-text="(data.expenses || []).length + ' 条'"></span>
+                        </div>
+                        <div v-if="!data.expenses || data.expenses.length === 0" class="empty-360">暂无支出记录</div>
+                        <div v-else>
+                            <div v-for="e in data.expenses" :key="e.id" style="border-left:3px solid #f87171;padding:6px 10px;margin-bottom:6px;background:#1e293b;border-radius:0 6px 6px 0;font-size:0.85rem;">
+                                <div>¥<span class="text-danger fw-bold" v-text="formatMoney(e.amount)"></span></div>
+                                <div class="text-muted" style="font-size:0.75rem;"><span v-text="e.date"></span> · <span v-text="expenseTypeLabel(e.expense_type)"></span></div>
+                                <div v-if="e.summary" class="text-muted" style="font-size:0.75rem;" v-text="e.summary"></div>
+                                <div><span class="badge" :class="expenseStatusClass(e.status)" v-text="expenseStatusLabel(e.status)"></span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bank Statements -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-bank"></i> 银行流水
+                            <span class="badge bg-primary ms-auto" v-text="(data.bank_statements || []).length + ' 条'"></span>
+                        </div>
+                        <div v-if="!data.bank_statements || data.bank_statements.length === 0" class="empty-360">暂无匹配流水</div>
+                        <div v-else>
+                            <div v-for="bs in data.bank_statements" :key="bs.id" style="border-left:3px solid #34d399;padding:6px 10px;margin-bottom:6px;background:#1e293b;border-radius:0 6px 6px 0;font-size:0.85rem;">
+                                <div>¥<span class="fw-bold" :class="bs.direction === 'income' ? 'text-success' : 'text-danger'" v-text="formatMoney(bs.amount)"></span>
+                                    <span class="text-muted ms-1" style="font-size:0.75rem;">[<span v-text="bs.direction === 'income' ? '收入' : '支出'"></span>]</span>
+                                </div>
+                                <div class="text-muted" style="font-size:0.75rem;"><span v-text="bs.counterparty_name"></span> · <span v-text="bs.transaction_date"></span></div>
+                                <div v-if="bs.summary" class="text-muted" style="font-size:0.75rem;" v-text="bs.summary"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script>
+const { createApp } = Vue;
+
+createApp({
+    data() {
+        return {
+            loading: true,
+            data: {
+                supplier: null,
+                summary: null,
+                purchase_orders: [],
+                purchase_receives: [],
+                contracts: [],
+                invoices: [],
+                expenses: [],
+                bank_statements: [],
+            },
+        };
+    },
+    mounted() {
+        this.loadData();
+    },
+    methods: {
+        async loadData() {
+            try {
+                const supplierId = {{ supplier_id }};
+                const resp = await fetch(`/api/crm/suppliers/${supplierId}/profile/`);
+                if (!resp.ok) throw new Error('加载失败');
+                this.data = await resp.json();
+            } catch (e) {
+                console.error('供应商360加载失败', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+        formatMoney(v) {
+            return (v || 0).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+        orderStatusClass(s) {
+            const map = { draft: 'bg-secondary', sent: 'bg-info', confirmed: 'bg-primary', partial_shipped: 'bg-warning', shipped: 'bg-warning', partial_received: 'bg-info', received: 'bg-success', invoiced: 'bg-primary', completed: 'bg-success', cancelled: 'bg-danger' };
+            return map[s] || 'bg-secondary';
+        },
+        orderStatusLabel(s) {
+            const map = { draft: '草稿', sent: '已发供应商', confirmed: '已确认', partial_shipped: '部分发货', shipped: '已发货', partial_received: '部分入库', received: '已入库', invoiced: '已开票', completed: '已完成', cancelled: '已取消' };
+            return map[s] || s;
+        },
+        contractStatusClass(s) {
+            const map = { draft: 'bg-secondary', active: 'bg-success', completed: 'bg-primary', terminated: 'bg-danger' };
+            return map[s] || 'bg-secondary';
+        },
+        contractStatusLabel(s) {
+            const map = { draft: '草稿', active: '执行中', completed: '已完成', terminated: '已终止' };
+            return map[s] || s;
+        },
+        invoiceStatusClass(s) {
+            const map = { pending: 'bg-warning', paid: 'bg-success', cancelled: 'bg-danger' };
+            return map[s] || 'bg-secondary';
+        },
+        invoiceStatusLabel(s) {
+            const map = { pending: '待收款', paid: '已完成', cancelled: '已作废' };
+            return map[s] || s;
+        },
+        receiveStatusClass(s) {
+            const map = { pending: 'bg-warning', partial: 'bg-info', completed: 'bg-success' };
+            return map[s] || 'bg-secondary';
+        },
+        receiveStatusLabel(s) {
+            const map = { pending: '待入库', partial: '部分入库', completed: '已完成' };
+            return map[s] || s;
+        },
+        expenseTypeLabel(t) {
+            const map = { salary: '工资', main_cost: '主营成本', admin_expense: '管理费用', finance_expense: '财务费用', tax: '税费', office: '办公', travel: '差旅', internal_transfer: '内部往来', agency: '代收代付', other: '其他' };
+            return map[t] || t || '-';
+        },
+        expenseStatusClass(s) {
+            const map = { pending: 'bg-warning', approved: 'bg-info', rejected: 'bg-danger', confirmed: 'bg-primary', paid: 'bg-success' };
+            return map[s] || 'bg-secondary';
+        },
+        expenseStatusLabel(s) {
+            const map = { pending: '待审批', approved: '已批准', rejected: '已拒绝', confirmed: '已确认', paid: '已付款' };
+            return map[s] || s;
+        },
+    },
+}).mount('#supplier360App');
+</script>
+{% endblock %}

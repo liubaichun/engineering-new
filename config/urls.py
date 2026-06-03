@@ -312,6 +312,10 @@ def supplier_list_page(request):
     return TemplateView.as_view(template_name='crm/supplier_list.html')(request)
 
 
+def supplier_360_page(request, supplier_id):
+    return render(request, 'crm/supplier_360.html', {'supplier_id': supplier_id})
+
+
 def contact_followup_page(request):
     return TemplateView.as_view(template_name='crm/contact_followup_list.html')(request)
 
@@ -546,6 +550,7 @@ urlpatterns = [
     path('crm/contracts/', contract_list_page, name='contract_list'),
     path('crm/contracts/<int:contract_id>/', contract_detail_page, name='contract_detail'),
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
+    path('crm/suppliers/<int:supplier_id>/360/', supplier_360_page, name='supplier_360'),
     path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
     path('crm/opportunities/', opportunity_list_page, name='opportunity_list'),
     path(
