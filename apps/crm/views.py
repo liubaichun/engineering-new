@@ -175,8 +175,8 @@ class SupplierViewSet(viewsets.ModelViewSet):
         expenses_data = []
         if supplier.name:
             expense_q = models.Q(supplier_ref=supplier) | models.Q(supplier__icontains=supplier.name)
-            if supplier.company_id:
-                expense_q = expense_q & models.Q(company_id=supplier.company_id)
+            if self.request.user.company_id:
+                expense_q = expense_q & models.Q(company_id=self.request.user.company_id)
             expenses = Expense.objects.filter(expense_q)
             for e in expenses:
                 expenses_data.append(
@@ -211,8 +211,8 @@ class SupplierViewSet(viewsets.ModelViewSet):
         # 4b. 直接按名称匹配
         if supplier.name:
             direct_inv_q = models.Q(type='expense', counterparty__icontains=supplier.name)
-            if supplier.company_id:
-                direct_inv_q = direct_inv_q & models.Q(company_id=supplier.company_id)
+            if self.request.user.company_id:
+                direct_inv_q = direct_inv_q & models.Q(company_id=self.request.user.company_id)
             direct_invs = Invoice.objects.filter(direct_inv_q)
             existing_ids = {inv['id'] for inv in invoices_data}
             for inv in direct_invs:
@@ -233,8 +233,8 @@ class SupplierViewSet(viewsets.ModelViewSet):
         bank_data = []
         if supplier.name:
             bank_q = models.Q(counterparty_name__icontains=supplier.name)
-            if supplier.company_id:
-                bank_q = bank_q & models.Q(company_id=supplier.company_id)
+            if self.request.user.company_id:
+                bank_q = bank_q & models.Q(company_id=self.request.user.company_id)
             matched_bank = BankStatement.objects.filter(bank_q)
             for bs in matched_bank:
                 bank_data.append(
@@ -401,8 +401,8 @@ class ClientViewSet(viewsets.ModelViewSet):
         incomes_data = []
         if client.name:
             income_q = models.Q(customer__icontains=client.name) | models.Q(client_ref__name__icontains=client.name)
-            if client.company_id:
-                income_q = income_q & models.Q(company_id=client.company_id)
+            if self.request.user.company_id:
+                income_q = income_q & models.Q(company_id=self.request.user.company_id)
             matched_income = Income.objects.filter(income_q)
             for inc in matched_income:
                 incomes_data.append(
@@ -422,8 +422,8 @@ class ClientViewSet(viewsets.ModelViewSet):
         bank_data = []
         if client.name:
             bank_q = models.Q(counterparty_name__icontains=client.name)
-            if client.company_id:
-                bank_q = bank_q & models.Q(company_id=client.company_id)
+            if self.request.user.company_id:
+                bank_q = bank_q & models.Q(company_id=self.request.user.company_id)
             matched_bank = BankStatement.objects.filter(bank_q)
             for bs in matched_bank:
                 bank_data.append(
