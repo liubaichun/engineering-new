@@ -59,16 +59,8 @@ class Employee(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.code:
-            year = self.hire_date.year if self.hire_date else 2026
-            last = Employee.objects.filter(code__startswith=f'YG-{year}-').order_by('-code').first()
-            if last and last.code:
-                try:
-                    seq = int(last.code.split('-')[-1]) + 1
-                except (ValueError, IndexError):
-                    seq = 1
-            else:
-                seq = 1
-            self.code = f'YG-{year}-{seq:04d}'
+            from apps.core.models import generate_code
+            self.code = generate_code('employee', Employee)
         super().save(*args, **kwargs)
 
 

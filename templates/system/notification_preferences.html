@@ -1,255 +1,238 @@
-{% extends "base.html" %}
-{% block title %}通知偏好设置{% endblock %}
+{% extends "base_content.html" %}
+
+{% block title %}通知偏好设置 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.settings-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+.settings-section-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.settings-section-title i { color: var(--primary); }
+.setting-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid #f3f4f6;
+}
+.setting-item:last-child { border-bottom: none; }
+.setting-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.setting-label span { font-weight: 500; color: var(--text-primary); }
+.setting-label small { color: #94a3b8; font-size: 0.8rem; }
+.toggle-switch {
+    position: relative;
+    width: 44px;
+    height: 24px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+.toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+.toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #cbd5e1;
+    border-radius: 12px;
+    transition: 0.3s;
+}
+.toggle-slider:before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #fff;
+    top: 3px;
+    left: 3px;
+    transition: 0.3s;
+}
+.toggle-switch input:checked + .toggle-slider { background: #2563eb; }
+.toggle-switch input:checked + .toggle-slider:before { transform: translateX(20px); }
+.channel-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    background: #f1f5f9;
+    color: #475569;
+    margin: 2px 4px 2px 0;
+}
+.channel-badge.active { background: #dbeafe; color: #1e40af; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
-    <div>
-        <h4><i class="bi bi-sliders me-2"></i>通知偏好设置</h4>
-        <p class="text-muted mb-0" style="font-size:0.9rem;">控制您接收哪些事件的通知，以及通过哪些渠道接收</p>
-    </div>
-</div>
-
-<!-- 标签切换 -->
-<ul class="nav nav-tabs mb-4" id="notifTab" role="tablist">
-    <li class="nav-item"><a class="nav-link" href="/system/notification-channels/" id="tab-channels"><i class="bi bi-broadcast me-1"></i>渠道配置</a></li>
-    <li class="nav-item"><a class="nav-link" href="/system/notification-router/" id="tab-router"><i class="bi bi-router me-1"></i>路由规则</a></li>
-    <li class="nav-item"><a class="nav-link" href="/system/notification-logs/" id="tab-logs"><i class="bi bi-journal-text me-1"></i>通知日志</a></li>
-    <li class="nav-item"><a class="nav-link active" href="/system/notification-preferences/" id="tab-prefs"><i class="bi bi-sliders me-1"></i>通知偏好</a></li>
-</ul>
-
-<!-- 说明卡片 -->
-<div class="alert alert-info mb-4">
-    <i class="bi bi-info-circle me-2"></i>
-    <strong>如何生效：</strong>路由规则定义了系统默认的通知流向，您在这里的偏好设置会覆盖路由规则。
-    关闭某个事件的通知后，该类型事件不会推送给您；指定渠道后，只从这些渠道接收。
-</div>
-
-<!-- 可选事件类型列表 -->
-<div class="card mb-3">
-    <div class="card-header">
-        <span>可用事件类型</span>
-        <button class="btn btn-outline-primary btn-sm float-end" onclick="initAllPreferences()">
-            <i class="bi bi-magic me-1"></i>恢复默认
-        </button>
-    </div>
-    <div class="card-body py-2">
-        <div class="d-flex flex-wrap gap-2" id="eventTypeTags">
-            <span class="spinner-border spinner-border-sm text-primary"></span>
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-sliders me-2"></i>通知偏好设置</h4>
+            <p class="text-muted mb-0">管理您要接收哪些事件的通知，以及通过哪个渠道接收</p>
+        </div>
+        <div>
+            <span id="saveStatus" class="text-muted" style="font-size:0.85rem;"></span>
         </div>
     </div>
 </div>
 
-<!-- 偏好设置列表 -->
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>我的通知偏好</span>
-        <button class="btn btn-primary btn-sm" onclick="saveAllPreferences()">
-            <i class="bi bi-check-lg me-1"></i>保存全部
-        </button>
+<div class="settings-card">
+    <div class="settings-section-title">
+        <i class="bi bi-bell"></i>事件通知开关
     </div>
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>事件类型</th>
-                        <th>通知开关</th>
-                        <th>允许的渠道</th>
-                        <th>操作</th>
-                    </tr>
-                </thead>
-                <tbody id="prefsTableBody">
-                    <tr><td colspan="4" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>
-                </tbody>
-            </table>
+    <div id="preferenceList">
+        <div class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2 mb-0">加载中...</p>
         </div>
     </div>
 </div>
 
-<!-- 批量操作提示 -->
-<div class="alert alert-warning mt-3 d-none" id="unsavedAlert">
-    <i class="bi bi-exclamation-triangle me-2"></i>您有未保存的更改，请点击「保存全部」按钮保存。
+<div class="settings-card">
+    <div class="settings-section-title">
+        <i class="bi bi-info-circle"></i>说明
+    </div>
+    <div class="setting-item">
+        <div class="setting-label">
+            <small>
+                <i class="bi bi-check-circle text-success me-1"></i>开启的事件类型，系统将通过您已绑定的渠道发送通知。
+            </small>
+        </div>
+    </div>
+    <div class="setting-item">
+        <div class="setting-label">
+            <small>
+                <i class="bi bi-x-circle text-danger me-1"></i>关闭后，该类型事件将只写入站内通知列表，不会通过外部渠道推送。
+            </small>
+        </div>
+    </div>
+    <div class="setting-item">
+        <div class="setting-label">
+            <small>
+                <i class="bi bi-link-45deg me-1"></i>需要绑定渠道？前往 <a href="/system/notification-channels/">通知渠道</a> 扫码绑定。
+            </small>
+        </div>
+    </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
-// 所有可用事件类型（从路由规则中提取）
-const ALL_EVENT_TYPES = [
-    {value:'task_created', label:'任务创建'},
-    {value:'task_started', label:'任务开始'},
-    {value:'task_completed', label:'任务完成'},
-    {value:'flow_started', label:'流程启动'},
-    {value:'stage_started', label:'阶段开始'},
-    {value:'stage_completed', label:'阶段完成'},
-    {value:'flow_completed', label:'流程完成'},
-    {value:'stage_timeout', label:'阶段超时'},
-    {value:'approval_created', label:'审批创建'},
-    {value:'approval_result', label:'审批结果'},
-    {value:'approval_transferred', label:'审批转发'},
-    {value:'approval_delegated', label:'审批委托'},
-    {value:'approval_timeout', label:'审批超时'},
-    {value:'contract_created', label:'合同创建'},
-    {value:'contract_approved', label:'合同已审批'},
-    {value:'contract_rejected', label:'合同已拒绝'},
-    {value:'contract_expire_soon', label:'合同即将到期'},
-    {value:'project_created', label:'项目创建'},
-    {value:'project_approval_submitted', label:'项目审批提交'},
-    {value:'project_approval_result', label:'项目审批结果'},
-    {value:'project_progress_changed', label:'项目进度变化'},
-    {value:'equipment_borrowed', label:'设备借出'},
-    {value:'equipment_returned', label:'设备归还'},
-    {value:'equipment_repair', label:'设备维修'},
-    {value:'repair_assigned', label:'维修已指派'},
-    {value:'repair_started', label:'维修开始'},
-    {value:'repair_completed', label:'维修完成'},
-    {value:'repair_accepted', label:'维修已验收'},
-    {value:'repair_rejected', label:'维修已拒收'},
-];
+// ================================================================
+// 通知偏好设置
+// ================================================================
 
-const CHANNEL_OPTIONS = [
-    {value:'feishu', label:'飞书'},
-    {value:'wecom', label:'企微'},
-    {value:'dingtalk', label:'钉钉'},
-    {value:'email', label:'邮件'},
-];
+var EVENT_TYPES = {
+    'system':           { label: '系统通知',      icon: 'bi-gear',        desc: '系统公告、升级通知等' },
+    'approval':         { label: '审批通知',      icon: 'bi-check-circle', desc: '审批创建、通过、驳回、催办' },
+    'contract':         { label: '合同通知',      icon: 'bi-file-text',   desc: '合同创建、驳回、生效' },
+    'task':             { label: '任务通知',      icon: 'bi-list-task',   desc: '任务创建、开始、完成' },
+    'project':          { label: '项目通知',      icon: 'bi-folder',      desc: '项目创建等' },
+    'equipment':        { label: '设备通知',      icon: 'bi-display',     desc: '设备借出、归还、维修' },
+    'repair':           { label: '报修通知',      icon: 'bi-tools',       desc: '报修派工、进度更新、验收' },
+    'flow':             { label: '流程通知',      icon: 'bi-diagram-3',   desc: '流程启动、阶段流转、完成' },
+    'flow_stage_timeout': { label: '阶段超时',     icon: 'bi-alarm',       desc: '审批阶段超时提醒' },
+};
 
-var preferences = {};  // event_type -> {is_enabled, allowed_channels}
-var hasUnsaved = false;
+// ================================================================
+// 初始化
+// ================================================================
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initPreferences);
+} else {
+    initPreferences();
+}
 
-document.addEventListener('DOMContentLoaded', function() {
-    renderEventTypeTags();
+function initPreferences() {
     loadPreferences();
-});
-
-function renderEventTypeTags() {
-    const container = document.getElementById('eventTypeTags');
-    container.innerHTML = ALL_EVENT_TYPES.map(e =>
-        '<span class="badge bg-light text-dark border">' + e.label + '<small class="text-muted ms-1">' + e.value + '</small></span>'
-    ).join('');
 }
 
-async function loadPreferences() {
-    const tbody = document.getElementById('prefsTableBody');
-    try {
-        const resp = await fetch('/api/notifications/preferences/', { credentials: 'include' });
-        if (resp.ok) {
-            const data = await resp.json();
-            data.forEach(p => { preferences[p.event_type] = p; });
-        }
-    } catch(e) { /* ignore */ }
-    renderPreferencesTable();
-}
-
-function renderPreferencesTable() {
-    const tbody = document.getElementById('prefsTableBody');
-    tbody.innerHTML = ALL_EVENT_TYPES.map(e => {
-        const pref = preferences[e.value] || {is_enabled: true, allowed_channels: []};
-        const channelCheckboxes = CHANNEL_OPTIONS.map(c => {
-            const checked = pref.allowed_channels.includes(c.value) || pref.allowed_channels.length === 0;
-            return '<label class="badge ' + (checked ? 'bg-primary' : 'bg-secondary') + '" style="cursor:pointer;">' +
-                '<input type="checkbox" class="d-none" data-event="' + e.value + '" data-channel="' + c.value + '" ' + (checked ? 'checked' : '') + ' onchange="onChannelChange(this)">' +
-                c.label + '</label>';
-        }).join(' ');
-        return '<tr>' +
-            '<td><strong>' + e.label + '</strong><br><small class="text-muted code">' + e.value + '</small></td>' +
-            '<td><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="sw_' + e.value + '" ' + (pref.is_enabled ? 'checked' : '') + ' onchange="onSwitchChange(\'' + e.value + '\', this.checked)"></div></td>' +
-            '<td><div class="d-flex flex-wrap gap-1">' + channelCheckboxes + '</div></td>' +
-            '<td><button class="btn btn-sm btn-outline-secondary" onclick="resetOne(\'' + e.value + '\')">恢复默认</button></td>' +
-            '</tr>';
-    }).join('');
-    hasUnsaved = false;
-    document.getElementById('unsavedAlert').classList.add('d-none');
-}
-
-function onSwitchChange(eventType, checked) {
-    if (!preferences[eventType]) preferences[eventType] = {is_enabled: true, allowed_channels: []};
-    preferences[eventType].is_enabled = checked;
-    markUnsaved();
-}
-
-function onChannelChange(checkbox) {
-    const eventType = checkbox.dataset.event;
-    const channel = checkbox.dataset.channel;
-    const label = checkbox.parentElement;
-    if (!preferences[eventType]) preferences[eventType] = {is_enabled: true, allowed_channels: []};
-    const pref = preferences[eventType];
-    if (checkbox.checked) {
-        if (!pref.allowed_channels.includes(channel)) pref.allowed_channels.push(channel);
-    } else {
-        pref.allowed_channels = pref.allowed_channels.filter(c => c !== channel);
-    }
-    // 更新标签样式
-    label.className = 'badge ' + (checkbox.checked ? 'bg-primary' : 'bg-secondary');
-    markUnsaved();
-}
-
-function markUnsaved() {
-    hasUnsaved = true;
-    document.getElementById('unsavedAlert').classList.remove('d-none');
-}
-
-async function saveAllPreferences() {
-    const payload = Object.entries(preferences).map(([event_type, p]) => ({
-        event_type, is_enabled: p.is_enabled, allowed_channels: p.allowed_channels
-    }));
-    try {
-        const resp = await fetch('/api/notifications/preferences/update/', {
-            method: 'PUT', credentials: 'include',
-            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCsrfToken() },
-            body: JSON.stringify(payload)
+function loadPreferences() {
+    fetch('/api/notifications/preferences/', { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            renderPreferences(data || []);
+        })
+        .catch(function(e) {
+            document.getElementById('preferenceList').innerHTML =
+                '<div class="text-center py-4 text-danger">加载失败: ' + e.message + '</div>';
         });
-        if (!resp.ok) { showToast('保存失败', 'danger'); return; }
-        hasUnsaved = false;
-        document.getElementById('unsavedAlert').classList.add('d-none');
-        showToast('保存成功', 'success');
-    } catch(e) { showToast('保存失败：' + e.message, 'danger'); }
 }
 
-function resetOne(eventType) {
-    if (preferences[eventType]) {
-        delete preferences[eventType];
-        renderPreferencesTable();
-        markUnsaved();
+function renderPreferences(prefs) {
+    var el = document.getElementById('preferenceList');
+    var prefMap = {};
+    for (var i = 0; i < prefs.length; i++) {
+        prefMap[prefs[i].event_type] = prefs[i];
     }
+
+    var html = '';
+    var keys = Object.keys(EVENT_TYPES);
+    for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        var info = EVENT_TYPES[key];
+        var pref = prefMap[key] || { event_type: key, is_enabled: true, allowed_channels: [] };
+        var checked = pref.is_enabled !== false ? 'checked' : '';
+
+        html +=
+'<div class="setting-item" data-event="' + key + '">' +
+    '<div class="setting-label">' +
+        '<span><i class="bi ' + info.icon + ' me-2" style="color:var(--primary);"></i>' + info.label + '</span>' +
+        '<small>' + info.desc + '</small>' +
+    '</div>' +
+    '<label class="toggle-switch">' +
+        '<input type="checkbox" ' + checked + ' data-event="' + key + '" onchange="togglePreference(this)">' +
+        '<span class="toggle-slider"></span>' +
+    '</label>' +
+'</div>';
+    }
+    el.innerHTML = html;
 }
 
-function initAllPreferences() {
-    if (!confirm('确定要恢复所有偏好为默认（启用全部渠道）吗？')) return;
-    preferences = {};
-    ALL_EVENT_TYPES.forEach(e => {
-        preferences[e.value] = {is_enabled: true, allowed_channels: []};
+function togglePreference(input) {
+    var eventType = input.dataset.event;
+    var enabled = input.checked;
+
+    fetch('/api/notifications/preferences/update/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([{
+            event_type: eventType,
+            is_enabled: enabled,
+            allowed_channels: [],
+        }]),
+        credentials: 'include',
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var label = EVENT_TYPES[eventType] ? EVENT_TYPES[eventType].label : eventType;
+        showToast(label + ' 通知已' + (enabled ? '开启' : '关闭'), 'success');
+    })
+    .catch(function(e) {
+        showToast('保存失败: ' + e.message, 'error');
+        input.checked = !enabled;
     });
-    renderPreferencesTable();
-    markUnsaved();
 }
-
-function getCsrfToken() {
-    return document.cookie.split(';').find(c => c.trim().startsWith('csrftoken='))?.split('=')[1] || '';
-}
-
-function showToast(message, type) {
-    const container = document.getElementById('toastContainer') || createToastContainer();
-    const id = 'toast-' + Date.now();
-    const html = '<div id="' + id + '" class="toast align-items-center text-white bg-' + type + ' border-0" role="alert"><div class="d-flex"><div class="toast-body">' + message + '</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div></div>';
-    container.insertAdjacentHTML('beforeend', html);
-    const toastEl = document.getElementById(id);
-    const toast = new bootstrap.Toast(toastEl);
-    toast.show();
-    toastEl.addEventListener('hidden.bs.toast', () => toastEl.remove());
-}
-
-function createToastContainer() {
-    const div = document.createElement('div');
-    div.id = 'toastContainer';
-    div.className = 'toast-container position-fixed top-0 end-0 p-3';
-    document.body.appendChild(div);
-    return div;
-}
-
-// 离开页面提示未保存
-window.addEventListener('beforeunload', function(e) {
-    if (hasUnsaved) { e.preventDefault(); e.returnValue = ''; }
-});
 </script>
 {% endblock %}

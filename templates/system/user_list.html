@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_content.html" %}
 
 {% block title %}用户管理 - 企业信息化管理系统{% endblock %}
 
@@ -52,11 +52,6 @@
         <div class="row g-3 mb-3">
             <div class="col-md-3">
                 <input type="text" class="form-control" id="searchUsername" placeholder="搜索用户名" onkeyup="filterUsers()">
-            </div>
-            <div class="col-md-3">
-                <select class="form-select" id="filterRole" onchange="filterUsers()">
-                    <option value="">全部角色</option>
-                </select>
             </div>
         </div>
 
@@ -127,12 +122,6 @@
                         <label class="form-label">密码 <span class="text-danger">*</span></label>
                         <input type="password" class="form-control" id="password" placeholder="初始密码">
                     </div>
-                    <div class="col-12" id="rolesField">
-                        <label class="form-label">角色（可多选）</label>
-                        <div id="rolesCheckboxes" class="border rounded p-2" style="background:#f8fafc;max-height:160px;overflow-y:auto;">
-                            <!-- 复选框由 JS 动态渲染 -->
-                        </div>
-                    </div>
                     <div class="col-12">
                         <label class="form-label">状态</label>
                         <div class="form-check form-switch">
@@ -156,12 +145,10 @@
 <script>
 var userModal;
 var allUsers = [];
-var allRoles = [];
 var currentTab = 'all';  // all | active | pending | disabled
 
 document.addEventListener('DOMContentLoaded', function() {
     userModal = new bootstrap.Modal(document.getElementById('userModal'));
-    loadRoles();
     loadUsers();
     loadCompanies();
 });
@@ -178,29 +165,6 @@ async function loadCompanies() {
         });
     } catch (error) {
         console.error('加载公司失败:', error);
-    }
-}
-
-async function loadRoles() {
-    try {
-        var response = await fetch('/api/core/roles/', { credentials: 'include' });
-        var data = await response.json();
-        allRoles = data.results || data;
-
-        var select = document.getElementById('filterRole');
-        allRoles.forEach(function(role) {
-            select.innerHTML += '<option value="' + escapeHtml(role.code) + '">' + escapeHtml(role.name) + '</option>';
-        });
-
-        var container = document.getElementById('rolesCheckboxes');
-        container.innerHTML = allRoles.map(function(role) {
-            return '<div class="form-check mb-1">' +
-                '<input class="form-check-input role-checkbox" type="checkbox" value="' + role.id + '" id="roleCheck' + role.id + '">' +
-                '<label class="form-check-label" for="roleCheck' + role.id + '" style="cursor:pointer;">' + escapeHtml(role.name) + '</label>' +
-            '</div>';
-        }).join('');
-    } catch (error) {
-        console.error('加载角色失败:', error);
     }
 }
 
@@ -252,13 +216,11 @@ function getUserStatus(u) {
 
 function renderUsers() {
     var search = document.getElementById('searchUsername').value.toLowerCase();
-    var roleFilter = document.getElementById('filterRole').value;
 
     var filtered = allUsers.filter(function(u) {
         var status = getUserStatus(u);
         if (currentTab !== 'all' && status !== currentTab) return false;
         if (search && !u.username.toLowerCase().includes(search)) return false;
-        if (roleFilter && u.role !== roleFilter) return false;
         return true;
     });
 
@@ -373,7 +335,6 @@ function showUserModal() {
     document.getElementById('password').value = '';
     document.getElementById('isActive').checked = true;
     document.getElementById('passwordField').style.display = 'block';
-    document.querySelectorAll('.role-checkbox').forEach(function(cb) { cb.checked = false; });
     userModal.show();
 }
 
@@ -388,21 +349,11 @@ async function editUser(userId) {
     document.getElementById('displayName').value = user.first_name || '';
     document.getElementById('email').value = user.email || '';
     document.getElementById('phone').value = user.phone || '';
-    var userRoles = user.roles || [];
-    document.querySelectorAll('.role-checkbox').forEach(function(cb) {
-        cb.checked = userRoles.some(function(ur) { return ur.role_id === parseInt(cb.value); });
-    });
     document.getElementById('isActive').checked = user.is_active;
     document.getElementById('password').value = '';
     document.getElementById('passwordField').style.display = 'none';
     // 回填公司
-    var firstCR = (user.company_roles && user.company_roles.length > 0) ? user.company_roles[0] : null;
     var companySelect = document.getElementById('userCompany');
-    if (firstCR && firstCR.company) {
-        companySelect.value = firstCR.company;
-    } else {
-        companySelect.value = '';
-    }
     userModal.show();
 }
 
@@ -414,7 +365,6 @@ async function saveUser() {
     var phone = document.getElementById('phone').value.trim();
     var password = document.getElementById('password').value;
     var isActive = document.getElementById('isActive').checked;
-    var roleIds = Array.from(document.querySelectorAll('.role-checkbox:checked')).map(cb => parseInt(cb.value));
 
     if (!username && !userId) {
         showToast('请输入用户名', 'warning');
@@ -426,14 +376,13 @@ async function saveUser() {
         first_name: displayName,
         email: email,
         phone: phone,
-        is_active: isActive,
-        role_ids: roleIds.length ? roleIds : []
+        is_active: isActive
     };
 
     // 所属公司
     var companyId = document.getElementById('userCompany').value;
     if (companyId) {
-        payload.company_role_ids = [{ company_id: parseInt(companyId), role: 'staff' }];
+        payload.company_id = parseInt(companyId);
     }
 
     if (password) {

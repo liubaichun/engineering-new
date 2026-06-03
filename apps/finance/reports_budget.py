@@ -9,6 +9,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Company, Expense, WageRecord
+from apps.finance.reports_common import get_user_report_companies, parse_date_range, agg
 
 
 @api_view(['GET'])
@@ -42,7 +43,7 @@ def budget_execution_report(request):
         ('other', '其他', ''),  # 无匹配关键词 → 当作无数据（代发/转账类不归入预算科目）
     ]
 
-    companies = Company.objects.all()
+    companies = get_user_report_companies(request)
     if company_id:
         companies = companies.filter(id=company_id)
 
@@ -70,7 +71,7 @@ def budget_execution_report(request):
                 # 【P0-1 核心修复】改用 expense_category 关键词匹配（icontains）
                 total = agg(
                     Expense.objects.filter(
-                        company=company, expense_date__year=year, expense_category__icontains=cat_kw
+                        company=company, date__year=year, expense_category__icontains=cat_kw
                     ),
                     'amount',
                 )

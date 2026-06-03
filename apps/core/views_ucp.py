@@ -5,40 +5,26 @@ from rest_framework.response import Response
 
 logger = logging.getLogger(__name__)
 
-from .models import UserCompanyPermission, Module, ModuleAction, UserModulePermission, ACTION_BITS
-from .serializers import UserCompanyPermissionSerializer
+from .models import Module, ModuleAction, UserModulePermission, ACTION_BITS
 from apps.finance.models import Company as FinanceCompany
 from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
 
 
-class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
+class UserCompanyPermissionViewSet(viewsets.ViewSet):
     """
-    用户公司权限矩阵 CRUD。
+    用户公司权限矩阵 — 读写 UMP 位掩码。
 
-    权限矩阵页面调用 /api/core/user-company-permissions/
-    GET  ?user_id=X                                    → 获取某用户在所有公司的所有权限
-    POST   {user_id, company_id, module_id, action_id, is_granted} → 写入/更新一条记录
-    PUT/DELETE 批量操作由 matrix_bulk_update 处理
+    权限矩阵页面调用：
+    GET  /api/core/user-company-permissions/matrix/?user_id=X  → 矩阵数据
+    POST /api/core/user-company-permissions/matrix_bulk_update/ → 批量更新
+
+    2026-06-02: 移除旧UCP CRUD，统一使用UMP位掩码
     """
 
-    queryset = UserCompanyPermission.objects.all()
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    serializer_class = UserCompanyPermissionSerializer
     # 矩阵管理需要 admin 角色
     required_roles = ['admin']
-
-    def get_queryset(self):
-        qs = UserCompanyPermission.objects.select_related('user', 'company', 'module', 'action').order_by(
-            'user__username', 'company__name', 'module__name', 'action__name'
-        )
-        user_id = self.request.query_params.get('user_id')
-        if user_id:
-            qs = qs.filter(user_id=user_id)
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            qs = qs.filter(company_id=company_id)
-        return qs
 
     @action(detail=False, methods=['get'])
     def matrix(self, request):
@@ -78,8 +64,17 @@ class UserCompanyPermissionViewSet(viewsets.ModelViewSet):
                 }
             )
 
-        # 所有公司
-        companies = list(FinanceCompany.objects.filter(status='active').order_by('name').values('id', 'name'))
+        # 所有公司 — 非超管只显示有权限的公司
+        user = self.request.user
+        companies_qs = FinanceCompany.objects.filter(status='active').order_by('name')
+        if not user.is_superuser:
+            from apps.core.permissions import get_module_companies
+            company_ids = get_module_companies(user, 'permission_matrix', 'read')
+            if company_ids:
+                companies_qs = companies_qs.filter(id__in=company_ids)
+            else:
+                companies_qs = companies_qs.none()
+        companies = list(companies_qs.values('id', 'name'))
 
         # 从 UMP 位掩码展开为 flat 格式（兼容旧 UI）
         matrix_records = []

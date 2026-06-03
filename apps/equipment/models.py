@@ -70,16 +70,8 @@ class Equipment(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.code:
-            year = 2026
-            last = Equipment.objects.filter(code__startswith='SB-').order_by('-code').first()
-            if last and last.code:
-                try:
-                    seq = int(last.code.split('-')[-1]) + 1
-                except (ValueError, IndexError):
-                    seq = 1
-            else:
-                seq = 1
-            self.code = f'SB-{seq:04d}'
+            from apps.core.models import generate_code
+            self.code = generate_code('equipment', Equipment)
         super().save(*args, **kwargs)
 
 

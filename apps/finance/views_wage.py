@@ -16,7 +16,6 @@ from apps.core.exceptions import api_error, ErrorCode
 # 从共享模块导入工具函数
 from .views_common import (
     SafePageNumberPagination,
-    get_user_companies,
 )
 
 
@@ -50,11 +49,14 @@ class WageRecordViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        # 自动多租户：普通用户看所有关联公司数据，超管看全部
-        cids = get_user_companies(self.request.user)
-        if cids is not None:
-            qs = qs.filter(company_id__in=cids)
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'wage', 'read')
+        if companies is None:
+            qs = super().get_queryset()
+        else:
+            qs = super().get_queryset().filter(company_id__in=companies)
         return qs.select_related(
             'company',
             'approver',
@@ -119,6 +121,14 @@ class WageRecordViewSet(viewsets.ModelViewSet):
             wage_record.save(update_fields=['status', 'paid_at'])
         except Exception as e:
             return api_error(ErrorCode.INTERNAL_ERROR, f'发放失败：{str(e)}', status_code=500)
+
+        # 发送工资发放通知
+        try:
+            from apps.tasks.notification_service import notify_wage_paid
+            notify_wage_paid(wage_record, request.user)
+        except Exception:
+            pass  # 通知异常不影响主流程
+
         return Response({'status': 'success', 'message': '工资已发放'})
 
     @action(detail=False, methods=['get'])

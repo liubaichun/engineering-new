@@ -48,6 +48,7 @@ class IncomeAdmin(admin.ModelAdmin):
         colors = {
             'pending': '#f0ad4e',
             'confirmed': '#5cb85c',
+            'paid': '#5cb85c',
         }
         return format_html(
             '<span style="background-color: {}; color: white; padding: 3px 8px; border-radius: 3px;">{}</span>',

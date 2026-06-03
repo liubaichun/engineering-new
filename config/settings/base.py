@@ -88,7 +88,7 @@ SESSION_COOKIE_AGE = 60 * 60 * 24 * 30  # 30 天
 SESSION_COOKIE_NAME = 'engineering_sessionid'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
-SESSION_SAVE_EVERY_REQUEST = True
+SESSION_SAVE_EVERY_REQUEST = False
 
 # ── URL / 模板 / WSGI ────────────────────────────────────
 ROOT_URLCONF = 'config.urls'
@@ -248,3 +248,50 @@ DEFAULT_FROM_EMAIL = os.environ.get(
     'DEFAULT_FROM_EMAIL',
     '企业信息化管理系统 <noreply@eng-system.com>',
 )
+
+
+# ── AI 服务层 ─────────────────────────────────────────────
+AI_SERVICE = {
+    'active_model': 'deepseek-chat',
+    'fallback_model': None,
+    'request_timeout': 120,
+    'max_retries': 3,
+    'cache_ttl': 0,
+    'models': {
+        'deepseek-chat': {
+            'provider': 'deepseek',
+            'display_name': 'DeepSeek Chat',
+            'model': 'deepseek-chat',
+            'max_tokens': 8192,
+            'supports_vision': False,
+        },
+        'gpt-4o': {
+            'provider': 'openai',
+            'display_name': 'GPT-4o',
+            'model': 'gpt-4o',
+            'max_tokens': 16384,
+            'supports_vision': True,
+        },
+        'claude-sonnet': {
+            'provider': 'anthropic',
+            'display_name': 'Claude Sonnet',
+            'model': 'claude-sonnet-4-20250514',
+            'max_tokens': 8192,
+            'supports_vision': True,
+        },
+        'qwen-plus': {
+            'provider': 'qwen',
+            'display_name': '通义千问 Plus',
+            'model': 'qwen-plus',
+            'max_tokens': 16384,
+            'supports_vision': True,
+        },
+    },
+    'api_key_sources': {
+        'deepseek': 'DEEPSEEK_API_KEY',
+        'openai': 'OPENAI_API_KEY',
+        'anthropic': 'ANTHROPIC_API_KEY',
+        'qwen': 'QWEN_API_KEY',
+    },
+}
+

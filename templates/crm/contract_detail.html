@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_content.html" %}
 
 {% block title %}合同详情 - {{ contract.name }} - 企业信息化管理系统{% endblock %}
 
@@ -90,6 +90,11 @@
             </button>
         </li>
         <li class="nav-item" role="presentation">
+            <button class="nav-link" id="milestone-tab" data-bs-toggle="tab" data-bs-target="#milestone" type="button" role="tab">
+                <i class="bi bi-signpost-2 me-1"></i>里程碑 <span class="badge bg-success ms-1" id="milestoneCount">{{ milestones|length }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
             <button class="nav-link" id="changes-tab" data-bs-toggle="tab" data-bs-target="#changes" type="button" role="tab">
                 <i class="bi bi-arrow-repeat me-1"></i>变更记录 <span class="badge bg-secondary ms-1" id="changeCount">{{ changes|length }}</span>
             </button>
@@ -107,18 +112,25 @@
             <div class="sub-card">
                 <div class="sub-card-header d-flex justify-content-between align-items-center">
                     <span><i class="bi bi-credit-card me-2"></i>付款计划（共 {{ payments|length }} 期）</span>
-                    <span class="text-muted" style="font-size:0.8rem">计划收款 ¥{{ total_planned|floatformat:2 }}</span>
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="text-muted" style="font-size:0.8rem">计划收款 ¥{{ total_planned|floatformat:2 }}</span>
+                        {% if contract.attachment %}
+                        <button class="btn btn-sm btn-outline-primary" id="extractPaymentBtn" onclick="extractPaymentPlans({{ contract.id }})">
+                            <i class="bi bi-magic me-1"></i>从附件提取付款计划
+                        </button>
+                        {% endif %}
+                    </div>
                 </div>
                 <div class="sub-card-body">
+                    <!-- 现有付款计划 -->
                     {% if payments %}
                     <table class="table table-hover mb-0">
                         <thead style="background:#f8fafc">
                             <tr>
-                                <th>期次</th>
                                 <th>计划日期</th>
                                 <th>计划金额</th>
                                 <th>实际日期</th>
-                                <th>实际金额</th>
+                                <th>实付金额</th>
                                 <th>状态</th>
                                 <th>备注</th>
                             </tr>
@@ -126,11 +138,10 @@
                         <tbody>
                             {% for p in payments %}
                             <tr>
-                                <td>第 {{ p.installment }} 期</td>
-                                <td>{{ p.planned_date|default:"-" }}</td>
-                                <td><b>¥{{ p.planned_amount|floatformat:2 }}</b></td>
-                                <td>{{ p.actual_date|default:"-" }}</td>
-                                <td>{% if p.actual_amount %}<b class="text-success">¥{{ p.actual_amount|floatformat:2 }}</b>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                                <td>{{ p.plan_date|default:"-" }}</td>
+                                <td><b>¥{{ p.amount|floatformat:2 }}</b></td>
+                                <td>{{ p.paid_date|default:"-" }}</td>
+                                <td>{% if p.paid_amount %}<b class="text-success">¥{{ p.paid_amount|floatformat:2 }}</b>{% else %}<span class="text-muted">-</span>{% endif %}</td>
                                 <td>
                                     {% if p.status == 'paid' %}
                                     <span class="badge bg-success payment-badge">已付款</span>
@@ -151,6 +162,106 @@
                     <div class="text-center text-muted py-5">
                         <i class="bi bi-inbox" style="font-size:3rem; opacity:0.3"></i>
                         <p class="mt-2 mb-0">暂无付款计划</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- 提取结果预览 -->
+        <div id="extractPreview" class="mb-3 d-none">
+            <div class="sub-card">
+                <div class="sub-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-magic me-2"></i>AI 提取结果</span>
+                    <div>
+                        <span id="extractStatus" class="badge bg-success me-2">待确认</span>
+                        <button class="btn btn-success btn-sm" id="confirmExtractBtn" onclick="confirmExtractedPlans({{ contract.id }})">
+                            <i class="bi bi-check-lg me-1"></i>确认保存
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm ms-1" onclick="dismissExtract()">
+                            <i class="bi bi-x-lg"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="sub-card-body p-0">
+                    <div id="extractLoading" class="text-center py-5 d-none">
+                        <div class="spinner-border text-primary"></div>
+                        <p class="mt-2 text-muted">正在AI分析合同附件...</p>
+                    </div>
+                    <div id="extractContent" class="d-none">
+                        <div class="p-3 border-bottom bg-light">
+                            <small class="text-muted" id="extractPreviewText"></small>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0" id="extractTable">
+                                <thead style="background:#f8fafc">
+                                    <tr>
+                                        <th>#</th>
+                                        <th>付款条件</th>
+                                        <th>计划日期</th>
+                                        <th>金额</th>
+                                        <th>占比</th>
+                                        <th>备注</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="extractTableBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div id="extractError" class="text-center py-4 d-none">
+                        <i class="bi bi-exclamation-triangle text-danger" style="font-size:2rem"></i>
+                        <p class="mt-2 text-danger" id="extractErrorText"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 里程碑 -->
+        <div class="tab-pane fade" id="milestone" role="tabpanel">
+            <div class="sub-card">
+                <div class="sub-card-header d-flex justify-content-between align-items-center">
+                    <span><i class="bi bi-signpost-2 me-2"></i>里程碑</span>
+                </div>
+                <div class="sub-card-body">
+                    {% if milestones %}
+                    <table class="table table-hover mb-0">
+                        <thead style="background:#f8fafc">
+                            <tr>
+                                <th>排序</th>
+                                <th>名称</th>
+                                <th>计划完成</th>
+                                <th>实际完成</th>
+                                <th>金额</th>
+                                <th>状态</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in milestones %}
+                            <tr>
+                                <td>{{ m.sort_order }}</td>
+                                <td>{{ m.name }}{% if m.description %}<br><small class="text-muted">{{ m.description }}</small>{% endif %}</td>
+                                <td>{{ m.plan_date|default:"-" }}</td>
+                                <td>{{ m.actual_date|default:"-" }}</td>
+                                <td>{% if m.amount %}<b>¥{{ m.amount|floatformat:2 }}</b>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                                <td>
+                                    {% if m.status == 'completed' %}
+                                    <span class="badge bg-success">已完成</span>
+                                    {% elif m.status == 'in_progress' %}
+                                    <span class="badge bg-primary">进行中</span>
+                                    {% elif m.status == 'delayed' %}
+                                    <span class="badge bg-danger">已延期</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">待开始</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-signpost-2" style="font-size:3rem; opacity:0.3"></i>
+                        <p class="mt-2 mb-0">暂无里程碑计划</p>
                     </div>
                     {% endif %}
                 </div>
@@ -209,7 +320,7 @@
                         <i class="bi bi-file-earming-text" style="font-size:2rem; color:var(--primary)"></i>
                         <div class="flex-grow-1">
                             <div class="fw-semibold">{{ contract.attachment_name }}</div>
-                            <a href="{{ contract.attachment_url }}" target="_blank" class="btn btn-sm btn-outline-primary mt-2">
+                            <a href="{{ contract.attachment_url }}" target="_blank" download class="btn btn-sm btn-outline-primary mt-2">
                                 <i class="bi bi-download me-1"></i>下载附件
                             </a>
                         </div>
@@ -225,4 +336,165 @@
         </div>
     </div>
 </div>
+
+<script>
+function getActiveCompanyId() {
+    return parseInt(document.getElementById('companySelect')?.value || sessionStorage.getItem('currentCompanyId') || '0');
+}
+
+function extractPaymentPlans(contractId) {
+    const preview = document.getElementById('extractPreview');
+    const loading = document.getElementById('extractLoading');
+    const content = document.getElementById('extractContent');
+    const error = document.getElementById('extractError');
+    const btn = document.getElementById('extractPaymentBtn');
+
+    preview.classList.remove('d-none');
+    loading.classList.remove('d-none');
+    content.classList.add('d-none');
+    error.classList.add('d-none');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>提取中...';
+
+    const url = `/api/crm/contracts/${contractId}/extract_payment_plans/`;
+    const headers = {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json'};
+
+    fetch(url, {method: 'POST', headers, body: '{}'})
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            loading.classList.add('d-none');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-magic me-1"></i>从附件提取付款计划';
+
+            if (!ok) {
+                error.classList.remove('d-none');
+                document.getElementById('extractErrorText').textContent = data.detail || '提取失败';
+                return;
+            }
+
+            if (!data.payment_plans || data.payment_plans.length === 0) {
+                error.classList.remove('d-none');
+                document.getElementById('extractErrorText').textContent = '未从合同附件中识别到付款计划';
+                return;
+            }
+
+            content.classList.remove('d-none');
+
+            // OCR预览
+            const previewEl = document.getElementById('extractPreviewText');
+            if (data.ocr_text_preview) {
+                previewEl.textContent = '📄 识别文字片段: ' + data.ocr_text_preview;
+            }
+
+            // 填表格
+            const tbody = document.getElementById('extractTableBody');
+            tbody.innerHTML = '';
+            data.payment_plans.forEach((plan, i) => {
+                const tr = document.createElement('tr');
+                const dateVal = plan.plan_date && plan.plan_date !== '待定' ? plan.plan_date : '';
+                const pct = plan.percentage ? plan.percentage + '%' : '-';
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td>${plan.condition || '-'}</td>
+                    <td><input type="date" class="form-control form-control-sm" style="width:150px" value="${dateVal}" data-index="${i}"></td>
+                    <td><input type="number" class="form-control form-control-sm" style="width:120px" step="0.01" value="${plan.amount}" data-index="${i}"></td>
+                    <td>${pct}</td>
+                    <td><input type="text" class="form-control form-control-sm" style="width:150px" value="${(plan.remark || '')}" placeholder="备注" data-index="${i}"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        })
+        .catch(err => {
+            loading.classList.add('d-none');
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-magic me-1"></i>从附件提取付款计划';
+            error.classList.remove('d-none');
+            document.getElementById('extractErrorText').textContent = '网络错误: ' + err.message;
+        });
+}
+
+function confirmExtractedPlans(contractId) {
+    const tableBody = document.getElementById('extractTableBody');
+    const rows = tableBody.querySelectorAll('tr');
+    const plans = [];
+
+    rows.forEach((row, i) => {
+        const dateInput = row.querySelector('td:nth-child(3) input');
+        const amountInput = row.querySelector('td:nth-child(4) input');
+        const remarkInput = row.querySelector('td:nth-child(6) input');
+        const condition = row.querySelector('td:nth-child(2)').textContent.trim();
+
+        const planDate = dateInput.value || '2026-01-01';
+        const amount = parseFloat(amountInput.value) || 0;
+        const remark = remarkInput.value || condition;
+
+        if (amount > 0) {
+            plans.push({
+                plan_date: planDate,
+                amount: amount,
+                condition: condition,
+                remark: remark,
+            });
+        }
+    });
+
+    if (plans.length === 0) {
+        alert('没有有效的付款计划可保存');
+        return;
+    }
+
+    const btn = document.getElementById('confirmExtractBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>保存中...';
+    document.getElementById('extractStatus').textContent = '保存中';
+    document.getElementById('extractStatus').className = 'badge bg-warning me-2';
+
+    fetch(`/api/crm/contracts/${contractId}/confirm_extracted_plans/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json'},
+        body: JSON.stringify({payment_plans: plans}),
+    })
+        .then(r => r.json().then(d => ({ok: r.ok, data: d})))
+        .then(({ok, data}) => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>确认保存';
+            if (ok && data.created > 0) {
+                document.getElementById('extractStatus').textContent = '已保存 ✓';
+                document.getElementById('extractStatus').className = 'badge bg-success me-2';
+                // 重新加载页面显示新付款计划
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                alert('保存失败: ' + (data.detail || JSON.stringify(data.errors || '未知错误')));
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>确认保存';
+            document.getElementById('extractStatus').textContent = '保存失败';
+            document.getElementById('extractStatus').className = 'badge bg-danger me-2';
+            alert('网络错误: ' + err.message);
+        });
+}
+
+function dismissExtract() {
+    document.getElementById('extractPreview').classList.add('d-none');
+    document.getElementById('extractContent').classList.add('d-none');
+    document.getElementById('extractError').classList.add('d-none');
+    const btn = document.getElementById('extractPaymentBtn');
+    if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-magic me-1"></i>从附件提取付款计划';
+    }
+}
+
+function getCsrfToken() {
+    const name = 'csrftoken';
+    const cookies = document.cookie.split(';');
+    for (let c of cookies) {
+        c = c.trim();
+        if (c.startsWith(name + '=')) return decodeURIComponent(c.substring(name.length + 1));
+    }
+    return '';
+}
+</script>
 {% endblock %}

@@ -36,14 +36,6 @@ class Supplier(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.code:
-            year = self.created_at.year if self.created_at else 2026
-            last = Supplier.objects.filter(code__startswith=f'GYS-{year}-').order_by('-code').first()
-            if last and last.code:
-                try:
-                    seq = int(last.code.split('-')[-1]) + 1
-                except (ValueError, IndexError):
-                    seq = 1
-            else:
-                seq = 1
-            self.code = f'GYS-{year}-{seq:04d}'
+            from apps.core.models import generate_code
+            self.code = generate_code('supplier', Supplier)
         super().save(*args, **kwargs)

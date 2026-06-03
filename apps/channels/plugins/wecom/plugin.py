@@ -63,13 +63,12 @@ class WecomPlugin(BaseChannelPlugin):
 
         params = {
             'appid': self.corp_id,
+            'agentid': self.agent_id,
             'redirect_uri': callback_url,
-            'response_type': 'code',
-            'scope': 'snsapi_private',
             'state': state or 'wecom_bind',
         }
         query = urllib.parse.urlencode(params)
-        return f'https://open.work.weixin.qq.com/sns/auth?{query}'
+        return f'https://open.work.weixin.qq.com/wwopen/sso/qrConnect?{query}'
 
     def _get_userid_by_code(self, code: str) -> tuple[bool, dict]:
         """用code换userid"""
@@ -135,9 +134,12 @@ class WecomPlugin(BaseChannelPlugin):
         url = 'https://qyapi.weixin.qq.com/cgi-bin/message/send'
         params = {'access_token': self._token}
 
+        # 空open_id=全员广播，否则发私信给指定用户
+        touser = open_id if open_id else '@all'
+
         # 构造消息内容（文本+标题）
         msg_data = {
-            'touser': open_id,
+            'touser': touser,
             'msgtype': 'text',
             'agentid': self.agent_id,
             'text': {'content': f'{title}\n\n{content}\n\n— 来自企业信息化管理系统'},

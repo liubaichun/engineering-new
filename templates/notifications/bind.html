@@ -1,0 +1,395 @@
+{% extends "base_content.html" %}
+
+{% block title %}通知渠道绑定 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.channel-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border: 2px solid transparent;
+    transition: all 0.2s;
+}
+.channel-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.12); }
+.channel-card.active { border-color: #10b981; }
+.channel-card.inactive { border-color: #e2e8f0; opacity: 0.7; }
+.channel-icon {
+    width: 52px; height: 52px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.5rem;
+}
+.channel-icon.feishu { background: #e8f5e9; color: #4caf50; }
+.channel-icon.wecom { background: #e3f2fd; color: #2196f3; }
+.channel-icon.dingtalk { background: #fce4ec; color: #e91e63; }
+.channel-icon.email { background: #f3e5f5; color: #9c27b0; }
+.status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 20px; font-size: 0.75rem;
+}
+.status-badge.connected { background: #d1fae5; color: #065f46; }
+.status-badge.disconnected { background: #fee2e2; color: #991b1b; }
+.status-badge.pending { background: #fef3c7; color: #92400e; }
+.binding-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px;
+}
+.qrcode-modal .modal-body { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.qrcode-modal #qrContainer { display: inline-block; margin: 0 auto; }
+.qrcode-modal #qrContainer canvas, .qrcode-modal #qrContainer img { border-radius: 8px; border: 1px solid #e2e8f0; }
+.usage-badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px; border-radius: 10px; font-size: 0.7rem;
+    background: #f1f5f9; color: #475569; margin-left: 6px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-link-45deg me-2"></i>通知渠道绑定</h4>
+            <p class="text-muted mb-0">绑定后可通过飞书、企业微信、钉钉等渠道接收系统通知</p>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="text-muted mb-0"><i class="bi bi-shield-check me-1"></i>可用渠道</h6>
+        </div>
+        <div id="channelList">
+            <div class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm" role="status"></div>
+                <p class="mt-2 mb-0">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-12">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="text-muted mb-0"><i class="bi bi-person-check me-1"></i>我的绑定</h6>
+        </div>
+        <div id="bindingList">
+            <div class="text-center py-4 text-muted">
+                <div class="spinner-border spinner-border-sm" role="status"></div>
+                <p class="mt-2 mb-0">加载中...</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modal %}
+<!-- 配置渠道弹窗 -->
+<div class="modal fade" id="configChannelModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">配置渠道</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="configChannelBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" id="btn-update-channel">保存配置</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 二维码绑定弹窗 -->
+<div class="modal fade qrcode-modal" id="qrcodeModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">扫码绑定</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">使用 <strong id="bindChannelName"></strong> 扫码绑定账号</p>
+                <div id="qrcodeContainer">
+                    <div class="text-center py-3">
+                        <div class="spinner-border" role="status"></div>
+                        <p class="mt-2 mb-0 text-muted">正在生成二维码...</p>
+                    </div>
+                </div>
+                <div id="qrcodeResult" class="mt-3" style="display:none;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script>
+// ================================================================
+// 通知渠道绑定 — 用户侧
+// ================================================================
+var channels = [];
+var bindings = [];
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initUserBind);
+} else {
+    initUserBind();
+}
+
+function initUserBind() {
+    document.getElementById('channelList').addEventListener('click', handleChannelAction);
+    document.getElementById('bindingList').addEventListener('click', handleBindingAction);
+    document.getElementById('btn-update-channel').addEventListener('click', function() {
+        showToast('配置保存成功', 'success');
+        bootstrap.Modal.getInstance(document.getElementById('configChannelModal')).hide();
+    });
+    document.getElementById('qrcodeModal').addEventListener('hidden.bs.modal', function() {
+        document.getElementById('qrcodeContainer').innerHTML = '<div class="text-center py-3"><div class="spinner-border" role="status"></div><p class="mt-2 mb-0 text-muted">正在生成二维码...</p></div>';
+        document.getElementById('qrcodeResult').style.display = 'none';
+    });
+
+    loadChannels();
+    loadBindings();
+}
+
+function loadChannels() {
+    fetch('/api/channels/', { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            channels = Array.isArray(data) ? data : [];
+            renderChannels();
+        })
+        .catch(function(e) {
+            document.getElementById('channelList').innerHTML =
+                '<div class="text-center py-4 text-danger">加载失败: ' + e.message + '</div>';
+        });
+}
+
+function loadBindings() {
+    fetch('/api/channels/bindings/', { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            bindings = Array.isArray(data) ? data : [];
+            renderBindings();
+        })
+        .catch(function(e) {
+            document.getElementById('bindingList').innerHTML =
+                '<div class="text-center py-4 text-danger">加载失败: ' + e.message + '</div>';
+        });
+}
+
+function renderChannels() {
+    var el = document.getElementById('channelList');
+    if (channels.length === 0) {
+        el.innerHTML = '<div class="text-center py-4 text-muted"><i class="bi bi-inbox" style="font-size:2rem;"></i><p class="mt-2 mb-0">暂无可用渠道</p></div>';
+        return;
+    }
+
+    var html = '';
+    for (var i = 0; i < channels.length; i++) {
+        var ch = channels[i];
+        var chIcon = {feishu:'bi-chat-quote', wecom:'bi-people', dingtalk:'bi-chat-dots', email:'bi-envelope'};
+        var icon = chIcon[ch.channel_type] || 'bi-hash';
+
+        // Check if user already bound to this channel
+        var isBound = false;
+        for (var j = 0; j < bindings.length; j++) {
+            if (bindings[j].channel_type === ch.channel_type) { isBound = true; break; }
+        }
+
+        html +=
+'<div class="channel-card active">' +
+    '<div class="d-flex justify-content-between align-items-start">' +
+        '<div class="d-flex gap-3">' +
+            '<div class="channel-icon ' + ch.channel_type + '"><i class="bi ' + icon + '"></i></div>' +
+            '<div>' +
+                '<h6 class="mb-1">' + (ch.name || ch.channel_name) + '</h6>' +
+                '<div class="d-flex gap-2 align-items-center">' +
+                    '<span class="text-muted" style="font-size:0.8rem;">' + ch.channel_name + '</span>' +
+                    (ch.usage ? '<span class="usage-badge">' + (ch.usage === 'broadcast' ? '📢群通知' : '💬私信') + '</span>' : '') +
+                    (isBound ? '<span class="status-badge connected"><i class="bi bi-check-circle-fill"></i>已绑定</span>' : '') +
+                '</div>' +
+            '</div>' +
+        '</div>' +
+        (isBound ? '' :
+            '<button class="btn btn-primary btn-sm" data-action="bind" data-channel-id="' + ch.id + '"><i class="bi bi-qr-code me-1"></i>绑定</button>'
+        ) +
+    '</div>' +
+'</div>';
+    }
+    el.innerHTML = html;
+}
+
+function renderBindings() {
+    var el = document.getElementById('bindList');
+    if (!el) {
+        console.log('bindList element not found');
+        return;
+    }
+
+    var html = '';
+    var chIcon = {feishu:'bi-chat-quote', wecom:'bi-people', dingtalk:'bi-chat-dots', email:'bi-envelope'};
+
+    for (var i = 0; i < bindings.length; i++) {
+        var b = bindings[i];
+        var statusClass = b.status === 'active' ? 'connected' : 'pending';
+        var statusLabel = b.status === 'active' ? '已激活' : '待确认';
+        var icon = chIcon[b.channel_type] || 'bi-hash';
+        var userInfo = b.user_name || b.platform_open_id;
+
+        html +=
+'<div class="binding-item">' +
+    '<div class="channel-icon ' + b.channel_type + '" style="width:36px;height:36px;font-size:1rem;">' +
+        '<i class="bi ' + icon + '"></i>' +
+    '</div>' +
+    '<div class="flex-grow-1">' +
+        '<div class="fw-semibold">' + b.channel_name + '</div>' +
+        '<small class="text-muted">' + userInfo + '</small>' +
+    '</div>' +
+    '<span class="status-badge ' + statusClass + '">' + statusLabel + '</span>' +
+    '<button class="btn btn-outline-danger btn-sm" data-action="unbind" data-binding-id="' + b.id + '" title="解除绑定">' +
+        '<i class="bi bi-x-circle"></i>' +
+    '</button>' +
+'</div>';
+    }
+    el.innerHTML = html;
+}
+
+function handleChannelAction(e) {
+    var target = e.target.closest ? e.target.closest('[data-action]') : null;
+    if (!target) return;
+    e.preventDefault();
+
+    var action = target.dataset.action;
+    var channelId = parseInt(target.dataset.channelId, 10);
+    var ch = null;
+    for (var i = 0; i < channels.length; i++) {
+        if (channels[i].id === channelId) { ch = channels[i]; break; }
+    }
+    if (!ch) return;
+
+    if (action === 'bind') {
+        showQRCode(ch);
+    }
+}
+
+function handleBindingAction(e) {
+    var target = e.target.closest ? e.target.closest('[data-action]') : null;
+    if (!target) return;
+    e.preventDefault();
+
+    var action = target.dataset.action;
+    var bindingId = parseInt(target.dataset.bindingId, 10);
+
+    if (action === 'unbind') {
+        unbind(bindingId);
+    }
+}
+
+function showQRCode(ch) {
+    document.getElementById('bindChannelName').textContent = ch.channel_name;
+    new bootstrap.Modal(document.getElementById('qrcodeModal')).show();
+
+    fetch('/api/channels/bind/qrcode/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: ch.id }),
+        credentials: 'include'
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.binding_mode === 'oauth' && data.binding_url) {
+            var container = document.getElementById('qrcodeContainer');
+            container.innerHTML =
+                '<div id="qrContainer"></div>' +
+                '<p class="mt-2 text-muted" style="font-size:0.8rem;">请使用' + ch.channel_name + '扫码绑定</p>' +
+                '<p class="text-muted" style="font-size:0.7rem;">扫码后自动完成绑定</p>' +
+                '<div id="qrFallback" class="mt-2" style="display:none;"></div>';
+            try {
+                new QRCode(document.getElementById('qrContainer'), {
+                    text: data.binding_url,
+                    width: 200,
+                    height: 200,
+                    typeNumber: 10
+                });
+            } catch(e) {
+                document.getElementById('qrContainer').innerHTML =
+                    '<div class="alert alert-warning py-2" style="font-size:0.85rem;">' +
+                    '<i class="bi bi-exclamation-triangle me-1"></i>二维码生成失败，请点击下方链接直接绑定：</div>' +
+                    '<a href="' + data.binding_url + '" target="_blank" class="btn btn-outline-primary btn-sm w-100" style="word-break:break-all;">' +
+                    '<i class="bi bi-box-arrow-up-right me-1"></i>打开绑定链接</a>';
+            }
+        } else if (data.binding_mode === 'manual') {
+            document.getElementById('qrcodeContainer').innerHTML =
+                '<div class="text-start">' +
+                '<div class="alert alert-info mb-2" style="font-size:0.8rem;"><strong>' + ch.channel_name + '：</strong>请在下方填入您的推送标识</div>' +
+                '<input type="text" class="form-control mb-2" id="manualBindToken" placeholder="请输入您的' + ch.channel_name + '推送标识">' +
+                '<button class="btn btn-primary btn-sm w-100" id="btn-manual-bind">确认绑定</button>' +
+                '</div>';
+            document.getElementById('btn-manual-bind').addEventListener('click', function() { doManualBind(ch.id); });
+        } else {
+            document.getElementById('qrcodeContainer').innerHTML = '<div class="text-danger text-center">获取绑定信息失败</div>';
+        }
+    })
+    .catch(function(e) {
+        document.getElementById('qrcodeContainer').innerHTML = '<div class="text-danger text-center">请求失败: ' + e.message + '</div>';
+    });
+}
+
+function doManualBind(channelId) {
+    var token = document.getElementById('manualBindToken');
+    if (!token || !token.value.replace(/^\s+|\s+$/g, '')) {
+        showToast('请输入推送标识', 'warning');
+        return;
+    }
+
+    fetch('/api/channels/bindings/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel_id: channelId, open_id: token.value.replace(/^\s+|\s+$/g, '') }),
+        credentials: 'include'
+    })
+    .then(function(r) {
+        if (!r.ok) { throw { detail: '绑定失败' }; }
+        return r.json();
+    })
+    .then(function(data) {
+        bootstrap.Modal.getInstance(document.getElementById('qrcodeModal')).hide();
+        showToast('绑定成功', 'success');
+        loadBindings();
+        loadChannels();
+    })
+    .catch(function(e) {
+        showToast('绑定失败: ' + (e.detail || e.error || '未知错误'), 'error');
+    });
+}
+
+function unbind(bindingId) {
+    if (!confirm('确定解除绑定吗？')) return;
+    fetch('/api/channels/bindings/', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ binding_id: bindingId }),
+        credentials: 'include'
+    })
+    .then(function(r) {
+        if (!r.ok) { throw { detail: '解除绑定失败' }; }
+        return r.json().catch(function() { return {}; });
+    })
+    .then(function(data) {
+        showToast('已解除绑定', 'success');
+        loadBindings();
+        loadChannels();
+    })
+    .catch(function(e) {
+        showToast('解除绑定失败: ' + e.message, 'error');
+    });
+}
+</script>
+{% endblock %}

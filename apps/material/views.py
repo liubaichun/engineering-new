@@ -7,8 +7,8 @@ from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
 from apps.core.exceptions import api_error, ErrorCode
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
-from .models import Material, MaterialBOM, MaterialBOMNode
-from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialBOMSerializer
+from .models import Material, MaterialInboundLog, MaterialUsageLog, MaterialBOM, MaterialBOMNode
+from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialInboundLogSerializer, MaterialBOMSerializer
 from .serializers import MaterialBOMDetailSerializer, MaterialBOMNodeSerializer, MaterialBOMTreeSerializer
 
 logger = logging.getLogger(__name__)
@@ -22,11 +22,30 @@ class MaterialFilter(FilterSet):
 
     class Meta:
         model = Material
-        fields = ['code', 'name', 'category', 'stock', 'alert_threshold', 'supplier', 'project']
+        fields = ['code', 'name', 'category', 'alert_threshold', 'supplier', 'project']
 
     def filter_stock_alert(self, queryset, name, value):
         if value:
-            return queryset.filter(stock__lt=models.F('alert_threshold'))
+            return queryset.annotate(
+                _inbound_sum=models.Subquery(
+                    MaterialInboundLog.objects.filter(material=models.OuterRef('pk'))
+                    .values('material')
+                    .annotate(total=models.Sum('quantity'))
+                    .values('total')[:1],
+                    output_field=models.IntegerField(),
+                ),
+                _outbound_sum=models.Subquery(
+                    MaterialUsageLog.objects.filter(material=models.OuterRef('pk'))
+                    .values('material')
+                    .annotate(total=models.Sum('quantity'))
+                    .values('total')[:1],
+                    output_field=models.IntegerField(),
+                ),
+            ).annotate(
+                _calc_stock=models.F('init_stock')
+                + models.Coalesce('_inbound_sum', 0)
+                - models.Coalesce('_outbound_sum', 0),
+            ).filter(_calc_stock__lt=models.F('alert_threshold'))
         return queryset
 
 
@@ -38,7 +57,7 @@ class MaterialViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = MaterialFilter
     search_fields = ['code', 'name', 'spec']
-    ordering_fields = ['code', 'name', 'created_at', 'stock']
+    ordering_fields = ['code', 'name', 'created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -48,16 +67,20 @@ class MaterialViewSet(viewsets.ModelViewSet):
         'export': 'operations:material:read',
         'get_usage_logs': 'operations:material:read',
         'record_usage': 'operations:material:create',
+        'get_inbound_logs': 'operations:material:read',
+        'record_inbound': 'operations:material:create',
     }
 
     def get_queryset(self):
-        qs = Material.objects.select_related('supplier', 'project', 'project__company')
-        user = self.request.user
-        if user.is_superuser:
-            return qs
-        if hasattr(user, 'company_id') and user.company_id:
-            return qs.filter(models.Q(company_id=user.company_id) | models.Q(project__company_id=user.company_id))
-        return qs.none()
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'material', 'read')
+        if companies is None:
+            return super().get_queryset().select_related('supplier', 'project', 'project__company')
+        return super().get_queryset().filter(
+            models.Q(company_id__in=companies) | models.Q(project__company_id__in=companies)
+        ).select_related('supplier', 'project', 'project__company')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -108,29 +131,10 @@ class MaterialViewSet(viewsets.ModelViewSet):
 
         try:
             with transaction.atomic():
-                material = Material.objects.select_for_update().get(pk=material_id)
+                material = Material.objects.get(pk=material_id)
 
                 if material.stock < quantity:
                     return api_error(ErrorCode.VALIDATION_ERROR, '库存不足')
-
-                before_stock = material.stock
-                material.stock -= quantity
-                try:
-                    material.save(update_fields=['stock', 'updated_at'])
-                except Exception as e:
-                    return api_error(
-                        ErrorCode.INTERNAL_ERROR, f'出库失败（保存物料库存失败）：{str(e)}', status_code=500
-                    )
-
-                logger.info(
-                    '[物料出库] material_id=%s, quantity=%s, before_stock=%s, after_stock=%s, user=%s, project=%s',
-                    material_id,
-                    quantity,
-                    before_stock,
-                    material.stock,
-                    request.user,
-                    project_id,
-                )
 
                 serializer = MaterialUsageLogSerializer(
                     data={
@@ -151,6 +155,59 @@ class MaterialViewSet(viewsets.ModelViewSet):
                     save_kwargs['company_id'] = company_id
                 serializer.save(**save_kwargs)
                 return Response(serializer.data, status=201)
+        except Material.DoesNotExist:
+            return api_error(ErrorCode.NOT_FOUND, '物料不存在', status_code=404)
+
+    @action(detail=True, methods=['get'])
+    def get_inbound_logs(self, request, pk=None):
+        """获取某物料的入库记录"""
+        material = self.get_object()
+        logs = material.inbound_logs.select_related('supplier', 'created_by').all()
+        serializer = MaterialInboundLogSerializer(logs, many=True)
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def record_inbound(self, request):
+        """记录物料入库"""
+        material_id = request.data.get('material_id')
+        quantity = int(request.data.get('quantity', 0))
+        unit_price = request.data.get('unit_price')
+        supplier_id = request.data.get('supplier_id')
+        project_id = request.data.get('project_id')
+        source_type = request.data.get('source_type', 'purchase')
+        remark = request.data.get('remark', '')
+
+        if quantity <= 0:
+            return api_error(ErrorCode.VALIDATION_ERROR, '入库数量必须大于0')
+
+        try:
+            with transaction.atomic():
+                material = Material.objects.get(pk=material_id)
+
+                data = {
+                    'material': material_id,
+                    'quantity': quantity,
+                    'unit_price': unit_price if unit_price else None,
+                    'supplier': supplier_id if supplier_id else None,
+                    'project': project_id if project_id else None,
+                    'source_type': source_type,
+                    'remark': remark,
+                }
+                serializer = MaterialInboundLogSerializer(data=data)
+                if not serializer.is_valid():
+                    return Response(serializer.errors, status=400)
+
+                company_id = getattr(request.user, 'company_id', None)
+                save_kwargs = {
+                    'created_by': request.user if request.user.is_authenticated else None,
+                }
+                if company_id:
+                    save_kwargs['company_id'] = company_id
+                serializer.save(**save_kwargs)
+                return Response(
+                    {**serializer.data, 'current_stock': material.stock},
+                    status=201,
+                )
         except Material.DoesNotExist:
             return api_error(ErrorCode.NOT_FOUND, '物料不存在', status_code=404)
 
@@ -179,17 +236,17 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = MaterialBOM.objects.select_related('material', 'material__project')
-        user = self.request.user
-        if user.is_superuser:
-            return qs
-        if hasattr(user, 'company_id') and user.company_id:
-            return qs.filter(
-                models.Q(company_id=user.company_id)
-                | models.Q(material__company_id=user.company_id)
-                | models.Q(material__project__company_id=user.company_id)
-            )
-        return qs.none()
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'material', 'read')
+        if companies is None:
+            return super().get_queryset().select_related('material', 'material__project')
+        return super().get_queryset().filter(
+            models.Q(company_id__in=companies)
+            | models.Q(material__company_id__in=companies)
+            | models.Q(material__project__company_id__in=companies)
+        ).select_related('material', 'material__project')
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

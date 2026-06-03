@@ -18,6 +18,22 @@ def get_internal_company_names():
 INTERNAL_COMPANY_NAMES = get_internal_company_names()
 
 
+def get_user_report_companies(request):
+    """
+    获取当前用户有 report 模块读取权限的公司列表。
+    超级用户返回所有公司，普通用户返回有 UMP report:read 权限的公司。
+    """
+    from apps.core.permissions import get_module_companies
+
+    user = request.user
+    if user.is_superuser:
+        return Company.objects.filter(status='active')
+    company_ids = get_module_companies(user, 'report', 'read')
+    if not company_ids:
+        return Company.objects.none()
+    return Company.objects.filter(id__in=company_ids, status='active')
+
+
 def agg(qs, field):
     """安全聚合，返回float，None当0处理"""
     v = qs.aggregate(t=Sum(field))['t']
@@ -56,7 +72,7 @@ def build_qs(model, company_id=None, year=None, month=None):
     # 不同模型使用不同日期字段
     date_field = 'date'
     if model.__name__ == 'Expense':
-        date_field = 'expense_date'
+        date_field = 'date'
     elif model.__name__ == 'Income':
         date_field = 'date'
     if year:

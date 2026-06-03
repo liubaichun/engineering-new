@@ -27,6 +27,15 @@ class Invoice(models.Model):
     counterparty = models.CharField('对方公司', max_length=200, blank=True, default='')
     counterparty_tax_id = models.CharField('对方税号', max_length=30, blank=True, default='')
     counterparty_bank = models.CharField('对方开户行', max_length=200, blank=True, default='')
+    contract = models.ForeignKey(
+        'crm.Contract',
+        verbose_name='关联合同',
+        on_delete=models.PROTECT,
+        related_name='invoices',
+        blank=True,
+        null=True,
+        help_text='该发票对应的销售/采购合同',
+    )
     project = models.ForeignKey(
         'tasks.Project',
         verbose_name='关联项目',

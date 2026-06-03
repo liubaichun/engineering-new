@@ -597,7 +597,7 @@ function renderExpenses(expenses) {
             <td class="summary-cell">${expense.summary || '-'}</td>
             <td class="fw-bold text-danger">¥${formatNumber(expense.amount)}</td>
             <td>${balance}</td>
-            <td>${expense.expense_date || '-'}</td>
+            <td>${expense.date || '-'}</td>
             <td>${expense.supplier || '-'}</td>
             <td>
                 <div class="dropdown">
@@ -665,7 +665,7 @@ function updateSummary(expenses) {
         const amt = parseFloat(exp.amount) || 0;
         yearTotal += amt;
         yearCount++;
-        const expDate = new Date(exp.expense_date);
+        const expDate = new Date(exp.date);
         if (expDate.getFullYear() === currentYear2 && expDate.getMonth() === currentMonth) {
             monthTotal += amt;
             monthCount++;
@@ -673,7 +673,7 @@ function updateSummary(expenses) {
         if (exp.status === 'pending' || exp.status === 'draft') {
             pendingTotal += amt;
             pendingCount++;
-        } else if (exp.status === 'approved' || exp.status === 'confirmed') {
+        } else if (exp.status === 'approved' || exp.status === 'confirmed' || exp.status === 'paid') {
             confirmedTotal += amt;
             confirmedCount++;
         }
@@ -714,7 +714,7 @@ async function editExpense(id) {
             document.getElementById('expenseCompany').value = expense.company || '';
             document.getElementById('expenseType').value = expense.expense_type || '';
             document.getElementById('expenseAmount').value = expense.amount || '';
-            document.getElementById('expenseDate').value = expense.expense_date || '';
+            document.getElementById('expenseDate').value = expense.date || '';
             document.getElementById('expenseSupplier').value = expense.supplier || '';
             document.getElementById('expenseProject').value = expense.project || '';
             document.getElementById('expenseNote').value = expense.note || '';
@@ -747,7 +747,7 @@ async function saveExpense() {
         company: parseInt(company),
         expense_type: expense_type,
         amount: parseFloat(amount),
-        expense_date: expense_date,
+        date: expense_date,
         supplier: supplier,
         project: project ? parseInt(project) : null,
         note: note
@@ -858,7 +858,7 @@ const EXPENSE_COLUMNS = [
     { key: 'project_name', label: '项目' },
     { key: 'expense_type_display', label: '支出类型' },
     { key: 'amount', label: '金额（元）' },
-    { key: 'expense_date', label: '支出日期' },
+    { key: 'date', label: '支出日期' },
     { key: 'supplier', label: '供应商/收款方' },
     { key: 'status_display', label: '状态' },
     { key: 'approval_status', label: '审批状态' },

@@ -6,10 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.request import Request
 from rest_framework.response import Response
 from django.db.models.query import QuerySet
-
-logger = logging.getLogger(__name__)
-
-from .models import SystemSetting, CompanyRole
+from .models import SystemSetting, CodingRule
 from .serializers import (
     SystemSettingSerializer,
     FinanceCompanySerializer,
@@ -17,6 +14,8 @@ from .serializers import (
 from apps.finance.models import Company as FinanceCompany
 from apps.core.exceptions import api_error, ErrorCode
 from apps.core.permissions import RoleRequired
+
+logger = logging.getLogger(__name__)
 
 
 class SystemSettingViewSet(viewsets.ModelViewSet):
@@ -117,7 +116,14 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
 
     def get_queryset(self) -> QuerySet:
-        queryset = FinanceCompany.objects.all()
+        if not self.request.user.is_authenticated:
+            return FinanceCompany.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'company', 'read')
+        if companies is None:
+            queryset = FinanceCompany.objects.all()
+        else:
+            queryset = FinanceCompany.objects.filter(id__in=companies)
         status = self.request.query_params.get('status')
         if status:
             queryset = queryset.filter(status=status)
@@ -133,129 +139,25 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
         )
 
 
-# ── 公司角色定义 CRUD ────────────────────────────────────────────────────────
+class CodingRuleSerializer(serializers.ModelSerializer):
+    model_name_display = serializers.CharField(source='get_model_name_display', read_only=True)
+
+    class Meta:
+        model = CodingRule
+        fields = '__all__'
+        read_only_fields = ['created_at']
 
 
-class CompanyRoleDefViewSet(viewsets.ModelViewSet):
-    """
-    公司角色定义 — CRUD CompanyRole 本身。
+class CodingRuleViewSet(viewsets.ModelViewSet):
+    """编码规则配置 — 各模块自动编号规则可自定义"""
 
-    GET  /api/core/company-role-defs/                       → 所有角色定义
-    GET  /api/core/company-role-defs/?company_id=X          → 某公司下角色定义
-    POST /api/core/company-role-defs/                        → {company_id, name, code, description}
-    PATCH/DELETE /api/core/company-role-defs/{id}/          → 更新/删除
-    """
-
-    queryset = CompanyRole.objects.select_related('company')
+    queryset = CodingRule.objects.all()
+    serializer_class = CodingRuleSerializer
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
-    lookup_field = 'id'
-
-    def get_serializer_class(self) -> type:
-        if self.action == 'list':
-            return CompanyRoleDefListSerializer
-        return CompanyRoleDefSerializer
-
-    def get_queryset(self) -> QuerySet:
-        qs = CompanyRole.objects.select_related('company')
-        company_id = self.request.query_params.get('company_id')
-        if company_id:
-            qs = qs.filter(company_id=company_id)
-        return qs.order_by('company__name', 'name')
-
-    def perform_create(self, serializer) -> None:
-        role = serializer.save()
-        # 新建时若同时提交了 permission_ids，同步写入中间表
-        perm_ids = self.request.data.get('permission_ids', [])
-        if perm_ids:
-            self._sync_permissions(role, perm_ids)
-
-    def perform_update(self, serializer) -> None:
-        role = serializer.save()
-        perm_ids = self.request.data.get('permission_ids', [])
-        if perm_ids is not None:  # None=未传，保留原值；[]=显式清空
-            self._sync_permissions(role, perm_ids)
-
-    def perform_destroy(self, instance) -> None:
-        # 检查是否已有用户分配了这个角色
-        from .models import UserCompanyRole
-
-        if UserCompanyRole.objects.filter(company_role=instance).exists():
-            raise serializers.ValidationError({'detail': '该角色已有用户分配，无法删除'})
-        instance.delete()
-
-    def _sync_permissions(self, role, permission_ids: list) -> None:
-        from django.db import transaction
-        from .models import CompanyRolePermission, Permission
-
-        with transaction.atomic():
-            CompanyRolePermission.objects.filter(company_role=role).delete()
-            for perm_id in permission_ids:
-                if not Permission.objects.filter(id=perm_id).exists():
-                    continue
-                CompanyRolePermission.objects.create(
-                    company_role=role,
-                    permission_id=perm_id,
-                )
-
-
-class CompanyRoleDefListSerializer(serializers.ModelSerializer):
-    """角色定义列表序列化器"""
-
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    permission_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CompanyRole
-        fields = [
-            'id',
-            'name',
-            'code',
-            'description',
-            'is_active',
-            'company',
-            'company_name',
-            'permission_count',
-            'created_at',
-            'updated_at',
-        ]
-
-    def get_permission_count(self, obj):
-        return obj.permissions.count()
-
-
-class CompanyRoleDefSerializer(serializers.ModelSerializer):
-    """角色定义详情序列化器（包含权限列表）"""
-
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    permissions = serializers.SerializerMethodField()
-    # permission_ids: 写入时接受 [perm_id, ...]，写入 CompanyRolePermission 中间表
-    permission_ids = serializers.ListField(
-        child=serializers.IntegerField(), write_only=True, required=False, default=list
-    )
-
-    class Meta:
-        model = CompanyRole
-        fields = [
-            'id',
-            'name',
-            'code',
-            'description',
-            'is_active',
-            'company',
-            'company_name',
-            'permissions',
-            'permission_ids',
-            'created_at',
-            'updated_at',
-        ]
-        read_only_fields = ['created_at', 'updated_at']
-
-    def get_permissions(self, obj):
-        return [{'id': p.id, 'code': p.code, 'name': p.name} for p in obj.permissions.all()]
-
-    def update(self, instance, validated_data):
-        # permission_ids 的同步由 ViewSet.perform_update 统一处理
-        return super().update(instance, validated_data)
-
-
-# ── 角色管理（基于新权限系统 UserCompanyRole）───────────────────────────────
+    action_perms = {
+        None: 'core:system:read',
+        'create': 'core:system:update',
+        'update': 'core:system:update',
+        'partial_update': 'core:system:update',
+        'destroy': 'core:system:update',
+    }

@@ -4,7 +4,9 @@
 
 {% block styles %}
 <style>
-iframe.tab-iframe { width: 100% !important; border: none; background: transparent; display: block; }
+.tab-content { position: relative; min-height: calc(100vh - 122px); }
+.tab-content > div { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+iframe.tab-iframe { width: 100% !important; height: 100% !important; border: none; background: transparent; display: block; }
 </style>
 {% endblock %}
 
@@ -27,15 +29,15 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
     </li>
 </ul>
 
-<div class="tab-content" style="width:100%; margin:0 -32px;">
+<div class="tab-content">
     <div id="materials" style="display:{% if active_tab == 'materials' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/materials/" class="tab-iframe" id="frame-materials" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/materials/" class="tab-iframe" id="frame-materials"></iframe>
     </div>
     <div id="equipment" style="display:{% if active_tab == 'equipment' %}block{% else %}none{% endif %};">
-        <iframe src="/equipment/" class="tab-iframe" id="frame-equipment" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/equipment/" class="tab-iframe" id="frame-equipment"></iframe>
     </div>
     <div id="repair" style="display:{% if active_tab == 'repair' %}block{% else %}none{% endif %};">
-        <iframe src="/repair/requests/" class="tab-iframe" id="frame-repair" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/repair/requests/" class="tab-iframe" id="frame-repair"></iframe>
     </div>
 </div>
 
@@ -53,12 +55,6 @@ function showTab(tab) {
             if (link) link.classList.remove('active');
         }
     });
-}
-function resizeIframe(iframe) {
-    try {
-        var h = iframe.contentWindow.document.body.scrollHeight;
-        if (h > 0) iframe.style.height = Math.max(h + 50, 600) + 'px';
-    } catch(e) {}
 }
 </script>
 {% endblock %}

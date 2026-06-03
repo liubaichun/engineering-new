@@ -29,12 +29,13 @@ class BankAccountViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company_id=user.company_id)
-        return qs
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'bank', 'read')
+        if companies is None:
+            return super().get_queryset()
+        return super().get_queryset().filter(company_id__in=companies)
 
     def perform_create(self, serializer):
         serializer.save()

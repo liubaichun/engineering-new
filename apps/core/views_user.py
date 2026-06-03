@@ -13,9 +13,9 @@ from apps.core.exceptions import api_error, ErrorCode
 logger = logging.getLogger(__name__)
 
 
-from .models import User, Notification, PermissionAuditLog, UserCompanyRole
+from .models import User, Notification, PermissionAuditLog, UserModulePermission
 from .serializers import UserSerializer
-from apps.core.permissions import RoleRequired
+from apps.core.permissions import RoleRequired, get_module_companies
 from apps.core.export_excel import export_to_xlsx, make_export_response
 from .views_common import get_client_ip
 
@@ -39,9 +39,23 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self) -> QuerySet:
         queryset = User.objects.all().prefetch_related(
-            'company_roles__company',
-            'company_roles__company_role',
+            'module_permissions__module',
         )
+
+        # 公司隔离：非超管只能看到同公司用户（通过UMP判断）
+        user = self.request.user
+        if not user.is_superuser:
+            company_ids = get_module_companies(user, 'user', 'read')
+            if company_ids:
+                same_company_user_ids = UserModulePermission.objects.filter(
+                    company_id__in=company_ids
+                ).values_list('user_id', flat=True).distinct()
+                queryset = queryset.filter(id__in=same_company_user_ids)
+                # 非超管也不能看到其他超管账号
+                queryset = queryset.exclude(is_superuser=True)
+            else:
+                queryset = queryset.none()
+
         role = self.request.query_params.get('role')
         is_active = self.request.query_params.get('is_active')
         last_login_since = self.request.query_params.get('last_login_since')  # 分钟内登录过
@@ -117,12 +131,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 {'status': 'error', 'message': f'审批失败：{str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        # === 注册闭环：自动建公司+分配公司管理员角色 ===
+        # === 注册闭环：自动建公司+分配UMP权限 ===
         from apps.finance.models import Company
+        from apps.core.models import UserModulePermission, Module
 
-        # 检查用户是否已有公司（通过 UserCompanyRole 判断）
-        existing_link = UserCompanyRole.objects.filter(user=user).first()
-        if not existing_link:
+        # 检查用户是否已有公司（通过UMP判断）
+        existing_ump = UserModulePermission.objects.filter(user=user).first()
+        if not existing_ump:
             # 自动创建公司（以用户名作为公司名和代码）
             company_code = user.username.replace(' ', '_').replace('/', '_').lower()
             # 防止代码重复
@@ -139,33 +154,35 @@ class UserViewSet(viewsets.ModelViewSet):
                 contact_phone=user.phone or '',
             )
 
-            # 分配公司管理员角色
-            UserCompanyRole.objects.create(
-                user=user,
-                company=company,
-                role='admin',
-                assigned_by=request.user if request.user.is_authenticated else None,
-            )
+            # 给新用户分配UMP权限（所有模块read-only）
+            for mod in Module.objects.all():
+                UserModulePermission.objects.create(
+                    user=user,
+                    company=company,
+                    module=mod,
+                    granted_bits=1,  # read only
+                )
 
             # 审计日志
             PermissionAuditLog.objects.create(
                 user=request.user if request.user.is_authenticated else None,
-                action='assign_role',
+                action='assign_permission',
                 target_user=user,
-                role_name='公司管理员',
-                description=f'批准注册并创建公司[{company.name}]，分配公司管理员角色',
+                role_name='新用户',
+                description=f'批准注册并创建公司[{company.name}]，分配UMP权限',
                 ip_address=get_client_ip(request),
                 company=company,
             )
         else:
             # 已有公司，单纯激活
+            company = Company.objects.filter(id=existing_ump.company_id).first()
             PermissionAuditLog.objects.create(
                 user=request.user if request.user.is_authenticated else None,
                 action='activate_user',
                 target_user=user,
                 description='批准用户注册（账号激活）',
                 ip_address=get_client_ip(request),
-                company=existing_link.company if existing_link else None,
+                company=company,
             )
 
         # 给用户发通知
@@ -175,13 +192,13 @@ class UserViewSet(viewsets.ModelViewSet):
             content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
             notification_type='approval',
             level='success',
-            company=company if not existing_link else (existing_link.company if existing_link else None),
+            company=company if not existing_ump else (company if company else None),
         )
         return Response(
             {
                 'status': 'success',
                 'message': f'已批准用户 {user.username} 的注册申请'
-                + (f'，已创建公司[{company.name}]并分配公司管理员角色' if not existing_link else ''),
+                + (f'，已创建公司[{company.name}]并分配UMP权限' if not existing_ump else ''),
                 'user': UserSerializer(user).data,
             },
             status=status.HTTP_200_OK,
@@ -236,8 +253,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 continue
 
             # 注册闭环
-            existing_link = UserCompanyRole.objects.filter(user=user).first()
-            if not existing_link:
+            from apps.core.models import UserModulePermission, Module
+
+            existing_ump = UserModulePermission.objects.filter(user=user).first()
+            if not existing_ump:
                 company_code = user.username.replace(' ', '_').replace('/', '_').lower()
                 base_code = company_code
                 counter = 1
@@ -251,29 +270,29 @@ class UserViewSet(viewsets.ModelViewSet):
                     contact_person=user.username,
                     contact_phone=user.phone or '',
                 )
-                UserCompanyRole.objects.create(
-                    user=user,
-                    company=company,
-                    role='admin',
-                    assigned_by=request.user if request.user.is_authenticated else None,
-                )
+                # 给新用户分配UMP权限
+                for mod in Module.objects.all():
+                    UserModulePermission.objects.create(
+                        user=user, company=company, module=mod, granted_bits=1,
+                    )
                 PermissionAuditLog.objects.create(
                     user=request.user if request.user.is_authenticated else None,
-                    action='assign_role',
+                    action='assign_permission',
                     target_user=user,
-                    role_name='公司管理员',
-                    description=f'批量批准注册并创建公司[{company.name}]，分配公司管理员角色',
+                    role_name='新用户',
+                    description=f'批量批准注册并创建公司[{company.name}]，分配UMP权限',
                     ip_address=get_client_ip(request),
                     company=company,
                 )
             else:
+                company = FinanceCompany.objects.filter(id=existing_ump.company_id).first()
                 PermissionAuditLog.objects.create(
                     user=request.user if request.user.is_authenticated else None,
                     action='activate_user',
                     target_user=user,
                     description='批量批准用户注册（账号激活）',
                     ip_address=get_client_ip(request),
-                    company=existing_link.company if existing_link else None,
+                    company=company,
                 )
 
             Notification.objects.create(
@@ -282,7 +301,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 content=f'您的账号 "{user.username}" 已通过管理员审批，现在可以正常登录了。',
                 notification_type='approval',
                 level='success',
-                company=company if not existing_link else (existing_link.company if existing_link else None),
+                company=company,
             )
             approved.append(user.username)
         return Response(

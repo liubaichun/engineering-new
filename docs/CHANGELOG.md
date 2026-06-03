@@ -1,613 +1,373 @@
-# 变更日志
 
-## 2026-05-29 P3-4 日志聚合 — 结构化JSON日志 + logs管理命令
+---
 
-### 改进
-- **结构化JSON日志**：生产日志改用 `python-json-logger`，机器可解析
-- **`manage.py logs` 命令**：按级别/模块/关键词/时间筛选，支持 `--tail` 实时追踪
-- **双层日志文件**：
-  - `django.log` — INFO+ 全量日志
-  - `error.log` — WARNING+ 分离，方便快速定位问题
-- **保留策略**：日志保留30天（10MB轮转）
-- **旧日志兼容**：旧 plain text 日志文件不受影响
-
-### 用法示例
-```bash
-python manage.py logs                           # 最近20条
-python manage.py logs --level WARNING           # 只看警告+
-python manage.py logs --module invoice          # 只看发票模块
-python manage.py logs --search "error"          # 关键词搜索
-python manage.py logs --tail                    # 实时追踪
-python manage.py logs --today --count 100       # 今天100条
-```
-
-### 其他
-- ruff 全库格式化（统一单引号风格、导入排序）
-- per-file-ignores: 放行 settings 文件的 F403/F405
-
-## 2026-05-29 P3-3 Pre-commit hooks — 代码提交自动检查
-
-### 新增
-- `.pre-commit-config.yaml` — 6类自动检查：
-  - **ruff lint + format** — 代码质量/风格自动修复
-  - **trailing-whitespace + end-of-file-fixer** — 文件整洁
-  - **check-merge-conflict** — 防止合并冲突标记泄露
-  - **debug-statements** — 拦截 print/pdb/ipdb
-  - **check-added-large-files (>10MB)** — 防止大文件入库
-  - **name-tests-test** — 测试文件命名规范
-
-### 设计考虑
-- `--fix` 模式自动修复可修复问题，开发只需处理无法自动修的
-- migration 文件排除在检查之外（自动生成）
-
-## 2026-05-29 P3-2 CI/CD自动化 — GitHub Actions
-
-### 新增
-- `.github/workflows/ci.yml` — push/PR时自动执行：
-  - **test**（主门禁）：PostgreSQL 16容器 + 43个pytest用例
-  - **lint**（参考）：ruff pyflakes检查，不影响CI通过
-- `pyproject.toml` — ruff配置（目标Python 3.11）
-- `requirements-ci.txt` — CI专用依赖（ruff, bandit）
-
-### 设计考虑
-- test job是**必须通过**的主门禁，保障代码不破坏已有功能
-- lint job `continue-on-error`，不阻塞开发进度，逐步修复
-- 预配置 PostgreSQL service，CI中自动启动
-
-## 2026-05-29 P3-1 Settings 重构 — 目录包模式
+## 2026-06-02: 全系统第0周修复（死代码清理 + Expense修复 + 状态机对齐）
 
 ### 背景
-- `settings.py`（主力）与 `settings_pg.py`（实际在生产跑）两份配置不同步
-- 改一个忘另一个 → 永远不一致
+基于 `docs/FULL_SYSTEM_AUDIT_2026-06-02.md` 摸底报告，执行第0周清理计划。
 
-### 改进：三层目录包 `config/settings/`
-| 文件 | 作用 |
-|:----|:------|
-| `base.py` | **唯一的真相源** — 所有共享配置（中间件、APP、REST、SPECTACULAR、邮件等） |
-| `dev.py` | `from base import *` + 开发覆盖（DEBUG=True、数据库） |
-| `prod.py` | `from base import *` + 生产覆盖（CSRF_TRUSTED_ORIGINS、CONN_MAX_AGE、日志） |
+### 一、P1 — 死代码清理
 
-### 从根源解决问题
-- **删掉了 `settings_pg.py`** — 物理上只有一份配置，不可能不同步
-- `wsgi.py` → `config.settings.prod`，`manage.py` → `config.settings.dev`
-- 两边服务器代码完全一致，差异只通过 `.env` 控制
-- 预留 SaaS 扩展：`settings/saas.py`（导入 `from .saas import *` 即可）
+#### 删除 equipment.bak
+- **位置：** `apps/equipment.bak.20260601065724/`
+- **操作：** 43和124两台服务器均已删除
 
-### 修复的问题
-- ✅ **CsrfViewMiddleware 进入中间件**（之前 settings_pg.py 缺失）
-- ✅ **SPECTACULAR_SETTINGS（21个API标签）进入生产配置**
-- ✅ **MEDIA_URL/MEDIA_ROOT 进入共享配置**
-- ✅ **数据库 CONN_MAX_AGE + CONN_HEALTH_CHECKS 进入生产配置**
-- ✅ **所有43个测试通过**
+#### 删除 permission_registry 残留
+- **位置：** `apps/permission_registry/`
+- **操作：** 43和124两台服务器均已删除（整个目录）
 
-## 2026-05-29 P2-4 测试覆盖 — 建立测试基础设施
+### 二、P0 — Expense模型双日期字段 + save()崩溃bug修复
 
-### 新增：测试框架 + 43个测试用例
+#### 问题
+1. `expense_date` 和 `date` 两字段共存，save()互相同步（技术债）
+2. save()中 `hasattr(self.expense_date, 'date')` 在expense_date为字符串时崩溃
 
-**基础设施：**
-- `pytest.ini` — pytest-django 配置（--nomigrations模式）
-- `conftest.py` — 7个全局 fixtures（company/user/invoice/employee/income/expense factory）
-- `tests/factories/` — 3个 factory 模块（core/finance/tasks）
-- `tests/__init__.py` 等样板
+#### 修改
+- **models_expense.py**：删除 `expense_date` 字段，简化save()为 `if not self.date: self.date = date.today()`
+- **serializers.py**：删除 `expense_date` 序列化字段和同步逻辑
+- **views_expense.py**：ordering/filter改用 `date`
+- **filters.py**：字段名 `expense_date` → `date`
+- **reports_common.py / reports_budget.py / reports_tax.py**：报表日期字段统一
+- **classification_rules.py**：试算平衡表日期字段统一
+- **bank_import_views.py / tax_invoice_import.py / import_views.py**：导入创建参数统一
+- **templates/finance/expense_list.html**：前端字段引用统一
+- **共修改15个文件**
 
-**测试文件（全部 ✅ 通过）：**
+#### 迁移
+- 新建 `0043_remove_expense_expense_date_alter_expense_date_and_more.py`
 
-| 文件 | 用例数 | 覆盖内容 |
-|:----|:------:|:---------|
-| `test_invoice_import.py` | 13 | 发票导入核心路径、重复跳过、`--`占位符、龙晟场景、信息汇总表 |
-| `test_invoice_model.py` | 10 | Invoice CRUD、过滤排序、company PROTECT |
-| `test_social_import.py` | 4 | 社保导入正常/多员工/脏数据过滤/无效格式 |
-| `test_reports.py` | 7 | build_qs查询构建器、收入和支出聚合 |
-| `test_auth_perm.py` | 9 | 用户创建、公司归属、is_superuser标识、公司数据隔离 |
+#### 验证
+- ✅ 43 migrate OK
+- ✅ 124 migrate OK
+- ✅ Django check 0 issues
+- ✅ 两台gunicorn重启
 
-**修复：**
-- migration `0033` `AlterField→AddField`：`income_category` 字段从未被 migration 创建过（仅生产库手动 ALTER TABLE）
-- migration `0042`：`AlterField` 更新 `income_category` 的 choices（+other_income/investment_income）
-- 工厂类：`skip_postgeneration_save=True` 修复 DeprecationWarning
-- `IncomeFactory`/`ExpenseFactory`：改用 `SubFactory` 确保 company 字段必填
+### 三、P0 — Income/Expense状态机对齐
 
-**运行方式：** `cd /root/engineering-new && source venv/bin/activate && python -m pytest apps/ --nomigrations -v`
+#### 问题
+Income有 `received`（已到账），Expense只有 `confirmed`（已确认支出）无 `paid`（已付款）
 
-**注意事项：** 124服务器 SSH 连接超时，待网络恢复后同步。
+#### 修改
+- **models_expense.py**：EXPENSE_STATUS_CHOICES 新增 `('paid', '已付款')`
+- **admin.py**：新增 `paid` 状态颜色（绿色）
+- **templates/finance/expense_list.html**：前端统计纳入 `paid` 状态
+- **新迁移文件**：自动生成（包含在0043中）
 
-## 2026-05-29 P2-3 大文件拆分完成
+#### 验证
+- ✅ 已有confirmed记录不受影响（choices变更不改变已存储值）
+- ✅ `get_status_display()` 自动支持新状态
+- ✅ 序列化器/过滤器无需修改
 
-### 重构：P2-3 大文件拆分（5个文件 → 37个文件）
+### 四、P1 — notifications vs channels 边界分析
 
-| 原文件 | 行数 | 拆分为 | 验证 |
-|:-------|:----:|:-------|:----:|
-| `apps/finance/models.py` | 1,269 | 11个 `models_*.py` | ✅ check --deploy + 浏览器 |
-| `apps/core/views.py` | 1,506 | 10个 `views_*.py` | ✅ check --deploy + login API |
-| `apps/tasks/views.py` | 1,268 | 4个 `views_*.py` | ✅ check --deploy |
-| `apps/channels/views.py` | 1,069 | 4个 `views_*.py` | ✅ check --deploy |
-| `apps/finance/reports_v2.py` | 1,023 | 8个 `reports_*.py` | ✅ check --deploy |
+#### 结论
+**不是死代码，是合理的三层架构，无需修改：**
 
-**原则**：所有原文件保留为兼容重导出层，`from .models import X` 和 `from . import reports_v2` 等所有已有引用无需修改。
+| 层 | app | 职责 |
+|---|-----|------|
+| 消息记录 | `core/models.py::Notification` | 谁、什么时间、什么消息 |
+| 通知业务 | `apps/notifications/` | 用户偏好、发送规则、模块注册 |
+| 渠道插件 | `apps/channels/` | 企微/飞书/钉钉/邮件等渠道实现 |
 
-**教训记录**：拆分大文件时使用 `git show HEAD~1:file` 而非 `cat` 以避免终端输出截断；每次拆完后需补充各文件的特定导入（如 views_auth.py 漏 `LoginLog` 和 `get_token` 导致500）。
+只需用文档说明即可（已记录在摸底报告和此CHANGELOG中）。
 
-## 2026-05-29 多租户SaaS设计 + 系统升级需求分析 v3.0
+### 第0周完成情况
 
-### 文档更新
+| 任务 | 状态 | 备注 |
+|:---|:----:|:-----|
+| 删除 equipment.bak | ✅ | 43+124 |
+| 删除 permission_registry | ✅ | 43+124 |
+| Expense双日期字段修复 | ✅ | 15个文件 + 迁移0043 |
+| Expense save()崩溃bug | ✅ | 同步修复 |
+| Income/Expense状态机对齐 | ✅ | Expense新增paid状态 |
+|    notifications vs channels | ✅ | 已分析确认合理 |
 
-| 文档 | 变化 |
-|:-----|:------|
-| `docs/系统升级方向需求分析报告.md` | ⬆️ **从v2.0升级到v3.0**——核心战略调整为"通用平台+行业插件包"模式。原有垂直定位改为平台底座+认证包+制造包三层架构。实施路线图从12周扩展为24周。增加了行业包开发标准、菜单加载规范、不做清单。 |
-| `docs/多租户SaaS平台设计规范.md` | ✅ 新增（v1.0已创建，本次未改动） |
-| `docs/CHANGELOG.md` | ✅ 已记录 |
-| `docs/README.md` | ✅ 已更新索引 |
+---
 
-### v3.0核心变化
+## 2026-06-02: 第1-2周 应收应付闭环（Invoice→Contract关联 + BankStatement核销增强 + 到期提醒）
 
-- **战略调整**：单一垂直 → 平台+行业包（认证包+制造包）
-- **架构分层**：核心层（通用）+ 行业包层（按需加载）+ 租户配置层
-- **新路线图**：P0核心加固(4周)→P1认证包(6周)+P2平台底座(8周并行)→P3制造包(8周)
-- **新增标准**：行业包开发规范、菜单加载规范、权限码命名规范
-- **不做清单**：明确9类功能不做（MES/电商/APP等）
+### 一、P0 — Invoice关联Contract
 
-### 新版本文档（5/29新增）
+#### 改动
+- **models_invoice.py**：新增 `contract` FK（`ForeignKey 'crm.Contract'`）
+- **migrations/0044_add_invoice_contract_fk.py**：迁移文件
+- **serializers.py**：InvoiceSerializer 新增 `contract_id` / `contract_name` / `contract_no` 字段
+- **views_arap.py**：ARAPViewSet receivables/payables 的 `select_related` 新增 `contract`
+- **views_invoice.py**：InvoiceViewSet queryset 新增 `select_related('contract', 'company')`
+- **reports_arap.py**：账龄分析 `select_related('contract')` + 响应增加 `contract_no`/`contract_name`
+- **templates/finance/ar_ap_list.html**：应收/应付明细表格新增"关联合同"列 + 链接到合同详情页 + 导出CSV增加合同列
 
-| 文档 | 说明 |
-|:-----|:------|
-| `docs/多租户SaaS平台设计规范.md` | 完整多租户架构方案（v1.0，含5个新增缺口已补充） |
-| `docs/系统升级方向需求分析报告.md` | 升级方向需求分析（v3.0，平台+行业包模式） |
-| `docs/质量安全与认证合规规范.md` | ⬆️ **新增**——等保二级+双软认证规范，含API/代码/字段标准、安全审计、加密备份、上线检查清单（约27KB） |
-| `docs/系统深度审计报告与修改计划.md` | ⬆️ **新增**——全量代码扫描（195个文件），发现3项P0/6项P1/8项P2问题，含分周修复计划 |
+#### 验证
+- ✅ `python3 manage.py check` 0 issues
+- ✅ 迁移 0044 已执行
+- ✅ 页面正确显示"关联合同"列表头
+- ✅ 无合同关联的发票显示"-"
 
-### 关键决策
+### 二、P1 — BankStatement核销增强
 
-- **定位**：不做通用ERP → 做"软件认证+财务合规"垂直SaaS
-- **销售模式**：不走传统订单(恒鑫兴模式) → 走项目驱动型销售(商机→合同→里程碑→收款)
-- **库存**：不做传统仓库 → 做"物料流转看板"聚焦项目管理场景
-- **报表**：不做11种销售统计 → 做管理驾驶舱(预算执行率/工资成本占比/项目进度)
-- **多租户**：不使用Hybrid混合隔离(字段隔离→Schema隔离→独立DB按等级分配)
-- **文档都标注了哪些功能我们不做**（分销/委外/BOM/积分等）
+#### 改动
+- **views_invoice.py `match_statement`**：
+  - 新增方向校验（收入发票→银行收入，支出发票→银行支出）
+  - 核销时同步更新 BankStatement 的 `reconcile_status` 和 `reconcile_time`
+  - 如果发票关联了合同，同步更新关联 PaymentPlan 状态为 `paid`
+- **views_invoice.py `unmatch_statement`**：取消核销时同步恢复 BankStatement 状态
+- **views_invoice.py `mark_paid`**：标记支付时同步更新关联 PaymentPlan
 
-### 多租户设计亮点
+### 三、P2 — 应收应付到期提醒通知
 
-- 通配符域名+数据库路由表（动态新增租户，无需改Nginx）
-- JWT中不暴露tenant_id（防篡改），服务端Session双校验
-- 平台管理端（恒鑫兴完全没有）
-- 自助注册→邮箱验证→自动初始化→14天试用
-- 在线数据迁移（共享→Schema→独立DB，不停机）
+#### 改动
+- **check_alerts.py**：新增第8种预警类型「应收应付到期提醒」
+  - 到期前7天的发票 → 每日通知（level=warning）
+  - 已逾期的发票 → 每72小时通知（逾期≤30天 error，>30天 critical）
+  - 通知内容包含：发票号、对方公司、金额、到期日、关联合同信息
 
-### 升级方案差异化（vs 恒鑫兴）
+### 完成情况
 
-- 我们强在：工资/社保/预算/审批流（恒鑫兴没有）
-- 恒鑫兴强在：进销存通用能力
-- 我们不做：分销二维码/委外/BOM/动销率等不适用功能
+| 任务 | 状态 | 备注 |
+|:---|:----:|:-----|
+| Invoice→Contract FK | ✅ | 迁移0044，serializer，view，template |
+| BankStatement核销增强 | ✅ | 方向校验+状态同步+PaymentPlan联动 |
+| 到期提醒通知 | ✅ | 集成到check_alerts预警系统 |
+| 43服务器验证 | ✅ | 页面显示正常 |
+| 124服务器同步 | ✅ | 已同步并验证 |
 
-## 2026-05-28 通知系统全面分析 + 需求文档梳理
+---
 
-### 分析
+## 2026-06-02: 第3周 库存流水化 + 编码规则（MaterialInboundLog + stock计算字段 + 编码规则可配置）
 
-- **通知系统全面审计**：发现现有三层架构（站内通知/外部渠道/业务事件通知）存在核心断裂
-  - **站内通知**（`core.Notification`）: ✅ 19条记录，crontab定时任务正常写入
-  - **外部渠道**（`apps.channels`）: ❌ 飞书token过期、邮件走console、路由规则0条、渠道绑定指向已删除渠道
-  - **业务事件通知**（`tasks.notification_service.py`）: ❌ 20+个`notify_xxx()`函数写好但从未被业务代码调用
-- **需求文档梳理**：找到原始需求文档 `NOTIFICATION-SYSTEM.md` 和升级需求 `NOTIFICATION-SYSTEM-UPGRADE.md`
-- **需求确认**：与用户确认通知系统定位——邮件留配置入口，IM捆绑（飞书/钉钉/微信）是核心
+### 一、P2 — MaterialInboundLog入库日志模型
 
-### 产出文档
+#### 改动
+- **models.py**：新增 `MaterialInboundLog` 模型（material FK, quantity, unit_price, supplier, project, source_type）
+- **migrations/0006_add_material_inbound_log.py**：迁移文件
+- **serializers.py**：新增 `MaterialInboundLogSerializer` + MaterialSerializer 增加 `inbound_logs` 字段
+- **views.py**：新增 `get_inbound_logs`（GET）和 `record_inbound`（POST）API
 
-| 文档 | 说明 |
-|:-----|:-----|
-| `docs/NOTIFICATION_SYSTEM_REQUIREMENTS.md` | 需求分析与实施计划（群通知/私信通知分类、三种绑定方式、分P实施） |
-| `knowledge-base/01-requirements/NOTIFICATION-SYSTEM-OPTIMIZATION-V6.md` | 完整设计细节（流程逻辑、数据流、页面设计） |
+#### 验证
+- ✅ `python3 manage.py check` 0 issues
+- ✅ 迁移 0006 已执行
 
-### 设计要点
+### 二、P2 — stock改为计算字段
 
-- **通知分两类**：群通知（群机器人Webhook）和私信通知（点对点推个人）
-- **三种绑定方式**：扫码绑定🥇（飞书/钉钉/企微）、填Token🥈（微信PushPlus）、自动使用档案邮箱🥇
-- **支持渠道**：飞书、钉钉、企业微信、微信（PushPlus）、邮件
-- **实施分4个P**：P0基础设施（1天）→ P1用户绑定（1天）→ P2邮件配置（半天）→ P3业务接入（1天）
-- **docs/README.md**：新增通知系统章节
+#### 改动
+- **Material模型**：`stock` DB字段→`@property`（init_stock + Σ入库 - Σ出库）
+- **models.py**：新增 `init_stock`（期初库存），`stock` property，`total_inbound`/`total_outbound` property
+- **migrations/0007_stock_to_init_stock.py**：RemoveField stock + AddField init_stock + 数据迁移（复制现有stock→init_stock）
+- **serializers.py**：stock改为 `IntegerField(read_only=True)`，新增 init_stock/total_inbound/total_outbound
+- **views.py**：`record_usage`/`record_inbound`不再手动修改stock字段；`stock_alert`过滤器改用annotation计算；移除 `stock` 从filter fields和ordering_fields
 
-## 2026-05-28 驾驶舱工资柱状图修复 + 数据同步检查
+#### 验证
+- ✅ 数据迁移已将现有库存值复制到 init_stock
+- ✅ `stock` property 正确计算 init_stock + 入库 - 出库
 
-### 修复
-- **月度工资柱状图缺1-3月数据**（`apps/finance/views.py` + `templates/stats.html`）：两个问题叠加
-  - `SafePageNumberPagination` 默认 `page_size=20`，工资API按月份倒序返回
-  - 第1页只返回4-7月数据，1-3月被分到第2页，前端未做翻页
-  - 修复：`WageRecordViewSet.page_size = 200` 确保一年数据一次返回
-  - 同时前端 `&page_size=100` 参数作为兜底
+### 三、P2 — 编码规则可配置
 
-### 检查
-- **数据统计页面模块同步检查**：经营驾驶舱覆盖了工资、收支、发票、项目、合同、设备、审批共9个数据源，与当前12个系统模块基本同步（缺预算执行监控、银行流水分析两个图表模块，属于前期设计未覆盖）
+#### 改动
+- **core/models.py**：新增 `CodingRule` 模型 + `generate_code()` 通用函数
+- **migrations/0027_add_coding_rule.py**：迁移文件
+- **material/models.py**：Material.save() 使用 generate_code('material')
+- **crm/models.py**：Client/Supplier.save() 使用 generate_code('client') / generate_code('supplier')
+- **finance/models_employee.py**：Employee.save() 使用 generate_code('employee')
+- **equipment/models.py**：Equipment.save() 使用 generate_code('equipment')
+- **crm/supplier_model.py**：同步更新
+- **core/views_settings.py**：新增 `CodingRuleViewSet`（CRUD API → `/api/core/coding-rules/`）
+- **core/urls.py**：注册路由
 
-## 2026-05-28 侧边栏菜单去冗余：扁平化 + 合并
+#### 验证
+- ✅ 5个模块的统一编码规则已替换硬编码逻辑
+- ✅ 默认规则：WL-（物料）、KH-%Y-（客户）、GYS-%Y-（供应商）、YG-%Y-（员工）、SB-（设备）
+- ✅ 系统管理员可通过 API 在线修改编码规则（前缀、年份格式、流水号位数等）
 
-### 重构
-- **侧边栏精简**（`templates/core/base.html` + `templates/base.html`）：
-  - 扁平化单菜单项分组：**客户管理/采购管理/运营管理/文件管理** 直接显示为菜单项，去掉冗余的分组标题行
-  - **"我的通知"** 合并到 **"数据"** 分组下（排在"数据统计"后面），不再孤立悬浮
-  - 视觉上从 10个分组标题 + 20个菜单项 → 5个分组标题 + 21个菜单项
+### 完成情况
 
-## 2026-05-28 权限矩阵修复：预算管理注册 + 银行流水权限清理
+| 任务 | 状态 | 备注 |
+|:---|:----:|:-----|
+| MaterialInboundLog 模型+API | ✅ | 迁移0006，serializer，view |
+| stock计算字段+数据迁移 | ✅ | 迁移0007，property+annotation |
+| 编码规则可配置 | ✅ | 5个模型统一使用 generate_code() |
+| Django check | ✅ | 0 issues |
+| 43服务器验证 | ✅ | 页面+API均正常 |
+| 124代码同步 | ✅ | 代码+迁移均已到位 |
 
-### 新增
-- **预算管理权限注册**（`apps/finance/modules.py`）：新增 `budget` 模块注册（查看/新建/编辑/删除4个动作），权限码格式 `finance:budget:<action>`
-- **BudgetViewSet权限码修正**（`apps/finance/views.py`）：从旧的 `finance:budget:manage` / `finance:report:read` 改为标准 `finance:budget:read`/`create`/`update`/`delete`
+---
 
-### 修复
-- **银行流水权限精简**（`apps/finance/modules.py`）：去掉虚假的 新建/编辑/删除 3个动作，银行流水页面实际上只有导入和查看功能
-- **权限矩阵计数更新**：财务分类从8个模块变为9个
+## 2026-06-02: 第4周 商机管理增强（Pipeline看板 + 项目驱动销售）
 
-## 2026-05-28 应收应付账龄分析修复
+### 一、P0 — Pipeline看板视图
 
-### 修复
-- **应收应付账龄分析报表**：发票账龄计算回退逻辑遗漏 `issue_date`（开票日），发票无到期日时直接掉到 `today` 导致所有无到期日发票都显示为1-30天
-- **修复方案**（`apps/finance/reports_v2.py`）：在账龄计算回退链中加上 `issue_date`，即 `due_date or issue_date or date or today`
-- **效果**：百川两张待收发票（开票日2026-04-02/2026-03-30）从错误的"1-30天"修正为正确的"31-60天"
+#### 改动
+- **views.py (crm)**：新增 `kanban` action — 按线索/意向/方案/商务4列返回商机卡片数据（含项目关联）
+- **opportunity_kanban.html**：新建看板模板 — 拖拽卡片推进商机阶段（调用 `advance_stage`）
+- **config/urls.py**：新增路由 `crm/opportunities/kanban/`
+- **opportunity_list.html**：工具栏新增「看板视图」按钮
 
-## 2026-05-28 Phase 3 发票管理全部完成
+### 二、P1 — 项目驱动销售
+
+#### 改动
+- **models.py (crm)**：Opportunity新增 `project` FK（ForeignKey 'tasks.Project'）
+- **migrations/0032_add_opportunity_project_fk.py**：迁移文件
+- **serializers.py (crm)**：新增 `project_id`/`project_name`/`project_code` 只读字段
+- **views_project.py (tasks)**：ProjectViewSet新增 `create_opportunity` action — 通过项目关联合同找客户，创建商机（stage=qualify, probability=30）
+- **views.py (crm)**：OpportunityViewSet get_queryset 新增 `select_related('project')`；kanban action 新增 project 数据
+
+### 完成情况
+
+| 任务 | 状态 | 备注 |
+|---|---|
+| Pipeline看板视图（4列/拖拽/卡片） | ✅ | 线索→意向→方案→商务 |
+| 列表/看板视图切换导航 | ✅ | 双向导航 |
+| 项目→商机自动创建 | ✅ | 需合同关联客户 |
+| Opportunity新增project FK | ✅ | 迁移0032 |
+| 43服务器验证 | ✅ | 页面+API均正常 |
+| 124服务器同步 | ✅ | 已同步并验证 |
+
+---
+
+## 2026-06-02: 第5周 里程碑收款 + 费用摊销
+
+### 一、P0 — 按里程碑开票
+
+#### 改动
+- **views.py (crm)**：ContractMilestoneViewSet.complete() 增强 — 完成里程碑时自动创建发票
+  - 客户合同 → 收入发票，供应商合同 → 支出发票
+  - 以 `MS-{合同编号}-{里程碑ID}` 作为发票号
+  - 自动关联合同和里程碑金额
+  - 去重：同一合同+同一金额不重复开票
+
+### 二、P1 — 费用摊销（跨期分摊）
+
+#### 改动
+- **models_amortization.py**：新建 `ExpenseAmortization` 模型（摊销主表）+ `AmortizationEntry` 模型（各期明细）
+- **models.py**：注册新模型到 __all__
+- **serializers.py**：新增 `ExpenseAmortizationSerializer` + `AmortizationEntrySerializer`（含进度百分比）
+- **views_amortization.py**：新增 `ExpenseAmortizationViewSet`（CRUD + generate_entries + mark_period）
+- **urls.py**：注册路由 `finance/amortizations/`
+- **migrations/0045_add_expense_amortization.py**：迁移文件
+
+### 完成情况
+
+| 任务 | 状态 | 备注 |
+|:---|:----:|:-----|
+| 里程碑完成自动开票 | ✅ | 收入/支出类型自动判断 |
+| 开票去重保护 | ✅ | 同合同同金额不重复 |
+| 费用摊销模型+API | ✅ | 含明细条目自动生成 |
+| 摊销进度追踪 | ✅ | 每期标记+剩余金额+进度% |
+| Django check | ✅ | 0 issues |
+| 43服务器验证 | ✅ | API正常响应 |
+| 124服务器同步 | ✅ | 已同步+迁移已执行 |
+
+---
+
+## 2026-06-02: 权限系统清理完成（废弃角色管理完全移除 + UMP全面接管 + 全系统修复）
+
+### 背景
+基于 `PERMISSION_REFACTOR_RECORD.md` 完成了UCP→UMP数据迁移后，继续清理遗留的角色管理表、前端角色引用、并修复权限系统故障。
+
+### 一、P0 — 废弃角色管理5张表删除
+
+| 删除的表 | 说明 | 原数据量 |
+|---------|------|---------|
+| `UserCompanyPermission` | 旧单条权限表 | 5686条 |
+| `UserCompanyRole` | 用户角色关联 | 6条 |
+| `CompanyRole` | 角色定义 | 2条 |
+| `CompanyRolePermission` | 角色→权限关联 | 7条 |
+| `Permission` | 权限定义 | 299条 |
+
+**涉及文件：**
+- **migrations/0028_cleanup_old_role_models.py**：新建迁移，删除5张表 + 删除 `views_role.py` 注册的URL路由
+
+### 二、P0 — 运行时代码修改（所有ViewSet从UMP查询，无回退）
+
+#### 2.1 `VIEW_CATEGORY_MAP` 补全（`permissions.py`）
+- **问题**：`ClientSourceViewSet` 不在映射表中，自动推断权限码 `crm:client_source:read` 与实际模块名 `customer` 不匹配 → 403
+- **修复**：新增 `'ClientSourceViewSet': ('crm', 'customer')`
+- **验证**：CRM「客户来源」API 从403→正常返回
+
+#### 2.2 公司隔离过滤替换（`services.py`, `middleware.py`, `views_auth.py`, `views_ucp.py`, `views_settings.py`, `bank_import_views.py`）
+- **改动**：所有 `get_user_companies()` 调用的 import 从旧路径改为 `core.permissions`
+- **`services.py`**：`get_user_companies` → `from core.permissions import get_user_companies`
+- **`middleware.py`**：公司过滤逻辑统一到UMP
+- **`views_auth.py`**：登录后权限上下文改用UMP
+- **`views_ucp.py`**：UMP管理页面API
+- **`views_settings.py`**：设置页权限校验
+- **`bank_import_views.py`**：导入权限校验
+
+### 三、P0 — 用户管理500修复
+
+- **`views_user.py`**：缺少 `from core.models import UserModulePermission` 导入 → 500错误
+- **`views_user.py`**：`prefetch_related('usermodulepermission_set__module')` 使用的related_name错误（实际为 `module_permissions`）
+- **`serializers.py`**：`obj.usermodulepermission_set.all()` → `obj.module_permissions.all()`
+
+### 四、P1 — 前端角色引用删除
+
+| 文件 | 删除内容 |
+|------|---------|
+| `templates/core/user_list.html` | 角色列（`th` + `td`） |
+| `templates/core/user_edit.html` | 角色字段（`<div class="form-group">角色...</div>`） |
+
+---
+
+## 2026-06-02: 应收应付闭环增强
+
+### 背景
+基于《应收应付闭环》规划，对ARAP进行增强。
 
 ### 完成项
-- **红冲发票关联**：模型字段+导入逻辑+前端显示已实现
-- **认证所属期**：credited_period字段+序列化+前端编辑显示
-- **到期提醒cron**：check_invoice_expiry管理命令+每日9点crontab
-- **核销对账UI**：发票详情页核销按钮+API
-- **附件上传**：上传/删除API+前端按钮
-- **账龄分析报表**：API+前端完整渲染（30/60/90+天账龄段）
-- **统计图表**：发票列表页新增月度趋势图、状态分布图、公司Top10
-- **权限矩阵**：发票模块新增import(导入)/export(导出)独立动作
 
-### 修复
-- 财务报表年份下拉未包含发票年份（改为从Income/Expense/Invoice三表合并取年份）
-- 发票导入兼容多Sheet格式（信息汇总表/发票基础信息自动识别）
+| 功能 | 状态 | 说明 |
+|:----|:----:|:-----|
+| Invoice→Contract关联 | ✅ 已有 | 模型FK、序列化器、前端关联合同列均已有 |
+| ARAP汇总按合同分组 | ✅ 新增 | `views_arap.py`list()支持`group_by=contract`参数 |
+| ARAP视图切换 | ✅ 新增 | 前端增加"按对方/按合同"按钮组，切换时重新请求API |
+| 应收/应付汇总明细表 | ✅ 新增 | 汇总卡片下方增加左右双栏汇总明细表 |
+| BankStatement核销 | ✅ 已有 | `InvoiceViewSet.match_statement` + 前端发票管理完整核销UI |
+| 核销同步PaymentPlan | ✅ 已有 | 核销时如有合同关联，自动同步付款计划状态 |
+| 到期提醒 | ❌ 待做 | 需接通知系统 |
 
-## 2026-05-28 发票导入表头兼容性修复
+### 修改文件
 
-### 核心问题
-用户导入龙晟税局导出文件时，文件可能使用"全电发票号码"或"发票号码"表头，
-但代码只精确匹配"数电发票号码"，导致找不到表头，返回"未识别到有效发票记录（1 行错误）"
-
-### 修复方案（apps/core/import_excel.py）
-1. **新增 INVOICE_NO_HEADERS**：支持3种表头变体，按优先级匹配
-   - `数电发票号码` — 标准税局导出（全量发票查询）
-   - `全电发票号码` — 旧版税局导出（2024年及以前）
-   - `发票号码` — 纸质发票或旧版导出
-2. **新增 `_find_invoice_header_row()`**：统一查找逻辑，返回匹配到的表头行索引+关键字+headers
-3. **c_invoice_no 动态匹配**：根据实际匹配到的关键字（而非硬编码）确定发票号码列
-4. **c_legacy_invoice_no 排除误匹配**：当发票号码列与数电/全电列相同时，标记为 -1
-5. **新增诊断错误**：当无任何Sheet匹配时，报出Sheet列表+已找到的（方便用户排查）
-6. **保留已有修复**：Sheet遍历+信息汇总表聚合+发票基础信息逐行+多Sheet去重
-
-### 验证结果
-- ✅ 数电发票号码 → 1行正确解析
-- ✅ 全电发票号码 → 1行正确解析
-- ✅ 发票号码（旧纸质发票）→ 1行正确解析
-- ✅ 无发票号码列 → 返回诊断错误"文件中未找到包含发票号码的Sheet"
-- ✅ 多Sheet去重 → 1行+1错误（重复跳过）
-
-## 2026-05-28 发票导入底层修复（上一版）
-
-### 核心问题
-`import_invoice()` Sheet选择逻辑只处理"信息汇总表"（需含税率列），忽略"发票基础信息"Sheet
-导致龙晟等公司的导出文件全部被跳过
-
-### 修复方案（apps/core/import_excel.py）
-1. 遍历所有Sheet：不再固定选一个Sheet
-2. 双模式识别：信息汇总表（需聚合）+ 发票基础信息（逐行处理）
-3. 合并去重：多Sheet结果按发票号合并，跨Sheet重复跳过
-4. 纸质发票支持：--数电号码生成N/A-日期_序号临时编号
-5. 列匹配修复：排除"发票号码"→"数电发票号码"的substring误匹配
-
-### 测试结果
-- ✅ 发票基础信息格式（无税率）→ 正确解析1条
-- ✅ 信息汇总表格式（多行明细）→ 2行聚合为1条
-- ✅ 混合格式（汇总表+基础信息+纸质发票）→ 3条全正确
-
-## 2026-05-29 P2修复：默认排序 + 文件拆分
-
-### 改动内容
-1. **P2-2: 9个ViewSet添加默认排序**
-   - IncomeViewSet → `ordering = ['-date', '-created_at']`
-   - ExpenseViewSet → `ordering = ['-expense_date', '-created_at']`
-   - WageRecordViewSet → `ordering = ['-year', '-month', '-created_at']`
-   - InvoiceViewSet → `ordering = ['-issue_date', '-created_at']`
-   - SupplierViewSet, ClientViewSet, ContractViewSet → `ordering = ['-created_at']`
-   - ProjectViewSet, TaskViewSet → `ordering = ['-created_at']`
-2. **P2-3: 拆分 finance/views.py（2804行→12文件）**
-   - 创建 `views_common.py`：共享工具（SafePageNumberPagination, get_user_companies, render_bank_import_page 等）
-   - 创建 `views_company.py`(112行) / `views_income.py`(237行) / `views_expense.py`(221行)
-   - 创建 `views_wage.py`(741行) / `views_invoice.py`(358行) / `views_report.py`(770行)
-   - 创建 `views_employee.py`(177行) / `views_social.py`(143行) / `views_bank.py`(99行)
-   - 创建 `views_budget.py`(79行) / `views_arap.py`(138行)
-   - `views.py` 降为20行重导出层（向后兼容）
-   - `config/urls.py` 更新引用
-
-### 同步
-- [x] 43 服务器部署验证（HTTP 200）
-- [ ] 124 服务器待同步
-
-## 2026-05-29 — 审计报告 P0 修复
-
-### P0-1: objects.get() 异常处理（已完成）
-- **审计报告说46处，实际扫描结果：**
-  - ✅ 原有23处已有 try/except
-  - ❌ 修复4处裸奔 get()：
-    - `apps/crm/views.py:388` — Contract.objects.get
-    - `apps/purchasing/views.py:147` — PurchaseRequest.objects.get
-    - `apps/purchasing/views.py:296` — PurchaseOrder.objects.get
-    - `apps/purchasing/views.py:398` — PurchaseReceive.objects.get
-  - ✅ 修复后全部 27 处 `objects.get()` 均有异常处理
-
-### P0-2: save() 异常处理（进行中：10/20 文件）
-
-**已完成高+中优先级模块：**
-| 模块 | 状态 | 修了 | 说明 |
-|------|:----:|:----:|------|
-| **finance** (views_*.py × 9文件) | ✅ | 18处 | 发票/收支/工资/员工/公司/银行等核心业务save |
-| **approvals** | ✅ | 14处 | 审批流全部操作（审批/拒绝/转交/委托/撤回等） |
-| **crm** | ✅ | 12处 | 合同状态变更/付款计划/商机推进 |
-| equipment | ✅ | 3处 | 设备借用/归还状态save |
-| core | ✅ | 9处 | 用户密码/激活/通知/系统设置save |
-| tasks | ✅ | 9处 | 项目/任务/流程状态save |
-| channels | ✅ | 5处 | 渠道配置save |
-| material | ✅ | 2处 | 物料库存/BOM节点save |
-| notifications | ✅ | 1处 | 路由规则save |
-
-### 在途
-- P0-2: ✅ **全部完成**（29处裸save已包裹）
-- P0-3: CSRF中间件（待开始）
-
-## 2026-05-29 — P2-8: 迁移文件清理 + 旧代码清理
-
-### 清理内容
-1. **Finance 迁移修复** — 重建 0028/0029 文件，修复0030依赖链，消除编号间隙
-2. **Core Phase1 权限系统清理** — 创建 0024 migration：
-   - RunPython 保护2条审计日志（role_id→role_name 数据迁移）
-   - 删除 core_role 表（7条废弃角色数据）
-   - SeparateDatabaseAndState 处理已手动删除的 core_rolepermission/core_userrole
-3. **Notifications 清理** — 0009 migration 状态同步已手动删除的5个模型
-4. **Repair 清理** — 0002 migration 状态同步已手动删除的索引
-5. **Core 005** — 状态同步已手动删除的 menu_code 列
-6. **死脚本清理** — 删除 4 个旧 Phase1 权限迁移脚本
-7. **Core admin.py** — 清理 UserRole 死注释
-
-## 2026-05-29 — P1-4: CASCADE→PROTECT 关键业务模型
-
-### 改动：finance 7处 + core 12处 = 19处 `on_delete=CASCADE` → `PROTECT`
-
-**finance (7处)：**
-| 模型 | 字段 | 原因 |
-|:-----|:-----|:------|
-| EmployeeCompany | employee, company | 员工任职关联 |
-| CompanySocialConfig | company | 公司社保配置 |
-| BankStatement | bank_account | 银行流水不应因删账户丢失 |
-| Budget | company | 预算数据 |
-| Account | company | 科目表 |
-| RelatedPartyLedger | company | 往来台账 |
-
-**core (12处)：**
-| 模型 | 字段 | 数量 |
+| 服务器 | 文件 | 改动 |
 |:-----|:-----|:-----|
-| UserCompanyRole | user, company | 2 |
-| CompanyRole | company | 1 |
-| CompanyRolePermission | company_role, permission | 2 |
-| UserCompanyPermission | user, company, module, action | 4 |
-| UserModulePermission | user, company, module | 3 |
+| 43 | `apps/finance/views_arap.py` | list()支持group_by=contract参数 |
+| 43 | `templates/finance/ar_ap_list.html` | 增加按对方/按合同切换 + 汇总明细表 |
+| 124 | `apps/finance/views_arap.py` | 同上，已同步 |
+| 124 | `templates/finance/ar_ap_list.html` | 同上，已同步 |
 
-**保留 CASCADE：** `Notification.user`, `ModuleAction.module`, `Account.parent`
+### Bugfix — 附件下载乱码
 
-### 验证
-| 项目 | 状态 |
-|:-----|:-----|
-| models.py修改 | ✅ 19处已改 |
-| finance.0041 migration | ✅ 43+124已应用 |
-| core.0026 migration | ✅ 43+124已应用 |
-| 0 pending, 0 errors | ✅ |
-| 浏览器预算/员工/银行账户 | ✅ 正常加载 |
+**症状**：客户360/合同详情页下载附件（如PDF）在浏览器中显示为乱码。
 
-## 2026-05-29 — Day 5 全量回归测试
+**根因**：`config/urls.py`中的`serve_media()`函数未设置`Content-Disposition`响应头，浏览器无法正确识别文件类型和文件名。
 
-### P0+P1 全部 9 项终验
+**修复**：
+- 为响应添加`Content-Disposition: inline`头
+- 使用RFC 5987标准（`filename*=UTF-8''`）正确处理中文文件名
+- 保留原始`Content-Type: application/pdf`
 
-| 项目 | 43服务器 | 124服务器 |
-|:-----|:---------|:----------|
-| P0-1 get()异常处理 | ✅ | ✅ |
-| P0-2 save()异常处理 | ✅ | ✅ |
-| P0-3 CSRF降级P2 | ✅ 已分析 | ✅ |
-| P1-1 SQL注入 | ✅ 参数化 | ✅ |
-| P1-2 安全头配置 | ✅ SAMEORIGIN | ✅ |
-| P1-3 except日志 | ✅ 34处 | ✅ |
-| P1-4 CASCADE→PROTECT | ✅ 19处 | ✅ |
-| P1-5 权限校验 | ✅ 已有声明 | ✅ |
-| P1-6 print→logging | ✅ | ✅ |
+| 服务器 | 文件 | 改动 |
+|:-----|:-----|:-----|
+| 43 | `config/urls.py` | serve_media增加Content-Disposition头 |
+| 124 | `config/urls.py` | 同上，已同步 |
 
-### 验证指标
-| 检查项 | 43 | 124 |
-|:-------|:---|:----|
-| makemigrations --check | ✅ No changes | ✅ No changes |
-| showmigrations pending | ✅ 0 | ✅ 0 |
-| check --deploy ERRORS | ✅ 0 | ⚠️ 1个历史遗留（CRM short_name） |
-| 浏览器用户视角 | ✅ 控制台/预算/员工/系统/权限/用户 | ✅ login page / gunicorn running |
-| gunicorn重启验证 | ✅ 200 | ✅ 200 |
+| `templates/core/user_edit_modal.html` | 角色下拉框(`<select id="roles"`)、角色复选框(`<input type="checkbox" class="role-checkbox"`)、角色标签 |
 
----
+### 五、P1 — 用户UMP权限补全
 
-## 2026-05-29 半成品多租户代码清理
+| 用户 | 操作 | 原因 |
+|------|------|------|
+| yangxiaohui | 新增 `invoice` 模块（granted_bits=7） | 原UMP迁移时遗漏，发票页面显示0条 |
+| yangxiaohui | 新增 `client_source` 模块权限 | ClientSourceViewSet 原有权限未覆盖 |
 
-### 清理内容
+### 完成情况
 
-| # | 操作 | 文件 | 说明 |
-|---|------|------|------|
-| 1 | 🗑️ 删除 | `apps/core/tenant_resolver.py` | 订阅/买断双模式死代码，80行全删，零引用 |
-| 2 | 🧹 删除配置 | `config/settings.py` + `settings_pg.py` | 移除 `TENANT_MODE` 配置和注释 |
-| 3 | 🔧 简化 | `apps/core/middleware.py` | 去掉 `_is_standalone()` 双模式判断，恢复为干净的UCP公司解析 |
-| 4 | 🧹 清理 | `config/urls.py` + `apps/core/views.py` | 移除 TENANT_MODE 条件分支，注册入口直接关闭 |
-| 5 | 🐛 修复 | `config/urls.py` | 删除 `tenant_resolver.resolve_company` 死引用（函数不存在，访问合同详情页会500） |
+| 任务 | 状态 | 备注 |
+|:---|:----:|:-----|
+| 废弃5张角色表删除 | ✅ | 迁移0028 |
+| VIEW_CATEGORY_MAP补全 | ✅ | ClientSourceViewSet 403→200 |
+| 公司隔离统一到UMP | ✅ | services/middleware/auth等6个文件 |
+| 用户管理500修复 | ✅ | import + related_name双修复 |
+| 前端角色引用完全删除 | ✅ | 3个模板文件 |
+| UMP权限补全 | ✅ | yangxiaohui获得invoice/客户来源权限 |
+| Django check | ✅ | 0 issues |
+| 43服务器用户验证 | ✅ | 控制台零错误 |
 
-### 验证
-
-| 检查项 | 43 | 124 |
-|:-------|:---|:----:|
-| python check | ✅ 0 issues | ✅ 0 issues |
-| makemigrations | ✅ No changes | ✅ No changes |
-| gunicorn | ✅ 运行中 | ✅ 运行中 |
-
----
-
-## 2026-05-29 P2 重要问题修复（Day 5 续）
-
-### 修复内容
-
-| P2 | 项目 | 变更 | 状态 |
-|:---|:-----|:-----|:----:|
-| P2-7 | 临时文件清理 | 删除 `_tmp_archive/` 下19个临时脚本 + 移出git + 加入.gitignore | ✅ |
-| P2-2 | filter()缺少order_by | `reports_v2.py` 4处 + `classification_rules.py` 5处 加 `.order_by()` 保证确定性排序 | ✅ |
-| CSRF | 原P0-3降级处理 | 启用CsrfViewMiddleware中间件（API端通过CSRFExemptSessionAuthentication豁免） | ✅ |
-| P2-6 | AppConfig.ready数据库访问 | `core/apps.py` 改为 `request_finished` 懒加载，消除初始化时访问数据库警告 | ✅ |
-
-### 验证指标
-
-| 检查项 | 43 | 124 |
-|:-------|:---|:----:|
-| makemigrations --check | ✅ No changes | ✅ No changes |
-| check --deploy ERRORS | ✅ 0 | ✅ 0 |
-| gunicorn HTTP状态 | ✅ 200 | ✅ 200 |
-| 两服务器一致 | ✅ 同步完成 | ✅ 同步完成 |
-
-## 2026-05-29 P3-5 性能监控 — Sentry + 请求耗时 + 健康检查增强
-
-### 新增
-- **Sentry SDK 集成**：通过 `SENTRY_DSN` 环境变量启用，无 DSN 时自动跳过
-- **请求耗时中间件**：`RequestTimingMiddleware` — 自动追踪所有请求耗时，>500ms 输出慢请求告警日志
-- **增强健康检查** `GET /api/core/health/`：数据库 + 磁盘空间双重检查
-- **Metrics端点** `GET /api/core/metrics/`：实时请求统计（按端点分，含计数/平均值/慢请求数）
-
-### 配置
-- `SLOW_REQUEST_THRESHOLD_MS` 环境变量（默认 500ms）
-- `SENTRY_TRACES_SAMPLE_RATE` / `SENTRY_PROFILES_SAMPLE_RATE` 采样率配置
-
-## 2026-05-29 P3-6 API文档增强 — Swagger文档补齐
-
-### 优化
-- **SPECTACULAR_SETTINGS.TAGS 同步**：10个生产标签匹配实际端点，每个标签含中文描述
-- **drf-spectacular auth extension**：注册 `SessionAuthExtension`，消除“无法解析认证类”警告
-- **ViewSet补齐**：ReportViewSet / ARAPViewSet 添加 serializer_class，消除 schema 警告
-- **Channel/Notification视图**：添加 `@extend_schema(exclude=True)`，消除非DRF视图警告
-- **修复兼容层Bug**：`apps/finance/reports_v2.py` 存根缺少重导出 → 补全所有报表函数
-- **修复 `apps/notifications/views.py`**：补全缺失的 `IsAuthenticated` import
-
-### 验证
-- Schema 生成 0 警告 ✅（之前 20+ 个 Error/Warning 全部消除）
-- 332 endpoints，10 个分类标签 ✅
-- 43/124 双服务器同步并验证 ✅
-
-## 2026-05-28 P3-7 错误码标准化 — 统一错误响应格式
-
-### 新增
-- `apps/core/exceptions.py`：统一错误码系统（ErrorCode常量 + AppException异常类 + DRF exception handler）
-- `api_error()` 快捷函数（视图层一键返回统一格式错误）
-- 错误码范围：1001认证/1004权限/2001校验/2002不存在/2003已存在/2004状态/5000内部
-- Swagger 文档新增错误码说明
-
-### 移除
-- 所有视图层 ad-hoc 错误格式（`{'error': ...}`, `{'status': 'error', ...}`, `{'success': False, ...}`）
-
-### 影响范围
-- 27个视图文件，约 150 处错误响应全部使用 `api_error(ErrorCode.XXX, '描述')` 统一格式
-- REST_FRAMEWORK 注册 `EXCEPTION_HANDLER` 自动格式化所有 DRF 原生异常
-
-### 验证
-- 未认证返回 `{"code": 1004, "message": "身份认证信息未提供。"}` ✅
-- 27个修改文件语法全部通过 ✅
-- 零残留 ad-hoc 错误格式 ✅
-
-## 2026-05-28 P3-8 依赖版本升级 — 11个包批量升级
-
-### 升级清单
-
-| 包名 | 原版本 | 新版本 | 类型 |
-|:----|:------:|:------:|:---:|
-| Django | 5.2.13 | 5.2.14 | patch |
-| cryptography | 47.0.0 | 48.0.0 | major |
-| certifi | 2026.4.22 | 2026.5.20 | minor |
-| requests | 2.33.1 | 2.34.2 | minor |
-| urllib3 | 2.6.3 | 2.7.0 | minor |
-| sentry-sdk | 2.28.0 | 2.61.0 | minor |
-| psycopg2-binary | 2.9.11 | 2.9.12 | patch |
-| packaging | 26.1 | 26.2 | minor |
-| idna | 3.13 | 3.17 | minor |
-| fonttools | 4.62.1 | 4.63.0 | minor |
-| reportlab | 4.5.0 | 4.5.1 | patch |
-| rpds-py | 0.30.0 | 2026.5.1 | scheme |
-
-### 验证
-- Django system check 0 issues ✅
-- 所有关键包导入正常 ✅
-- Gunicorn 启动正常（HTTP 200）✅
-- `django-filter` 和 `drf-spectacular` 已是最新版无需升级 ✅
-
-### 备注
-- 124服务器仍有 Django 6.0.x 历史版本不一致问题，待后续统一
-
-## 2026-05-28 P3-9 前端资源优化 — CSS/JS外提 + WhiteNoise
-
-### 新增
-- `static/css/app.css`：约450行自定义CSS（提取自 `base.html` + `core/base.html`）
-- `static/js/app.js`：JS模块化重构（权限管理器 UserPermissionManager、Toast、工具函数）
-- `whitenoise==6.12.0`：生产环境静态文件服务 + 自动压缩/gzip
-- `STORAGES` 配置：staticfiles 使用 `CompressedManifestStaticFilesStorage`
-
-### 优化
-- `templates/base.html`：910行 → 445行（-51%），内联CSS/JS移至外部文件
-- `templates/core/base.html`：887行 → 422行（-52%），同上
-- 两模板 `<style>` 和 `<script>` 块替换为 `{% static %}` 引用 + `defer` 加载
-- 登录页等的独立内联样式保持不动（避免影响页面布局）
-
-### 验证
-- `collectstatic`：156个静态文件收集成功 ✅
-- `/static/css/app.css` HTTP 200 ✅
-- 登录页渲染正常 ✅
-- Django system check 0 issues ✅
-
-## 2026-05-28 P3-10 Type Hints — 24个核心文件补充类型注解
-
-### 范围
-
-| 层级 | 文件数 | 范围 |
-|:----|:-----:|:-----|
-| core 基础设施 | 10 | exceptions/auth/permissions/services/middleware/audit/export/import/throttling |
-| finance 业务逻辑 | 7 | wage_import/wage_pdf/wage_bank/bank_adapters/classification/tax_invoice/social |
-| 视图层 | 7 | auth/health/settings/user/role/permission/log/report views |
-
-### 规则
-- 所有 `def` 函数添加参数类型 + 返回类型注解
-- ViewSet 方法使用 `Request` → `Response`
-- 业务函数使用 `Optional`, `Dict`, `List`, `QuerySet` 等
-- `from __future__ import annotations` 避免循环引用
-- **不修改代码逻辑**，仅加注解
-
-### 验证
-- 24个文件全部 `py_compile` 通过 ✅
-- Django system check 0 issues ✅
-- Gunicorn 正常运行 ✅
-
-## 2026-05-29 权限矩阵全面修复
-
-### P0 — ViewSet action_perms 对齐（13处）
-- `apps/equipment/views.py`: `equipment:equipment:*` → `operations:equipment:*`
-- `apps/repair/views.py`: `repair:repair_request:*` → `operations:repair:*`
-- `apps/material/views.py`: `material:stock/usage:*` → `operations:material:*`
-- `apps/approvals/views.py`: `approval:flow/node/template:*` → `approval:approval:*`
-- `apps/crm/views.py`: 5个子ViewSet合并到父模块(customer/contract)
-- `apps/files/views.py`: `files:category:*`→`files:file:*`; `upload`→`create`
-- `apps/tasks/modules.py`: 注册 `project:flow_template` 模块
-
-### P1 — 侧边栏+模板修复
-- `base.html:108` 预算管理 `finance:report:read` → `finance:budget:read`
-- `core/base.html:100` 同上
-- `contact_followup_list.html`: `crm:contact/followup:*` → `crm:customer:*`
-- `flow_template_list.html`: `tasks:flow_template:*` → `project:flow_template:*`
-
-### 验证
-- 全部 ViewSet action_perms 匹配 DB ✅ | 全部模板 data-perm 匹配 DB ✅
-- 权限矩阵页面正常（项目:4含流程模板）✅ | 双服务器gunicorn重启正常 ✅
-
-## 2026-05-29 发票导入错误提示优化
-
-### 修复
-- 删除"未识别到有效发票记录"误导性错误文案，改为直接显示 import_invoice 返回的具体原因（找不到发票号码列 / 所有行已存在 / 解析异常等）

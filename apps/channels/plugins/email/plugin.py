@@ -19,13 +19,18 @@ class EmailPlugin(BaseChannelPlugin):
     channel_name = '邮件'
 
     def __init__(self, config: dict):
-        self.smtp_host = config.get('smtp_host', 'smtp.example.com')
-        self.smtp_port = int(config.get('smtp_port', 587))
-        self.smtp_user = config.get('smtp_user', '')
-        self.smtp_password = config.get('smtp_password', '')
-        self.from_email = config.get('from_email', self.smtp_user)
+        from django.conf import settings as dj_settings
+        self.smtp_host = config.get('smtp_host') or dj_settings.EMAIL_HOST
+        self.smtp_port = int(config.get('smtp_port') or dj_settings.EMAIL_PORT)
+        self.smtp_user = config.get('smtp_user') or dj_settings.EMAIL_HOST_USER
+        self.smtp_password = config.get('smtp_password') or dj_settings.EMAIL_HOST_PASSWORD
+        self.from_email = config.get('from_email') or dj_settings.DEFAULT_FROM_EMAIL or self.smtp_user
         self.from_name = config.get('from_name', '企业信息化管理系统')
-        self.use_tls = config.get('use_tls', True)
+        use_tls = config.get('use_tls')
+        if use_tls is None:
+            self.use_tls = dj_settings.EMAIL_USE_TLS
+        else:
+            self.use_tls = str(use_tls).lower() in ('true', '1', 'yes')
 
     @classmethod
     def get_required_config_fields(cls) -> list:

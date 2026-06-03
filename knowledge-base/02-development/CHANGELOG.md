@@ -1,5 +1,45 @@
 # 变更日志
 
+## [v2.3.0] 2026-06-01 — 通知系统断裂修复 + 菜单闪现/跳转登录修复
+
+### 通知系统修复（P0）
+
+**根因：** 通知系统 V5/V6 迭代中 `channels/services.py` 重写，删除了 `ChannelNotificationService` 类，但两处调用方未同步更新。
+
+**修复文件：**
+- `apps/tasks/notification_service.py` — `dispatch_notify()` 改用 `send_notification()` 函数，保留用户偏好检查
+- `apps/core/email_service.py` — `_send_to_binding_channel()` 改用 `send_notification()` 函数
+
+**效果：**
+- ✅ 定时任务 `check_task_timeouts.py` 超时检测 → 通知用户飞书/企微/钉钉
+- ✅ 定时任务 `check_alerts.py` 7类预警 → 通知相关用户
+- ✅ 审批创建/通过/驳回/催办 → 多渠道推送
+- ✅ 任务/合同/设备/维修/项目变更 → 通知负责人
+
+### 菜单闪现修复（P0）
+
+**根因：** `base_content.html` 继承 `base.html` 但用 JS 在 DOMContentLoaded 时才修正 CSS `margin-left`，产生 50-300ms 的 260px 空白闪烁。
+
+**修复：**
+- `templates/base_content.html` — 在 CSS 层面直接覆盖 `margin-left:0!important`，比 JS 早一个渲染周期生效
+- `templates/crm/contact_followup_list.html` — `base.html` → `base_content.html`
+- `templates/crm/contract_detail.html` — `base.html` → `base_content.html`
+
+### 跳转登录页修复（P0）
+
+**根因：** `app.js` 的 `checkAuth()` 在 API 返回非200时执行 `window.location.href = '/login/'`，快速切换模块时 API 瞬时故障导致用户被踢。
+
+**修复：**
+- `static/js/app.js` — API 失败或网络错误时不再跳转登录页，改为 `console.warn` 静默降级。真正的认证校验由 Django 服务端负责，前端 checkAuth 仅作辅助判断。
+
+### 涉及文件
+- 修改文件：6个
+- 分析文档：`knowledge-base/07-notes/NOTIFICATION_SYSTEM_BREAKAGE_ANALYSIS.md`（通知系统断裂分析）
+- 分析文档：`knowledge-base/07-notes/MENU_FLASH_LOGIN_REDIRECT_ANALYSIS.md`（菜单闪现分析）
+- 部署：43服务器 ✅
+
+---
+
 ## [v2.2.1] 2026-05-25 — 安全审计收官（17项权限修复）
 
 ### 安全加固

@@ -24,6 +24,7 @@ class Expense(models.Model):
         ('approved', '已批准'),
         ('rejected', '已拒绝'),
         ('confirmed', '已确认支出'),
+        ('paid', '已付款'),
     ]
 
     company = models.ForeignKey('Company', verbose_name='公司', on_delete=models.PROTECT, related_name='expenses')
@@ -78,8 +79,7 @@ class Expense(models.Model):
         ],
         help_text='支出类型：工资/主营业务成本/管理费用/财务费用/税费/办公费/差旅/内部往来/代收代付/其他',
     )
-    expense_date = models.DateField(verbose_name='日期', help_text='支出日期', default=date.today)
-    date = models.DateField(verbose_name='日期', help_text='兼容性别名', blank=True, null=True)
+    date = models.DateField(verbose_name='日期', help_text='支出日期', default=date.today)
     expense_category = models.CharField(verbose_name='支出类别', max_length=50, blank=True, default='')
     project = models.ForeignKey(
         'tasks.Project',
@@ -124,10 +124,8 @@ class Expense(models.Model):
     updated_at = models.DateTimeField(verbose_name='更新时间', auto_now=True)
 
     def save(self, *args, **kwargs):
-        if self.expense_date:
-            self.date = self.expense_date.date() if hasattr(self.expense_date, 'date') else self.expense_date
-        elif self.date:
-            self.expense_date = self.date
+        if not self.date:
+            self.date = date.today()
         super().save(*args, **kwargs)
 
     class Meta:

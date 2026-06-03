@@ -6,8 +6,8 @@ from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company
-from apps.finance.models_bank import BankStatement
+from apps.finance.models import Company, BankStatement
+from apps.finance.reports_common import get_user_report_companies, parse_date_range
 
 
 @api_view(['GET'])
@@ -24,7 +24,7 @@ def cash_flow_report(request):
     else:
         months_to_process = list(range(1, 13))
 
-    companies = Company.objects.all()
+    companies = get_user_report_companies(request)
     if company_id:
         companies = companies.filter(id=company_id)
 
@@ -78,6 +78,7 @@ def cash_flow_report(request):
             #      真实月末余额 = 该月最后一笔有余额记录的值（银行系统快照的时点余额）
             # 修复：若无月末余额记录，取该月最后一笔有余额的发生额记录作为月末余额
             month_end_bs = month_bs.exclude(balance__isnull=True).order_by('transaction_date', 'id')
+            end_balance = begin_balance  # 默认：无记录时余额不变
             if month_end_bs.exists():
                 end_balance = float(month_end_bs.last().balance or 0)
             elif month_bs.exists():

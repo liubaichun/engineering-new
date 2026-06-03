@@ -31,7 +31,14 @@ class BudgetViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'budget', 'read')
+        if companies is None:
+            qs = super().get_queryset()
+        else:
+            qs = super().get_queryset().filter(company_id__in=companies)
         company_id = self.request.query_params.get('company')
         year = self.request.query_params.get('year')
         expense_type = self.request.query_params.get('expense_type')

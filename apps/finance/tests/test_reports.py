@@ -89,11 +89,11 @@ class TestBuildQS:
 
     @pytest.mark.django_db
     def test_build_qs_expense_date_field(self, expense_factory, company_factory):
-        """Expense 使用 expense_date 字段过滤"""
+        """Expense 使用 date 字段过滤"""
         build_qs = _get_build_qs()
         Expense = _get_expense_model()
         company = company_factory(code='RPT06')
-        expense_factory(company=company, expense_date=datetime.date(2026, 5, 10))
+        expense_factory(company=company, date=datetime.date(2026, 5, 10))
 
         qs = build_qs(Expense, year=2026, month=5)
         assert qs.count() == 1
@@ -147,11 +147,11 @@ class TestExpenseAggregation:
         Expense = _get_expense_model()
         company = company_factory(code='RPT20')
         expense_factory(company=company, expense_category='办公费', amount=Decimal('5000.00'),
-                        expense_date=datetime.date(2026, 5, 1))
+                        date=datetime.date(2026, 5, 1))
         expense_factory(company=company, expense_category='办公费', amount=Decimal('3000.00'),
-                        expense_date=datetime.date(2026, 5, 15))
+                        date=datetime.date(2026, 5, 15))
         expense_factory(company=company, expense_category='差旅费', amount=Decimal('8000.00'),
-                        expense_date=datetime.date(2026, 5, 1))
+                        date=datetime.date(2026, 5, 1))
 
         from django.db.models import Sum
         categories = Expense.objects.values('expense_category').annotate(

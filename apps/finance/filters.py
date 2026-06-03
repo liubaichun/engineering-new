@@ -61,14 +61,14 @@ class ExpenseFilter(django_filters.FilterSet):
     """支出过滤器"""
 
     company_id = django_filters.NumberFilter(field_name='company__id')
-    year = django_filters.NumberFilter(field_name='expense_date__year')
-    month = django_filters.NumberFilter(field_name='expense_date__month')
+    year = django_filters.NumberFilter(field_name='date__year')
+    month = django_filters.NumberFilter(field_name='date__month')
     expense_type = django_filters.ChoiceFilter(field_name='expense_type', choices=Expense.EXPENSE_TYPE_CHOICES)
     project_id = django_filters.NumberFilter(field_name='project__id')
     min_amount = django_filters.NumberFilter(field_name='amount', lookup_expr='gte')
     max_amount = django_filters.NumberFilter(field_name='amount', lookup_expr='lte')
-    date_from = django_filters.DateFilter(field_name='expense_date', lookup_expr='gte')
-    date_to = django_filters.DateFilter(field_name='expense_date', lookup_expr='lte')
+    date_from = django_filters.DateFilter(field_name='date', lookup_expr='gte')
+    date_to = django_filters.DateFilter(field_name='date', lookup_expr='lte')
     # ── 银行流水11字段扩展 ──────────────────────────────────────────
     counterparty_account = django_filters.CharFilter(field_name='counterparty_account', lookup_expr='icontains')
     counterparty_bank = django_filters.CharFilter(field_name='counterparty_bank', lookup_expr='icontains')

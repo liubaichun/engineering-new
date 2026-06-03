@@ -18,7 +18,6 @@ from apps.core.exceptions import api_error, ErrorCode
 # 从共享模块导入工具函数
 from .views_common import (
     SafePageNumberPagination,
-    get_user_companies,
 )
 
 
@@ -46,11 +45,14 @@ class IncomeViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        # 自动多租户：普通用户看所有关联公司数据，超管看全部
-        cids = get_user_companies(self.request.user)
-        if cids is not None:
-            qs = qs.filter(company_id__in=cids)
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'income', 'read')
+        if companies is None:
+            qs = super().get_queryset()
+        else:
+            qs = super().get_queryset().filter(company_id__in=companies)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):

@@ -48,15 +48,14 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        # 多租户隔离：普通用户只看本公司员工
+        # 多租户隔离：使用UMP模块权限过滤
         if not self.request.user.is_authenticated:
             return Employee.objects.none()
-        queryset = Employee.objects.prefetch_related('company_links__company').order_by('-created_at')
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                queryset = queryset.filter(company_id=user.company_id)
-        return queryset
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'employee', 'read')
+        if companies is None:
+            return Employee.objects.all().prefetch_related('company_links__company').order_by('-created_at')
+        return Employee.objects.filter(company_id__in=companies).prefetch_related('company_links__company').order_by('-created_at')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -144,11 +143,13 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
-        # 多租户隔离：普通用户只看本公司员工的任职记录
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company_id=user.company_id)
+        # 多租户隔离：使用UMP模块权限过滤
+        if not self.request.user.is_authenticated:
+            return qs.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'employee', 'read')
+        if companies is not None:
+            qs = qs.filter(company_id__in=companies)
         return qs
 
     def perform_create(self, serializer):

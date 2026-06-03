@@ -9,6 +9,7 @@ from .models import (
     PaymentPlan,
     ContractChangeLog,
     Opportunity,
+    ContractMilestone,
 )
 
 
@@ -344,6 +345,11 @@ class OpportunitySerializer(serializers.ModelSerializer):
 
     client_name = serializers.CharField(source='client.name', read_only=True, default='')
     contact_name = serializers.CharField(source='contact.name', read_only=True, default='')
+    contract_no = serializers.CharField(source='contract.contract_no', read_only=True, default='')
+    contract_id = serializers.IntegerField(source='contract.id', read_only=True, default=None)
+    project_id = serializers.IntegerField(source='project.id', read_only=True, default=None)
+    project_name = serializers.CharField(source='project.name', read_only=True, default='')
+    project_code = serializers.CharField(source='project.code', read_only=True, default='')
     stage_display = serializers.CharField(source='get_stage_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True, default='')
@@ -358,6 +364,13 @@ class OpportunitySerializer(serializers.ModelSerializer):
             'client_name',
             'contact',
             'contact_name',
+            'contract',
+            'contract_no',
+            'contract_id',
+            'project',
+            'project_id',
+            'project_name',
+            'project_code',
             'name',
             'stage',
             'stage_display',
@@ -412,6 +425,20 @@ class OpportunityStageStatsSerializer(serializers.Serializer):
     stage = serializers.CharField()
     stage_display = serializers.CharField()
     count = serializers.IntegerField()
-    total_amount = serializers.DecimalField(max_digits=15, decimal_places=2)
-    total_weighted = serializers.DecimalField(max_digits=15, decimal_places=2)
-    probability = serializers.IntegerField()
+
+
+class ContractMilestoneSerializer(serializers.ModelSerializer):
+    """合同里程碑序列化器"""
+
+    contract_name = serializers.CharField(source='contract.name', read_only=True, default='')
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    class Meta:
+        model = ContractMilestone
+        fields = [
+            'id', 'contract', 'contract_name',
+            'name', 'description', 'plan_date', 'actual_date',
+            'amount', 'status', 'status_display',
+            'sort_order', 'remark', 'created_at', 'updated_at',
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

@@ -275,4 +275,56 @@ class Command(BaseCommand):
                     count += 1
                     self.stdout.write(f'  [工资待发] {co_name} {wage.year}-{wage.month} -> {admin.username}')
 
+        # ── 8. 应收应付到期提醒 ───────────────────────────────────────────
+        # Invoice.due_date 在 7 天内到期或已到期但未支付
+        from apps.finance.models import Invoice
+
+        today = datetime.now().date()
+        near_deadline = today + timedelta(days=7)
+
+        # 即将到期的应收/应付
+        due_soon_invoices = (
+            Invoice.objects.filter(due_date__gte=today, due_date__lte=near_deadline, status='pending')
+            .select_related('company', 'contract')
+        )
+
+        for inv in due_soon_invoices:
+            days_left = (inv.due_date - today).days
+            direction = '应收' if inv.type == 'income' else '应付'
+            contract_info = f'（合同：{inv.contract.contract_no} {inv.contract.name}）' if inv.contract_id else ''
+            title = f'{direction}发票到期提醒'
+            content = (
+                f'发票 {inv.invoice_no} 将于 {inv.due_date.strftime("%Y-%m-%d")} 到期（还剩{days_left}天），'
+                f'对方：{inv.counterparty}，金额：{float(inv.amount):,.2f} 元{contract_info}'
+            )
+            for admin in User.objects.filter(is_superuser=True):
+                if not already_notified(admin, 'invoice', inv.id, hours=24):
+                    if not dry:
+                        notify(admin, title, content, 'invoice', 'warning', inv.id, 'invoice')
+                    count += 1
+                    self.stdout.write(f'  [发票到期] {inv.invoice_no} -> {admin.username}')
+
+        # 已逾期的应收/应付
+        overdue_invoices = (
+            Invoice.objects.filter(due_date__lt=today, status='pending')
+            .select_related('company', 'contract')
+        )
+
+        for inv in overdue_invoices:
+            days_overdue = (today - inv.due_date).days
+            direction = '应收' if inv.type == 'income' else '应付'
+            contract_info = f'（合同：{inv.contract.contract_no} {inv.contract.name}）' if inv.contract_id else ''
+            title = f'{direction}发票逾期提醒'
+            level = 'critical' if days_overdue > 30 else 'error'
+            content = (
+                f'发票 {inv.invoice_no} 已逾期 {days_overdue} 天，'
+                f'对方：{inv.counterparty}，金额：{float(inv.amount):,.2f} 元{contract_info}'
+            )
+            for admin in User.objects.filter(is_superuser=True):
+                if not already_notified(admin, 'invoice', inv.id, hours=72):
+                    if not dry:
+                        notify(admin, title, content, 'invoice', level, inv.id, 'invoice')
+                    count += 1
+                    self.stdout.write(f'  [发票逾期] {inv.invoice_no} -> {admin.username}')
+
         self.stdout.write(self.style.SUCCESS(f'[{datetime.now()}] 预警检测完成，共发送 {count} 条通知'))

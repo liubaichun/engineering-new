@@ -828,9 +828,9 @@ def preview_bank_statement(request):
     # 公司权限校验
     company_id = request.data.get('company_id')
     if company_id:
-        from apps.core.models import UserCompanyRole
+        from apps.core.models import UserModulePermission
 
-        has_company = UserCompanyRole.objects.filter(user=request.user, company_id=company_id).exists()
+        has_company = UserModulePermission.objects.filter(user=request.user, company_id=company_id).exists()
         if not has_company and not request.user.is_superuser:
             return Response({'error': '无权操作该公司'}, status=403)
 
@@ -1121,9 +1121,9 @@ def confirm_bank_import(request):
 
         # 公司权限校验
         if company_id:
-            from apps.core.models import UserCompanyRole
+            from apps.core.models import UserModulePermission
 
-            has_company = UserCompanyRole.objects.filter(user=request.user, company_id=company_id).exists()
+            has_company = UserModulePermission.objects.filter(user=request.user, company_id=company_id).exists()
             if not has_company and not request.user.is_superuser:
                 return Response({'error': '无权操作该公司'}, status=403)
 
@@ -1292,7 +1292,7 @@ def confirm_bank_import(request):
                             expense_type=tx_type or '转账',
                             expense_category='',
                             amount=amount,
-                            expense_date=tx_date,
+                            date=tx_date,
                             description=summary,
                             note=serial or '',
                             transaction_time=tx_time,

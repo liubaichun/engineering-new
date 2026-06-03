@@ -1,0 +1,461 @@
+{% extends "base_content.html" %}
+{% load static %}
+
+{% block title %}客户360° - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.client-360-header {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    color: #e2e8f0;
+}
+.client-360-header h3 {
+    color: #f1f5f9;
+    margin: 0;
+}
+.client-360-header .client-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    font-size: 0.875rem;
+}
+.client-360-header .client-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.summary-card {
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    min-height: 100px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.summary-card .number {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.summary-card .label {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+.section-header {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section-header .badge {
+    font-size: 0.75rem;
+}
+.table-360 {
+    font-size: 0.85rem;
+    margin-bottom: 0;
+}
+.table-360 th {
+    border-top: none;
+    font-weight: 600;
+    color: #94a3b8;
+    padding: 8px 12px;
+    white-space: nowrap;
+}
+.table-360 td {
+    padding: 8px 12px;
+    vertical-align: middle;
+}
+.status-badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+.follow-item {
+    border-left: 3px solid #3b82f6;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: #1e293b;
+    border-radius: 0 6px 6px 0;
+}
+.follow-item .follow-meta {
+    font-size: 0.75rem;
+    color: #64748b;
+}
+.follow-item .follow-content {
+    font-size: 0.85rem;
+    margin-top: 4px;
+    color: #cbd5e1;
+}
+.empty-360 {
+    color: #64748b;
+    text-align: center;
+    padding: 24px;
+    font-size: 0.85rem;
+}
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 40px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="client360App">
+    <!-- Header 区域 -->
+    <div class="client-360-header">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <h3><i class="bi bi-compass me-2"></i>客户360° 视图</h3>
+                <div class="client-meta" v-if="data.client">
+                    <span><i class="bi bi-hash"></i> 编码: <span v-text="data.client.code"></span></span>
+                    <span><i class="bi bi-tag"></i> 客户: <span v-text="data.client.name"></span></span>
+                    <span><i class="bi bi-person"></i> 联系人: <span v-text="data.client.contact_person || '-'"></span></span>
+                    <span><i class="bi bi-telephone"></i> <span v-text="data.client.contact_phone || '-'"></span></span>
+                    <span><i class="bi bi-envelope"></i> <span v-text="data.client.contact_email || '-'"></span></span>
+                    <span><i class="bi bi-geo-alt"></i> <span v-text="data.client.address || '-'"></span></span>
+                </div>
+            </div>
+            <a href="/crm/clients/" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> 返回客户列表
+            </a>
+        </div>
+    </div>
+
+    <!-- 加载中 -->
+    <div class="loading-spinner" v-if="loading">
+        <div class="spinner-border text-primary"></div>
+    </div>
+
+    <!-- 数据区域 -->
+    <template v-if="!loading">
+        <!-- 摘要卡片 -->
+        <div class="row g-3 mb-4" v-if="data.summary">
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #1e3a5f, #1a2d47); border: 1px solid #2a4a6f;">
+                    <div class="number" style="color: #60a5fa;">¥<span v-text="formatMoney(data.summary.total_contract_amount)"></span></div>
+                    <div class="label">合同总额</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #1a3d2a, #152d20); border: 1px solid #2a5a3a;">
+                    <div class="number" style="color: #34d399;">¥<span v-text="formatMoney(data.summary.total_paid)"></span></div>
+                    <div class="label">已收款</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #3d1a1a, #2d1515); border: 1px solid #5a2a2a;">
+                    <div class="number" style="color: #f87171;">¥<span v-text="formatMoney(data.summary.total_receivable)"></span></div>
+                    <div class="label">未收款</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="summary-card" style="background: linear-gradient(135deg, #2d2d1a, #1f1f15); border: 1px solid #4a4a2a;">
+                    <div class="number" style="color: #fbbf24;"><span v-text="data.summary.active_contracts_count"></span> / <span v-text="data.summary.contracts_count"></span></div>
+                    <div class="label">执行中合同 / 总数</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容：左2/3 右1/3 -->
+        <div class="row g-4">
+            <!-- 左侧：合同 + 发票 + 项目 -->
+            <div class="col-lg-8">
+                <!-- ====== 合同列表 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-file-earmark-text"></i> 关联合同
+                            <span class="badge bg-primary ms-auto" v-text="data.contracts.length + ' 份'"></span>
+                        </div>
+                        <div v-if="data.contracts.length === 0" class="empty-360">暂无关联合同</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>编号</th>
+                                        <th>名称</th>
+                                        <th>金额</th>
+                                        <th>已收款</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="c in data.contracts" :key="c.id">
+                                        <td><a :href="'/crm/contracts/' + c.id + '/'" class="text-info" v-text="c.contract_no"></a></td>
+                                        <td v-text="c.name"></td>
+                                        <td>¥<span v-text="formatMoney(c.amount)"></span></td>
+                                        <td>¥<span v-text="formatMoney(c.total_paid)"></span></td>
+                                        <td>
+                                            <span class="status-badge" :class="paymentStatusClass(c.payment_status)" v-text="paymentStatusLabel(c.payment_status)"></span>
+                                            <span v-if="c.status !== 'active'" class="status-badge ms-1" :class="contractStatusClass(c.status)" v-text="contractStatusLabel(c.status)"></span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 发票列表 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-receipt"></i> 关联发票
+                            <span class="badge bg-info ms-auto" v-text="data.invoices.length + ' 张'"></span>
+                        </div>
+                        <div v-if="data.invoices.length === 0" class="empty-360">暂无关联发票</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>发票号</th>
+                                        <th>类型</th>
+                                        <th>金额</th>
+                                        <th>状态</th>
+                                        <th>开票日期</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="inv in data.invoices" :key="inv.id">
+                                        <td v-text="inv.invoice_no"></td>
+                                        <td v-text="inv.type === 'income' ? '收入' : '支出'"></td>
+                                        <td>¥<span v-text="formatMoney(inv.amount)"></span></td>
+                                        <td>
+                                            <span class="status-badge" :class="invoiceStatusClass(inv.status)" v-text="invoiceStatusLabel(inv.status)"></span>
+                                        </td>
+                                        <td v-text="inv.issue_date || '-'"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 项目列表 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-kanban"></i> 关联项目
+                            <span class="badge bg-success ms-auto" v-text="data.projects.length + ' 个'"></span>
+                        </div>
+                        <div v-if="data.projects.length === 0" class="empty-360">暂无关联项目</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>编码</th>
+                                        <th>名称</th>
+                                        <th>状态</th>
+                                        <th>进度</th>
+                                        <th>时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="p in data.projects" :key="p.id">
+                                        <td v-text="p.code"></td>
+                                        <td v-text="p.name"></td>
+                                        <td>
+                                            <span class="status-badge" :class="projectStatusClass(p.status)" v-text="projectStatusLabel(p.status)"></span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center gap-2">
+                                                <div class="progress flex-grow-1" style="height: 6px;">
+                                                    <div class="progress-bar" :style="{width: p.progress + '%'}" :class="progressBarClass(p.progress)"></div>
+                                                </div>
+                                                <small v-text="p.progress + '%'"></small>
+                                            </div>
+                                        </td>
+                                        <td style="font-size: 0.8rem;"><span v-text="p.start_date || '-'"></span> → <span v-text="p.end_date || '-'"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：联系人 + 跟进 + 商机 -->
+            <div class="col-lg-4">
+                <!-- ====== 联系人 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-people"></i> 联系人
+                            <span class="badge bg-secondary ms-auto" v-text="data.contacts.length"></span>
+                        </div>
+                        <div v-if="data.contacts.length === 0" class="empty-360">暂无联系人</div>
+                        <div v-for="con in data.contacts" :key="con.id" class="d-flex align-items-center mb-2 p-2" style="background:#1e293b;border-radius:6px;">
+                            <div class="flex-shrink-0">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:36px;height:36px;background:#334155;color:#94a3b8;">
+                                    <i class="bi bi-person"></i>
+                                </div>
+                            </div>
+                            <div class="ms-2 flex-grow-1">
+                                <div class="fw-semibold" style="font-size:0.85rem;">
+                                    <span v-text="con.name"></span>
+                                    <span v-if="con.is_primary" class="badge bg-warning ms-1" style="font-size:0.65rem;">主</span>
+                                </div>
+                                <div style="font-size:0.75rem;color:#64748b;">
+                                    <span v-text="con.position || '-'"></span> | <span v-text="con.phone || '-'"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 跟进记录 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-journal-text"></i> 跟进记录
+                            <span class="badge bg-warning ms-auto" v-text="data.follow_ups.length"></span>
+                        </div>
+                        <div v-if="data.follow_ups.length === 0" class="empty-360">暂无跟进记录</div>
+                        <div v-for="f in data.follow_ups" :key="f.id" class="follow-item">
+                            <div class="follow-meta">
+                                <span class="badge bg-secondary me-1" v-text="followTypeLabel(f.follow_type)"></span>
+                                <span v-text="f.created_by"></span> · <span v-text="formatDate(f.created_at)"></span>
+                            </div>
+                            <div class="follow-content" v-text="f.content"></div>
+                            <div v-if="f.next_plan" class="mt-1" style="font-size:0.75rem;color:#60a5fa;">
+                                <i class="bi bi-calendar3"></i> 下次计划: <span v-text="f.next_plan"></span>
+                                <span v-if="f.next_date"> (<span v-text="f.next_date"></span>)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 商机 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-graph-up-arrow"></i> 商机
+                            <span class="badge bg-purple ms-auto" style="background:#8b5cf6;" v-text="data.opportunities.length"></span>
+                        </div>
+                        <div v-if="data.opportunities.length === 0" class="empty-360">暂无商机</div>
+                        <div v-for="o in data.opportunities" :key="o.id" class="d-flex align-items-center mb-2 p-2" style="background:#1e293b;border-radius:6px;">
+                            <div>
+                                <div class="fw-semibold" style="font-size:0.85rem;"><span v-text="o.title"></span></div>
+                                <div style="font-size:0.75rem;color:#64748b;">
+                                    ¥<span v-text="formatMoney(o.amount)"></span> · <span v-text="opportunityStageLabel(o.stage)"></span>
+                                </div>
+                            </div>
+                            <div class="ms-auto">
+                                <span class="status-badge" :class="opportunityStatusClass(o.status)" v-text="o.status === 'won' ? '赢单' : (o.status === 'lost' ? '输单' : '进行中')"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script>
+const app = Vue.createApp({
+    data() {
+        return {
+            loading: true,
+            data: {
+                client: null,
+                summary: null,
+                contracts: [],
+                invoices: [],
+                projects: [],
+                contacts: [],
+                follow_ups: [],
+                opportunities: []
+            }
+        };
+    },
+    created() {
+        this.loadData();
+    },
+    methods: {
+        async loadData() {
+            try {
+                const clientId = {{ client_id }};
+                const resp = await fetch(`/api/crm/clients/${clientId}/profile/`);
+                const result = await resp.json();
+                this.data = result;
+            } catch (e) {
+                console.error('加载客户360°数据失败:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+        formatMoney(val) {
+            if (val === null || val === undefined) return '0.00';
+            return Number(val).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        },
+        formatDate(iso) {
+            if (!iso) return '-';
+            return iso.slice(0, 10);
+        },
+        // 付款状态
+        paymentStatusClass(s) {
+            return s === 'paid' ? 'bg-success' : s === 'partial' ? 'bg-warning text-dark' : 'bg-secondary';
+        },
+        paymentStatusLabel(s) {
+            return s === 'paid' ? '已收款' : s === 'partial' ? '部分收款' : '待收款';
+        },
+        // 合同状态
+        contractStatusClass(s) {
+            return s === 'active' ? 'bg-success' : s === 'completed' ? 'bg-info' : s === 'terminated' ? 'bg-danger' : 'bg-secondary';
+        },
+        contractStatusLabel(s) {
+            return s === 'active' ? '执行中' : s === 'completed' ? '已完成' : s === 'terminated' ? '已终止' : '草稿';
+        },
+        // 发票状态
+        invoiceStatusClass(s) {
+            return s === 'paid' ? 'bg-success' : s === 'cancelled' ? 'bg-danger' : 'bg-warning text-dark';
+        },
+        invoiceStatusLabel(s) {
+            return s === 'paid' ? '已完成' : s === 'cancelled' ? '已作废' : '待处理';
+        },
+        // 项目状态
+        projectStatusClass(s) {
+            return s === 'active' ? 'bg-success' : s === 'completed' ? 'bg-info' : s === 'archived' ? 'bg-secondary' : 'bg-warning text-dark';
+        },
+        projectStatusLabel(s) {
+            return s === 'active' ? '进行中' : s === 'completed' ? '已完成' : s === 'archived' ? '已归档' : '草稿';
+        },
+        progressBarClass(p) {
+            return p >= 100 ? 'bg-success' : p >= 50 ? 'bg-primary' : 'bg-warning';
+        },
+        // 跟进类型
+        followTypeLabel(t) {
+            return { call: '电话', visit: '拜访', email: '邮件', meeting: '会议', other: '其他' }[t] || t;
+        },
+        // 商机阶段
+        opportunityStageLabel(s) {
+            const map = {
+                'qualification': '初步筛选',
+                'demo': '产品演示',
+                'negotiation': '商务谈判',
+                'proposal': '方案报价',
+                'closed': '已关闭'
+            };
+            return map[s] || s;
+        },
+        opportunityStatusClass(s) {
+            return s === 'won' ? 'bg-success' : s === 'lost' ? 'bg-danger' : 'bg-warning text-dark';
+        }
+    }
+});
+app.mount('#client360App');
+</script>
+{% endblock %}

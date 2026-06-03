@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static %}
+
+{# 内容页基础模板 - 用于 iframe 内部的页面，没有侧边栏、移动导航 #}
+{# 继承 base.html，覆盖 sidebar 块为空，并在 head 的 styles 块注入 CSS #}
+{# CSS 放在 head 中，在浏览器渲染 body 之前生效，彻底消除闪现 #}
+
+{% block styles %}
+{{ block.super }}
+<style>
+/* 覆盖 base.html 的侧边栏和边距，在 body 渲染前生效 */
+.main-content { margin-left: 0 !important; }
+nav.sidebar, .sidebar, nav.bottom-tabs, .bottom-tabs,
+button.mobile-nav-toggle, .sidebar-overlay { display: none !important; }
+</style>
+{% endblock %}
+
+{% block sidebar %}{% endblock %}

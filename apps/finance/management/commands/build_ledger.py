@@ -85,7 +85,7 @@ def build_ledger():
                 'counterparty': counterparty,
                 'ctype': get_counterparty_type(counterparty),
                 'amount': float(exp.amount),
-                'date': exp.expense_date or exp.date,
+                'date': exp.date,
                 'desc': summary,
                 'group_id': f'G{group_counter:04d}',
             }

@@ -348,9 +348,9 @@ def compute_trial_balance(company_id: int, year: int) -> List[Dict[str, Any]]:
 
     # 支出按科目聚合
     expense_records = (
-        Expense.objects.filter(company_id=company_id, expense_date__year=year)
+        Expense.objects.filter(company_id=company_id, date__year=year)
         .exclude(supplier__in=get_internal_company_names())
-        .order_by('expense_date', 'id')
+        .order_by('date', 'id')
     )
 
     expense_by_account = {}

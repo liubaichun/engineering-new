@@ -4,7 +4,9 @@
 
 {% block styles %}
 <style>
-iframe.tab-iframe { width: 100% !important; border: none; background: transparent; display: block; }
+.tab-content { position: relative; min-height: calc(100vh - 122px); }
+.tab-content > div { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+iframe.tab-iframe { width: 100% !important; height: 100% !important; border: none; background: transparent; display: block; }
 </style>
 {% endblock %}
 
@@ -33,15 +35,15 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
     {% endif %}
 </ul>
 
-<div class="tab-content" style="width:100%; margin:0 -32px;">
+<div class="tab-content">
     <div id="requests" style="display:{% if active_tab == 'requests' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/purchasing/requests/" class="tab-iframe" id="frame-requests" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/purchasing/requests/" class="tab-iframe" id="frame-requests"></iframe>
     </div>
     <div id="orders" style="display:{% if active_tab == 'orders' %}block{% else %}none{% endif %};">
-        <iframe src="/purchasing/orders/" class="tab-iframe" id="frame-orders" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/purchasing/orders/" class="tab-iframe" id="frame-orders"></iframe>
     </div>
     <div id="receives" style="display:{% if active_tab == 'receives' %}block{% else %}none{% endif %};">
-        <iframe src="/purchasing/receives/" class="tab-iframe" id="frame-receives" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/purchasing/receives/" class="tab-iframe" id="frame-receives"></iframe>
     </div>
 </div>
 
@@ -59,12 +61,6 @@ function showTab(tab) {
             if (link) link.classList.remove('active');
         }
     });
-}
-function resizeIframe(iframe) {
-    try {
-        var h = iframe.contentWindow.document.body.scrollHeight;
-        if (h > 0) iframe.style.height = Math.max(h + 50, 600) + 'px';
-    } catch(e) {}
 }
 </script>
 {% endblock %}

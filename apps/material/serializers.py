@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Material, MaterialUsageLog, MaterialBOM, MaterialBOMNode
+from .models import Material, MaterialUsageLog, MaterialInboundLog, MaterialBOM, MaterialBOMNode
 
 
 class MaterialUsageLogSerializer(serializers.ModelSerializer):
@@ -27,12 +27,47 @@ class MaterialUsageLogSerializer(serializers.ModelSerializer):
         read_only_fields = ['used_at']
 
 
+class MaterialInboundLogSerializer(serializers.ModelSerializer):
+    material_code = serializers.CharField(source='material.code', read_only=True)
+    material_name = serializers.CharField(source='material.name', read_only=True)
+    supplier_name = serializers.CharField(source='supplier.name', read_only=True, allow_null=True)
+    project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True)
+
+    class Meta:
+        model = MaterialInboundLog
+        fields = [
+            'id',
+            'material',
+            'material_code',
+            'material_name',
+            'quantity',
+            'unit_price',
+            'supplier',
+            'supplier_name',
+            'project',
+            'project_name',
+            'inbound_date',
+            'source_type',
+            'created_by',
+            'created_by_name',
+            'company_id',
+            'remark',
+            'created_at',
+        ]
+        read_only_fields = ['created_at', 'inbound_date']
+
+
 class MaterialSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True)
     category_display = serializers.CharField(source='get_category_display', read_only=True)
+    stock = serializers.IntegerField(read_only=True, help_text='当前库存（由期初库存+入库-出库自动计算）')
+    total_inbound = serializers.IntegerField(read_only=True)
+    total_outbound = serializers.IntegerField(read_only=True)
     usage_logs = MaterialUsageLogSerializer(many=True, read_only=True)
+    inbound_logs = MaterialInboundLogSerializer(many=True, read_only=True)
 
     class Meta:
         model = Material
@@ -45,6 +80,7 @@ class MaterialSerializer(serializers.ModelSerializer):
             'category_display',
             'unit',
             'stock',
+            'init_stock',
             'alert_threshold',
             'unit_price',
             'supplier',
@@ -57,7 +93,10 @@ class MaterialSerializer(serializers.ModelSerializer):
             'updated_at',
             'created_by',
             'created_by_name',
+            'total_inbound',
+            'total_outbound',
             'usage_logs',
+            'inbound_logs',
         ]
         read_only_fields = ['code', 'created_at', 'updated_at']
 

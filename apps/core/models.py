@@ -16,7 +16,7 @@ class User(AbstractUser):
     failed_login_attempts = models.IntegerField(default=0, verbose_name='失败登录次数')
     lock_until = models.DateTimeField(null=True, blank=True, verbose_name='锁定截止时间')
     password_changed = models.BooleanField(default=False, verbose_name='密码是否已修改')
-    # 所属公司（兼容旧数据，建议优先通过 UserCompanyRole 配置多公司访问）
+    # 所属公司（兼容旧数据）
     company = models.ForeignKey(
         'finance.Company',
         on_delete=models.SET_NULL,
@@ -25,18 +25,6 @@ class User(AbstractUser):
         related_name='users',
         verbose_name='所属公司（兼容字段）',
     )
-
-    def get_company_role(self, company_id):
-        """获取用户在指定公司的角色，找不到返回 None"""
-        link = self.company_roles.filter(company_id=company_id).first()
-        return link.role if link else None
-
-    def is_company_admin(self, company_id):
-        return self.get_company_role(company_id) == 'admin'
-
-    def is_company_staff(self, company_id):
-        role = self.get_company_role(company_id)
-        return role in ('admin', 'staff')
 
     def is_superadmin(self):
         """系统超级管理员（is_superuser）拥有所有权限"""
@@ -60,9 +48,6 @@ class User(AbstractUser):
         """获取用户所有角色名称列表（已废弃）"""
         return []
 
-    def get_companies(self):
-        return [ucr.company_id for ucr in self.company_roles.all()]
-
     class Meta:
         db_table = 'core_user'
         verbose_name = '用户'
@@ -70,102 +55,6 @@ class User(AbstractUser):
 
     def __str__(self):
         return self.username
-
-
-class UserCompanyRole(models.Model):
-    """用户在公司内的角色 — 支持多公司多角色"""
-
-    id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='company_roles')
-    company = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='user_roles')
-    company_role = models.ForeignKey(
-        'CompanyRole',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='user_assignments',
-        verbose_name='公司角色',
-    )
-    is_primary = models.BooleanField(default=False, verbose_name='主体企业')
-    assigned_at = models.DateTimeField(auto_now_add=True)
-    assigned_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-
-    class Meta:
-        db_table = 'core_user_company_role'
-        unique_together = [['user', 'company']]
-        verbose_name = '用户公司角色'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        role_str = self.company_role.name if self.company_role else '未分配'
-        return f'{self.user.username}@{self.company.name}({role_str})'
-
-
-class CompanyRole(models.Model):
-    """
-    公司级角色定义 — 公司私有角色模板，可定义权限集合。
-    一个公司可以创建多个角色，每个角色包含多个权限（通过 Permission M2M）。
-    分配角色给用户时，批量写入 UserCompanyPermission。
-    """
-
-    id = models.AutoField(primary_key=True)
-    company = models.ForeignKey(
-        'finance.Company', on_delete=models.PROTECT, related_name='company_roles', verbose_name='所属公司'
-    )
-    name = models.CharField(max_length=100, verbose_name='角色名称')
-    code = models.CharField(max_length=50, verbose_name='角色代码')
-    description = models.TextField(blank=True, verbose_name='描述')
-    is_active = models.BooleanField(default=True, verbose_name='是否激活')
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    # 权限集合 — 通过 CompanyRolePermission 中间表关联到 Permission（M2M）
-    permissions = models.ManyToManyField(
-        'Permission',
-        through='CompanyRolePermission',
-        related_name='company_roles',
-        verbose_name='权限集合',
-    )
-
-    class Meta:
-        db_table = 'core_company_role'
-        unique_together = [['company', 'code']]
-        verbose_name = '公司角色'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return f'{self.company.name} - {self.name}'
-
-
-class CompanyRolePermission(models.Model):
-    """
-    CompanyRole 与 Permission 的中间表 — 定义角色拥有哪些权限。
-    V5 设计：创建/编辑角色时通过这个表配置权限集合，
-    分配角色给用户时通过 _assign_role_to_ucp() 批量写入 UserCompanyPermission。
-    """
-
-    id = models.AutoField(primary_key=True)
-    company_role = models.ForeignKey(
-        CompanyRole, on_delete=models.PROTECT, related_name='role_permissions', verbose_name='公司角色'
-    )
-    permission = models.ForeignKey(
-        'Permission', on_delete=models.PROTECT, related_name='role_assignments', verbose_name='权限'
-    )
-    granted_at = models.DateTimeField(
-        auto_now_add=True,
-        verbose_name='授权时间',
-    )
-    granted_by = models.ForeignKey(
-        User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+', verbose_name='授权人'
-    )
-
-    class Meta:
-        db_table = 'core_company_role_permission'
-        unique_together = [['company_role', 'permission']]
-        verbose_name = '公司角色权限'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return f'{self.company_role.name} -> {self.permission.code}'
 
 
 class Notification(models.Model):
@@ -213,28 +102,6 @@ class Notification(models.Model):
 
     def __str__(self):
         return self.title
-
-
-class Permission(models.Model):
-    """权限码定义（废弃，仅存储层保留）"""
-
-    id = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=100, verbose_name='权限名称')
-    code = models.CharField(max_length=100, unique=True, verbose_name='权限码')
-    resource = models.CharField(max_length=50, verbose_name='资源')
-    action = models.CharField(max_length=50, verbose_name='动作')
-    category = models.CharField(max_length=50, verbose_name='分类')
-    description = models.TextField(blank=True, verbose_name='描述')
-    is_active = models.BooleanField(default=True, verbose_name='是否激活')
-    created_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        db_table = 'core_permission'
-        verbose_name = '权限'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return self.code
 
 
 class PermissionAuditLog(models.Model):
@@ -336,6 +203,77 @@ class SystemSetting(models.Model):
         cert = cls.get_value('ssl_cert_path')
         key = cls.get_value('ssl_key_path')
         return bool(domain and cert and key)
+
+
+class CodingRule(models.Model):
+    """编码规则配置 — 各模块自定义自动编号规则"""
+
+    MODEL_CHOICES = [
+        ('material', '物料'),
+        ('client', '客户'),
+        ('supplier', '供应商'),
+        ('employee', '员工'),
+        ('equipment', '设备'),
+    ]
+    model_name = models.CharField('模块', max_length=50, choices=MODEL_CHOICES, unique=True)
+    prefix = models.CharField('前缀', max_length=20, default='', help_text='如 WL-, KH-, GYS-, YG-, SB-')
+    include_year = models.BooleanField('包含年份', default=False, help_text='编号中加入年份')
+    year_format = models.CharField('年份格式', max_length=10, default='%Y', help_text='%Y=四位数, %y=两位数')
+    digit_count = models.PositiveIntegerField('流水号位数', default=4, help_text='如4位=0001')
+    separator = models.CharField('分隔符', max_length=5, default='-')
+    description = models.CharField('说明', max_length=200, blank=True, default='')
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'core_coding_rule'
+        verbose_name = '编码规则'
+        verbose_name_plural = '编码规则'
+
+    def __str__(self):
+        return f'{self.get_model_name_display()}: {self.prefix}...'
+
+
+def generate_code(model_name: str, model_class) -> str:
+    """根据编码规则自动生成编号"""
+    from django.utils import timezone
+
+    try:
+        rule = CodingRule.objects.get(model_name=model_name)
+    except CodingRule.DoesNotExist:
+        defaults = {
+            'material': ('WL-', False, 4),
+            'client': ('KH-', True, 4),
+            'supplier': ('GYS-', True, 4),
+            'employee': ('YG-', True, 4),
+            'equipment': ('SB-', False, 4),
+        }
+        prefix, include_year, digit_count = defaults.get(model_name, ('', False, 4))
+        rule = CodingRule.objects.create(
+            model_name=model_name,
+            prefix=prefix,
+            include_year=include_year,
+            digit_count=digit_count,
+        )
+
+    now = timezone.now()
+    year_part = now.strftime(rule.year_format) if rule.include_year else ''
+    search_prefix = f'{rule.prefix}{year_part}{rule.separator}' if year_part else rule.prefix
+
+    last = model_class.objects.filter(code__startswith=search_prefix).order_by('-code').first()
+    seq = 1
+    if last and last.code:
+        try:
+            parts = last.code.split(rule.separator)
+            last_part = parts[-1]
+            if last_part.isdigit():
+                seq = int(last_part) + 1
+        except (ValueError, IndexError):
+            seq = 1
+
+    if year_part:
+        return f'{rule.prefix}{year_part}{rule.separator}{seq:0{rule.digit_count}d}'
+    return f'{rule.prefix}{seq:0{rule.digit_count}d}'
 
 
 class LoginLog(models.Model):
@@ -495,43 +433,6 @@ class ModuleAction(models.Model):
         return f'{self.module.name}.{self.name}'
 
 
-class UserCompanyPermission(models.Model):
-    """
-    用户 × 公司 × 模块 × 动作 的权限矩阵核心表。
-
-    一行 = 一个用户在一家公司对一个模块的一个动作的授权状态。
-    由 RoleRequired 在权限校验时查询，也由权限矩阵 UI 读写。
-
-    迁移策略：
-      admin 角色 → 该用户该公司所有动作全部 is_granted=True
-      staff 角色 → staff 权限列表中涉及的动作 is_granted=True
-      viewer 角色 → viewer 权限列表中涉及的动作 is_granted=True
-    """
-
-    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='company_permissions')
-    company = models.ForeignKey('finance.Company', on_delete=models.PROTECT, related_name='user_permissions')
-    module = models.ForeignKey(Module, on_delete=models.PROTECT)
-    action = models.ForeignKey(ModuleAction, on_delete=models.PROTECT)
-    is_granted = models.BooleanField(default=False, verbose_name='是否授权')
-    granted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
-    granted_at = models.DateTimeField(auto_now_add=True)
-    source = models.CharField(
-        max_length=50,
-        default='manual',
-        verbose_name='权限来源',
-        help_text='manual=手动授予，role:ID=由CompanyRole.ID=ID批量分配',
-    )
-
-    class Meta:
-        db_table = 'core_user_company_permission'
-        unique_together = ('user', 'company', 'module', 'action')
-        verbose_name = '用户公司权限'
-        verbose_name_plural = verbose_name
-
-    def __str__(self):
-        return f'{self.user.username}@{self.company.name}/{self.module.name}.{self.action.name}={"✓" if self.is_granted else "✗"}'
-
-
 # ─────────────────────────────────────────────────────────────
 # ACTION_BITS（位掩码定义）
 # ─────────────────────────────────────────────────────────────
@@ -552,7 +453,8 @@ ACTION_BITS = {
     'repair': 0b0000100000000000,  # 维修（设备）
     'manage': 0b0001000000000000,  # 管理（角色/设置/配置）
     'reject': 0b0010000000000000,  # 驳回（采购审批）
-    '_RESERVED': 0b0100000000000000,  # 预留
+    'read_log': 0b0100000000000000,  # 查看日志（通知渠道）
+    '_RESERVED': 0b1000000000000000,  # 预留
 }
 
 ACTION_LABELS = {
@@ -570,6 +472,7 @@ ACTION_LABELS = {
     'repair': '维修',
     'manage': '管理',
     'reject': '驳回',
+    'read_log': '查看日志',
 }
 
 # 标准 CRUD 动作列表（作为权限矩阵 UI 的默认列）
@@ -631,8 +534,6 @@ class UserModulePermission(models.Model):
 
     def _available_bits(self):
         """该模块所有可用动作的位掩码"""
-        from apps.core.models import ModuleAction
-
         bits = 0
         for act in ModuleAction.objects.filter(module=self.module):
             bit = ACTION_BITS.get(act.name)
@@ -675,7 +576,6 @@ def sync_modules_to_db():
     只在 post_migrate 信号或启动时调用，此时表已存在。
     """
     from django.db import transaction
-    from apps.core.models import Module, ModuleAction
 
     registered_names = set()
 

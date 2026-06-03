@@ -133,6 +133,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
         'activate': 'project:project:update',
         'gantt_data': 'project:project:read',
         'gantt_all': 'project:project:read',
+        'create_opportunity': 'crm:opportunity:create',
     }
 
     def get_queryset(self):
@@ -357,3 +358,41 @@ class ProjectViewSet(viewsets.ModelViewSet):
                     }
                 )
         return Response(bars)
+
+    @action(detail=True, methods=['post'])
+    def create_opportunity(self, request, pk=None):
+        """从项目创建商机 — 项目驱动销售"""
+        from apps.crm.models import Opportunity, Client
+        from apps.crm.serializers import OpportunitySerializer
+
+        project = self.get_object()
+        # 检查是否已有关联商机
+        existing = Opportunity.objects.filter(project=project).first()
+        if existing:
+            return Response({
+                'detail': '该项目已有关联商机',
+                'opportunity': OpportunitySerializer(existing).data,
+            }, status=200)
+
+        # 尝试通过关联合同找客户
+        client = None
+        contract = project.contracts.first()
+        if contract:
+            client = contract.client
+
+        if not client:
+            return api_error(ErrorCode.VALIDATION_ERROR,
+                             '项目没有关联客户，请先在合同中关联客户后再创建商机')
+
+        opp = Opportunity.objects.create(
+            company_id=project.company_id or getattr(request.user, 'company_id', None),
+            client=client,
+            name=f'【项目】{project.name}',
+            stage='qualify',
+            expected_amount=project.budget or 0,
+            probability=30,
+            project=project,
+            created_by=request.user,
+            remark=f'从项目 {project.code} 自动创建',
+        )
+        return Response(OpportunitySerializer(opp).data, status=201)

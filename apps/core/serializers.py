@@ -2,15 +2,11 @@ from rest_framework import serializers
 from .models import (
     User,
     Notification,
-    Permission,
     PermissionAuditLog,
     LoginLog,
-    UserCompanyRole,
     OperationAuditLog,
     SystemSetting,
-    UserCompanyPermission,
     ModuleAction,
-    CompanyRole,
 )
 from apps.finance.models import Company as FinanceCompany
 
@@ -124,49 +120,12 @@ class UserLoginSerializer(serializers.Serializer):
         return attrs
 
 
-class UserCompanyRoleSerializer(serializers.ModelSerializer):
-    """用户公司角色序列化器"""
-
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    user_name = serializers.CharField(source='user.username', read_only=True)
-    role_display = serializers.SerializerMethodField()
-    company_role_name = serializers.CharField(source='company_role.name', read_only=True, default='')
-    company_role_id = serializers.IntegerField(source='company_role.id', read_only=True, default=None)
-
-    class Meta:
-        model = UserCompanyRole
-        fields = [
-            'id',
-            'user',
-            'user_name',
-            'company',
-            'company_name',
-            'company_role',
-            'company_role_id',
-            'company_role_name',
-            'role_display',
-            'is_primary',
-            'assigned_by',
-            'assigned_at',
-        ]
-        read_only_fields = ['id', 'assigned_by', 'assigned_at']
-
-    def get_role_display(self, obj) -> str:
-        return obj.company_role.name if obj.company_role else '未分配'
-
-
 class UserSerializer(serializers.ModelSerializer):
     """用户序列化器 — 字段与 core_user 表及 User 模型严格对应"""
 
     role_name = serializers.SerializerMethodField()
     roles = serializers.SerializerMethodField()
-    role_ids = serializers.ListField(
-        child=serializers.IntegerField(), write_only=True, required=False, label='角色ID列表'
-    )
-    company_roles = UserCompanyRoleSerializer(many=True, read_only=True)
-    company_role_ids = serializers.ListField(
-        child=serializers.DictField(), write_only=True, required=False, label='公司角色列表 [{company_id, role}]'
-    )
+    company_roles = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -186,50 +145,44 @@ class UserSerializer(serializers.ModelSerializer):
             'password_changed',
             'role_name',
             'roles',
-            'role_ids',
             'company_roles',
-            'company_role_ids',
         ]
         extra_kwargs = {
             'password': {'write_only': True, 'required': False},
         }
 
     def get_role_name(self, obj) -> str | None:
-        """返回用户角色名称 — 优先用 UserCompanyRole 的角色，否则用 User.role 字段"""
+        """返回用户角色名称 — 基于UMP权限推断"""
         if obj.is_superuser:
             return '系统管理员'
-        # 优先取第一个公司角色
-        link = obj.company_roles.select_related('company_role').first()
-        if link and link.company_role:
-            return link.company_role.name  # 直接用CompanyRole的name字段
-        # 兜底 User.role 字段（系统级角色代码）
-        role_map = {
-            'admin': '系统管理员',
-            'manager': '经理',
-            'staff': '员工',
-        }
-        return role_map.get(obj.role, obj.role) if obj.role else '-'
+        # 从UMP判断用户角色：有任一模块write→员工，只有read→只读
+        from .models import UserModulePermission
+        has_write = UserModulePermission.objects.filter(
+            user=obj, granted_bits__gte=2
+        ).exists()
+        return '员工' if has_write else '只读用户'
 
     def get_roles(self, obj) -> list:
-        """返回用户通过UserCompanyRole关联的所有公司角色"""
+        """返回用户的UMP模块权限信息"""
         roles = []
-        for ucr in obj.company_roles.select_related('company_role', 'company').all():
-            roles.append(
-                {
-                    'role_id': ucr.company_role_id,
-                    'role__name': ucr.company_role.name if ucr.company_role else '-',
-                    'role__code': ucr.company_role.code if ucr.company_role else '-',
-                    'company_name': ucr.company.name if ucr.company else '-',
-                    'assigned_at': ucr.assigned_at.isoformat() if ucr.assigned_at else None,
-                }
-            )
+        try:
+            for ump in obj.module_permissions.select_related('module', 'company').all():
+                roles.append({
+                    'module': ump.module.name,
+                    'company_name': ump.company.name if ump.company else '-',
+                    'bits': ump.granted_bits,
+                })
+        except Exception:
+            pass
         return roles
 
+    def get_company_roles(self, obj) -> list:
+        """（废弃字段）返回空列表"""
+        return []
+
     def create(self, validated_data):
-        """创建用户 — 提取并正确处理 write_only 字段"""
+        """创建用户"""
         password = validated_data.pop('password', None)
-        role_ids = validated_data.pop('role_ids', None)
-        company_role_ids = validated_data.pop('company_role_ids', None)
 
         # 使用 create_user 而非 create（自动哈希密码）
         if password:
@@ -242,106 +195,15 @@ class UserSerializer(serializers.ModelSerializer):
         else:
             user = User.objects.create(**validated_data)
 
-        # 分配公司角色
-        if company_role_ids:
-            for item in company_role_ids:
-                UserCompanyRole.objects.create(
-                    user=user,
-                    company_id=item['company_id'],
-                    role=item.get('role', 'staff'),
-                )
-
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
-        company_role_ids = validated_data.pop('company_role_ids', None)
-        request = self.context.get('request')
         instance = super().update(instance, validated_data)
         if password:
             instance.set_password(password)
             instance.save(update_fields=['password'])
-        # 处理公司角色分配（批量覆盖）
-        if company_role_ids is not None:
-            existing = {ucr.company_id: ucr for ucr in instance.company_roles.all()}
-            incoming = {item['company_id']: item for item in company_role_ids}
-            # 删除不在新列表中的
-            removed_company_ids = set(existing.keys()) - set(incoming.keys())
-            UserCompanyRole.objects.filter(user=instance, company_id__in=removed_company_ids).delete()
-            # 创建或更新
-            for company_id, item in incoming.items():
-                UserCompanyRole.objects.update_or_create(
-                    user=instance, company_id=company_id, defaults={'role': item.get('role', 'staff')}
-                )
         return instance
-
-
-class CompanyRoleSerializer(serializers.ModelSerializer):
-    """公司角色序列化器"""
-
-    permission_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True, required=False)
-    permissions = serializers.SerializerMethodField()
-    user_count = serializers.SerializerMethodField()
-
-    class Meta:
-        model = CompanyRole
-        fields = [
-            'id',
-            'company',
-            'name',
-            'code',
-            'description',
-            'is_active',
-            'created_at',
-            'updated_at',
-            'permissions',
-            'permission_ids',
-            'user_count',
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-
-    def get_permissions(self, obj) -> list:
-        from .models import CompanyRolePermission
-
-        return list(CompanyRolePermission.objects.filter(company_role=obj).values_list('permission_id', flat=True))
-
-    def get_user_count(self, obj) -> int:
-        from .models import UserCompanyRole
-
-        return UserCompanyRole.objects.filter(company_role=obj).count()
-
-    def create(self, validated_data):
-        permission_ids = validated_data.pop('permission_ids', [])
-        role = super().create(validated_data)
-        self._update_permissions(role, permission_ids)
-        return role
-
-    def update(self, instance, validated_data):
-        permission_ids = validated_data.pop('permission_ids', None)
-        role = super().update(instance, validated_data)
-        if permission_ids is not None:
-            self._update_permissions(role, permission_ids)
-        return role
-
-    def _update_permissions(self, role, permission_ids):
-        from .models import CompanyRolePermission
-
-        CompanyRolePermission.objects.filter(company_role=role).delete()
-        if permission_ids:
-            from .models import Permission
-
-            valid_ids = Permission.objects.filter(id__in=permission_ids).values_list('id', flat=True)
-            for perm_id in valid_ids:
-                CompanyRolePermission.objects.create(company_role=role, permission_id=perm_id)
-
-
-class PermissionSerializer(serializers.ModelSerializer):
-    """权限序列化器"""
-
-    class Meta:
-        model = Permission
-        fields = ['id', 'name', 'code', 'resource', 'action', 'category', 'description', 'created_at']
-        read_only_fields = ['id', 'created_at']
 
 
 class PermissionListSerializer(serializers.ModelSerializer):
@@ -599,88 +461,4 @@ class FinanceCompanySerializer(serializers.ModelSerializer):
             'bank_account',
             'remark',
             'created_at',
-        ]
-
-
-# ── 角色管理（基于新权限系统 UserCompanyRole）─────────────────────────────────
-
-
-class CompanyRoleSerializer(serializers.ModelSerializer):
-    """
-    公司角色分配序列化器 — 用于 UserCompanyRole 的 CRUD。
-
-    注意：这个 ViewSet 和 Serializer 管理的是「用户角色分配」，
-    而非 CompanyRole 本身。CompanyRole 的 CRUD 在 CompanyRoleDefViewSet 中。
-    """
-
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    user_display = serializers.SerializerMethodField()
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    role_display = serializers.SerializerMethodField()
-    company_role_name = serializers.CharField(source='company_role.name', read_only=True, default='未分配')
-    assigned_by_username = serializers.CharField(source='assigned_by.username', read_only=True, default='')
-
-    class Meta:
-        model = UserCompanyRole
-        fields = [
-            'id',
-            'user',
-            'user_username',
-            'user_display',
-            'company',
-            'company_name',
-            'company_role',
-            'company_role_name',
-            'role_display',
-            'is_primary',
-            'assigned_by',
-            'assigned_by_username',
-            'assigned_at',
-        ]
-        read_only_fields = ['id', 'assigned_by', 'assigned_at']
-
-    def get_user_display(self, obj) -> str:
-        return f'{obj.user.username} ({obj.user.first_name or obj.user.username})'
-
-    def get_role_display(self, obj) -> str:
-        return obj.company_role.name if obj.company_role else '未分配'
-
-    def create(self, validated_data):
-        # 防止重复：同一用户在同一公司只能有一条记录
-        defaults = {k: v for k, v in validated_data.items() if k not in ('user', 'company')}
-        defaults['is_primary'] = validated_data.get('is_primary', False)
-        obj, created = UserCompanyRole.objects.update_or_create(
-            user=validated_data['user'], company=validated_data['company'], defaults=defaults
-        )
-        return obj
-
-
-class UserCompanyPermissionSerializer(serializers.ModelSerializer):
-    """用户公司权限序列化器"""
-
-    user_username = serializers.CharField(source='user.username', read_only=True)
-    company_name = serializers.CharField(source='company.name', read_only=True)
-    module_name = serializers.CharField(source='module.name', read_only=True)
-    action_name = serializers.CharField(source='action.name', read_only=True)
-    module_label = serializers.CharField(source='module.label', read_only=True)
-    action_label = serializers.CharField(source='action.label', read_only=True)
-
-    class Meta:
-        model = UserCompanyPermission
-        fields = [
-            'id',
-            'user',
-            'user_username',
-            'company',
-            'company_name',
-            'module',
-            'module_name',
-            'module_label',
-            'action',
-            'action_name',
-            'action_label',
-            'is_granted',
-            'source',
-            'granted_by',
-            'granted_at',
         ]

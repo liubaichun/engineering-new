@@ -42,17 +42,19 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         return RepairRequestDetailSerializer
 
     def get_queryset(self):
-        user = self.request.user
-        qs = RepairRequest.objects.select_related(
-            'equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by'
-        ).prefetch_related('images', 'spare_parts')
-        # 自动多租户隔离：超级管理员不过滤，普通用户只看本公司
-        if not user.is_superuser:
-            auth_company = getattr(self.request, 'auth_company', None)
-            cid = auth_company.id if auth_company else None
-            if cid:
-                qs = qs.filter(company_id=cid)
-        # 前端可选参数过滤（超级管理员可跨公司查询）
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'repair', 'read')
+        if companies is None:
+            qs = RepairRequest.objects.select_related(
+                'equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by'
+            ).prefetch_related('images', 'spare_parts')
+        else:
+            qs = RepairRequest.objects.filter(company_id__in=companies).select_related(
+                'equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by'
+            ).prefetch_related('images', 'spare_parts')
+        # 前端可选参数过滤
         company_id = self.request.query_params.get('company_id')
         if company_id:
             qs = qs.filter(company_id=company_id)
@@ -195,18 +197,18 @@ class RepairImageViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = RepairImage.objects.all()
-        user = self.request.user
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'repair', 'read')
+        if companies is None:
+            qs = RepairImage.objects.all().select_related('request', 'request__company')
+        else:
+            qs = RepairImage.objects.filter(request__company_id__in=companies).select_related('request', 'request__company')
         req_id = self.request.query_params.get('request_id')
-        # 自动多租户：按关联报修单的 company_id 过滤
-        if not user.is_superuser:
-            auth_company = getattr(self.request, 'auth_company', None)
-            cid = auth_company.id if auth_company else None
-            if cid:
-                qs = qs.filter(request__company_id=cid)
         if req_id:
             qs = qs.filter(request_id=req_id)
-        return qs.select_related('request', 'request__company')
+        return qs
 
 
 class RepairSparePartViewSet(viewsets.ModelViewSet):
@@ -221,15 +223,15 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = RepairSparePart.objects.select_related('material', 'request', 'request__company')
-        user = self.request.user
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'repair', 'read')
+        if companies is None:
+            qs = RepairSparePart.objects.select_related('material', 'request', 'request__company')
+        else:
+            qs = RepairSparePart.objects.filter(request__company_id__in=companies).select_related('material', 'request', 'request__company')
         req_id = self.request.query_params.get('request_id')
-        # 自动多租户：按关联报修单的 company_id 过滤
-        if not user.is_superuser:
-            auth_company = getattr(self.request, 'auth_company', None)
-            cid = auth_company.id if auth_company else None
-            if cid:
-                qs = qs.filter(request__company_id=cid)
         if req_id:
             qs = qs.filter(request_id=req_id)
         return qs

@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_content.html" %}
 
 {% block title %}商机管理 - 企业信息化管理系统{% endblock %}
 
@@ -71,6 +71,11 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <a href="{% url 'opportunity_kanban' %}" class="btn btn-outline-info w-100">
+                    <i class="bi bi-columns-gap me-1"></i>看板视图
+                </a>
+            </div>
+            <div class="col-md-2">
                 <button class="btn btn-primary w-100" onclick="showOppModal()" data-perm="crm:opportunity:create">
                     <i class="bi bi-plus-lg me-1"></i>新建商机
                 </button>
@@ -79,6 +84,17 @@
                 <span class="text-muted" style="font-size:0.85rem" id="oppCount"></span>
             </div>
         </div>
+    </div>
+</div>
+
+<!-- 输单原因分析 -->
+<div class="card mb-3 d-none" id="lostReasonCard">
+    <div class="card-header py-2 d-flex justify-content-between align-items-center" role="button" onclick="toggleLostReason()">
+        <span><i class="bi bi-x-circle text-danger me-1"></i>输单原因分析 <small class="text-muted" id="lostReasonSummary"></small></span>
+        <i class="bi bi-chevron-down" id="lostReasonArrow"></i>
+    </div>
+    <div class="card-body" id="lostReasonBody" style="display:none">
+        <div id="lostReasonContent"></div>
     </div>
 </div>
 
@@ -214,12 +230,19 @@ const stageClass = {lead:'stage-lead',qualify:'stage-qualify',proposal:'stage-pr
 let currentPage = 1;
 let modal, detailModal;
 
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     modal = new bootstrap.Modal(document.getElementById('oppModal'));
     detailModal = new bootstrap.Modal(document.getElementById('oppDetailModal'));
     loadPipeline();
     loadClients();
     loadContacts();
+    loadLostReasonStats();
     filterAndSearch();
 });
 
@@ -324,6 +347,7 @@ async function loadOpportunities(queryString) {
                             <li><a class="dropdown-item" href="javascript:void(0)" onclick="advanceOpp(${o.id})">推进阶段</a></li>
                             <li><a class="dropdown-item text-success" href="javascript:void(0)" onclick="winOpp(${o.id})">标记成交</a></li>
                             <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="loseOpp(${o.id})">标记失败</a></li>
+                            ${o.stage === 'won' ? '<li><a class="dropdown-item text-primary" href="javascript:void(0)" onclick="convertToContract('+o.id+',\''+escapeHtml(o.name)+'\')">创建合同</a></li>' : ''}
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item text-danger" href="javascript:void(0)" onclick="deleteOpp(${o.id})">删除</a></li>
                         </ul>
@@ -451,6 +475,7 @@ async function showOppDetail(id) {
                 <dt class="col-4 text-muted">产品线</dt><dd class="col-8">${o.product_lines||'—'}</dd>
                 <dt class="col-4 text-muted">竞争对手</dt><dd class="col-8">${o.competitor||'—'}</dd>
                 <dt class="col-4 text-muted">失败原因</dt><dd class="col-8">${o.lost_reason||'—'}</dd>
+                <dt class="col-4 text-muted">关联合同</dt><dd class="col-8">${o.contract_no ? '<a href="/crm/contracts/'+o.contract_id+'/" target="_blank">'+o.contract_no+'</a>' : '—'}</dd>
                 <dt class="col-4 text-muted">负责人</dt><dd class="col-8">${o.created_by_name||'—'}</dd>
                 <dt class="col-4 text-muted">创建时间</dt><dd class="col-8">${o.created_at||'—'}</dd>
                 <dt class="col-4 text-muted">备注</dt><dd class="col-8">${o.remark||'—'}</dd>
@@ -497,6 +522,61 @@ async function loseOpp(id) {
         if (resp.ok) { loadPipeline(); filterAndSearch(); }
         else { alert('操作失败'); }
     } catch(e) { alert('操作失败'); }
+}
+
+async function convertToContract(id, oppName) {
+    if (!confirm(`确认将「${oppName}」转化为合同？`)) return;
+    try {
+        const resp = await fetch(`/api/crm/opportunities/${id}/convert_to_contract/`, {
+            method:'POST', credentials:'include',
+        });
+        if (!resp.ok) {
+            const e = await resp.json();
+            alert('创建合同失败：' + (e.detail || JSON.stringify(e)));
+            return;
+        }
+        const contract = await resp.json();
+        alert(`合同创建成功！合同编号：${contract.contract_no}`);
+        filterAndSearch();
+        loadLostReasonStats();
+        window.open('/crm/contracts/' + contract.id + '/', '_blank');
+    } catch(e) { alert('创建合同失败：' + e.message); }
+}
+
+async function loadLostReasonStats() {
+    try {
+        const resp = await fetch('/api/crm/opportunities/lost_reason_stats/', {credentials:'include'});
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const card = document.getElementById('lostReasonCard');
+        if (data.total_lost === 0) { card.classList.add('d-none'); return; }
+        card.classList.remove('d-none');
+        document.getElementById('lostReasonSummary').textContent = `共 ${data.total_lost} 条输单记录`;
+        let html = '<div class="row g-2">';
+        (data.by_reason || []).forEach(r => {
+            const pct = data.total_lost > 0 ? Math.round(r.count / data.total_lost * 100) : 0;
+            html += `<div class="col-md-4"><div class="border rounded p-2">
+                <div class="fw-bold">${r.lost_reason || '未填写'}</div>
+                <div><span class="text-danger fw-bold">${r.count}</span> 单 / <span class="text-muted">${pct}%</span></div>
+                <div class="text-muted small">涉及金额 ¥${(r.total_amount || 0).toLocaleString()}</div>
+            </div></div>`;
+        });
+        if (data.no_reason > 0) {
+            html += `<div class="col-md-4"><div class="border rounded p-2">
+                <div class="fw-bold">未填写原因</div>
+                <div><span class="text-danger fw-bold">${data.no_reason}</span> 单</div>
+            </div></div>`;
+        }
+        html += '</div>';
+        document.getElementById('lostReasonContent').innerHTML = html;
+    } catch(e) { console.error('load lost reason stats failed', e); }
+}
+
+function toggleLostReason() {
+    const body = document.getElementById('lostReasonBody');
+    const arrow = document.getElementById('lostReasonArrow');
+    body.style.display = body.style.display === 'none' ? 'block' : 'none';
+    arrow.className = body.style.display === 'none' ? 'bi bi-chevron-down' : 'bi bi-chevron-up';
 }
 
 async function deleteOpp(id) {

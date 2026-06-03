@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_content.html" %}
 
 {% block title %}通知渠道 - 企业信息化管理系统{% endblock %}
 
@@ -23,7 +23,6 @@
 }
 .channel-icon.feishu { background: #e8f5e9; color: #4caf50; }
 .channel-icon.wecom { background: #e3f2fd; color: #2196f3; }
-.channel-icon.wechat { background: #fff3e0; color: #ff9800; }
 .channel-icon.dingtalk { background: #fce4ec; color: #e91e63; }
 .channel-icon.email { background: #f3e5f5; color: #9c27b0; }
 .channel-icon.sms { background: #e0f7fa; color: #00bcd4; }
@@ -38,8 +37,9 @@
     display: flex; align-items: center; gap: 12px;
     padding: 12px; background: #f8fafc; border-radius: 8px; margin-bottom: 8px;
 }
-.qrcode-modal .modal-body { text-align: center; }
-.qrcode-modal canvas { border-radius: 8px; border: 1px solid #e2e8f0; }
+.qrcode-modal .modal-body { text-align: center; display: flex; flex-direction: column; align-items: center; }
+.qrcode-modal #qrContainer { display: inline-block; margin: 0 auto; }
+.qrcode-modal #qrContainer canvas, .qrcode-modal #qrContainer img { border-radius: 8px; border: 1px solid #e2e8f0; }
 </style>
 {% endblock %}
 
@@ -81,7 +81,7 @@
 </div>
 {% endblock %}
 
-{% block modals %}
+{% block modal %}
 <!-- 添加渠道弹窗 -->
 <div class="modal fade" id="addChannelModal" tabindex="-1">
     <div class="modal-dialog">
@@ -97,14 +97,21 @@
                         <option value="">请选择...</option>
                         <option value="feishu">飞书</option>
                         <option value="wecom">企业微信</option>
-                        <option value="wechat">微信个人号（PushPlus）</option>
                         <option value="dingtalk">钉钉</option>
+                        <option value="email">邮件</option>
                     </select>
                 </div>
                 <div id="configFields"></div>
                 <div class="mb-3">
                     <label class="form-label">应用名称</label>
                     <input type="text" class="form-control" id="appName" placeholder="如：财务部通知机器人">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">用途 <span class="text-muted" style="font-size:0.8rem;">群通知发到群聊，私信发给个人</span></label>
+                    <select class="form-select" id="channelUsage">
+                        <option value="personal">私信通知</option>
+                        <option value="broadcast">群通知</option>
+                    </select>
                 </div>
             </div>
             <div class="modal-footer">
@@ -167,8 +174,16 @@ var currentEditChannel = null;
 
 // ================================================================
 // 初始化 — 事件委托替代逐个绑定
+// DOMContentLoaded 兼容处理（脚本可能延迟执行）
 // ================================================================
-document.addEventListener('DOMContentLoaded', function() {
+// 如果 DOMContentLoaded 已触发，直接执行
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initChannels);
+} else {
+    initChannels();
+}
+
+function initChannels() {
     // 渠道卡片的所有操作（dropdown items）
     document.getElementById('channelList').addEventListener('click', handleChannelAction);
     // 绑定列表的解绑
@@ -186,7 +201,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     loadChannels();
     loadBindings();
-});
+}
 
 // ================================================================
 // 事件委托：渠道卡片
@@ -275,11 +290,10 @@ function renderChannels() {
     var html = '';
     for (var i = 0; i < channels.length; i++) {
         var ch = channels[i];
-        var statusClass = ch.status && ch.status.credentials_valid ? 'connected' : 'disconnected';
-        var statusIcon  = ch.status && ch.status.credentials_valid ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
-        var statusLabel = ch.status && ch.status.credentials_valid ? '已连接' : '未连接';
-        var statusMsg   = (!ch.status || !ch.status.credentials_valid) && ch.status && ch.status.credentials_message
-            ? '<small class="text-danger d-block mt-1">' + ch.status.credentials_message + '</small>' : '';
+        var statusClass = ch.valid ? 'connected' : 'disconnected';
+        var statusIcon  = ch.valid ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
+        var statusLabel = ch.valid ? '已连接' : '未连接';
+        var statusMsg   = '';
         var icon = getChannelIcon(ch.channel_type);
 
         html +=
@@ -288,12 +302,13 @@ function renderChannels() {
         '<div class="d-flex gap-3">' +
             '<div class="channel-icon ' + ch.channel_type + '"><i class="bi ' + icon + '"></i></div>' +
             '<div>' +
-                '<h6 class="mb-1">' + (ch.app_name || ch.channel_name) + '</h6>' +
+                '<h6 class="mb-1">' + (ch.name || ch.channel_name) + '</h6>' +
                 '<div class="d-flex gap-2 align-items-center">' +
                     '<span class="text-muted" style="font-size:0.8rem;">' + ch.channel_name + '</span>' +
                     '<span class="status-badge ' + statusClass + '">' +
                         '<i class="bi ' + statusIcon + '"></i>' + statusLabel +
                     '</span>' +
+                    (ch.usage ? '<span class="badge bg-light text-dark ms-1" style="font-size:0.7rem;">' + (ch.usage === 'broadcast' ? '📢群通知' : '💬私信') + '</span>' : '') +
                 '</div>' + statusMsg +
             '</div>' +
         '</div>' +
@@ -338,8 +353,8 @@ function renderBindings() {
         '<small class="text-muted">' + userInfo + '</small>' +
     '</div>' +
     '<span class="status-badge ' + statusClass + '">' + statusLabel + '</span>' +
-    '<button class="btn btn-outline-danger btn-sm" data-action="unbind" data-binding-id="' + b.id + '" title="解除绑定">' +
-        '<i class="bi bi-unlock"></i>' +
+    '<button class="btn btn-outline-danger btn-sm" data-action="unbind" data-binding-id="' + b.id + '" title="解除绑定（这将删除该绑定，需重新扫码绑定）">' +
+        '<i class="bi bi-x-circle"></i>' +
     '</button>' +
 '</div>';
     }
@@ -370,9 +385,17 @@ function validateCredentials(ch) {
 }
 
 function sendTestMessage(ch) {
+    // 邮件渠道：先询问测试收件人地址
+    var body = {};
+    if (ch.channel_type === 'email') {
+        var email = prompt('请输入测试收件人邮箱地址：', '');
+        if (!email) { showToast('已取消测试发送', 'info'); return; }
+        body.recipient = email;
+    }
     fetch('/api/channels/' + ch.id + '/send-test/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
         credentials: 'include'
     })
     .then(function(r) { return r.json(); })
@@ -389,7 +412,7 @@ function sendTestMessage(ch) {
 }
 
 function deleteChannel(ch) {
-    if (!confirm('确定删除渠道「' + ch.app_name + '」吗？')) return;
+    if (!confirm('确定删除渠道「' + (ch.name || ch.channel_name) + '」吗？')) return;
     fetch('/api/channels/' + ch.id + '/', {
         method: 'DELETE',
         credentials: 'include'
@@ -421,6 +444,11 @@ function showConfigModal(ch) {
         '<input type="hidden" id="editChannelId" value="' + ch.id + '">' +
         '<div class="mb-3"><label class="form-label">应用名称</label>' +
         '<input type="text" class="form-control" id="editAppName" value="' + (ch.app_name || '') + '"></div>' +
+        '<div class="mb-3"><label class="form-label">用途</label>' +
+        '<select class="form-select" id="editUsage">' +
+            '<option value="personal"' + (ch.usage === 'personal' ? ' selected' : '') + '>私信通知</option>' +
+            '<option value="broadcast"' + (ch.usage === 'broadcast' ? ' selected' : '') + '>群通知</option>' +
+        '</select></div>' +
         '<div class="mb-3"><label class="form-label">状态</label>' +
         '<select class="form-select" id="editIsActive">' +
             '<option value="true"'  + (ch.is_active ? ' selected' : '') + '>启用</option>' +
@@ -438,33 +466,41 @@ function onChannelTypeChange() {
 function renderConfigFieldsHtml(channelType) {
     var configs = {
         feishu:   [
-            { name: 'app_id',     label: 'App ID',      type: 'text',     required: true },
-            { name: 'app_secret', label: 'App Secret',   type: 'password', required: true },
-            { name: 'bot_name',   label: '机器人名称',   type: 'text',     required: false }
+            { name: 'app_id',     label: 'App ID',      type: 'text',     required: true, help: '在飞书开放平台 → 应用 → 凭证与基础信息 中查看' },
+            { name: 'app_secret', label: 'App Secret',   type: 'password', required: true, help: '同上页面，App Secret 需点击"显示"查看' },
+            { name: 'bot_name',   label: '机器人名称',   type: 'text',     required: false, help: '给这个机器人起个名字，如"财务通知"（可选）' },
+            { name: 'webhook_url',label: '群机器人Webhook',type: 'text',   required: false, help: '飞书群 → 设置 → 群机器人 → 添加机器人 获取的Webhook地址（选填，用于群广播）' }
         ],
         wecom:    [
-            { name: 'corp_id',     label: '企业ID(CorpID)', type: 'text',     required: true },
-            { name: 'corp_secret', label: '应用Secret',    type: 'password', required: true },
-            { name: 'agent_id',    label: '应用AgentID',   type: 'text',     required: true },
-            { name: 'bot_name',    label: '机器人名称',    type: 'text',     required: false }
+            { name: 'corp_id',     label: '企业ID', type: 'text',     required: true, help: '企业微信管理后台 → 我的企业 → 企业信息 → 企业ID' },
+            { name: 'corp_secret', label: '应用Secret',type: 'password', required: true, help: '企业微信管理后台 → 应用管理 → 自建应用 → 点应用名 → Secret' },
+            { name: 'agent_id',    label: '应用AgentID',type: 'text',   required: true, help: '企业微信管理后台 → 应用管理 → 自建应用 → AgentId（与Secret同页面）' },
+            { name: 'bot_name',    label: '机器人名称',  type: 'text',   required: false, help: '给这个应用起个名字，如"审批通知"（可选）' }
         ],
-        wechat:   [
-            { name: 'token',    label: 'PushPlus Token', type: 'text',     required: true },
-            { name: 'bot_name', label: '机器人名称',     type: 'text',     required: false }
+        email:    [
+            { name: 'smtp_host',     label: 'SMTP 主机',      type: 'text',     required: true, help: '如 smtp.qq.com' },
+            { name: 'smtp_port',     label: 'SMTP 端口',      type: 'number',   required: true, help: '465/587 常见端口' },
+            { name: 'smtp_user',     label: 'SMTP 用户名',    type: 'text',     required: true, help: '完整邮箱地址' },
+            { name: 'smtp_password',  label: 'SMTP 密码/授权码',type: 'password', required: true, help: 'QQ邮箱等需使用授权码而非登录密码' },
+            { name: 'from_email',    label: '发件人邮箱',    type: 'text',     required: false, help: '默认同SMTP用户名' },
+            { name: 'from_name',     label: '发件人名称',    type: 'text',     required: false, help: '收件人看到的发件人名称' },
         ],
         dingtalk: [
-            { name: 'app_key',    label: 'AppKey',      type: 'text',     required: true },
-            { name: 'app_secret', label: 'AppSecret',    type: 'password', required: true },
-            { name: 'agent_id',   label: 'AgentID',    type: 'text',     required: true },
-            { name: 'bot_name',   label: '机器人名称',  type: 'text',     required: false }
+            { name: 'app_key',    label: 'AppKey',      type: 'text',     required: true, help: '钉钉开放平台 → 应用开发 → 应用详情 → AppKey' },
+            { name: 'app_secret', label: 'AppSecret',    type: 'password', required: true, help: '钉钉开放平台 → 应用开发 → 应用详情 → AppSecret' },
+            { name: 'agent_id',   label: 'AgentID',    type: 'text',     required: true, help: '钉钉开放平台 → 应用开发 → 应用详情 → AgentId' },
+            { name: 'bot_name',   label: '机器人名称',  type: 'text',     required: false, help: '自定义名称（可选）' }
         ]
     };
     var fields = configs[channelType] || [];
-    var html = '<hr><h6>配置信息</h6>';
+    var html = '<hr><h6>配置信息</h6><div class="alert alert-info py-2 mb-3" style="font-size:0.85rem;"><i class="bi bi-info-circle me-1"></i>请从对应平台的管理后台获取以下信息：</div>';
     for (var i = 0; i < fields.length; i++) {
         var f = fields[i];
-        html += '<div class="mb-2"><label class="form-label">' + f.label + (f.required ? ' *' : '') + '</label>' +
-            '<input type="' + f.type + '" class="form-control" id="cfg_' + f.name + '" placeholder="请输入' + f.label + '"></div>';
+        html += '<div class="mb-2">' +
+            '<label class="form-label">' + f.label + (f.required ? ' <span class="text-danger">*</span>' : '') + '</label>' +
+            '<input type="' + f.type + '" class="form-control" id="cfg_' + f.name + '" placeholder="请输入' + f.label + '">' +
+            (f.help ? '<small class="text-muted d-block mt-1" style="font-size:0.8rem;"><i class="bi bi-question-circle me-1"></i>' + f.help + '</small>' : '') +
+            '</div>';
     }
     return html;
 }
@@ -476,6 +512,7 @@ function renderConfigFields(channelType, config) {
 function saveChannel() {
     var channel_type = document.getElementById('channelType').value;
     var app_name = document.getElementById('appName').value.replace(/^\s+|\s+$/g, '');
+    var usage = document.getElementById('channelUsage').value;
 
     if (!channel_type) { showToast('请选择渠道类型', 'warning'); return; }
 
@@ -491,7 +528,7 @@ function saveChannel() {
     fetch('/api/channels/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel_type: channel_type, app_name: app_name, config: config }),
+        body: JSON.stringify({ channel_type: channel_type, name: app_name, usage: usage, config: config }),
         credentials: 'include'
     })
     .then(function(resp) { return resp.ok ? {} : resp.json().then(function(d) { throw d; }); })
@@ -509,6 +546,7 @@ function updateChannel() {
     var channel_id = document.getElementById('editChannelId').value;
     var app_name = document.getElementById('editAppName').value.replace(/^\s+|\s+$/g, '');
     var is_active = document.getElementById('editIsActive').value === 'true';
+    var usage = document.getElementById('editUsage').value;
 
     var config = {};
     var inputs = document.querySelectorAll('#configChannelBody input');
@@ -522,7 +560,7 @@ function updateChannel() {
     fetch('/api/channels/' + channel_id + '/', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ app_name: app_name, is_active: is_active, config: config }),
+        body: JSON.stringify({ name: app_name, is_active: is_active, usage: usage, config: config }),
         credentials: 'include'
     })
     .then(function(resp) { return resp.ok ? {} : resp.json().then(function(d) { throw d; }); })
@@ -552,11 +590,27 @@ function showQRCode(ch) {
     .then(function(r) { return r.json(); })
     .then(function(data) {
         if (data.binding_mode === 'oauth' && data.binding_url) {
-            document.getElementById('qrcodeContainer').innerHTML =
-                '<canvas id="qrCanvas" width="200" height="200"></canvas>' +
+            var container = document.getElementById('qrcodeContainer');
+            container.innerHTML =
+                '<div id="qrContainer"></div>' +
                 '<p class="mt-2 text-muted" style="font-size:0.8rem;">请使用' + ch.channel_name + '扫码绑定</p>' +
-                '<p class="text-muted" style="font-size:0.7rem;">扫码后自动完成绑定</p>';
-            new QRCode(document.getElementById('qrCanvas'), { text: data.binding_url, width: 200, height: 200 });
+                '<p class="text-muted" style="font-size:0.7rem;">扫码后自动完成绑定</p>' +
+                '<div id="qrFallback" class="mt-2" style="display:none;"></div>';
+            try {
+                new QRCode(document.getElementById('qrContainer'), {
+                    text: data.binding_url,
+                    width: 200,
+                    height: 200,
+                    typeNumber: 10
+                });
+            } catch(e) {
+                // QR码版本不够或数据过长 — 降级显示点击链接
+                document.getElementById('qrContainer').innerHTML =
+                    '<div class="alert alert-warning py-2" style="font-size:0.85rem;">' +
+                    '<i class="bi bi-exclamation-triangle me-1"></i>二维码生成失败，请点击下方链接直接绑定：</div>' +
+                    '<a href="' + data.binding_url + '" target="_blank" class="btn btn-outline-primary btn-sm w-100" style="word-break:break-all;">' +
+                    '<i class="bi bi-box-arrow-up-right me-1"></i>打开绑定链接</a>';
+            }
         } else if (data.binding_mode === 'manual') {
             document.getElementById('qrcodeContainer').innerHTML =
                 '<div class="text-start">' +
@@ -632,7 +686,6 @@ function getChannelIcon(type) {
     var icons = {
         feishu:   'bi-chat-quote',
         wecom:    'bi-people',
-        wechat:   'bi-wechat',
         dingtalk: 'bi-chat-dots',
         email:    'bi-envelope',
         sms:      'bi-phone'
@@ -641,5 +694,5 @@ function getChannelIcon(type) {
 }
 
 // ================================================================
-
+</script>
 {% endblock %}

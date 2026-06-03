@@ -18,7 +18,6 @@ from apps.core.permissions import RoleRequired
 # 从共享模块导入工具函数
 from .views_common import (
     SafePageNumberPagination,
-    get_user_companies,
 )
 
 
@@ -31,8 +30,8 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_class = ExpenseFilter
     search_fields = ['description', 'supplier', 'expense_category']
-    ordering_fields = ['date', 'expense_date', 'amount', 'created_at']
-    ordering = ['-expense_date', '-created_at']
+    ordering_fields = ['date', 'amount', 'created_at']
+    ordering = ['-date', '-created_at']
     authentication_classes = [CSRFExemptSessionAuthentication]
     permission_classes = [permissions.IsAuthenticated, RoleRequired]
     action_perms = {
@@ -44,11 +43,14 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        # 自动多租户：普通用户看所有关联公司数据，超管看全部
-        cids = get_user_companies(self.request.user)
-        if cids is not None:
-            qs = qs.filter(company_id__in=cids)
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'expense', 'read')
+        if companies is None:
+            qs = super().get_queryset()
+        else:
+            qs = super().get_queryset().filter(company_id__in=companies)
         return qs.select_related('company', 'project', 'operator', 'approval_flow')
 
     def perform_create(self, serializer):
@@ -121,9 +123,9 @@ class ExpenseViewSet(viewsets.ModelViewSet):
         if company_id:
             queryset = queryset.filter(company_id=company_id)
         if date_start:
-            queryset = queryset.filter(expense_date__gte=date_start)
+            queryset = queryset.filter(date__gte=date_start)
         if date_end:
-            queryset = queryset.filter(expense_date__lte=date_end)
+            queryset = queryset.filter(date__lte=date_end)
         records = queryset.select_related('company', 'project', 'operator')
         buf = export_expense_records(list(records))
         return make_export_response(buf, f'支出记录_{timezone.now().strftime("%Y%m%d")}.xlsx')
@@ -167,7 +169,6 @@ class ExpenseViewSet(viewsets.ModelViewSet):
                     project_id=row_data.get('project'),
                     expense_type=row_data.get('expense_type') or 'other',
                     amount=row_data['amount'],
-                    expense_date=row_data['date'],
                     date=row_data['date'],
                     status=row_data.get('status', 'pending'),
                     supplier=row_data.get('supplier', ''),

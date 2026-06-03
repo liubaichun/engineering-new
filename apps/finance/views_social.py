@@ -30,14 +30,13 @@ class CompanySocialConfigViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        # 多租户隔离：普通用户只看本公司社保配置
         if not self.request.user.is_authenticated:
             return CompanySocialConfig.objects.none()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                return CompanySocialConfig.objects.filter(company_id=user.company_id)
-        return CompanySocialConfig.objects.all()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'social_security', 'read')
+        if companies is None:
+            return super().get_queryset()
+        return super().get_queryset().filter(company_id__in=companies)
 
 
 class SocialRecordViewSet(viewsets.ModelViewSet):
@@ -60,12 +59,13 @@ class SocialRecordViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                qs = qs.filter(company_id=user.company_id)
-        return qs
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'social_security', 'read')
+        if companies is None:
+            return super().get_queryset()
+        return super().get_queryset().filter(company_id__in=companies)
 
     @action(detail=False, methods=['post'])
     def import_records(self, request):

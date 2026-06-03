@@ -185,9 +185,8 @@ class RoleRequired(BasePermission):
     VIEW_CATEGORY_MAP: Dict[str, Tuple[str, str]] = {
         # core app → DB category 是 'system'（不是 'core'）
         'UserViewSet': ('system', 'user'),
-        'CompanyRoleViewSet': ('system', 'role'),
         'LoginLogViewSet': ('system', 'log'),
-        'OperationAuditLogViewSet': ('system', 'log'),
+        'OperationAuditLogViewSet': ('system', 'audit_log'),
         'PermissionAuditLogViewSet': ('system', 'log'),
         'SystemSettingViewSet': ('system', 'setting'),
         'NotificationViewSet': ('notifications', 'channel'),
@@ -195,23 +194,27 @@ class RoleRequired(BasePermission):
         'FinanceCompanyViewSet': ('finance', 'company'),
         # core app 下的 EmployeeCompanyViewSet → finance:employee
         'EmployeeCompanyViewSet': ('finance', 'employee'),
-        # approvals app：model 名是 ApprovalFlow/ApprovalNode → DB category=approval
-        'ApprovalFlowViewSet': ('approval', 'flow'),
-        'ApprovalNodeViewSet': ('approval', 'node'),
-        'ApprovalTemplateViewSet': ('approval', 'template'),
+        # approvals app：model 名是 ApprovalFlow/ApprovalNode → 模块名='approval'
+        'ApprovalFlowViewSet': ('approval', 'approval'),
+        'ApprovalNodeViewSet': ('approval', 'approval'),
+        'ApprovalTemplateViewSet': ('approval', 'approval'),
         # crm app：ClientViewSet 对应 DB resource='customer'
         'ClientViewSet': ('crm', 'customer'),
+        'ClientSourceViewSet': ('crm', 'customer'),
         # finance app 特殊资源名
         'BankAccountViewSet': ('finance', 'bank'),
         'CompanySocialConfigViewSet': ('finance', 'company'),
         'EmployeeViewSet': ('finance', 'employee'),
         'WageRecordViewSet': ('finance', 'wage'),
         'InvoiceViewSet': ('finance', 'invoice'),
-        'MaterialViewSet': ('material', 'stock'),  # material:stock 是 DB 中的资源名
+        'SocialRecordViewSet': ('finance', 'social_security'),  # model=SocialRecord, UMP module=social_security
+        'MaterialViewSet': ('operations', 'material'),  # material module is in operations category
+        # files app
+        'FileCategoryViewSet': ('files', 'file'),  # model=FileCategory, UMP module=file
         # repair app
-        'RepairRequestViewSet': ('repair', 'repair_request'),
-        'RepairImageViewSet': ('repair', 'repair_request'),
-        'RepairSparePartViewSet': ('repair', 'repair_request'),
+        'RepairRequestViewSet': ('operations', 'repair'),
+        'RepairImageViewSet': ('operations', 'repair'),
+        'RepairSparePartViewSet': ('operations', 'repair'),
     }
 
     @staticmethod

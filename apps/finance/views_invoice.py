@@ -16,14 +16,18 @@ from apps.core.exceptions import api_error, ErrorCode
 # 从共享模块导入工具函数
 from .views_common import (
     SafePageNumberPagination,
-    get_user_companies,
 )
+
+# 导入校验用
+import io
+from openpyxl import load_workbook
+from apps.finance.models import Company as FinanceCompany
 
 
 class InvoiceViewSet(viewsets.ModelViewSet):
     """发票视图集"""
 
-    queryset = Invoice.objects.all()
+    queryset = Invoice.objects.all().select_related('company', 'contract')
     serializer_class = InvoiceSerializer
     pagination_class = SafePageNumberPagination
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -51,12 +55,15 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = super().get_queryset()
-        # 自动多租户：普通用户看所有关联公司数据，超管看全部
-        # 兼容 company_id=NULL 的遗留数据（这些视为公司主账号数据）
-        cids = get_user_companies(self.request.user)
-        if cids is not None:
-            qs = qs.filter(Q(company_id__in=cids) | Q(company_id__isnull=True))
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+
+        companies = get_module_companies(self.request.user, 'invoice', 'read')
+        if companies is None:
+            qs = super().get_queryset()
+        else:
+            qs = super().get_queryset().filter(Q(company_id__in=companies) | Q(company_id__isnull=True))
         return qs.select_related('company', 'project', 'red_invoice_for', 'matched_bank_statement')
 
     def perform_create(self, serializer):
@@ -91,6 +98,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice.status = 'paid'
         try:
             invoice.save(update_fields=['status'])
+            # 同步更新关联合同的付款计划
+            if invoice.contract_id:
+                from apps.crm.models import PaymentPlan
+
+                PaymentPlan.objects.filter(
+                    contract_id=invoice.contract_id,
+                    status__in=['pending', 'partial'],
+                ).update(status='paid', paid_date=timezone.now().date())
         except Exception as e:
             return api_error(ErrorCode.INTERNAL_ERROR, f'标记支付失败：{str(e)}', status_code=500)
         return Response({'status': 'success', 'message': '发票已标记为已支付'})
@@ -217,11 +232,32 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             stmt = BankStatement.objects.get(id=statement_id, company_id=invoice.company_id)
         except BankStatement.DoesNotExist:
             return api_error(ErrorCode.NOT_FOUND, '银行流水不存在', status_code=404)
+
+        # 校验方向匹配：收入发票→银行收入，支出发票→银行支出
+        inv_type_name = 'income' if invoice.type == 'income' else 'expense'
+        if stmt.direction != inv_type_name:
+            return api_error(
+                ErrorCode.VALIDATION_ERROR,
+                f'方向不匹配：{invoice.get_type_display()}不能核销{stmt.get_direction_display()}银行流水',
+            )
+
         invoice.matched_bank_statement = stmt
         invoice.payment_date = stmt.transaction_date
         invoice.status = 'paid'
         try:
             invoice.save(update_fields=['matched_bank_statement', 'payment_date', 'status'])
+            # 同步更新银行流水核销状态
+            stmt.reconcile_status = 'matched'
+            stmt.reconcile_time = timezone.now()
+            stmt.save(update_fields=['reconcile_status', 'reconcile_time'])
+            # 如果发票关联了合同，尝试同步付款计划
+            if invoice.contract_id:
+                from apps.crm.models import PaymentPlan
+
+                PaymentPlan.objects.filter(
+                    contract_id=invoice.contract_id,
+                    status__in=['pending', 'partial'],
+                ).update(status='paid', paid_date=stmt.transaction_date)
         except Exception as e:
             return api_error(ErrorCode.INTERNAL_ERROR, f'核销失败：{str(e)}', status_code=500)
         return Response({'success': True, 'message': f'已核销：{stmt.counterparty_name} ¥{stmt.amount}'})
@@ -229,9 +265,14 @@ class InvoiceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def unmatch_statement(self, request, pk=None):
         invoice = self.get_object()
+        stmt = invoice.matched_bank_statement
         invoice.matched_bank_statement = None
         try:
             invoice.save(update_fields=['matched_bank_statement'])
+            if stmt:
+                stmt.reconcile_status = 'unmatched'
+                stmt.reconcile_time = None
+                stmt.save(update_fields=['reconcile_status', 'reconcile_time'])
         except Exception as e:
             return api_error(ErrorCode.INTERNAL_ERROR, f'取消核销失败：{str(e)}', status_code=500)
         return Response({'success': True, 'message': '已取消核销'})
@@ -241,7 +282,7 @@ class InvoiceViewSet(viewsets.ModelViewSet):
         invoice = self.get_object()
         from apps.finance.models import BankStatement
 
-        candidates = BankStatement.objects.filter(company_id=invoice.company_id, status='unmatched').order_by(
+        candidates = BankStatement.objects.filter(company_id=invoice.company_id, reconcile_status='unmatched').order_by(
             '-transaction_date'
         )[:50]
         from apps.finance.serializers import BankStatementSerializer
@@ -290,6 +331,53 @@ class InvoiceViewSet(viewsets.ModelViewSet):
             if hasattr(user, 'company_id') and user.company_id:
                 company_id = user.company_id
             company_id = getattr(request, 'auth_company', None) and request.auth_company.id or company_id
+
+        # ─── 发票类型校验：检查Excel中的购方/销方是否与所选入口类型匹配 ──
+        if company_id:
+            try:
+                company_name = FinanceCompany.objects.get(id=company_id).name
+                if company_name:
+                    file.seek(0)
+                    wb = load_workbook(io.BytesIO(file.read()))
+                    ws = wb.active
+                    # 找表头行
+                    header_row = None
+                    for row in ws.iter_rows(values_only=True):
+                        row_str = [str(v or '') for v in row]
+                        if any('购方名称' in s or '销方名称' in s for s in row_str):
+                            header_row = row_str
+                            break
+                    if header_row:
+                        try:
+                            buyer_idx = next(i for i, h in enumerate(header_row) if '购方名称' in h)
+                            seller_idx = next(i for i, h in enumerate(header_row) if '销方名称' in h)
+                            # 取第一行数据
+                            data_rows = list(ws.iter_rows(min_row=ws._current_row + 1, values_only=True))
+                            if data_rows and data_rows[0]:
+                                first_buyer = str(data_rows[0][buyer_idx] or '').strip()
+                                first_seller = str(data_rows[0][seller_idx] or '').strip()
+                                cn = company_name.strip()
+                                if invoice_type == 'expense':
+                                    # 收到发票：我方是购方，Excel中购方名称应包含公司名
+                                    if first_buyer and cn not in first_buyer and first_buyer not in cn:
+                                        return api_error(
+                                            ErrorCode.VALIDATION_ERROR,
+                                            f'检测到Excel中购方名称为「{first_buyer}」，与当前公司「{cn}」不匹配。'
+                                            f'您可能在「收到发票」入口上传了开出发票的Excel，请检查后重试。',
+                                        )
+                                else:
+                                    # 开出发票：我方是销方，Excel中销方名称应包含公司名
+                                    if first_seller and cn not in first_seller and first_seller not in cn:
+                                        return api_error(
+                                            ErrorCode.VALIDATION_ERROR,
+                                            f'检测到Excel中销方名称为「{first_seller}」，与当前公司「{cn}」不匹配。'
+                                            f'您可能在「开出发票」入口上传了收到发票的Excel，请检查后重试。',
+                                        )
+                        except (StopIteration, IndexError):
+                            pass  # 列名找不到就不校验
+                    file.seek(0)
+            except Exception:
+                pass  # 校验失败不阻塞导入
 
         try:
             from apps.core.import_excel import import_invoice

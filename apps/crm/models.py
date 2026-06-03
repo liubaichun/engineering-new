@@ -83,16 +83,8 @@ class Supplier(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.code:
-            year = self.created_at.year if self.created_at else 2026
-            last = Supplier.objects.filter(code__startswith=f'GYS-{year}-').order_by('-code').first()
-            if last and last.code:
-                try:
-                    seq = int(last.code.split('-')[-1]) + 1
-                except (ValueError, IndexError):
-                    seq = 1
-            else:
-                seq = 1
-            self.code = f'GYS-{year}-{seq:04d}'
+            from apps.core.models import generate_code
+            self.code = generate_code('supplier', Supplier)
         super().save(*args, **kwargs)
 
 
@@ -157,16 +149,8 @@ class Client(models.Model):
 
     def save(self, *args, **kwargs):
         if not self.code:
-            year = self.created_at.year if self.created_at else 2026
-            last = Client.objects.filter(code__startswith=f'KH-{year}-').order_by('-code').first()
-            if last and last.code:
-                try:
-                    seq = int(last.code.split('-')[-1]) + 1
-                except (ValueError, IndexError):
-                    seq = 1
-            else:
-                seq = 1
-            self.code = f'KH-{year}-{seq:04d}'
+            from apps.core.models import generate_code
+            self.code = generate_code('client', Client)
         super().save(*args, **kwargs)
 
 
@@ -453,6 +437,12 @@ class Opportunity(models.Model):
     contact = models.ForeignKey(
         Contact, on_delete=models.SET_NULL, related_name='opportunities', verbose_name='联系人', null=True, blank=True
     )
+    contract = models.ForeignKey(
+        Contract, on_delete=models.SET_NULL, related_name='opportunities', verbose_name='关联合同', null=True, blank=True
+    )
+    project = models.ForeignKey(
+        'tasks.Project', on_delete=models.SET_NULL, related_name='opportunities', verbose_name='关联项目', null=True, blank=True
+    )
     name = models.CharField('商机名称', max_length=300)
     stage = models.CharField('销售阶段', max_length=20, choices=STAGE_CHOICES, default='lead')
     priority = models.CharField('优先级', max_length=20, choices=PRIORITY_CHOICES, default='medium')
@@ -486,3 +476,38 @@ class Opportunity(models.Model):
         if self.stage in stage_probabilities and not self.probability:
             self.probability = stage_probabilities[self.stage]
         super().save(*args, **kwargs)
+
+
+class ContractMilestone(models.Model):
+    """合同里程碑 — 项目阶段交付和收款计划"""
+
+    STATUS_CHOICES = [
+        ('pending', '待开始'),
+        ('in_progress', '进行中'),
+        ('completed', '已完成'),
+        ('delayed', '已延期'),
+    ]
+
+    contract = models.ForeignKey(
+        Contract, on_delete=models.CASCADE, related_name='milestones', verbose_name='关联合同'
+    )
+    name = models.CharField('里程碑名称', max_length=200)
+    description = models.TextField('描述', blank=True, null=True)
+    plan_date = models.DateField('计划完成日期')
+    actual_date = models.DateField('实际完成日期', null=True, blank=True)
+    amount = models.DecimalField('里程碑金额', max_digits=15, decimal_places=2, default=0,
+                                  help_text='该里程碑对应的收款/付款金额')
+    status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
+    sort_order = models.IntegerField('排序', default=0)
+    remark = models.TextField('备注', blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'crm_contract_milestone'
+        verbose_name = '合同里程碑'
+        verbose_name_plural = verbose_name
+        ordering = ['sort_order', 'plan_date']
+
+    def __str__(self):
+        return f'{self.contract.contract_no} - {self.name}'

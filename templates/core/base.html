@@ -174,6 +174,7 @@
         </a>
     </div>
 </nav>
+{% endblock %}
 
 <!-- Main Content -->
 <main class="main-content">
@@ -224,13 +225,12 @@ function getCsrfToken() {
     return getCookie('csrftoken') || '';
 }
 
-// 全局fetch超时保护：所有页面自动获得，3秒超时（超过则跳转登录，不让用户长时间等待）
-// 重要：所有需要全局取消的fetch必须用 _sharedControllers 数组注册
-var _sharedControllers = [];  // 共享AbortController列表，用于页面导航时批量中止
+// 全局fetch超时保护：所有页面自动获得，3秒超时
+var _sharedControllers = [];
 function fetchWithTimeout(url, options, timeoutMs) {
     if (typeof timeoutMs === 'object') { options = timeoutMs; timeoutMs = 3000; }
     var controller = new AbortController();
-    _sharedControllers.push(controller);  // 注册，以便导航时能中止
+    _sharedControllers.push(controller);
     var timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs || 3000);
     return fetch(url, Object.assign({}, options, { signal: controller.signal }))
         .finally(function() {
@@ -240,7 +240,6 @@ function fetchWithTimeout(url, options, timeoutMs) {
         });
 }
 
-// 页面导航时，中止所有进行中的fetch（防止旧请求的403把当前正在加载的页面拽到登录页）
 function abortAllFetches() {
     _sharedControllers.forEach(function(c) { c.abort(); });
     _sharedControllers = [];
@@ -293,7 +292,6 @@ function showToast(msg, type, duration) {
     };
     toast.innerHTML = '<i class="bi ' + (icons[type] || icons.info) + '"></i><span>' + msg + '</span>';
     container.appendChild(toast);
-    // 触发 reflow 然后加 show 类让它滑入
     toast.offsetHeight;
     toast.style.opacity = '1';
     toast.style.transform = 'translateX(0)';
@@ -304,7 +302,6 @@ function showToast(msg, type, duration) {
     }, duration);
 }
 
-// Sidebar active state
 var USER_PERMS = { codes: [], menu_codes: [], is_superuser: false };
 
 function loadPermissions() {
@@ -331,10 +328,8 @@ function hasPermission(permCode) {
     if (!permCode) return true;
     if (USER_PERMS.is_superuser) return true;
     var codes = USER_PERMS.codes || [];
-    // 超级用户标记 '*' 放行所有
     if (codes.length === 1 && codes[0] === '*') return true;
-    // 兼容.add↔.create, .remove↔.delete
-    var altCode = permCode.replace(/\.add$/, '.create').replace(/\.remove$/, '.delete');
+    var altCode = permCode.replace(/\\.add$/, '.create').replace(/\\.remove$/, '.delete');
     return codes.includes(permCode) || codes.includes(altCode);
 }
 
@@ -349,32 +344,26 @@ function hideUnauthorizedButtons() {
 }
 
 function waitForPermissions(callback) {
-    // 已知is_superuser，直接放行（无需等待API）
     if (window.__isSuperuserKnown && window.__userIsSuperuser) {
         callback();
         return;
     }
-    // 如果已有权限数据，直接回调（loadPermissions 已完成）
     if (USER_PERMS.codes && USER_PERMS.codes.length > 0) {
         callback();
         return;
     }
-    // 如果 is_superuser，直接回调（无需等待API返回）
     if (USER_PERMS.is_superuser) {
         window.__isSuperuserKnown = true;
         window.__userIsSuperuser = true;
         callback();
         return;
     }
-    // 标记is_superuser未知，等API返回后决定
     window.__isSuperuserKnown = false;
-    // 非superuser才等待API权限数据（网络正常时通常毫秒级返回）
     var attempts = 0;
     var interval = setInterval(function() {
         attempts++;
         if (window.__loadPermsDone) {
             clearInterval(interval);
-            // API返回后重新检查is_superuser
             if (USER_PERMS.is_superuser) {
                 window.__isSuperuserKnown = true;
                 window.__userIsSuperuser = true;
@@ -383,7 +372,7 @@ function waitForPermissions(callback) {
                 window.__userIsSuperuser = false;
             }
             callback();
-        } else if (attempts >= 100) { // 最多10秒，网络异常时放弃等待
+        } else if (attempts >= 100) {
             clearInterval(interval);
             window.__isSuperuserKnown = true;
             window.__userIsSuperuser = false;
@@ -393,7 +382,8 @@ function waitForPermissions(callback) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    // 检查是否已登录（通过session cookie），同时获取is_superuser状态
+    // 【修复2-fix2】iframe内页面跳过auth check（父页面已经做过了）
+
     fetchWithTimeout('/api/core/auth/user/', {
         credentials: 'include'
     }, 3000)
@@ -401,12 +391,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!response.ok) {
             window.location.href = '/login/';
         } else {
-            // 立即从响应体获取is_superuser，不等loadPermissions API
             response.json().then(function(data) {
                 window.__isSuperuserKnown = true;
                 window.__userId = data.user_id || data.user?.id || null;
                 window.__userIsSuperuser = data.is_superuser || false;
-                // admin(id=1)直接标记superuser，同时更新USER_PERMS让所有页面立即生效
                 if (data.user && data.user.id === 1) {
                     window.__userIsSuperuser = true;
                     if (typeof USER_PERMS !== 'undefined') {
@@ -418,7 +406,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     })
     .catch(function(err) {
-        if (err.name === 'AbortError') return;  // 页面导航时中止，不跳登录
+        if (err.name === 'AbortError') return;
         window.location.href = '/login/';
     });
 });

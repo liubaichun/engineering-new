@@ -21,14 +21,14 @@ class CompanyContextMiddleware(MiddlewareMixin):
             return
 
         # 从 session 获取当前公司
-        from apps.core.models import UserCompanyPermission
+        from apps.core.models import UserModulePermission
         from apps.finance.models import Company
 
         company_id = request.session.get('current_company_id')
 
         if company_id:
-            # 验证用户在 session 指定的该公司有 UCP
-            if UserCompanyPermission.objects.filter(user=request.user, company_id=company_id, is_granted=True).exists():
+            # 验证用户在 session 指定的该公司有UMP权限
+            if UserModulePermission.objects.filter(user=request.user, company_id=company_id).exists():
                 try:
                     company = Company.objects.get(id=company_id)
                     request.auth_company = company  # type: ignore[attr-defined]
@@ -36,19 +36,18 @@ class CompanyContextMiddleware(MiddlewareMixin):
                 except Company.DoesNotExist:
                     pass
 
-        # 无 session 或 session 公司无效：从 UCP 取第一个有权限的公司
-        first_ucp = (
-            UserCompanyPermission.objects.filter(user=request.user, is_granted=True)
-            .select_related('module')
+        # 无 session 或 session 公司无效：从 UMP 取第一个有权限的公司
+        first_ump = (
+            UserModulePermission.objects.filter(user=request.user)
             .order_by('company_id')
             .first()
         )
 
-        if first_ucp:
+        if first_ump:
             try:
-                company = Company.objects.get(id=first_ucp.company_id)
+                company = Company.objects.get(id=first_ump.company_id)
                 request.auth_company = company  # type: ignore[attr-defined]
-                request.session['current_company_id'] = first_ucp.company_id
+                request.session['current_company_id'] = first_ump.company_id
             except Company.DoesNotExist:
                 pass
 

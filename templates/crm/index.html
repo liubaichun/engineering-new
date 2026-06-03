@@ -4,7 +4,9 @@
 
 {% block styles %}
 <style>
-iframe.tab-iframe { width: 100% !important; border: none; background: transparent; display: block; }
+.tab-content { position: relative; min-height: calc(100vh - 122px); }
+.tab-content > div { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+iframe.tab-iframe { width: 100% !important; height: 100% !important; border: none; background: transparent; display: block; }
 </style>
 {% endblock %}
 
@@ -32,18 +34,18 @@ iframe.tab-iframe { width: 100% !important; border: none; background: transparen
     </li>
 </ul>
 
-<div class="tab-content" style="width:100%; margin:0 -32px;">
+<div class="tab-content">
     <div id="clients" style="display:{% if active_tab == 'clients' or not active_tab %}block{% else %}none{% endif %};">
-        <iframe src="/crm/clients/" class="tab-iframe" id="frame-clients" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/crm/clients/" class="tab-iframe" id="frame-clients"></iframe>
     </div>
     <div id="contracts" style="display:{% if active_tab == 'contracts' %}block{% else %}none{% endif %};">
-        <iframe src="/crm/contracts/" class="tab-iframe" id="frame-contracts" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/crm/contracts/" class="tab-iframe" id="frame-contracts"></iframe>
     </div>
     <div id="suppliers" style="display:{% if active_tab == 'suppliers' %}block{% else %}none{% endif %};">
-        <iframe src="/crm/suppliers/" class="tab-iframe" id="frame-suppliers" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/crm/suppliers/" class="tab-iframe" id="frame-suppliers"></iframe>
     </div>
     <div id="opportunities" style="display:{% if active_tab == 'opportunities' %}block{% else %}none{% endif %};">
-        <iframe src="/crm/opportunities/" class="tab-iframe" id="frame-opportunities" onload="resizeIframe(this)" style="height:600px;width:100%;"></iframe>
+        <iframe src="/crm/opportunities/" class="tab-iframe" id="frame-opportunities"></iframe>
     </div>
 </div>
 
@@ -61,12 +63,6 @@ function showTab(tab) {
             if (link) link.classList.remove('active');
         }
     });
-}
-function resizeIframe(iframe) {
-    try {
-        var h = iframe.contentWindow.document.body.scrollHeight;
-        if (h > 0) iframe.style.height = Math.max(h + 50, 600) + 'px';
-    } catch(e) {}
 }
 </script>
 {% endblock %}

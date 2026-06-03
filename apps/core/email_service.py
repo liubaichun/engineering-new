@@ -110,21 +110,27 @@ def _send_email_to_user(user, subject, content_lines, action_url=None, action_te
 def _send_to_binding_channel(binding, subject, content_str):
     """通过用户的通知绑定渠道发送消息（统一走 channels 新框架）"""
     try:
-        from apps.channels.services import ChannelNotificationService
+        from apps.channels.services import send_notification
 
-        result = ChannelNotificationService.send(
-            user=binding.user,
+        # 从 channel 关联的 company 获取公司ID
+        company_id = binding.channel.company_id
+        if not company_id:
+            company_id = getattr(binding.user, 'current_company_id', None)
+
+        result = send_notification(
+            company_id=company_id,
             title=subject,
             content=content_str,
+            user_ids=[binding.user_id],
             notification_type='approval',
         )
-        if result['sent'] > 0:
-            logger.info(f'[Notify] Sent via {binding.channel.channel_type} to user {binding.user.username}')
+        if result.get('sent', 0) > 0:
+            logger.info(f'[Notify] 通过 {binding.channel.channel_type} 发送给 {binding.user.username}')
         else:
-            logger.warning(f'[Notify] Failed to send via {binding.channel.channel_type}: {result["details"]}')
-        return True
+            logger.warning(f'[Notify] 发送失败: {result.get("details", "未知原因")}')
+        return result.get('sent', 0) > 0
     except Exception as e:
-        logger.warning(f'[Notify] Failed to send via binding {binding.id}: {e}')
+        logger.warning(f'[Notify] 异常: binding={binding.id}, {e}')
         return False
 
 

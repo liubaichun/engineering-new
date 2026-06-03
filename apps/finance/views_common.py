@@ -68,16 +68,22 @@ class SafePageNumberPagination(PageNumberPagination):
 
 
 def _get_user_company_id(user):
-    """从登录用户自动提取当前公司ID（用于多租户自动上下文）"""
+    """从登录用户自动提取当前公司ID（用于多租户自动上下文）
+    
+    优先级：UMP权限 → UserCompanyRole归属 → user.company_id
+    2026-06-02: 新增UMP优先（旧UCP已空，不再查询）
+    """
     if not user or not user.is_authenticated:
         return None
     if user.is_superuser:
         return None
-    from apps.core.models import UserCompanyPermission
+    from apps.core.models import UserModulePermission
 
-    first_ucp = UserCompanyPermission.objects.filter(user=user, is_granted=True).order_by('company_id').first()
-    if first_ucp:
-        return first_ucp.company_id
+    # UMP位掩码权限（新系统）
+    first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
+    if first_ump:
+        return first_ump.company_id
+    # 用户模型默认公司
     if hasattr(user, 'company_id') and user.company_id:
         return user.company_id
     return None
@@ -87,16 +93,22 @@ def get_user_companies(user):
     """
     返回用户有权限的全部公司 ID 列表。
     超管 → None（不过滤）；普通用户 → list[company_id]
+    
+    2026-06-02: 改用UMP位掩码查询取代旧的UCP+UCR
     """
     if not user or not user.is_authenticated:
         return []
     if user.is_superuser:
         return None
-    from apps.core.models import UserCompanyPermission
+    from apps.core.models import UserModulePermission
 
-    cids = list(
-        UserCompanyPermission.objects.filter(user=user, is_granted=True).values_list('company_id', flat=True).distinct()
+    # UMP位掩码（新系统）
+    ump_cids = set(
+        UserModulePermission.objects.filter(user=user)
+        .values_list('company_id', flat=True)
+        .distinct()
     )
+    cids = list(ump_cids)
     return cids if cids else []
 
 
@@ -147,14 +159,8 @@ def render_bank_import_page(request):
     if request.user.is_superuser:
         companies = Company.objects.filter(status='active').order_by('id')
     else:
-        from apps.core.models import UserCompanyPermission
-
-        company_ids = (
-            UserCompanyPermission.objects.filter(user=request.user, is_granted=True)
-            .values_list('company_id', flat=True)
-            .distinct()
-        )
-        companies = Company.objects.filter(id__in=company_ids, status='active').order_by('id')
+        company_ids = get_user_companies(request.user)
+        companies = Company.objects.filter(id__in=company_ids, status='active').order_by('id') if company_ids else Company.objects.none()
     companies_list = list(companies.values('id', 'name'))
     all_accounts = BankAccount.objects.filter(company__in=companies, is_active=True)
     accounts_by_company = {}

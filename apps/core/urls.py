@@ -20,8 +20,7 @@ from .views_log import (
     OperationAuditLogViewSet,
 )
 from .views_permission import PermissionViewSet, PermissionAuditLogViewSet
-from .views_settings import SystemSettingViewSet, FinanceCompanyViewSet, CompanyRoleDefViewSet
-from .views_role import CompanyRoleViewSet
+from .views_settings import SystemSettingViewSet, FinanceCompanyViewSet, CodingRuleViewSet
 from .views_ucp import UserCompanyPermissionViewSet
 from .views_health import health_check
 from .middleware_timing import metrics_view
@@ -35,9 +34,8 @@ router.register(r'operation-audit-logs', OperationAuditLogViewSet, basename='ope
 router.register(r'settings', SystemSettingViewSet, basename='system-setting')
 router.register(r'companies', FinanceCompanyViewSet, basename='finance-company')
 router.register(r'user-company-permissions', UserCompanyPermissionViewSet, basename='user-company-permission')
-router.register(r'company-roles', CompanyRoleViewSet, basename='company-role')
-router.register(r'company-role-defs', CompanyRoleDefViewSet, basename='company-role-def')
 router.register(r'permissions', PermissionViewSet, basename='permission')
+router.register(r'coding-rules', CodingRuleViewSet, basename='coding-rule')
 
 urlpatterns = [
     # 认证相关视图

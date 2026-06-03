@@ -13,6 +13,7 @@ from .models_bank import BankAccount, BankStatement
 from .models_budget import Budget
 from .models_account import Account
 from .models_arap import RelatedPartyLedger
+from .models_amortization import ExpenseAmortization, AmortizationEntry
 
 __all__ = [
     'Company',

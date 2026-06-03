@@ -11,6 +11,7 @@ from django.db.models.query import QuerySet
 logger = logging.getLogger(__name__)
 
 from .models import LoginLog, OperationAuditLog
+from django.db.models import Count
 from .serializers import (
     LoginLogSerializer,
     OperationAuditLogSerializer,
@@ -66,16 +67,14 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self) -> QuerySet:
-        queryset = OperationAuditLog.objects.select_related('user')
-        user = self.request.user
-
-        # 超级管理员：跨公司查看全部；普通管理员：仅本公司
-        if user.is_superuser:
-            pass  # 不过滤
-        elif hasattr(user, 'company_id') and user.company_id:
-            queryset = queryset.filter(company_id=user.company_id)
+        if not self.request.user.is_authenticated:
+            return OperationAuditLog.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'audit_log', 'read')
+        if companies is None:
+            queryset = OperationAuditLog.objects.select_related('user')
         else:
-            queryset = queryset.filter(company_id__isnull=True)
+            queryset = OperationAuditLog.objects.filter(company_id__in=companies).select_related('user')
 
         app_label = self.request.query_params.get('app_label')
         if app_label:
@@ -109,3 +108,29 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         records = queryset[:5000]  # 最多导出5000条
         buf = export_audit_logs(list(records))
         return make_export_response(buf, f'审计日志_{timezone.now().strftime("%Y%m%d")}.xlsx')
+
+    @action(detail=False, methods=['get'])
+    def statistics(self, request: Request) -> Response:
+        """审计日志统计 — 返回总记录数和各操作类型的数量"""
+        queryset = self.get_queryset()
+        # 移除默认排序以提高聚合性能
+        queryset = queryset.order_by()
+
+        total = queryset.count()
+        today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+
+        action_counts = queryset.values('action').annotate(count=Count('id'))
+        stats = {'create': 0, 'update': 0, 'delete': 0}
+        for item in action_counts:
+            if item['action'] in stats:
+                stats[item['action']] = item['count']
+
+        today_count = queryset.filter(created_at__gte=today_start).count()
+
+        return Response({
+            'total': total,
+            'create': stats['create'],
+            'update': stats['update'],
+            'delete': stats['delete'],
+            'today': today_count,
+        })

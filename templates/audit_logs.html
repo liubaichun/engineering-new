@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{% extends "base_content.html" %}
 
 {% block title %}操作审计日志 - 企业信息化管理系统{% endblock %}
 
@@ -253,6 +253,10 @@ async function loadLogs(page = 1) {
     });
 
     try {
+        // 统计独立加载（不阻塞列表）
+        loadStatistics();
+
+        // 加载日志列表
         const res = await fetch(`/api/core/operation-audit-logs/?${params}`, { credentials: 'include' });
         if (res.status === 403 || res.status === 401) {
             container.innerHTML = '<div class="empty-state"><i class="bi bi-lock"></i><p>无权限查看审计日志（仅管理员可访问）</p></div>';
@@ -262,9 +266,25 @@ async function loadLogs(page = 1) {
         totalCount = data.count || 0;
         renderTable(data.results || []);
         renderPagination();
-        updateSummary(data);
     } catch (e) {
         container.innerHTML = '<div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>加载失败：' + e.message + '</p></div>';
+    }
+}
+
+// 独立加载统计数据
+async function loadStatistics() {
+    try {
+        const res = await fetch(`/api/core/operation-audit-logs/statistics/`, { credentials: 'include' });
+        if (res.ok) {
+            const stats = await res.json();
+            document.getElementById('totalCount').textContent = stats.total ?? 0;
+            document.getElementById('createCount').textContent = stats.create ?? 0;
+            document.getElementById('updateCount').textContent = stats.update ?? 0;
+            document.getElementById('deleteCount').textContent = stats.delete ?? 0;
+            document.getElementById('todayCount').textContent = stats.today ?? 0;
+        }
+    } catch (e) {
+        console.error('加载审计统计失败', e);
     }
 }
 

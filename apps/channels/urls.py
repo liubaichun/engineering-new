@@ -1,9 +1,6 @@
-"""
-通知渠道URL路由
-"""
+"""通知渠道URL路由 — 简化版"""
 
 from django.urls import path
-from .wecom_callback import wecom_verify, wecom_callback
 from . import views
 
 app_name = 'channels'
@@ -12,24 +9,13 @@ urlpatterns = [
     # 渠道管理
     path('', views.ChannelListView.as_view(), name='channel-list'),
     path('<int:pk>/', views.ChannelDetailView.as_view(), name='channel-detail'),
-    # 绑定流程
-    path('bind/qrcode/', views.BindingQRCodeView.as_view(), name='bind-qrcode'),
-    path('bind/callback/<int:channel_id>/', views.BindingCallbackView.as_view(), name='bind-callback'),
+    path('<int:pk>/validate/', views.ValidateChannelView.as_view(), name='validate'),
+    path('<int:pk>/send-test/', views.SendTestView.as_view(), name='send-test'),
     # 绑定管理
     path('bindings/', views.BindingListCreateView.as_view(), name='binding-list'),
-    # 角色绑定
-    path('<int:channel_id>/role-bindings/', views.RoleBindingListView.as_view(), name='role-bindings'),
-    # 凭证验证
-    path('<int:channel_id>/validate/', views.ValidateCredentialsView.as_view(), name='validate'),
-    # 测试消息
-    path('<int:channel_id>/send-test/', views.SendTestMessageView.as_view(), name='send-test'),
-    # Webhook回调
-    path('webhook/<int:channel_id>/', views.WebhookView.as_view(), name='webhook'),
-    # 发送通知
+    path('bind/qrcode/', views.GenerateBindQRCodeView.as_view(), name='bind-qrcode'),
+    path('bind/callback/<int:channel_id>/', views.BindCallbackView.as_view(), name='bind-callback'),
+    # 通知发送
     path('notify/', views.SendNotificationView.as_view(), name='notify'),
-    # 通知日志
     path('logs/', views.NotificationLogView.as_view(), name='notification-logs'),
-    # 企业微信回调验证
-    path('wecom/verify/', wecom_verify, name='wecom-verify'),
-    path('wecom/callback/', wecom_callback, name='wecom-callback'),
 ]

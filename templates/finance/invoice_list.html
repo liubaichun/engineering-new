@@ -269,6 +269,7 @@
                             <th>发票类型</th>
                             <th>开票公司</th>
                             <th>对方公司</th>
+                            <th>关联合同</th>
                             <th class="text-end">不含税金额</th>
                             <th>税率</th>
                             <th class="text-end">税金</th>
@@ -279,7 +280,7 @@
                         </tr>
                     </thead>
                     <tbody id="expenseTableBody">
-                        <tr><td colspan="12" class="text-center text-muted py-4">加载中...</td></tr>
+                        <tr><td colspan="13" class="text-center text-muted py-4">加载中...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -300,6 +301,7 @@
                             <th>发票类型</th>
                             <th>开票公司</th>
                             <th>对方公司</th>
+                            <th>关联合同</th>
                             <th class="text-end">不含税金额</th>
                             <th>税率</th>
                             <th class="text-end">税金</th>
@@ -310,7 +312,7 @@
                         </tr>
                     </thead>
                     <tbody id="incomeTableBody">
-                        <tr><td colspan="12" class="text-center text-muted py-4">加载中...</td></tr>
+                        <tr><td colspan="13" class="text-center text-muted py-4">加载中...</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -434,6 +436,14 @@
                         </select>
                     </div>
                 </div>
+                <div class="row g-3 mt-2">
+                    <div class="col-12">
+                        <label class="form-label">关联合同</label>
+                        <select class="form-select" id="invoiceContract">
+                            <option value="">选择合同（可选）</option>
+                        </select>
+                    </div>
+                </div>
 
                 <div class="mb-3 mt-3">
                     <label class="form-label">备注</label>
@@ -505,6 +515,7 @@ function changePageSize() {
 document.addEventListener('DOMContentLoaded', function() {
     loadCompanies();
     loadProjects();
+    loadContracts();
     loadInvoiceYears();
     // 默认展示收到发票（expense），开出发票按需加载
     loadInvoices('expense', 1);
@@ -536,6 +547,18 @@ async function loadCompanies() {
             document.getElementById('filterCompany').innerHTML = options;
         }
     } catch (error) { console.error('加载公司失败:', error); }
+}
+
+async function loadContracts() {
+    try {
+        const response = await fetch('/api/crm/contracts/', { credentials: 'include' });
+        if (response.ok) {
+            const data = await response.json();
+            const el = document.getElementById('invoiceContract');
+            if (el) el.innerHTML = '<option value="">选择合同</option>' +
+                (data.results || data).map(c => `<option value="${c.id}">${c.contract_no || ''} - ${c.name}</option>`).join('');
+        }
+    } catch (error) { console.error('加载合同失败:', error); }
 }
 
 async function loadProjects() {
@@ -656,7 +679,7 @@ function renderInvoiceTable(invoices, type) {
     const tbody = type === 'income' ? 'incomeTableBody' : 'expenseTableBody';
     const el = document.getElementById(tbody);
     if (!invoices || invoices.length === 0) {
-        el.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无发票记录</td></tr>';
+        el.innerHTML = '<tr><td colspan="13" class="text-center text-muted py-4">暂无发票记录</td></tr>';
         return;
     }
     const taxIncluded = (inv) => (parseFloat(inv.amount || 0) + parseFloat(inv.tax_amount || 0)).toLocaleString('zh-CN', {minimumFractionDigits: 2});
@@ -671,6 +694,7 @@ function renderInvoiceTable(invoices, type) {
             <td>${inv.invoice_type === 'special' ? '增值税专用' : '普通发票'}</td>
             <td>${inv.company_name || '-'}</td>
             <td>${inv.counterparty || '-'}</td>
+            <td>${inv.contract_name ? `<a href="/crm/contracts/${inv.contract_id}/" target="_blank" class="text-decoration-none">${inv.contract_no || ''} ${inv.contract_name.length > 15 ? inv.contract_name.substring(0, 15) + '…' : inv.contract_name}</a>` : '<span class="text-muted">-</span>'}</td>
             <td class="text-end ${invClass}">¥${fmtAmt(inv.amount)}</td>
             <td>${inv.tax_rate != null ? parseFloat(inv.tax_rate).toFixed(1) + '%' : '-'}</td>
             <td class="text-end ${invClass}">¥${fmtAmt(inv.tax_amount)}</td>
@@ -732,6 +756,7 @@ async function showInvoiceDetail(id) {
                 ${inv.due_date ? `<tr><th>到期日期</th><td>${inv.due_date}</td></tr>` : ''}
                 ${inv.payment_date ? `<tr><th>收/付款日期</th><td>${inv.payment_date}</td></tr>` : ''}
                 ${inv.project_name ? `<tr><th>关联项目</th><td>${inv.project_name}</td></tr>` : ''}
+                ${inv.contract_name ? `<tr><th>关联合同</th><td><a href="/crm/contracts/${inv.contract_id}/" target="_blank">${inv.contract_no} - ${inv.contract_name}</a></td></tr>` : ''}
                 <tr><th>发票状态</th><td><span class="status-badge ${inv.status}">${getStatusText(inv.status, inv.type)}</span></td></tr>
                 <tr><th>认证状态</th><td>${inv.is_credited?'已认证':'未认证'}${inv.credited_period ? `（${inv.credited_period}）` : ''}</td></tr>
                 ${inv.matched_bank_statement_name ? `<tr><th>核销状态</th><td><span class="text-success">✅ ${inv.matched_bank_statement_name}</span> <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="unmatchInvoice(${inv.id})">取消</button></td></tr>` : `<tr><th>核销状态</th><td><span class="text-muted">未核销</span> <button class="btn btn-sm btn-outline-primary py-0 px-1" onclick="showMatchModal(${inv.id})">核销</button></td></tr>`}
@@ -773,6 +798,8 @@ async function showEditInvoiceModal(id) {
 
         // 关联项目
         document.getElementById('invoiceProject').value = inv.project_id || '';
+        // 关联合同
+        document.getElementById('invoiceContract').value = inv.contract_id || '';
         document.getElementById('invoiceRemarks').value = inv.remarks || '';
         // 认证状态+所属期
         if (document.getElementById('invoiceIsCredited')) {
@@ -1006,7 +1033,7 @@ function showAddInvoiceModal() {
 
     ['invoiceNo','invoiceAmount','invoiceTaxRate','invoiceRemarks',
      'invoiceCounterparty','invoiceTaxNo','invoiceIssueDate','invoiceIsCredited',
-     'invoiceProject'].forEach(id => {
+     'invoiceProject','invoiceContract'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.value = '';
     });
@@ -1035,6 +1062,8 @@ async function saveInvoice() {
         };
         const projVal = getVal('invoiceProject');
         if (projVal) data.project_id = parseInt(projVal);
+        const contractVal = getVal('invoiceContract');
+        if (contractVal) data.contract_id = parseInt(contractVal);
     } else {
         // 新建模式：完整字段
         data = {
@@ -1050,6 +1079,8 @@ async function saveInvoice() {
         };
         const projVal = getVal('invoiceProject');
         if (projVal) data.project_id = parseInt(projVal);
+        const contractVal = getVal('invoiceContract');
+        if (contractVal) data.contract_id = parseInt(contractVal);
         const companyVal = getVal('invoiceCompany');
         if (companyVal) data.company_id = parseInt(companyVal);
     }

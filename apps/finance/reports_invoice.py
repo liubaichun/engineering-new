@@ -8,6 +8,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Invoice
+from apps.finance.reports_common import get_user_report_companies, parse_date_range, agg
 
 
 @api_view(['GET'])
@@ -22,6 +23,9 @@ def invoice_dimension_report(request):
     invoice_type = request.query_params.get('type')  # income / expense
 
     qs = Invoice.objects.all()
+    # 公司隔离：只查用户有权限的公司
+    user_report_companies = get_user_report_companies(request)
+    qs = qs.filter(company__in=user_report_companies)
     if year:
         qs = qs.filter(issue_date__year=year)
     if invoice_type:

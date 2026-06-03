@@ -1,4 +1,4 @@
-from django.db.models import Sum
+from django.db.models import Sum, F
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -44,10 +44,13 @@ class ARAPViewSet(viewsets.ViewSet):
         user = request.user
         company_id = request.query_params.get('company')
         if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                # 忽略前端传入的其他公司ID，强制过滤为自己公司
-                if not company_id or int(company_id) != user.company_id:
-                    company_id = user.company_id
+            from apps.core.permissions import get_module_companies
+            companies = get_module_companies(user, 'report', 'read')
+            if companies is not None:
+                if company_id and int(company_id) in companies:
+                    company_id = int(company_id)
+                else:
+                    company_id = companies[0] if companies else None
         from django.db.models import Min, Max
 
         ar_qs = Invoice.objects.filter(type='income', status='pending')
@@ -56,29 +59,57 @@ class ARAPViewSet(viewsets.ViewSet):
             ar_qs = ar_qs.filter(company_id=company_id)
             ap_qs = ap_qs.filter(company_id=company_id)
 
-        ar_summary = (
-            ar_qs.values('counterparty')
-            .annotate(
-                total_amount=Sum('amount'),
-                total_tax=Sum('tax_amount'),
-                invoice_count=Count('id'),
-                earliest_date=Min('issue_date'),
-                latest_date=Max('issue_date'),
-            )
-            .order_by('-total_amount')
-        )
+        group_by = request.query_params.get('group_by', 'counterparty')
 
-        ap_summary = (
-            ap_qs.values('counterparty')
-            .annotate(
-                total_amount=Sum('amount'),
-                total_tax=Sum('tax_amount'),
-                invoice_count=Count('id'),
-                earliest_date=Min('issue_date'),
-                latest_date=Max('issue_date'),
+        if group_by == 'contract':
+            # 按合同分组
+            ar_summary = (
+                ar_qs.values('contract_id', contract_no=F('contract__contract_no'), contract_name=F('contract__name'))
+                .annotate(
+                    total_amount=Sum('amount'),
+                    total_tax=Sum('tax_amount'),
+                    invoice_count=Count('id'),
+                    earliest_date=Min('issue_date'),
+                    latest_date=Max('issue_date'),
+                )
+                .order_by('-total_amount')
             )
-            .order_by('-total_amount')
-        )
+            ap_summary = (
+                ap_qs.values('contract_id', contract_no=F('contract__contract_no'), contract_name=F('contract__name'))
+                .annotate(
+                    total_amount=Sum('amount'),
+                    total_tax=Sum('tax_amount'),
+                    invoice_count=Count('id'),
+                    earliest_date=Min('issue_date'),
+                    latest_date=Max('issue_date'),
+                )
+                .order_by('-total_amount')
+            )
+        else:
+            # 按对方名称分组（默认）
+            ar_summary = (
+                ar_qs.values('counterparty')
+                .annotate(
+                    total_amount=Sum('amount'),
+                    total_tax=Sum('tax_amount'),
+                    invoice_count=Count('id'),
+                    earliest_date=Min('issue_date'),
+                    latest_date=Max('issue_date'),
+                )
+                .order_by('-total_amount')
+            )
+
+            ap_summary = (
+                ap_qs.values('counterparty')
+                .annotate(
+                    total_amount=Sum('amount'),
+                    total_tax=Sum('tax_amount'),
+                    invoice_count=Count('id'),
+                    earliest_date=Min('issue_date'),
+                    latest_date=Max('issue_date'),
+                )
+                .order_by('-total_amount')
+            )
 
         return Response(
             {
@@ -86,6 +117,7 @@ class ARAPViewSet(viewsets.ViewSet):
                 'payables': list(ap_summary),
                 'receivable_total': ar_qs.aggregate(total=Sum('amount'))['total'] or 0,
                 'payable_total': ap_qs.aggregate(total=Sum('amount'))['total'] or 0,
+                'group_by': group_by,
             }
         )
 
@@ -106,13 +138,19 @@ class ARAPViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
         status = request.query_params.get('status')
         qs = Invoice.objects.filter(type='income', status='pending')
+        user = request.user
+        if user.is_authenticated and not user.is_superuser:
+            from apps.core.permissions import get_module_companies
+            companies = get_module_companies(user, 'report', 'read')
+            if companies is not None:
+                qs = qs.filter(company_id__in=companies)
         if company_id:
             qs = qs.filter(company_id=company_id)
         if counterparty:
             qs = qs.filter(counterparty__icontains=counterparty)
         if status:
             qs = qs.filter(status=status)
-        qs = qs.select_related('company', 'project').order_by('-issue_date', '-created_at')
+        qs = qs.select_related('company', 'project', 'contract').order_by('-issue_date', '-created_at')
         return self._paginate(qs)
 
     @action(detail=False, methods=['get'])
@@ -122,11 +160,17 @@ class ARAPViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
         status = request.query_params.get('status')
         qs = Invoice.objects.filter(type='expense', status='pending')
+        user = request.user
+        if user.is_authenticated and not user.is_superuser:
+            from apps.core.permissions import get_module_companies
+            companies = get_module_companies(user, 'report', 'read')
+            if companies is not None:
+                qs = qs.filter(company_id__in=companies)
         if company_id:
             qs = qs.filter(company_id=company_id)
         if counterparty:
             qs = qs.filter(counterparty__icontains=counterparty)
         if status:
             qs = qs.filter(status=status)
-        qs = qs.select_related('company', 'project').order_by('-issue_date', '-created_at')
+        qs = qs.select_related('company', 'project', 'contract').order_by('-issue_date', '-created_at')
         return self._paginate(qs)

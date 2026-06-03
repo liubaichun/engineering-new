@@ -9,6 +9,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Income, Expense
+from apps.finance.reports_common import get_user_report_companies, parse_date_range, build_qs, INTERNAL_COMPANY_NAMES
 
 
 @api_view(['GET'])
@@ -21,6 +22,11 @@ def customer_revenue_report(request):
     limit = int(request.query_params.get('limit', 50))
 
     inc_qs = build_qs(Income, company_id, year, month)
+    # 公司隔离：只查用户有权限的公司
+    user_companies = get_user_report_companies(request)
+    if company_id:
+        user_companies = user_companies.filter(id=company_id)
+    inc_qs = inc_qs.filter(company__in=user_companies)
 
     global_stats = {}
     internal_stats = {'total': 0.0, 'count': 0}
@@ -79,6 +85,11 @@ def supplier_expense_report(request):
     limit = int(request.query_params.get('limit', 50))
 
     exp_qs = build_qs(Expense, company_id, year, month)
+    # 公司隔离：只查用户有权限的公司
+    user_companies = get_user_report_companies(request)
+    if company_id:
+        user_companies = user_companies.filter(id=company_id)
+    exp_qs = exp_qs.filter(company__in=user_companies)
 
     # 【P2-2 修复】从 CRM Supplier 拉取真实供应商名单（含 counterparty_type）
     try:

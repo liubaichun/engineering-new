@@ -13,6 +13,7 @@ router.register(r'sources', views.ClientSourceViewSet, basename='clientsource')
 router.register(r'contacts', views.ContactViewSet)
 router.register(r'followups', views.FollowUpRecordViewSet, basename='followup')
 router.register(r'opportunities', views.OpportunityViewSet, basename='opportunity')
+router.register(r'milestones', views.ContractMilestoneViewSet, basename='milestone')
 
 urlpatterns = router.urls
 

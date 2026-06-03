@@ -19,6 +19,7 @@ from . import import_views
 from . import bank_import_views
 from . import tax_invoice_import
 from . import reports_v2
+from .views_amortization import ExpenseAmortizationViewSet
 
 router = IntegerPkRouter()
 router.register(r'companies', CompanyViewSet, basename='company')
@@ -34,6 +35,7 @@ router.register(r'employee-companies', EmployeeCompanyViewSet, basename='employe
 router.register(r'bank-accounts', BankAccountViewSet, basename='bank-account')
 router.register(r'social-records', SocialRecordViewSet, basename='social-record')
 router.register(r'budgets', BudgetViewSet, basename='budget')
+router.register(r'amortizations', ExpenseAmortizationViewSet, basename='amortization')
 
 urlpatterns = [
     path('', include(router.urls)),

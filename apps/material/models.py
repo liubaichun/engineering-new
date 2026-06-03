@@ -43,9 +43,9 @@ class Material(models.Model):
         '分类', max_length=20, choices=MATERIAL_CATEGORY_CHOICES, blank=True, default='', db_column='category'
     )
     unit = models.CharField('单位', max_length=20, default='个')
-    stock = models.PositiveIntegerField('当前库存', default=0)
-    alert_threshold = models.PositiveIntegerField('预警阈值', default=10)
     unit_price = models.DecimalField('单价', max_digits=12, decimal_places=2, default=0)
+    init_stock = models.PositiveIntegerField('期初库存', default=0, help_text='启用库存流水前的初始库存数量')
+    alert_threshold = models.PositiveIntegerField('预警阈值', default=10)
     supplier = models.ForeignKey(
         'crm.Supplier',
         verbose_name='供应商',
@@ -79,21 +79,31 @@ class Material(models.Model):
     def __str__(self):
         return f'{self.code} - {self.name}'
 
+    @property
+    def stock(self):
+        """当前库存 = 期初库存 + 入库合计 - 出库合计"""
+        from django.db.models import Sum
+        total_inbound = self.inbound_logs.aggregate(total=Sum('quantity'))['total'] or 0
+        total_outbound = self.usage_logs.aggregate(total=Sum('quantity'))['total'] or 0
+        return self.init_stock + total_inbound - total_outbound
+
+    @property
+    def total_inbound(self):
+        from django.db.models import Sum
+        return self.inbound_logs.aggregate(total=Sum('quantity'))['total'] or 0
+
+    @property
+    def total_outbound(self):
+        from django.db.models import Sum
+        return self.usage_logs.aggregate(total=Sum('quantity'))['total'] or 0
+
     def save(self, *args, **kwargs):
         # 自动从关联Project填充company_id
         if not self.company_id and self.project_id:
             self.company_id = getattr(self.project, 'company_id', None)
         if not self.code:
-            year = 2026
-            last = Material.objects.filter(code__startswith='WL-').order_by('-code').first()
-            if last and last.code:
-                try:
-                    seq = int(last.code.split('-')[-1]) + 1
-                except (ValueError, IndexError):
-                    seq = 1
-            else:
-                seq = 1
-            self.code = f'WL-{seq:04d}'
+            from apps.core.models import generate_code
+            self.code = generate_code('material', Material)
         super().save(*args, **kwargs)
 
 
@@ -125,6 +135,44 @@ class MaterialUsageLog(models.Model):
 
     def __str__(self):
         return f'{self.material.name} - {self.quantity}{self.material.unit}'
+
+
+class MaterialInboundLog(models.Model):
+    """物料入库记录 — 采购入库/退货入库/盘盈等"""
+
+    material = models.ForeignKey(Material, verbose_name='物料', on_delete=models.CASCADE, related_name='inbound_logs')
+    quantity = models.PositiveIntegerField('入库数量')
+    unit_price = models.DecimalField('入库单价', max_digits=12, decimal_places=2, null=True, blank=True,
+                                      help_text='本次入库的单价，用于计算加权平均成本')
+    supplier = models.ForeignKey(
+        'crm.Supplier', verbose_name='供应商', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='material_inbound_logs',
+    )
+    project = models.ForeignKey(
+        'tasks.Project', verbose_name='入库项目', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='material_inbound_logs',
+    )
+    inbound_date = models.DateField('入库日期', auto_now_add=True)
+    source_type = models.CharField(
+        '入库来源', max_length=20, blank=True, default='purchase',
+        help_text='purchase/bom/transfer/adjustment',
+    )
+    company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
+    created_by = models.ForeignKey(
+        User, verbose_name='操作人', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='material_inbound_logs',
+    )
+    remark = models.TextField('备注', blank=True, default='')
+    created_at = models.DateTimeField('创建时间', auto_now_add=True)
+
+    class Meta:
+        db_table = 'material_inbound_log'
+        verbose_name = '物料入库记录'
+        verbose_name_plural = '物料入库记录'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f'{self.material.name} +{self.quantity}{self.material.unit}'
 
 
 class MaterialBOM(models.Model):

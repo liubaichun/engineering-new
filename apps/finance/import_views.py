@@ -378,7 +378,6 @@ def import_expenses(request):
         status_val = STATUS_MAP.get(str(_cell(ws, row_num, col_map.get('status')) or '待审批').strip(), 'pending')
 
         date = _parse_date(_cell(ws, row_num, col_map.get('date'))) or datetime.date.today()
-        expense_date = _parse_date(_cell(ws, row_num, col_map.get('expense_date'))) or date
         transaction_type = str(_cell(ws, row_num, col_map.get('transaction_type')) or '').strip()
         summary = str(_cell(ws, row_num, col_map.get('summary')) or '').strip()
 
@@ -388,7 +387,6 @@ def import_expenses(request):
                     company=getattr(request, 'auth_company', None) or request.user.company,
                     amount=amount,
                     date=date,
-                    expense_date=expense_date,
                     expense_type=type_val,
                     expense_category=str(_cell(ws, row_num, col_map.get('expense_category')) or '').strip(),
                     status=status_val,

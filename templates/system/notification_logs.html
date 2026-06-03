@@ -1,234 +1,259 @@
-{% extends "base.html" %}
-{% block title %}通知日志{% endblock %}
+{% extends "base_content.html" %}
+
+{% block title %}通知日志 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.log-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: var(--card-shadow);
+    overflow: hidden;
+    margin-bottom: 24px;
+}
+.log-header {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    padding: 16px 20px 12px;
+    border-bottom: 1px solid var(--bs-border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.log-header i { color: var(--primary); }
+.log-filters {
+    padding: 12px 20px;
+    border-bottom: 1px solid #f3f4f6;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+.log-filters select, .log-filters input {
+    font-size: 0.85rem;
+    padding: 6px 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+}
+.log-table { width: 100%; border-collapse: collapse; }
+.log-table th {
+    text-align: left;
+    padding: 10px 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #64748b;
+    background: #f8fafc;
+    border-bottom: 1px solid #e2e8f0;
+}
+.log-table td {
+    padding: 10px 20px;
+    font-size: 0.85rem;
+    border-bottom: 1px solid #f3f4f6;
+    vertical-align: middle;
+}
+.log-table tr:hover td { background: #f8fafc; }
+.status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 3px 10px; border-radius: 20px; font-size: 0.75rem;
+}
+.status-badge.sent { background: #d1fae5; color: #065f46; }
+.status-badge.failed { background: #fee2e2; color: #991b1b; }
+.channel-icon-sm {
+    width: 28px; height: 28px; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 0.8rem; margin-right: 6px;
+}
+.channel-icon-sm.feishu { background: #e8f5e9; color: #4caf50; }
+.channel-icon-sm.wecom { background: #e3f2fd; color: #2196f3; }
+.channel-icon-sm.dingtalk { background: #fce4ec; color: #e91e63; }
+.channel-icon-sm.email { background: #f3e5f5; color: #9c27b0; }
+.pagination {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    padding: 16px 20px;
+}
+.pagination button {
+    padding: 6px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 0.85rem;
+    cursor: pointer;
+}
+.pagination button:hover { background: #f1f5f9; }
+.pagination button.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.pagination button:disabled { opacity: 0.5; cursor: default; }
+.error-msg {
+    max-width: 200px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: #ef4444;
+    cursor: help;
+}
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-3">
-    <div>
-        <h4><i class="bi bi-journal-text me-2"></i>通知日志</h4>
-        <p class="text-muted mb-0" style="font-size:0.9rem;">查看所有外部渠道通知的发送记录</p>
+<div class="page-header">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h4><i class="bi bi-list-check me-2"></i>通知日志</h4>
+            <p class="text-muted mb-0">查看所有通知的发送记录和状态</p>
+        </div>
+        <button class="btn btn-outline-secondary btn-sm" onclick="loadLogs()">
+            <i class="bi bi-arrow-repeat me-1"></i>刷新
+        </button>
     </div>
 </div>
 
-<!-- 标签切换 -->
-<ul class="nav nav-tabs mb-4" id="notifTab" role="tablist">
-    <li class="nav-item"><a class="nav-link" href="/system/notification-channels/" id="tab-channels"><i class="bi bi-broadcast me-1"></i>渠道配置</a></li>
-    <li class="nav-item"><a class="nav-link" href="/system/notification-router/" id="tab-router"><i class="bi bi-router me-1"></i>路由规则</a></li>
-    <li class="nav-item"><a class="nav-link active" href="/system/notification-logs/" id="tab-logs"><i class="bi bi-journal-text me-1"></i>通知日志</a></li>
-    <li class="nav-item"><a class="nav-link" href="/system/notification-preferences/" id="tab-prefs"><i class="bi bi-sliders me-1"></i>通知偏好</a></li>
-</ul>
+<div class="log-card">
+    <div class="log-header">
+        <i class="bi bi-journal-text"></i>发送记录
+    </div>
 
-<!-- 统计卡片 -->
-<div class="row mb-4 g-3">
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <div class="h3 mb-0 text-primary" id="stat-total">—</div>
-                <div class="small text-muted">总记录数</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <div class="h3 mb-0 text-success" id="stat-sent">—</div>
-                <div class="small text-muted">发送成功</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <div class="h3 mb-0 text-danger" id="stat-failed">—</div>
-                <div class="small text-muted">发送失败</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card text-center">
-            <div class="card-body py-3">
-                <div class="h3 mb-0 text-secondary" id="stat-pending">—</div>
-                <div class="small text-muted">待发送</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- 筛选栏 -->
-<div class="card mb-3">
-    <div class="card-body py-2 d-flex align-items-center gap-3 flex-wrap">
-        <div class="input-group" style="max-width:180px;">
-            <span class="input-group-text">状态</span>
-            <select class="form-select" id="filterStatus" onchange="loadLogs()">
-                <option value="">全部</option>
-                <option value="sent">已发送</option>
-                <option value="failed">发送失败</option>
-                <option value="pending">待发送</option>
-            </select>
-        </div>
-        <div class="input-group" style="max-width:200px;">
-            <span class="input-group-text">渠道类型</span>
-            <select class="form-select" id="filterChannelType" onchange="loadLogs()">
-                <option value="">全部</option>
-                <option value="feishu">飞书</option>
-                <option value="wecom">企微</option>
-                <option value="dingtalk">钉钉</option>
-                <option value="email">邮件</option>
-            </select>
-        </div>
-        <div class="input-group" style="max-width:220px;">
-            <span class="input-group-text">从</span>
-            <input type="date" class="form-control" id="filterDateFrom" onchange="loadLogs()">
-        </div>
-        <div class="input-group" style="max-width:220px;">
-            <span class="input-group-text">至</span>
-            <input type="date" class="form-control" id="filterDateTo" onchange="loadLogs()">
-        </div>
-        <button class="btn btn-outline-secondary btn-sm" onclick="resetFilters()">重置</button>
-        <select class="form-select form-select-sm" id="pageSize" style="width: auto;" onchange="changePageSize()">
-            <option value="20">20条/页</option>
-            <option value="50">50条/页</option>
-            <option value="100">100条/页</option>
+    <div class="log-filters">
+        <select id="filterStatus" onchange="loadLogs()">
+            <option value="">全部状态</option>
+            <option value="sent">已发送</option>
+            <option value="failed">发送失败</option>
         </select>
+        <select id="filterChannel" onchange="loadLogs()">
+            <option value="">全部渠道</option>
+            <option value="feishu">飞书</option>
+            <option value="wecom">企业微信</option>
+            <option value="dingtalk">钉钉</option>
+            <option value="email">邮件</option>
+        </select>
+        <button class="btn btn-outline-primary btn-sm" onclick="loadLogs()"><i class="bi bi-funnel"></i>筛选</button>
     </div>
-</div>
 
-<!-- 日志列表 -->
-<div class="card">
-    <div class="card-body p-0">
-        <div class="table-responsive">
-            <table class="table mb-0">
-                <thead>
-                    <tr>
-                        <th>时间</th>
-                        <th>渠道</th>
-                        <th>用户</th>
-                        <th>标题</th>
-                        <th>类型</th>
-                        <th>状态</th>
-                        <th>错误信息</th>
-                    </tr>
-                </thead>
-                <tbody id="logsTableBody">
-                    <tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>
-                </tbody>
-            </table>
+    <div id="logList">
+        <div class="text-center py-4 text-muted">
+            <div class="spinner-border spinner-border-sm" role="status"></div>
+            <p class="mt-2 mb-0">加载中...</p>
         </div>
     </div>
-    <!-- 分页 -->
-    <div class="card-footer d-flex justify-content-between align-items-center">
-        <div class="text-muted small" id="paginationInfo">—</div>
-        <div id="paginationControls"></div>
-    </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
 <script>
+// ================================================================
+// 通知日志
+// ================================================================
+
 var currentPage = 1;
-let pageSize = 50;
+var pageSize = 20;
+var totalLogs = 0;
 
-document.addEventListener('DOMContentLoaded', function() {
+if (document.readyState === 'loading') {
+    document.addEventListener("DOMContentLoaded", function() { loadLogs(); });
+} else {
     loadLogs();
-});
+}
 
-async function loadLogs(page = 1) {
-    currentPage = page;
-    const tbody = document.getElementById('logsTableBody');
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary me-2"></span>加载中...</td></tr>';
+function loadLogs(page) {
+    if (page !== undefined) currentPage = page;
+    var status = document.getElementById('filterStatus').value;
+    var channel = document.getElementById('filterChannel').value;
+    var params = '?page=' + currentPage + '&page_size=' + pageSize;
+    if (status) params += '&status=' + status;
+    if (channel) params += '&channel_type=' + channel;
 
-    const params = new URLSearchParams({
-        page: currentPage,
-        page_size: pageSize,
-    });
-    const status = document.getElementById('filterStatus').value;
-    const channelType = document.getElementById('filterChannelType').value;
-    const dateFrom = document.getElementById('filterDateFrom').value;
-    const dateTo = document.getElementById('filterDateTo').value;
-    if (status) params.set('status', status);
-    if (channelType) params.set('channel_type', channelType);
-    if (dateFrom) params.set('date_from', dateFrom);
-    if (dateTo) params.set('date_to', dateTo);
+    fetch('/api/channels/logs/' + params, { credentials: 'include' })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            totalLogs = data.total || 0;
+            renderLogs(data.logs || []);
+            renderPagination();
+        })
+        .catch(function(e) {
+            document.getElementById('logList').innerHTML =
+                '<div class="text-center py-4 text-danger">加载失败: ' + e.message + '</div>';
+        });
+}
 
-    try {
-        const resp = await fetch('/api/channels/logs/?' + params.toString(), { credentials: 'include' });
-        if (!resp.ok) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">加载失败 (' + resp.status + ')</td></tr>'; return; }
-        const result = await resp.json();
-        const logs = result.results || result.logs || [];
-        const total = result.count || result.total || logs.length || 0;
+function getChannelIcon(type) {
+    var icons = {
+        feishu: 'bi-chat-quote',
+        wecom: 'bi-people',
+        dingtalk: 'bi-chat-dots',
+        email: 'bi-envelope'
+    };
+    return icons[type] || 'bi-bell';
+}
 
-        // 更新统计
-        document.getElementById('stat-total').textContent = total;
-        document.getElementById('stat-sent').textContent = result.stats ? result.stats.sent : '—';
-        document.getElementById('stat-failed').textContent = result.stats ? result.stats.failed : '—';
-        document.getElementById('stat-pending').textContent = result.stats ? result.stats.pending : '—';
+function renderLogs(logs) {
+    var el = document.getElementById('logList');
+    if (logs.length === 0) {
+        el.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-inbox" style="font-size:2rem;"></i><p class="mt-2 mb-0">暂无通知日志</p></div>';
+        return;
+    }
 
-        if (!logs.length) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">暂无日志记录</td></tr>';
-            document.getElementById('paginationInfo').textContent = '共 0 条';
-            document.getElementById('paginationControls').innerHTML = '';
-            return;
+    var html =
+'<table class="log-table">' +
+    '<thead><tr>' +
+        '<th>渠道</th>' +
+        '<th>通知类型</th>' +
+        '<th>标题</th>' +
+        '<th>接收人</th>' +
+        '<th>状态</th>' +
+        '<th>时间</th>' +
+        '<th>错误信息</th>' +
+    '</tr></thead><tbody>';
+
+    for (var i = 0; i < logs.length; i++) {
+        var l = logs[i];
+        var statusClass = l.status === 'sent' ? 'sent' : 'failed';
+        var statusLabel = l.status === 'sent' ? '已发送' : '失败';
+        var icon = getChannelIcon(l.channel_type);
+        var time = l.sent_at || l.created_at;
+        if (time) {
+            time = time.replace('T', ' ').substring(0, 19);
         }
 
-        tbody.innerHTML = logs.map(log => `
-            <tr>
-                <td><small>${log.created_at ? new Date(log.created_at).toLocaleString('zh-CN') : '—'}</small></td>
-                <td><span class="badge bg-secondary">${channelLabel(log.channel_type)}</span></td>
-                <td><small>${escapeHtml(log.username || '—')}</small></td>
-                <td><small>${escapeHtml(log.title || '—')}</small></td>
-                <td><small>${escapeHtml(log.notification_type || '—')}</small></td>
-                <td><span class="badge ${statusBadge(log.status)}">${statusLabel(log.status)}</span></td>
-                <td><small class="text-danger">${escapeHtml(log.error_message || '')}</small></td>
-            </tr>`).join('');
-
-        document.getElementById('paginationInfo').textContent = '共 ' + total + ' 条';
-        renderPagination(total);
-    } catch(e) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">加载失败：' + e.message + '</td></tr>';
+        html +=
+'<tr>' +
+    '<td><span class="channel-icon-sm ' + (l.channel_type || '') + '"><i class="bi ' + icon + '"></i></span>' + (l.channel_name || '-') + '</td>' +
+    '<td>' + (l.notification_type || '-') + '</td>' +
+    '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (l.title || '') + '">' + (l.title || '-') + '</td>' +
+    '<td>' + (l.username || '-') + '</td>' +
+    '<td><span class="status-badge ' + statusClass + '">' + statusLabel + '</span></td>' +
+    '<td style="font-size:0.75rem;color:#94a3b8;">' + (time || '-') + '</td>' +
+    '<td>' + (l.error_message ? '<span class="error-msg" title="' + l.error_message + '">' + l.error_message + '</span>' : '-') + '</td>' +
+'</tr>';
     }
+
+    html += '</tbody></table>';
+    el.innerHTML = html;
 }
 
-function statusBadge(s) {
-    return {sent:'bg-success',failed:'bg-danger',pending:'bg-warning text-dark',read:'bg-info'}[s] || 'bg-secondary';
-}
+function renderPagination() {
+    var el = document.getElementById('logList');
+    var totalPages = Math.ceil(totalLogs / pageSize);
+    if (totalPages <= 1) return;
 
-function statusLabel(s) {
-    return {sent:'已发送',failed:'发送失败',pending:'待发送',read:'已读'}[s] || s;
-}
+    var html = '<div class="pagination">';
+    html += '<button ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="loadLogs(1)">首页</button>';
+    html += '<button ' + (currentPage <= 1 ? 'disabled' : '') + ' onclick="loadLogs(' + (currentPage - 1) + ')">上一页</button>';
 
-function channelLabel(c) {
-    return {feishu:'飞书',wecom:'企微',dingtalk:'钉钉',email:'邮件'}[c] || c || '—';
-}
+    var start = Math.max(1, currentPage - 2);
+    var end = Math.min(totalPages, currentPage + 2);
+    for (var i = start; i <= end; i++) {
+        html += '<button class="' + (i === currentPage ? 'active' : '') + '" onclick="loadLogs(' + i + ')">' + i + '</button>';
+    }
 
-function renderPagination(total) {
-    const totalPages = Math.ceil(total / pageSize);
-    const controls = document.getElementById('paginationControls');
-    if (totalPages <= 1) { controls.innerHTML = ''; return; }
-    let html = '';
-    if (currentPage > 1) html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="loadLogs(' + (currentPage - 1) + ')">上一页</button>';
-    html += '<span class="px-2 align-self-center">第 ' + currentPage + ' / ' + totalPages + ' 页</span>';
-    if (currentPage < totalPages) html += '<button class="btn btn-sm btn-outline-primary ms-1" onclick="loadLogs(' + (currentPage + 1) + ')">下一页</button>';
-    controls.innerHTML = html;
-}
+    html += '<button ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="loadLogs(' + (currentPage + 1) + ')">下一页</button>';
+    html += '<button ' + (currentPage >= totalPages ? 'disabled' : '') + ' onclick="loadLogs(' + totalPages + ')">末页</button>';
+    html += '<span style="font-size:0.8rem;color:#94a3b8;margin-left:12px;">共 ' + totalLogs + ' 条</span>';
+    html += '</div>';
 
-function resetFilters() {
-    document.getElementById('filterStatus').value = '';
-    document.getElementById('filterChannelType').value = '';
-    document.getElementById('filterDateFrom').value = '';
-    document.getElementById('filterDateTo').value = '';
-    loadLogs(1);
-}
-
-function escapeHtml(text) {
-    if (!text) return '';
-    const d = document.createElement('div');
-    d.textContent = text;
-    return d.innerHTML;
-}
-
-function changePageSize() {
-    pageSize = parseInt(document.getElementById('pageSize').value);
-    currentPage = 1;
-    loadLogs(1);
+    el.insertAdjacentHTML('beforeend', html);
 }
 </script>
 {% endblock %}

@@ -10,6 +10,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Company, Expense, Invoice
+from apps.finance.reports_common import get_user_report_companies, parse_date_range, agg
 
 
 def _parse_tax_type(desc: str, amount: float):
@@ -51,7 +52,7 @@ def tax_summary_report(request):
     month = params['month']
     company_id = params['company_id']
 
-    companies = Company.objects.all()
+    companies = get_user_report_companies(request)
     if company_id:
         companies = companies.filter(id=company_id)
 
@@ -72,12 +73,12 @@ def tax_summary_report(request):
 
         if year:
             inv_qs = inv_qs.filter(issue_date__year=year)
-            exp_tax_qs = exp_tax_qs.filter(expense_date__year=year)
-            social_qs = social_qs.filter(expense_date__year=year)
+            exp_tax_qs = exp_tax_qs.filter(date__year=year)
+            social_qs = social_qs.filter(date__year=year)
         if month:
             inv_qs = inv_qs.filter(issue_date__month=month)
-            exp_tax_qs = exp_tax_qs.filter(expense_date__month=month)
-            social_qs = social_qs.filter(expense_date__month=month)
+            exp_tax_qs = exp_tax_qs.filter(date__month=month)
+            social_qs = social_qs.filter(date__month=month)
 
         # 发票税额：销项（开给客户）和进项（收供应商）
         invoice_input_tax = agg(inv_qs.filter(type='expense'), 'tax_amount')

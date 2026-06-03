@@ -135,8 +135,14 @@ def user_list_page(request):
 
 
 def permission_matrix_page(request):
-    """权限矩阵页 — 用户 × 公司 × 模块 细粒度权限配置"""
-    return TemplateView.as_view(template_name='core/permission_matrix.html')(request)
+    """权限矩阵页 — 用户 × 公司 × 模块 细粒度权限配置（UMP位掩码）"""
+    from django.urls import reverse
+    # 直接传 kwargs，由 ContextMixin.get_context_data 自动合并进模板上下文
+    return TemplateView.as_view(template_name='system/permission_matrix.html')(
+        request,
+        permission_matrix_api_url=reverse('user-company-permission-matrix'),
+        permission_matrix_bulk_url=reverse('user-company-permission-matrix-bulk-update'),
+    )
 
 
 def system_settings_page(request):
@@ -191,22 +197,27 @@ def client_list_page(request):
     return TemplateView.as_view(template_name='crm/client_list.html')(request)
 
 
+def client_360_page(request, client_id):
+    return render(request, 'crm/client_360.html', {'client_id': client_id})
+
+
 def contract_list_page(request):
     return TemplateView.as_view(template_name='crm/contract_list.html')(request)
 
 
 def contract_detail_page(request, contract_id):
-    from apps.crm.models import Contract, PaymentPlan, ContractChangeLog
+    from apps.crm.models import Contract, PaymentPlan, ContractChangeLog, ContractMilestone
 
     try:
-        contract = Contract.objects.select_related('company').get(id=contract_id)
+        contract = Contract.objects.select_related('company', 'project', 'client', 'supplier', 'created_by').get(id=contract_id)
     except Contract.DoesNotExist:
         from django.http import Http404
 
         raise Http404('合同不存在')
 
-    payments = PaymentPlan.objects.filter(contract_id=contract_id).order_by('installment')
+    payments = PaymentPlan.objects.filter(contract_id=contract_id).order_by('plan_date')
     changes = ContractChangeLog.objects.filter(contract_id=contract_id).order_by('-change_date')
+    milestones = ContractMilestone.objects.filter(contract_id=contract_id).order_by('sort_order', 'plan_date')
 
     status_map = {
         'draft': ('secondary', '草稿'),
@@ -224,7 +235,14 @@ def contract_detail_page(request, contract_id):
         attachment_url = contract.attachment.url if hasattr(contract.attachment, 'url') else str(contract.attachment)
         attachment_name = attachment_url.split('/')[-1]
 
-    total_planned = sum(p.planned_amount or 0 for p in payments)
+    # 对方名称
+    counterparty_name = ''
+    if contract.client:
+        counterparty_name = contract.client.name
+    elif contract.supplier:
+        counterparty_name = contract.supplier.name
+
+    total_planned = sum(p.amount or 0 for p in payments)
 
     return render(
         request,
@@ -239,11 +257,11 @@ def contract_detail_page(request, contract_id):
                 'status_color': status_color,
                 'status_text': status_text,
                 'type_text': type_text,
-                'counterparty_name': contract.counterparty_name,
+                'counterparty_name': counterparty_name,
                 'sign_date': contract.sign_date,
                 'expire_date': contract.expire_date,
-                'project_name': str(contract.project_id) if contract.project_id else '',
-                'manager_name': str(contract.manager_id) if contract.manager_id else '',
+                'project_name': contract.project.name if contract.project_id else '',
+                'manager_name': contract.created_by.username if contract.created_by_id else '',
                 'remark': contract.remark or '',
                 'attachment': contract.attachment,
                 'attachment_url': attachment_url,
@@ -253,15 +271,28 @@ def contract_detail_page(request, contract_id):
             'payments': [
                 {
                     'id': p.id,
-                    'installment': p.installment,
-                    'planned_date': p.planned_date,
-                    'planned_amount': p.planned_amount,
-                    'actual_date': p.actual_date,
-                    'actual_amount': p.actual_amount,
+                    'plan_date': p.plan_date,
+                    'amount': p.amount,
+                    'paid_date': p.paid_date,
+                    'paid_amount': p.paid_amount,
                     'status': p.status,
                     'remark': p.remark or '',
                 }
                 for p in payments
+            ],
+            'milestones': [
+                {
+                    'id': m.id,
+                    'name': m.name,
+                    'description': m.description or '',
+                    'plan_date': m.plan_date,
+                    'actual_date': m.actual_date,
+                    'amount': m.amount,
+                    'status': m.status,
+                    'status_display': dict(ContractMilestone.STATUS_CHOICES).get(m.status, m.status),
+                    'sort_order': m.sort_order,
+                }
+                for m in milestones
             ],
             'changes': [
                 {
@@ -371,13 +402,17 @@ def notification_preferences_page(request):
     return TemplateView.as_view(template_name='system/notification_preferences.html')(request)
 
 
+def user_bind_page(request):
+    return TemplateView.as_view(template_name='notifications/bind.html')(request)
+
+
 def channels_page(request):
     return TemplateView.as_view(template_name='channels.html')(request)
 
 
 def serve_media(request, path):
     """生产环境 media 文件服务 — 支持 /media/ 和 /company_files/ 两种路径格式"""
-    import os, mimetypes
+    import os, mimetypes, urllib.parse
     from django.http import Http404, HttpResponse
     from django.utils.encoding import force_bytes
 
@@ -401,6 +436,19 @@ def serve_media(request, path):
     content_type, _ = mimetypes.guess_type(full_path)
     response = HttpResponse(force_bytes(content))
     response['Content-Type'] = content_type or 'application/octet-stream'
+    # 防止浏览器缓存旧的响应（之前的版本没有Content-Disposition头）
+    response['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+    response['Pragma'] = 'no-cache'
+    # 添加Content-Disposition头，支持中文文件名（RFC 5987）
+    filename = os.path.basename(full_path)
+    try:
+        # ASCII fallback：去掉非ASCII字符
+        ascii_name = filename.encode('ascii', errors='replace').decode('ascii')
+        # RFC 5987：UTF-8编码后用percent编码
+        encoded_name = urllib.parse.quote(filename.encode('utf-8'))
+        response['Content-Disposition'] = f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
+    except Exception:
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
 
 
@@ -447,6 +495,7 @@ urlpatterns = [
     path('system/notification-router/', notification_router_page, name='notification_router'),
     path('system/notification-logs/', notification_logs_page, name='notification_logs'),
     path('system/notification-preferences/', notification_preferences_page, name='notification_preferences'),
+    path('notifications/bind/', user_bind_page, name='user_bind'),
     path('channels/', channels_page, name='channels'),
     path('approvals/', approval_list_page, name='approval_list'),
     path('approvals/templates/', approval_template_list_page, name='approval_template_list'),
@@ -493,6 +542,7 @@ urlpatterns = [
     path('system/users/', user_list_page, name='user_list'),
     path('system/permission-matrix/', permission_matrix_page, name='permission_matrix'),
     path('crm/clients/', client_list_page, name='client_list'),
+    path('crm/clients/<int:client_id>/360/', client_360_page, name='client_360'),
     path(
         'crm/contracts/expiring/',
         lambda request: render(request, 'contracts/contract_expiring_list.html'),
@@ -503,6 +553,9 @@ urlpatterns = [
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
     path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
     path('crm/opportunities/', opportunity_list_page, name='opportunity_list'),
+    path('crm/opportunities/kanban/',
+         TemplateView.as_view(template_name='crm/opportunity_kanban.html'),
+         name='opportunity_kanban'),
     path('purchasing/requests/', purchase_request_list_page, name='purchase_request_list'),
     path('purchasing/orders/', purchase_order_list_page, name='purchase_order_list'),
     path('purchasing/receives/', purchase_receive_list_page, name='purchase_receive_list'),

@@ -8,6 +8,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Company
+from apps.finance.reports_common import get_user_report_companies, parse_date_range
 
 
 @api_view(['GET'])
@@ -24,11 +25,11 @@ def income_statement_report(request):
     year = params['year'] or timezone.now().year
     company_id = params['company_id']
 
-    # 如果不指定公司，汇总所有公司
+    # 如果不指定公司，汇总所有用户有权限的公司
     if not company_id:
-        companies = Company.objects.filter(status='active')
+        companies = get_user_report_companies(request)
     else:
-        companies = Company.objects.filter(id=company_id, status='active')
+        companies = get_user_report_companies(request).filter(id=company_id)
 
     # 逐公司计算
     company_results = []
@@ -176,9 +177,9 @@ def balance_sheet_report(request):
     company_id = params['company_id']
 
     if not company_id:
-        companies = Company.objects.filter(status='active')
+        companies = get_user_report_companies(request)
     else:
-        companies = Company.objects.filter(id=company_id, status='active')
+        companies = get_user_report_companies(request).filter(id=company_id)
 
     company_results = []
     totals = {'total_assets': 0.0, 'total_liabilities': 0.0, 'total_equity': 0.0}

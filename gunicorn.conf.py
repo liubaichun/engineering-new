@@ -31,7 +31,10 @@ daemon = False
 preload_app = False
 
 # 持久化 ALLOWED_HOSTS，避免重启丢失
-raw_env = ['ALLOWED_HOSTS=124.222.227.28,43.156.139.37,localhost,127.0.0.1']
+raw_env = [
+    'ALLOWED_HOSTS=124.222.227.28,43.156.139.37,localhost,127.0.0.1',
+    'DEEPSEEK_API_KEY=sk-50c148094fed4db1a24235d2110a39c0',
+]
 
 _log_dir = os.environ.get('GUNICORN_LOG_DIR', os.path.join(os.path.dirname(__file__), 'logs'))
 os.makedirs(_log_dir, exist_ok=True)

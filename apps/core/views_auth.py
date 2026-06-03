@@ -141,20 +141,18 @@ class LoginView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
-    @extend_schema(tags=['auth'], summary='用户登录', description='POST username/password，返回会话Cookie')
-    def post(self, request: Request) -> str:
-        x_forwarded = request.META.get('HTTP_X_FORWARDED_FOR')
-        if x_forwarded:
-            return x_forwarded.split(',')[0].strip()
-        return request.META.get('REMOTE_ADDR')
-
     def _log_login(self, request: Request, username: str, status: str, user=None, fail_reason: str = '') -> None:
-        # 登录时从用户公司角色取默认公司（传 FK 实例而非 _id）
+        # 登录时取默认公司（从UMP取第一个有权限的公司）
         company = None
         if user:
-            link = user.company_roles.all().first()
-            if link:
-                company = link.company
+            from apps.core.models import UserModulePermission
+            first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
+            if first_ump:
+                from apps.finance.models import Company
+                try:
+                    company = Company.objects.get(id=first_ump.company_id)
+                except Company.DoesNotExist:
+                    pass
         LoginLog.objects.create(
             user=user,
             username=username,
@@ -165,15 +163,17 @@ class LoginView(APIView):
             company=company,
         )
 
+    @extend_schema(tags=['auth'], summary='用户登录', description='POST username/password，返回会话Cookie')
     def post(self, request: Request) -> HttpResponse | JsonResponse:
         serializer = UserLoginSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             user = serializer.validated_data['user']
             login(request, user)
             # 登录时设置当前公司上下文
-            link = user.company_roles.all().first()
-            if link:
-                request.session['current_company_id'] = link.company_id
+            from apps.core.models import UserModulePermission
+            first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
+            if first_ump:
+                request.session['current_company_id'] = first_ump.company_id
             # 支持"30天内自动登录"记住我
             remember = request.data.get('remember', False)
             if remember in (True, 'true', '1', 'on'):
@@ -341,11 +341,11 @@ class CurrentUserView(APIView):
         except (ValueError, TypeError):
             return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 必须是整数')
 
-        from apps.core.models import UserCompanyPermission
+        from apps.core.models import UserModulePermission
 
-        # 使用 UCP（新权限系统）验证用户是否属于该公司
-        has_access = UserCompanyPermission.objects.filter(
-            user=request.user, company_id=company_id, is_granted=True
+        # 使用 UMP（权限矩阵）验证用户是否属于该公司
+        has_access = UserModulePermission.objects.filter(
+            user=request.user, company_id=company_id
         ).exists()
         if not has_access:
             return Response(
@@ -373,15 +373,15 @@ class CurrentUserView(APIView):
 
     def _my_companies(self, request: Request) -> Response:
         """获取当前用户可访问的公司列表"""
-        from apps.core.models import UserCompanyPermission
+        from apps.core.models import UserModulePermission
         from apps.finance.models import Company
 
-        ucp_companies = (
-            UserCompanyPermission.objects.filter(user=request.user, is_granted=True)
+        ump_company_ids = (
+            UserModulePermission.objects.filter(user=request.user)
             .values_list('company_id', flat=True)
             .distinct()
         )
-        companies = Company.objects.filter(id__in=list(ucp_companies))
+        companies = Company.objects.filter(id__in=list(ump_company_ids))
         current_company_id = request.session.get('current_company_id')
         data = []
         for c in companies:
@@ -409,10 +409,10 @@ class SwitchCompanyView(APIView):
         except (ValueError, TypeError):
             return api_error(ErrorCode.VALIDATION_ERROR, 'company_id 必须是整数')
 
-        from apps.core.models import UserCompanyPermission
+        from apps.core.models import UserModulePermission
 
-        has_access = UserCompanyPermission.objects.filter(
-            user=request.user, company_id=company_id, is_granted=True
+        has_access = UserModulePermission.objects.filter(
+            user=request.user, company_id=company_id
         ).exists()
         if not has_access:
             return Response(
@@ -468,10 +468,9 @@ class MyPermissionsView(APIView):
         user = request.user
         company_id = request.session.get('current_company_id')
         if not company_id:
-            from apps.core.models import UserCompanyRole
-
-            first_link = UserCompanyRole.objects.filter(user=user).first()
-            company_id = first_link.company_id if first_link else None
+            from apps.core.models import UserModulePermission
+            first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
+            company_id = first_ump.company_id if first_ump else None
 
         if user.is_superuser:
             codes = ['*']  # 超级用户特殊标记

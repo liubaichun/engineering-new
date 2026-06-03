@@ -180,7 +180,7 @@ class ExpenseFactory(factory.django.DjangoModelFactory):
         model = 'finance.Expense'
 
     amount = Decimal('30000.00')
-    expense_date = factory.LazyFunction(datetime.date.today)
+    date = factory.LazyFunction(datetime.date.today)
     supplier = '测试供应商'
     source = '银行导入'
     status = 'pending'

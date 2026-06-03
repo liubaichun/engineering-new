@@ -8,6 +8,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Company, Invoice
+from apps.finance.reports_common import get_user_report_companies, parse_date_range
 
 
 @api_view(['GET'])
@@ -31,7 +32,7 @@ def ar_ap_aging_report(request):
             return 'bucket_over_90'
 
     def build_arap(qs, name_field):
-        companies = Company.objects.all()
+        companies = get_user_report_companies(request)
         if company_id:
             companies = companies.filter(id=company_id)
 
@@ -62,6 +63,9 @@ def ar_ap_aging_report(request):
                         'due_date': str(due),
                         'days': (today - due).days if due else 0,
                         'bucket': bucket,
+                        'invoice_no': getattr(rec, 'invoice_no', ''),
+                        'contract_no': rec.contract.contract_no if rec.contract_id else '',
+                        'contract_name': rec.contract.name if rec.contract_id else '',
                     }
                 )
             total = sum(buckets.values())
@@ -76,8 +80,8 @@ def ar_ap_aging_report(request):
             )
         return results
 
-    ar_qs = Invoice.objects.filter(type='income', status='pending')
-    ap_qs = Invoice.objects.filter(type='expense', status='pending')
+    ar_qs = Invoice.objects.filter(type='income', status='pending').select_related('contract')
+    ap_qs = Invoice.objects.filter(type='expense', status='pending').select_related('contract')
     # 按时间范围过滤（params 从 parse_date_range 解析得到）
     if params['year']:
         ar_qs = ar_qs.filter(issue_date__year=params['year'])

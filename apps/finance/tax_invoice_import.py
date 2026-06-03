@@ -421,7 +421,6 @@ def _import_tax_invoices_common(ws: Any, company: Company, invoice_type: str, op
                         company=company,
                         amount=actual_amount,
                         date=issue_date,
-                        expense_date=issue_date,
                         expense_type='expense',
                         expense_category=category,
                         supplier=seller_name,

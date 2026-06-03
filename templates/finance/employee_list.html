@@ -167,11 +167,11 @@
                         <input type="date" class="form-control" id="employeeHireDate">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">银行卡号</label>
+                        <label class="form-label">银行卡号 <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="employeeBankCard" placeholder="银行卡号">
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label">开户银行</label>
+                        <label class="form-label">开户银行 <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" id="employeeBankName" placeholder="如：中国工商银行深圳分行">
                     </div>
                     <div class="col-md-4">
@@ -507,8 +507,8 @@ async function saveEmployee() {
     const emergency_phone = document.getElementById('employeeEmergencyPhone').value.trim();
     const remark = document.getElementById('employeeRemark').value.trim();
 
-    if (!name || !phone || !id_card || !department || !company || !hire_date) {
-        alert('请填写必填项（姓名、手机号、身份证号、部门、公司、入职日期）');
+    if (!name || !phone || !id_card || !department || !company || !hire_date || !bank_card || !bank_name) {
+        alert('请填写必填项（姓名、手机号、身份证号、部门、公司、入职日期、银行卡号、开户银行）');
         return;
     }
 

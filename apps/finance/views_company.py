@@ -25,14 +25,14 @@ class CompanyViewSet(viewsets.ModelViewSet):
     filterset_class = CompanyFilter
 
     def get_queryset(self):
-        # 多租户隔离：普通用户只看自己所属公司，超级用户可看所有
+        # 多租户隔离：使用UMP模块权限过滤（替代旧的 user.company_id）
         if not self.request.user.is_authenticated:
             return Company.objects.none()
-        user = self.request.user
-        if user.is_authenticated and not user.is_superuser:
-            if hasattr(user, 'company') and user.company_id:
-                return Company.objects.filter(id=user.company_id)
-        return Company.objects.all()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'company', 'read')
+        if companies is None:
+            return Company.objects.all()
+        return Company.objects.filter(id__in=companies)
 
     def perform_create(self, serializer):
         serializer.save()

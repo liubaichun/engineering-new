@@ -9,12 +9,9 @@ from django.db.models import Count
 from django.db.models.functions import TruncMonth
 from .models import Company, Income, Expense, WageRecord, Invoice
 from apps.core.auth import CSRFExemptSessionAuthentication
-from apps.core.permissions import RoleRequired
+from apps.core.permissions import RoleRequired, get_module_companies
 
 # 从共享模块导入工具函数
-from .views_common import (
-    get_user_companies,
-)
 
 
 from rest_framework import serializers as drf_serializers
@@ -70,7 +67,7 @@ class ReportViewSet(viewsets.ViewSet):
             Income.objects.annotate(y=ExtractYear('date')).values_list('y', flat=True).distinct().exclude(y=None)
         )
         expense_years = (
-            Expense.objects.annotate(y=ExtractYear('expense_date'))
+            Expense.objects.annotate(y=ExtractYear('date'))
             .values_list('y', flat=True)
             .distinct()
             .exclude(y=None)
@@ -91,7 +88,7 @@ class ReportViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
 
         # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         if user_company_ids is not None:
             # 普通用户：有权公司列表
             if company_id:
@@ -183,7 +180,7 @@ class ReportViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
 
         # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         if user_company_ids is not None:
             if company_id:
                 cid = int(company_id)
@@ -271,7 +268,7 @@ class ReportViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
 
         # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         if user_company_ids is not None:
             if company_id:
                 cid = int(company_id)
@@ -390,7 +387,7 @@ class ReportViewSet(viewsets.ViewSet):
         invoice_type = request.query_params.get('type')  # income or expense
 
         # 自动多租户：普通用户看所有关联公司数据；超管可指定公司
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         if user_company_ids is not None:
             if company_id:
                 cid = int(company_id)
@@ -487,7 +484,7 @@ class ReportViewSet(viewsets.ViewSet):
         inv_type = request.query_params.get('type')  # income/expense
 
         # 多租户隔离
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         if user_company_ids is not None:
             if company_id:
                 cid = int(company_id)
@@ -577,7 +574,7 @@ class ReportViewSet(viewsets.ViewSet):
         inv_type = request.query_params.get('type')  # income/expense
 
         # 多租户
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
 
         qs = Invoice.objects.filter(issue_date__year=year)
 
@@ -632,7 +629,7 @@ class ReportViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
 
         # 多公司隔离：超管看全部，普通用户只看有权公司
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         if user_company_ids is not None:
             if company_id:
                 cid = int(company_id)
@@ -713,7 +710,7 @@ class ReportViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
 
         # 多租户过滤
-        user_company_ids = get_user_companies(request.user)
+        user_company_ids = get_module_companies(request.user, 'report', 'read')
         qs = RelatedPartyLedger.objects.all()
 
         if company_id:

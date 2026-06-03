@@ -3,6 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired
+from apps.core.permissions_unified import get_user_companies
 from apps.core.exceptions import api_error, ErrorCode
 from django.db import models
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter
@@ -54,30 +55,34 @@ class EquipmentViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = Equipment.objects.select_related('project', 'project__company')
-        user = self.request.user
-        if user.is_superuser:
-            return qs
-        if hasattr(user, 'company_id') and user.company_id:
-            # 直接按company_id过滤，同时保留project__company_id兜底（无project的设备也能查到）
-            return qs.filter(models.Q(company_id=user.company_id) | models.Q(project__company_id=user.company_id))
-        return qs.none()
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'equipment', 'read')
+        if companies is None:
+            return super().get_queryset().select_related('project', 'project__company')
+        return super().get_queryset().filter(
+            models.Q(company_id__in=companies) | models.Q(project__company_id__in=companies)
+        ).select_related('project', 'project__company')
 
     def perform_create(self, serializer):
         user = self.request.user
-        # 优先从 middleware 注入的 request.auth_company 获取，兜底从 user ORM 外键读取
-        company_id = (
-            getattr(self.request, 'auth_company', None)
-            and self.request.auth_company.id
-            or (user.company_id if user.company_id else None)
-        )
+        # 优先使用前端传入的 company_id
+        frontend_company_id = serializer.validated_data.get('company_id')
+        if frontend_company_id:
+            company_id = frontend_company_id
+        else:
+            # 前端没传，从用户权限列表取第一个公司
+            companies = get_user_companies(user)
+            company_id = companies[0] if companies else None
+        
         project = serializer.validated_data.get('project')
         if project and company_id and project.company_id != company_id:
             from django.core.exceptions import PermissionDenied
-
             raise PermissionDenied('无权在此项目下创建设备')
-        # 自动填充company_id
-        if company_id and not serializer.validated_data.get('company_id'):
+        
+        # 保存时设置 company_id
+        if company_id:
             serializer.save(company_id=company_id)
         else:
             serializer.save()
@@ -228,18 +233,20 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        qs = EquipmentBOMRelation.objects.select_related(
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'equipment', 'read')
+        if companies is None:
+            return super().get_queryset().select_related(
+                'equipment', 'equipment__project', 'material_bom', 'material_bom__material'
+            )
+        return super().get_queryset().filter(
+            models.Q(equipment__company_id__in=companies)
+            | models.Q(equipment__project__company_id__in=companies)
+        ).select_related(
             'equipment', 'equipment__project', 'material_bom', 'material_bom__material'
         )
-        user = self.request.user
-        if user.is_superuser:
-            return qs
-        if hasattr(user, 'company_id') and user.company_id:
-            return qs.filter(
-                models.Q(equipment__company_id=user.company_id)
-                | models.Q(equipment__project__company_id=user.company_id)
-            )
-        return qs.none()
 
     @action(detail=True, methods=['delete'], url_path='remove_bom/(?P<bom_id>[^/.]+)')
     def remove_bom(self, request, pk=None, bom_id=None):

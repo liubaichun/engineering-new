@@ -10,9 +10,11 @@ from .models import (
     EmployeeCompany,
     SocialRecord,
     Budget,
+    ExpenseAmortization,
+    AmortizationEntry,
 )
 from .models_bank import BankAccount, BankStatement
-from apps.core.models import UserCompanyRole
+from apps.core.models import UserModulePermission
 
 
 # ── 公司访问校验 ──────────────────────────────────────
@@ -23,20 +25,26 @@ def _get_request_user(serializer):
 
 
 def validate_company_access(serializer, attrs, field_name='company'):
-    """校验用户有权操作指定公司（仅非超级用户）"""
+    """校验用户有权操作指定公司（仅非超级用户）
+
+    2026-06-02: 改用UMP位掩码查询取代旧UserCompanyRole
+    """
     user = _get_request_user(serializer)
     if user and not user.is_superuser:
         val = attrs.get(field_name)
         if val:
             company_id = getattr(val, 'id', val)
-            has_access = UserCompanyRole.objects.filter(user=user, company_id=company_id).exists()
+            has_access = UserModulePermission.objects.filter(user=user, company_id=company_id).exists()
             if not has_access:
                 raise serializers.ValidationError({field_name: f'无权操作该公司(ID={company_id})'})
     return attrs
 
 
 class CompanyAccessValidatorMixin:
-    """Serializer Mixin：自动校验 company/company_id 字段的访问权限"""
+    """Serializer Mixin：自动校验 company/company_id 字段的访问权限
+
+    2026-06-02: 改用UMP位掩码查询取代旧UserCompanyRole
+    """
 
     def validate_company(self, value):
         return self._check_company(value, 'company')
@@ -49,7 +57,7 @@ class CompanyAccessValidatorMixin:
         if user and not user.is_superuser:
             company_id = getattr(value, 'id', value)
             if company_id:
-                has_access = UserCompanyRole.objects.filter(user=user, company_id=company_id).exists()
+                has_access = UserModulePermission.objects.filter(user=user, company_id=company_id).exists()
                 if not has_access:
                     raise serializers.ValidationError(f'无权操作该公司(ID={company_id})')
         return value
@@ -215,8 +223,7 @@ class ExpenseSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
     project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
     operator_name = serializers.CharField(source='operator.username', read_only=True, allow_null=True)
     expense_type_display = serializers.CharField(source='get_expense_type_display', read_only=True)
-    date = serializers.SerializerMethodField()
-    expense_date = serializers.DateField(help_text='支出日期', required=False, allow_null=True)
+    date = serializers.DateField(help_text='支出日期')
     approval_status = serializers.SerializerMethodField()
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     bank_statement = serializers.SerializerMethodField()
@@ -234,7 +241,6 @@ class ExpenseSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
             'expense_type',
             'expense_type_display',
             'date',
-            'expense_date',
             'expense_category',
             'source',
             'source_display',
@@ -291,28 +297,16 @@ class ExpenseSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
             pass
         return None
 
-    def get_date(self, obj) -> str | None:
-        if obj.date:
-            return obj.date.isoformat()
-        return None
-
     def get_bank_statement(self, obj) -> list:
         """反向追溯：关联的银行流水摘要"""
         stmts = obj.matched_statements.all()
         return BankStatementSerializer(stmts, many=True).data
 
     def create(self, validated_data):
-        expense_date = validated_data.pop('expense_date', None)
-        if expense_date:
-            validated_data['date'] = expense_date
         expense = super().create(validated_data)
         return expense
 
     def update(self, instance, validated_data):
-        expense_date = validated_data.pop('expense_date', None)
-        if expense_date:
-            instance.date = expense_date
-            instance.expense_date = expense_date
         return super().update(instance, validated_data)
 
 
@@ -529,16 +523,34 @@ class WageRecordSerializer(CompanyAccessValidatorMixin, serializers.ModelSeriali
         net = float(attrs.get('net_salary') or 0)
         if net > gross > 0:
             raise serializers.ValidationError({'net_salary': f'实发工资({net})不能大于应发工资({gross})'})
-        # 如果传了 employee_company，自动用其关联的 employee 和 employee_name 填充
+
+        # 如果传了 employee_company，校验与 employee 的一致性
         ec = attrs.get('employee_company')
-        if ec:
-            attrs['employee'] = ec.employee
+        emp = attrs.get('employee')
+        if ec and emp:
+            # 校验：employee_company 关联的员工必须与传入的 employee 一致
+            if ec.employee_id != emp.id:
+                raise serializers.ValidationError(
+                    {'employee': f'员工选择错误：{ec.employee.name} 的任职记录不能关联到其他员工'}
+                )
+            # 自动填充 employee_name
             attrs['employee_name'] = ec.employee.name
             # 用 employee_company 里的 department/position 填充
             if not attrs.get('department'):
                 attrs['department'] = ec.department
             if not attrs.get('position'):
                 attrs['position'] = ec.position
+        elif ec:
+            # 只有 employee_company，没有 employee，自动从 ec 填充
+            attrs['employee'] = ec.employee
+            attrs['employee_name'] = ec.employee.name
+            if not attrs.get('department'):
+                attrs['department'] = ec.department
+            if not attrs.get('position'):
+                attrs['position'] = ec.position
+        elif emp:
+            # 只有 employee，没有 employee_company，只填充 employee_name
+            attrs['employee_name'] = emp.name
         return attrs
 
 
@@ -547,7 +559,10 @@ class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
 
     company_name = serializers.CharField(source='company.name', read_only=True)
     project_name = serializers.CharField(source='project.name', read_only=True, allow_null=True)
-    project_id = serializers.IntegerField(source='project.id', read_only=True, allow_null=True)
+    project_id = serializers.IntegerField(allow_null=True, required=False)
+    contract_id = serializers.IntegerField(allow_null=True, required=False)
+    contract_name = serializers.CharField(source='contract.name', read_only=True, allow_null=True)
+    contract_no = serializers.CharField(source='contract.contract_no', read_only=True, allow_null=True)
     type_display = serializers.CharField(source='get_type_display', read_only=True)
     status_display = serializers.CharField(source='get_status_display', read_only=True)
     invoice_type_display = serializers.CharField(source='get_invoice_type_display', read_only=True)
@@ -575,9 +590,11 @@ class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
             'credited_period',
             'counterparty_tax_id',
             'counterparty_bank',
-            'project',
             'project_id',
             'project_name',
+            'contract_id',
+            'contract_name',
+            'contract_no',
             'company',
             'company_name',
             'status',
@@ -622,6 +639,38 @@ class InvoiceSerializer(CompanyAccessValidatorMixin, serializers.ModelSerializer
 
     def get_is_negative(self, obj) -> bool:
         return float(obj.amount or 0) < 0
+
+    def validate(self, attrs):
+        """将 contract_id/project_id 整数转换为 FK 对象"""
+        # contract_id → contract
+        cid = attrs.pop('contract_id', None)
+        if cid is not None and cid != '':
+            from apps.crm.models import Contract
+
+            try:
+                attrs['contract'] = Contract.objects.get(id=int(cid))
+            except (Contract.DoesNotExist, ValueError, TypeError):
+                from rest_framework import serializers as rf_ser
+
+                raise rf_ser.ValidationError({'contract_id': f'合同(ID={cid})不存在'})
+        else:
+            attrs['contract'] = None
+
+        # project_id → project
+        pid = attrs.pop('project_id', None)
+        if pid is not None and pid != '':
+            from apps.tasks.models import Project
+
+            try:
+                attrs['project'] = Project.objects.get(id=int(pid))
+            except (Project.DoesNotExist, ValueError, TypeError):
+                from rest_framework import serializers as rf_ser
+
+                raise rf_ser.ValidationError({'project_id': f'项目(ID={pid})不存在'})
+        else:
+            attrs['project'] = None
+
+        return attrs
 
     def create(self, validated_data):
         # 自动生成发票号：只从 INV-NNNNNN 标准格式中找最大数字
@@ -731,6 +780,7 @@ class EmployeeSerializer(serializers.ModelSerializer):
     id_card = _id_card()
     phone = _phone()
     bank_card = _bank_card()
+    bank_name = serializers.CharField(required=True, allow_blank=False, label='开户银行')
 
     def get_has_social_insurance_display(self, obj) -> str:
         return '是' if obj.has_social_insurance else '否'
@@ -984,3 +1034,48 @@ class BudgetSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
         read_only_fields = ['id', 'created_by', 'created_by_name', 'created_at', 'updated_at']
+
+
+class AmortizationEntrySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AmortizationEntry
+        fields = ['id', 'amortization', 'period_date', 'amount', 'is_generated', 'created_at']
+
+
+class ExpenseAmortizationSerializer(serializers.ModelSerializer):
+    entries = AmortizationEntrySerializer(many=True, read_only=True)
+    created_by_name = serializers.CharField(source='created_by.username', read_only=True, default='')
+    expense_name = serializers.CharField(source='expense.remark', read_only=True, default='')
+    progress_percent = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ExpenseAmortization
+        fields = [
+            'id',
+            'company',
+            'expense',
+            'expense_name',
+            'name',
+            'total_amount',
+            'monthly_amount',
+            'start_date',
+            'end_date',
+            'total_periods',
+            'completed_periods',
+            'remaining_amount',
+            'status',
+            'category',
+            'remark',
+            'entries',
+            'created_by',
+            'created_by_name',
+            'created_at',
+            'updated_at',
+            'progress_percent',
+        ]
+        read_only_fields = ['id', 'completed_periods', 'remaining_amount', 'created_at', 'updated_at', 'created_by']
+
+    def get_progress_percent(self, obj):
+        if obj.total_periods == 0:
+            return 0
+        return round(obj.completed_periods / obj.total_periods * 100, 1)

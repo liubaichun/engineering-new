@@ -116,11 +116,14 @@ class ApprovalFlowViewSet(viewsets.ModelViewSet):
     }
 
     def get_queryset(self):
-        queryset = super().get_queryset()
-        user = self.request.user
-        # 多租户隔离：直接按 company_id 过滤，不再依赖 requester FK
-        if user.is_authenticated and not user.is_superuser and not user.is_staff:
-            queryset = queryset.filter(company_id=user.company_id)
+        if not self.request.user.is_authenticated:
+            return self.queryset.model.objects.none()
+        from apps.core.permissions import get_module_companies
+        companies = get_module_companies(self.request.user, 'approval', 'read')
+        if companies is None:
+            queryset = super().get_queryset()
+        else:
+            queryset = super().get_queryset().filter(company_id__in=companies)
         flow_type = self.request.query_params.get('flow_type')
         if flow_type:
             queryset = queryset.filter(flow_type=flow_type)
