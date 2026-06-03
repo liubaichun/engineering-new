@@ -237,7 +237,6 @@
                                         <th>发票号</th>
                                         <th>金额</th>
                                         <th>开票日期</th>
-                                        <th>到期日期</th>
                                         <th>来源</th>
                                         <th>状态</th>
                                     </tr>
@@ -247,7 +246,6 @@
                                         <td v-text="inv.invoice_no"></td>
                                         <td>¥<span v-text="formatMoney(inv.amount)"></span></td>
                                         <td v-text="inv.issue_date || '-'"></td>
-                                        <td v-text="inv.due_date || '-'"></td>
                                         <td><span class="badge bg-secondary" v-text="inv.source"></span></td>
                                         <td><span class="badge" :class="invoiceStatusClass(inv.status)" v-text="invoiceStatusLabel(inv.status)"></span></td>
                                     </tr>
@@ -256,9 +254,75 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ====== 支出记录 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-cash-stack"></i> 支出记录
+                            <span class="badge bg-danger ms-auto" v-text="(data.expenses || []).length + ' 条'"></span>
+                        </div>
+                        <div v-if="!data.expenses || data.expenses.length === 0" class="empty-360">暂无支出记录</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>金额</th>
+                                        <th>日期</th>
+                                        <th>类型</th>
+                                        <th>摘要</th>
+                                        <th>状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="e in data.expenses" :key="e.id">
+                                        <td class="text-danger fw-bold">¥<span v-text="formatMoney(e.amount)"></span></td>
+                                        <td v-text="e.date || '-'"></td>
+                                        <td><span class="badge bg-secondary" v-text="expenseTypeLabel(e.expense_type)"></span></td>
+                                        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" v-text="e.summary || '-'"></td>
+                                        <td><span class="status-badge" :class="expenseStatusClass(e.status)" v-text="expenseStatusLabel(e.status)"></span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ====== 银行流水 ====== -->
+                <div class="card mb-4">
+                    <div class="card-body">
+                        <div class="section-header">
+                            <i class="bi bi-bank"></i> 银行流水
+                            <span class="badge bg-info ms-auto" v-text="(data.bank_statements || []).length + ' 条'"></span>
+                        </div>
+                        <div v-if="!data.bank_statements || data.bank_statements.length === 0" class="empty-360">暂无匹配流水</div>
+                        <div class="table-responsive" v-else>
+                            <table class="table table-360">
+                                <thead>
+                                    <tr>
+                                        <th>对方名称</th>
+                                        <th>金额</th>
+                                        <th>方向</th>
+                                        <th>日期</th>
+                                        <th>摘要</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="bs in data.bank_statements" :key="bs.id">
+                                        <td v-text="bs.counterparty_name"></td>
+                                        <td>¥<span v-text="formatMoney(bs.amount)"></span></td>
+                                        <td><span class="badge" :class="bs.direction === 'income' ? 'bg-success' : 'bg-danger'" v-text="bs.direction === 'income' ? '收款' : '付款'"></span></td>
+                                        <td v-text="bs.transaction_date || '-'"></td>
+                                        <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" v-text="bs.summary || '-'"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
 
-            <!-- Right sidebar: Receives + Expenses + Bank -->
+            <!-- 右侧：入库列表 -->
             <div class="col-lg-4">
                 <!-- Purchase Receives -->
                 <div class="card mb-4">
@@ -273,45 +337,6 @@
                                 <div><span class="text-info" v-text="r.receive_no"></span></div>
                                 <div class="text-muted" style="font-size:0.75rem;">订单: <span v-text="r.order_no"></span><span class="ms-2" v-text="r.receive_date"></span></div>
                                 <div><span class="badge" :class="receiveStatusClass(r.status)" v-text="receiveStatusLabel(r.status)"></span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Expenses -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div class="section-header">
-                            <i class="bi bi-cash-stack"></i> 支出记录
-                            <span class="badge bg-primary ms-auto" v-text="(data.expenses || []).length + ' 条'"></span>
-                        </div>
-                        <div v-if="!data.expenses || data.expenses.length === 0" class="empty-360">暂无支出记录</div>
-                        <div v-else>
-                            <div v-for="e in data.expenses" :key="e.id" style="border-left:3px solid #f87171;padding:6px 10px;margin-bottom:6px;background:#1e293b;border-radius:0 6px 6px 0;font-size:0.85rem;">
-                                <div>¥<span class="text-danger fw-bold" v-text="formatMoney(e.amount)"></span></div>
-                                <div class="text-muted" style="font-size:0.75rem;"><span v-text="e.date"></span> · <span v-text="expenseTypeLabel(e.expense_type)"></span></div>
-                                <div v-if="e.summary" class="text-muted" style="font-size:0.75rem;" v-text="e.summary"></div>
-                                <div><span class="badge" :class="expenseStatusClass(e.status)" v-text="expenseStatusLabel(e.status)"></span></div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Bank Statements -->
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <div class="section-header">
-                            <i class="bi bi-bank"></i> 银行流水
-                            <span class="badge bg-primary ms-auto" v-text="(data.bank_statements || []).length + ' 条'"></span>
-                        </div>
-                        <div v-if="!data.bank_statements || data.bank_statements.length === 0" class="empty-360">暂无匹配流水</div>
-                        <div v-else>
-                            <div v-for="bs in data.bank_statements" :key="bs.id" style="border-left:3px solid #34d399;padding:6px 10px;margin-bottom:6px;background:#1e293b;border-radius:0 6px 6px 0;font-size:0.85rem;">
-                                <div>¥<span class="fw-bold" :class="bs.direction === 'income' ? 'text-success' : 'text-danger'" v-text="formatMoney(bs.amount)"></span>
-                                    <span class="text-muted ms-1" style="font-size:0.75rem;">[<span v-text="bs.direction === 'income' ? '收入' : '支出'"></span>]</span>
-                                </div>
-                                <div class="text-muted" style="font-size:0.75rem;"><span v-text="bs.counterparty_name"></span> · <span v-text="bs.transaction_date"></span></div>
-                                <div v-if="bs.summary" class="text-muted" style="font-size:0.75rem;" v-text="bs.summary"></div>
                             </div>
                         </div>
                     </div>

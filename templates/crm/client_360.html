@@ -264,6 +264,7 @@
                                         <th>日期</th>
                                         <th>摘要</th>
                                         <th>状态</th>
+                                        <th>操作</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -272,7 +273,10 @@
                                         <td>¥<span v-text="formatMoney(inc.amount)"></span></td>
                                         <td v-text="inc.date || '-'"></td>
                                         <td v-text="inc.summary || '-'"></td>
-                                        <td><span class="status-badge" :class="inc.status === 'confirmed' ? 'bg-success' : 'bg-secondary'" v-text="inc.status === 'confirmed' ? '已确认' : '待确认'"></span></td>
+                                        <td><span class="status-badge" :class="incomeStatusClass(inc.status)" v-text="incomeStatusLabel(inc.status)"></span></td>
+                                        <td>
+                                            <button v-if="inc.status === 'pending'" class="btn btn-sm btn-outline-success" @click="confirmIncome(inc.id)" title="确认到账"><i class="bi bi-check-lg"></i></button>
+                                        </td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -527,6 +531,33 @@ const app = Vue.createApp({
         },
         opportunityStatusClass(s) {
             return s === 'won' ? 'bg-success' : s === 'lost' ? 'bg-danger' : 'bg-warning text-dark';
+        },
+        // 收入状态
+        incomeStatusClass(s) {
+            const map = { pending: 'bg-warning text-dark', approved: 'bg-info', received: 'bg-success' };
+            return map[s] || 'bg-secondary';
+        },
+        incomeStatusLabel(s) {
+            const map = { pending: '待审批', approved: '已批准', received: '已到账' };
+            return map[s] || s;
+        },
+        async confirmIncome(incomeId) {
+            try {
+                const resp = await fetch('/api/finance/incomes/' + incomeId + '/', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': getCookie('csrftoken') },
+                    credentials: 'include',
+                    body: JSON.stringify({ status: 'received' })
+                });
+                if (!resp.ok) throw new Error('确认失败');
+                // 更新本地状态
+                const inc = this.data.incomes.find(x => x.id === incomeId);
+                if (inc) inc.status = 'received';
+                showToast('收入已确认到账', 'success');
+            } catch (e) {
+                console.error('确认收入失败:', e);
+                showToast('确认失败: ' + e.message, 'error');
+            }
         }
     }
 });

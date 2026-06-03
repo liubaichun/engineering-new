@@ -148,6 +148,12 @@
                             <option value="terminated">已终止</option>
                         </select>
                     </div>
+                    <div class="col-md-6">
+                        <label class="form-label">所属公司 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="contractCompany">
+                            <option value="">请选择公司</option>
+                        </select>
+                    </div>
                     <div class="col-12">
                         <label class="form-label">备注</label>
                         <textarea class="form-control" id="remark" rows="2" placeholder="备注信息"></textarea>
@@ -260,10 +266,15 @@ async function loadCompanies() {
         var response = await fetch('/api/finance/companies/', { credentials: 'include' });
         var data = await response.json();
         allCompanies = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
-        var select = document.getElementById('filterCompany');
-        select.innerHTML = '<option value="">全部公司</option>';
+        // 筛选一下拉
+        var filterSelect = document.getElementById('filterCompany');
+        filterSelect.innerHTML = '<option value="">全部公司</option>';
+        // Modal下拉
+        var modalSelect = document.getElementById('contractCompany');
+        modalSelect.innerHTML = '<option value="">请选择公司</option>';
         allCompanies.forEach(function(c) {
-            select.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+            filterSelect.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+            modalSelect.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
         });
     } catch (error) {
         console.error('加载公司失败:', error);
@@ -359,6 +370,7 @@ function showContractModal() {
     document.getElementById('signDate').value = '';
     document.getElementById('expireDate').value = '';
     document.getElementById('contractStatus').value = 'draft';
+    document.getElementById('contractCompany').value = '';
     document.getElementById('remark').value = '';
     document.getElementById('contractAttachment').value = '';
     document.getElementById('contractAttachmentName').value = '';
@@ -388,6 +400,7 @@ function editContract(contractId) {
     document.getElementById('signDate').value = c.sign_date || '';
     document.getElementById('expireDate').value = c.expire_date || '';
     document.getElementById('contractStatus').value = c.status || 'draft';
+    document.getElementById('contractCompany').value = c.company || '';
     document.getElementById('remark').value = c.remark || '';
     // 显示已有附件
     var preview = document.getElementById('attachmentPreview');
@@ -432,6 +445,7 @@ async function saveContract() {
     formData.append('sign_date', document.getElementById('signDate').value || '');
     formData.append('expire_date', document.getElementById('expireDate').value || '');
     formData.append('status', document.getElementById('contractStatus').value);
+    formData.append('company', document.getElementById('contractCompany').value || '');
     formData.append('remark', document.getElementById('remark').value.trim());
     if (attachmentFile) {
         formData.append('attachment', attachmentFile);
