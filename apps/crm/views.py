@@ -1260,7 +1260,7 @@ class OpportunityViewSet(viewsets.ModelViewSet):
         'win': 'crm:opportunity:approve',
         'lose': 'crm:opportunity:approve',
     }
-    filter_fields = ['stage', 'priority', 'client', 'is_active']
+    filter_fields = ['stage', 'priority', 'client', 'is_active', 'company']
     search_fields = ['name', 'client__name', 'product_lines', 'competitor']
     ordering_fields = ['expected_amount', 'probability', 'created_at', 'estimated_close_date']
 

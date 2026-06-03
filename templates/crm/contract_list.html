@@ -39,6 +39,11 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <select class="form-select" id="filterCompany" onchange="filterContracts()">
+                    <option value="">全部公司</option>
+                </select>
+            </div>
+            <div class="col-md-1">
                 <select class="form-select" id="filterStatus" onchange="filterContracts()">
                     <option value="">全部状态</option>
                     <option value="draft">草稿</option>
@@ -62,12 +67,13 @@
                         <th>签署日期</th>
                         <th>到期日期</th>
                         <th>状态</th>
+                        <th>公司</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="contractTableBody">
                     <tr>
-                        <td colspan="9" class="text-center py-4">
+                        <td colspan="10" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
                         </td>
                     </tr>
@@ -168,6 +174,7 @@
 <script>
 var contractModal;
 var allContracts = [];
+var allCompanies = [];
 var allClients = [];
 var allSuppliers = [];
 
@@ -177,6 +184,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadSuppliers();
     loadProjects();
     loadContracts();
+    loadCompanies();
 });
 
 async function loadClients() {
@@ -247,6 +255,21 @@ async function loadProjects() {
     }
 }
 
+async function loadCompanies() {
+    try {
+        var response = await fetch('/api/finance/companies/', { credentials: 'include' });
+        var data = await response.json();
+        allCompanies = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
+        var select = document.getElementById('filterCompany');
+        select.innerHTML = '<option value="">全部公司</option>';
+        allCompanies.forEach(function(c) {
+            select.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
+}
+
 async function loadContracts() {
     try {
         var response = await fetch('/api/crm/contracts/', { credentials: 'include' });
@@ -266,6 +289,7 @@ function renderContracts() {
     var clientId = document.getElementById('filterClient').value;
     var supplierId = document.getElementById('filterSupplier').value;
     var status = document.getElementById('filterStatus').value;
+    var companyId = document.getElementById('filterCompany').value;
 
     var filtered = allContracts.filter(function(c) {
         if (search && !c.name.toLowerCase().includes(search) && !c.contract_no.toLowerCase().includes(search)) return false;
@@ -275,12 +299,13 @@ function renderContracts() {
         if (!partyType && clientId && String(c.client) !== clientId) return false;
         if (!partyType && supplierId && String(c.supplier) !== supplierId) return false;
         if (status && c.status !== status) return false;
+        if (companyId && String(c.company) !== companyId) return false;
         return true;
     });
 
     var tbody = document.getElementById('contractTableBody');
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">暂无合同</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无合同</td></tr>';
         return;
     }
 
@@ -305,6 +330,7 @@ function renderContracts() {
         html += '<td>' + (c.sign_date || '-') + '</td>';
         html += '<td>' + (c.expire_date || '-') + '</td>';
         html += '<td><span class="badge ' + statusClass + '">' + statusText + '</span></td>';
+        html += '<td><small>' + escapeHtml(c.company_name || '-') + '</small></td>';
         html += '<td>';
         html += '<button class="btn btn-sm btn-outline-secondary me-1" onclick="viewContract(' + c.id + ')"><i class="bi bi-eye"></i></button>';
         html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editContract(' + c.id + ')"><i class="bi bi-pencil"></i></button>';

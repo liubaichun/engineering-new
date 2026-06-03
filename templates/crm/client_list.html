@@ -43,6 +43,11 @@
                     <option value="false">已停止</option>
                 </select>
             </div>
+            <div class="col-md-2">
+                <select class="form-select" id="filterCompany" onchange="filterClients()">
+                    <option value="">全部公司</option>
+                </select>
+            </div>
         </div>
 
         <div class="table-responsive">
@@ -58,12 +63,13 @@
                         <th>分类</th>
                         <th>状态</th>
                         <th>创建时间</th>
+                        <th>公司</th>
                         <th>操作</th>
                     </tr>
                 </thead>
                 <tbody id="clientTableBody">
                     <tr>
-                        <td colspan="10" class="text-center py-4">
+                        <td colspan="11" class="text-center py-4">
                             <div class="spinner-border text-primary"></div>
                         </td>
                     </tr>
@@ -180,6 +186,7 @@
 <script>
 var clientModal;
 var allClients = [];
+var allCompanies = [];
 var currentPage = 1;
 let pageSize = 20;
 
@@ -187,6 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
     clientModal = new bootstrap.Modal(document.getElementById('clientModal'));
     loadClients();
     loadClientSources();
+    loadCompanies();
 });
 
 async function loadClients() {
@@ -210,15 +218,32 @@ async function loadClients() {
     renderClients();
 }
 
+async function loadCompanies() {
+    try {
+        var response = await fetch('/api/finance/companies/', { credentials: 'include' });
+        var data = await response.json();
+        allCompanies = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
+        var select = document.getElementById('filterCompany');
+        select.innerHTML = '<option value="">全部公司</option>';
+        allCompanies.forEach(function(c) {
+            select.innerHTML += '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>';
+        });
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
+}
+
 function renderClients() {
     var search = document.getElementById('searchName').value.toLowerCase();
     var category = document.getElementById('filterCategory').value;
     var status = document.getElementById('filterStatus').value;
+    var companyId = document.getElementById('filterCompany').value;
 
     var filtered = allClients.filter(function(c) {
         if (search && !c.name.toLowerCase().includes(search)) return false;
         if (category && c.category !== category) return false;
         if (status && String(c.is_active) !== status) return false;
+        if (companyId && String(c.company) !== companyId) return false;
         return true;
     });
 
@@ -230,7 +255,7 @@ function renderClients() {
 
     var tbody = document.getElementById('clientTableBody');
     if (pageData.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">暂无客户数据</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无客户数据</td></tr>';
     } else {
         var html = '';
         pageData.forEach(function(client) {
@@ -250,6 +275,7 @@ function renderClients() {
             html += '<td><span class="badge bg-secondary">' + escapeHtml(categoryText) + '</span></td>';
             html += '<td><span class="' + statusClass + '"><i class="bi bi-circle-fill me-1"></i>' + statusText + '</span></td>';
             html += '<td>' + createdAt + '</td>';
+            html += '<td><small>' + escapeHtml(client.company_name || '-') + '</small></td>';
             html += '<td>';
             html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editClient(' + client.id + ')"><i class="bi bi-pencil"></i></button>';
             html += '<button class="btn btn-sm btn-outline-info me-1" onclick="window.location.href=\'/crm/clients/' + client.id + '/360/\'" title="客户360°视图"><i class="bi bi-compass"></i></button>';

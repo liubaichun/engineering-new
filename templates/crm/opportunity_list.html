@@ -71,13 +71,18 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <select class="form-select" id="filterCompany" onchange="filterAndSearch()">
+                    <option value="">全部公司</option>
+                </select>
+            </div>
+            <div class="col-md-2">
                 <a href="{% url 'opportunity_kanban' %}" class="btn btn-outline-info w-100">
                     <i class="bi bi-columns-gap me-1"></i>看板视图
                 </a>
             </div>
-            <div class="col-md-2">
+            <div class="col-md-1">
                 <button class="btn btn-primary w-100" onclick="showOppModal()" data-perm="crm:opportunity:create">
-                    <i class="bi bi-plus-lg me-1"></i>新建商机
+                    <i class="bi bi-plus-lg me-1"></i>新建
                 </button>
             </div>
             <div class="col-md-3 text-end">
@@ -110,8 +115,10 @@
                         <th>阶段</th>
                         <th>优先级</th>
                         <th>预计金额</th>
-                        <th>赢单概率</th><th>加权金额</th>
+                        <th>赢单概率</th>
+                        <th>加权金额</th>
                         <th>预计成交</th>
+                        <th>公司</th>
                         <th>负责人</th>
                         <th>操作</th>
                     </tr>
@@ -243,6 +250,7 @@ document.addEventListener('DOMContentLoaded', () => {
     loadClients();
     loadContacts();
     loadLostReasonStats();
+    loadCompanies();
     filterAndSearch();
 });
 
@@ -309,9 +317,11 @@ async function filterAndSearch() {
     const stage = document.getElementById('filterStage').value;
     const priority = document.getElementById('filterPriority').value;
     const search = document.getElementById('searchName').value.trim();
+    const company = document.getElementById('filterCompany').value;
     if (stage) params.set('stage', stage);
     if (priority) params.set('priority', priority);
     if (search) params.set('search', search);
+    if (company) params.set('company', company);
     await loadOpportunities(params.toString());
 }
 
@@ -323,7 +333,7 @@ async function loadOpportunities(queryString) {
         const tbody = document.getElementById('oppTableBody');
         document.getElementById('oppCount').textContent = `共 ${data.count} 条`;
         if (!data.results.length) {
-            tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">暂无商机数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-4">暂无商机数据</td></tr>';
             document.getElementById('paginationBar').innerHTML = '';
             return;
         }
@@ -334,9 +344,10 @@ async function loadOpportunities(queryString) {
                 <td><span class="badge bg-${stageColor(o.stage)}">${o.stage_display}</span></td>
                 <td class="${priorityClass(o.priority)}">${priorityMap[o.priority] || o.priority}</td>
                 <td class="text-end fw-semibold">${o.expected_amount>0?'¥'+o.expected_amount.toLocaleString():'—'}</td>
-                <td>${o.probability}%<br><small class="text-muted">加权</small></td>
+                <td>${o.probability}%</td>
                 <td class="text-end"><span class="text-primary fw-semibold">${o.weighted_amount>0?'¥'+o.weighted_amount.toLocaleString():'—'}</span></td>
                 <td>${o.estimated_close_date || '—'}</td>
+                <td>${o.company_name || '—'}</td>
                 <td>${o.created_by_name || '—'}</td>
                 <td>
                     <div class="dropdown">
@@ -570,6 +581,21 @@ async function loadLostReasonStats() {
         html += '</div>';
         document.getElementById('lostReasonContent').innerHTML = html;
     } catch(e) { console.error('load lost reason stats failed', e); }
+}
+
+async function loadCompanies() {
+    try {
+        const response = await fetch('/api/finance/companies/', { credentials: 'include' });
+        const data = await response.json();
+        const companies = data.results !== undefined ? data.results : (Array.isArray(data) ? data : []);
+        const select = document.getElementById('filterCompany');
+        select.innerHTML = '<option value="">全部公司</option>';
+        companies.forEach(c => {
+            select.innerHTML += '<option value="' + c.id + '">' + c.name + '</option>';
+        });
+    } catch (error) {
+        console.error('加载公司失败:', error);
+    }
 }
 
 function toggleLostReason() {

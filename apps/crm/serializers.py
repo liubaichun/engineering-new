@@ -25,6 +25,7 @@ class SupplierSerializer(serializers.ModelSerializer):
     counterparty_type_display = serializers.CharField(
         source='get_counterparty_type_display', read_only=True, default=''
     )
+    company_name = serializers.CharField(source='company.name', read_only=True, default='')
 
     class Meta:
         model = Supplier
@@ -48,6 +49,8 @@ class SupplierSerializer(serializers.ModelSerializer):
             'updated_at',
             'created_by',
             'created_by_name',
+            'company',
+            'company_name',
         ]
         read_only_fields = ['code', 'created_by']
 
@@ -77,6 +80,7 @@ class ClientSerializer(serializers.ModelSerializer):
     counterparty_type_display = serializers.CharField(
         source='get_counterparty_type_display', read_only=True, default=''
     )
+    company_name = serializers.CharField(source='company.name', read_only=True, default='')
 
     class Meta:
         model = Client
@@ -94,6 +98,8 @@ class ClientSerializer(serializers.ModelSerializer):
             'is_active',
             'source',
             'source_name',
+            'company',
+            'company_name',
             'counterparty_type',
             'counterparty_type_display',
             'tax_id',
@@ -123,6 +129,7 @@ class ContractSerializer(serializers.ModelSerializer):
     counterparty_name = serializers.SerializerMethodField()
     payment_progress = serializers.SerializerMethodField()
     paid_amount_display = serializers.SerializerMethodField()
+    company_name = serializers.CharField(source='company.name', read_only=True, default='')
 
     def get_payment_progress(self, obj) -> float | None:
         if obj.amount and obj.amount > 0:
@@ -161,6 +168,8 @@ class ContractSerializer(serializers.ModelSerializer):
             'updated_at',
             'created_by',
             'created_by_name',
+            'company',
+            'company_name',
         ]
         read_only_fields = ['created_by', 'total_paid', 'payment_progress', 'paid_amount_display']
         extra_kwargs = {'contract_no': {'required': False}}
@@ -353,6 +362,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
     stage_display = serializers.CharField(source='get_stage_display', read_only=True)
     priority_display = serializers.CharField(source='get_priority_display', read_only=True)
     created_by_name = serializers.CharField(source='created_by.username', read_only=True, default='')
+    company_name = serializers.CharField(source='company.name', read_only=True, default='')
     weighted_amount = serializers.SerializerMethodField()
 
     class Meta:
@@ -362,6 +372,7 @@ class OpportunitySerializer(serializers.ModelSerializer):
             'company',
             'client',
             'client_name',
+            'company_name',
             'contact',
             'contact_name',
             'contract',
