@@ -432,6 +432,14 @@ class NotificationLogView(APIView):
         if company_id:
             qs = qs.filter(channel__company_id=company_id)
 
+        # 筛选
+        status = request.GET.get('status')
+        if status:
+            qs = qs.filter(status=status)
+        channel_type = request.GET.get('channel_type')
+        if channel_type:
+            qs = qs.filter(channel__channel_type=channel_type)
+
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 50))
         total = qs.count()
