@@ -135,15 +135,7 @@ def user_list_page(request):
 
 
 def permission_matrix_page(request):
-    """权限矩阵页 — 用户 × 公司 × 模块 细粒度权限配置（UMP位掩码）"""
-    from django.urls import reverse
-
-    # 直接传 kwargs，由 ContextMixin.get_context_data 自动合并进模板上下文
-    return TemplateView.as_view(template_name='system/permission_matrix.html')(
-        request,
-        permission_matrix_api_url=reverse('user-company-permission-matrix'),
-        permission_matrix_bulk_url=reverse('user-company-permission-matrix-bulk-update'),
-    )
+    return TemplateView.as_view(template_name='core/permission_matrix.html')(request)
 
 
 def system_settings_page(request):
