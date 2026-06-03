@@ -2,6 +2,39 @@
 
 {% block title %}合同详情 - {{ contract.name }} - 企业信息化管理系统{% endblock %}
 
+{% block modal %}
+<!-- 编辑付款计划 Modal -->
+<div class="modal fade" id="editPaymentModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>编辑付款计划</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editPaymentId">
+        <div class="mb-3">
+          <label class="form-label">计划日期</label>
+          <input type="date" class="form-control" id="editPlanDate">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">计划金额</label>
+          <input type="number" class="form-control" id="editAmount" step="0.01" min="0">
+        </div>
+        <div class="mb-3">
+          <label class="form-label">备注</label>
+          <input type="text" class="form-control" id="editRemark" placeholder="付款条件说明">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+        <button type="button" class="btn btn-primary" onclick="savePaymentPlan()"><i class="bi bi-check-lg me-1"></i>保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block styles %}
 <style>
 .contract-detail-header {
@@ -122,57 +155,57 @@
                     </div>
                 </div>
                 <div class="sub-card-body">
-                    <!-- 现有付款计划 -->
-                    {% if payments %}
-                    <table class="table table-hover mb-0">
-                        <thead style="background:#f8fafc">
-                            <tr>
-                                <th>计划日期</th>
-                                <th>计划金额</th>
-                                <th>实际日期</th>
-                                <th>实付金额</th>
-                                <th>状态</th>
-                                <th>备注</th>
-                                <th style="width:80px">操作</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for p in payments %}
-                            <tr>
-                                <td>{{ p.plan_date|default:"-" }}</td>
-                                <td><b>¥{{ p.amount|floatformat:2 }}</b></td>
-                                <td>{{ p.paid_date|default:"-" }}</td>
-                                <td>{% if p.paid_amount %}<b class="text-success">¥{{ p.paid_amount|floatformat:2 }}</b>{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                                <td>
-                                    {% if p.status == 'paid' %}
-                                    <span class="badge bg-success payment-badge">已付款</span>
-                                    {% elif p.status == 'overdue' %}
-                                    <span class="badge bg-danger payment-badge">已逾期</span>
-                                    {% elif p.status == 'partial' %}
-                                    <span class="badge bg-warning payment-badge">部分付款</span>
-                                    {% else %}
-                                    <span class="badge bg-secondary payment-badge">待付款</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ p.remark|default:"-" }}</td>
-                                <td class="text-nowrap">
-                                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="editPaymentPlan({{ p.id }}, '{{ p.plan_date|date:"Y-m-d" }}', {{ p.amount }}, '{{ p.remark|default:""|escapejs }}')" title="编辑">
-                                        <i class="bi bi-pencil"></i>
-                                    </button>
-                                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deletePaymentPlan({{ p.id }})" title="删除">
-                                        <i class="bi bi-trash"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <!-- 现有付款计划 -->
+    {% if payments %}
+    <table class="table table-hover mb-0" id="paymentTable">
+        <thead style="background:#f8fafc">
+            <tr>
+                <th>计划日期</th>
+                <th>计划金额</th>
+                <th>实际日期</th>
+                <th>实付金额</th>
+                <th>状态</th>
+                <th>备注</th>
+                <th style="width:80px">操作</th>
+            </tr>
+        </thead>
+        <tbody id="paymentTableBody">
+            {% for p in payments %}
+            <tr id="payment-row-{{ p.id }}">
+                <td class="plan-date">{{ p.plan_date|default:"-" }}</td>
+                <td class="plan-amount"><b>¥{{ p.amount|floatformat:2 }}</b></td>
+                <td>{{ p.paid_date|default:"-" }}</td>
+                <td>{% if p.paid_amount %}<b class="text-success">¥{{ p.paid_amount|floatformat:2 }}</b>{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                <td class="plan-status">
+                    {% if p.status == 'paid' %}
+                    <span class="badge bg-success payment-badge">已付款</span>
+                    {% elif p.status == 'overdue' %}
+                    <span class="badge bg-danger payment-badge">已逾期</span>
+                    {% elif p.status == 'partial' %}
+                    <span class="badge bg-warning payment-badge">部分付款</span>
                     {% else %}
-                    <div class="text-center text-muted py-5">
-                        <i class="bi bi-inbox" style="font-size:3rem; opacity:0.3"></i>
-                        <p class="mt-2 mb-0">暂无付款计划</p>
-                    </div>
+                    <span class="badge bg-secondary payment-badge">待付款</span>
                     {% endif %}
+                </td>
+                <td class="plan-remark">{{ p.remark|default:"-" }}</td>
+                <td class="text-nowrap">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-1" onclick="editPaymentPlan({{ p.id }}, '{{ p.plan_date|date:"Y-m-d" }}', {{ p.amount }}, '{{ p.remark|default:""|escapejs }}', {{ p.paid_amount|default:0 }})" title="编辑">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger py-0 px-1" onclick="deletePaymentPlan({{ p.id }})" title="删除">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div id="noPaymentPlaceholder" class="text-center text-muted py-5">
+        <i class="bi bi-inbox" style="font-size:3rem; opacity:0.3"></i>
+        <p class="mt-2 mb-0">暂无付款计划</p>
+    </div>
+    {% endif %}
                 </div>
             </div>
         </div>
@@ -507,39 +540,96 @@ function getCsrfToken() {
 }
 
 // ─── 付款计划操作 ─────────────────────────────
-function editPaymentPlan(id, planDate, amount, remark) {
-    const newDate = prompt('计划日期 (YYYY-MM-DD)：', planDate);
-    if (!newDate) return;
-    const newAmount = prompt('计划金额：', amount);
-    if (!newAmount) return;
-    const newRemark = prompt('备注：', remark || '');
+function editPaymentPlan(id, planDate, amount, remark, paidAmount) {
+    if (paidAmount > 0) {
+        alert('该期已付款，不允许修改');
+        return;
+    }
+    document.getElementById('editPaymentId').value = id;
+    document.getElementById('editPlanDate').value = planDate;
+    document.getElementById('editAmount').value = amount;
+    document.getElementById('editRemark').value = remark || '';
+    new bootstrap.Modal(document.getElementById('editPaymentModal')).show();
+}
+
+function savePaymentPlan() {
+    const id = document.getElementById('editPaymentId').value;
+    const data = {
+        plan_date: document.getElementById('editPlanDate').value,
+        amount: parseFloat(document.getElementById('editAmount').value) || 0,
+        remark: document.getElementById('editRemark').value || '',
+    };
+    if (!data.plan_date) { alert('请选择计划日期'); return; }
+    if (data.amount <= 0) { alert('金额必须大于0'); return; }
+    const btn = document.querySelector('#editPaymentModal .btn-primary');
+    btn.disabled = true; btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>保存中...';
     fetch('/api/crm/payment-plans/' + id + '/', {
         method: 'PATCH',
         headers: {'X-CSRFToken': getCsrfToken(), 'Content-Type': 'application/json'},
-        body: JSON.stringify({
-            plan_date: newDate,
-            amount: parseFloat(newAmount),
-            remark: newRemark,
-        }),
+        body: JSON.stringify(data),
     })
     .then(r => {
-        if (r.ok) { location.reload(); }
-        else { r.json().then(d => alert('修改失败: ' + (d.detail || '未知错误'))); }
+        if (!r.ok) return r.json().then(d => { throw new Error(d.detail || '修改失败'); });
+        // 更新行数据，无需整页刷新
+        const row = document.getElementById('payment-row-' + id);
+        if (row) {
+            row.querySelector('.plan-date').textContent = data.plan_date;
+            row.querySelector('.plan-amount').innerHTML = '<b>¥' + data.amount.toFixed(2) + '</b>';
+            row.querySelector('.plan-remark').textContent = data.remark || '-';
+        }
+        bootstrap.Modal.getInstance(document.getElementById('editPaymentModal')).hide();
+        btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>保存';
+        // 重新计算合计
+        updatePaymentSummary();
     })
-    .catch(err => alert('网络错误: ' + err.message));
+    .catch(err => {
+        btn.disabled = false; btn.innerHTML = '<i class="bi bi-check-lg me-1"></i>保存';
+        alert('保存失败: ' + err.message);
+    });
 }
 
 function deletePaymentPlan(id) {
     if (!confirm('确认删除此付款计划？')) return;
+    const row = document.getElementById('payment-row-' + id);
     fetch('/api/crm/payment-plans/' + id + '/', {
         method: 'DELETE',
         headers: {'X-CSRFToken': getCsrfToken()},
     })
     .then(r => {
-        if (r.ok) { location.reload(); }
-        else { alert('删除失败'); }
+        if (!r.ok) { alert('删除失败'); return; }
+        // 局部移除行，无需整页刷新
+        if (row) row.remove();
+        updatePaymentSummary();
     })
     .catch(err => alert('网络错误: ' + err.message));
+}
+
+function updatePaymentSummary() {
+    const tbody = document.getElementById('paymentTableBody');
+    const rows = tbody ? tbody.querySelectorAll('tr') : [];
+    const count = rows.length;
+    let total = 0;
+    rows.forEach(row => {
+        const amtText = row.querySelector('.plan-amount')?.textContent || '';
+        const m = amtText.match(/[\d.]+/);
+        if (m) total += parseFloat(m[0]) || 0;
+    });
+    const countEl = document.getElementById('paymentCount');
+    if (countEl) countEl.textContent = count;
+    const headerEl = document.querySelector('.sub-card-header span');
+    if (headerEl) {
+        headerEl.innerHTML = '<i class="bi bi-credit-card me-2"></i>付款计划（共 ' + count + ' 期）';
+    }
+    // 更新合计
+    const sumEl = document.querySelector('.sub-card-header .text-muted');
+    if (sumEl) sumEl.textContent = '计划付款 ¥' + total.toFixed(2);
+    // 无行了显示占位
+    if (count === 0) {
+        const table = document.getElementById('paymentTable');
+        if (table) table.classList.add('d-none');
+        const ph = document.getElementById('noPaymentPlaceholder');
+        if (ph) ph.classList.remove('d-none');
+    }
 }
 </script>
 {% endblock %}
