@@ -19,6 +19,7 @@ def get_config(key: str, default=None):
     """
     try:
         from apps.core.models import SystemSetting
+
         val = SystemSetting.get_value(key)
         if val is not None:
             return val
@@ -62,6 +63,7 @@ def get_model_config(model_key: str | None = None) -> dict:
     api_key = None
     try:
         from apps.core.models import SystemSetting
+
         db_cfg = SystemSetting.get_value('ai_model_configs')
         if db_cfg:
             configs = json.loads(db_cfg) if isinstance(db_cfg, str) else db_cfg
@@ -95,11 +97,13 @@ def get_available_models() -> list[dict]:
     models = ai_conf.get('models', {})
     result = []
     for key, cfg in models.items():
-        result.append({
-            'key': key,
-            'provider': cfg.get('provider'),
-            'display_name': cfg.get('display_name'),
-            'model': cfg.get('model'),
-            'supports_vision': cfg.get('supports_vision', False),
-        })
+        result.append(
+            {
+                'key': key,
+                'provider': cfg.get('provider'),
+                'display_name': cfg.get('display_name'),
+                'model': cfg.get('model'),
+                'supports_vision': cfg.get('supports_vision', False),
+            }
+        )
     return result

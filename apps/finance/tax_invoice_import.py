@@ -15,7 +15,7 @@ import datetime
 import io
 import re
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from django.db import transaction
 from openpyxl import load_workbook

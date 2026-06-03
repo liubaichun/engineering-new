@@ -137,6 +137,7 @@ def user_list_page(request):
 def permission_matrix_page(request):
     """权限矩阵页 — 用户 × 公司 × 模块 细粒度权限配置（UMP位掩码）"""
     from django.urls import reverse
+
     # 直接传 kwargs，由 ContextMixin.get_context_data 自动合并进模板上下文
     return TemplateView.as_view(template_name='system/permission_matrix.html')(
         request,
@@ -209,7 +210,9 @@ def contract_detail_page(request, contract_id):
     from apps.crm.models import Contract, PaymentPlan, ContractChangeLog, ContractMilestone
 
     try:
-        contract = Contract.objects.select_related('company', 'project', 'client', 'supplier', 'created_by').get(id=contract_id)
+        contract = Contract.objects.select_related('company', 'project', 'client', 'supplier', 'created_by').get(
+            id=contract_id
+        )
     except Contract.DoesNotExist:
         from django.http import Http404
 
@@ -233,7 +236,7 @@ def contract_detail_page(request, contract_id):
     attachment_name = ''
     if contract.attachment:
         attachment_url = contract.attachment.url if hasattr(contract.attachment, 'url') else str(contract.attachment)
-        attachment_name = attachment_url.split('/')[-1]
+        attachment_name = contract.attachment_name
 
     # 对方名称
     counterparty_name = ''
@@ -446,7 +449,7 @@ def serve_media(request, path):
         ascii_name = filename.encode('ascii', errors='replace').decode('ascii')
         # RFC 5987：UTF-8编码后用percent编码
         encoded_name = urllib.parse.quote(filename.encode('utf-8'))
-        response['Content-Disposition'] = f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{encoded_name}"
+        response['Content-Disposition'] = f'inline; filename="{ascii_name}"; filename*=UTF-8\'\'{encoded_name}'
     except Exception:
         response['Content-Disposition'] = f'inline; filename="{filename}"'
     return response
@@ -553,9 +556,11 @@ urlpatterns = [
     path('crm/suppliers/', supplier_list_page, name='supplier_list'),
     path('crm/contacts/', contact_followup_page, name='contact_followup_list'),
     path('crm/opportunities/', opportunity_list_page, name='opportunity_list'),
-    path('crm/opportunities/kanban/',
-         TemplateView.as_view(template_name='crm/opportunity_kanban.html'),
-         name='opportunity_kanban'),
+    path(
+        'crm/opportunities/kanban/',
+        TemplateView.as_view(template_name='crm/opportunity_kanban.html'),
+        name='opportunity_kanban',
+    ),
     path('purchasing/requests/', purchase_request_list_page, name='purchase_request_list'),
     path('purchasing/orders/', purchase_order_list_page, name='purchase_order_list'),
     path('purchasing/receives/', purchase_receive_list_page, name='purchase_receive_list'),

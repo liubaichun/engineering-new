@@ -71,6 +71,7 @@ class Equipment(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             from apps.core.models import generate_code
+
             self.code = generate_code('equipment', Equipment)
         super().save(*args, **kwargs)
 

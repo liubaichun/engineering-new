@@ -294,4 +294,3 @@ AI_SERVICE = {
         'qwen': 'QWEN_API_KEY',
     },
 }
-

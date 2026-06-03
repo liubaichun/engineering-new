@@ -1,4 +1,5 @@
 """通知渠道管理后台"""
+
 from django.contrib import admin
 from .models import Channel, ChannelBinding, NotificationLog
 

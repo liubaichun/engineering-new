@@ -52,10 +52,15 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return Employee.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'employee', 'read')
         if companies is None:
             return Employee.objects.all().prefetch_related('company_links__company').order_by('-created_at')
-        return Employee.objects.filter(company_id__in=companies).prefetch_related('company_links__company').order_by('-created_at')
+        return (
+            Employee.objects.filter(company_id__in=companies)
+            .prefetch_related('company_links__company')
+            .order_by('-created_at')
+        )
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -147,6 +152,7 @@ class EmployeeCompanyViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return qs.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'employee', 'read')
         if companies is not None:
             qs = qs.filter(company_id__in=companies)

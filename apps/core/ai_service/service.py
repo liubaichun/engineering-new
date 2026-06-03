@@ -4,12 +4,11 @@ AIService 单例外观 — 各模块的统一入口
 
 import json
 import logging
-import time
 
 from django.conf import settings
 
-from .config import get_model_config, get_available_models, get_config
-from .clients import create_client, LLMError, LLMResponse
+from .config import get_model_config, get_available_models
+from .clients import create_client, LLMResponse
 from .error import retry_with_backoff, FailoverGuard
 
 logger = logging.getLogger('ai_service')
@@ -52,8 +51,9 @@ class AIService:
 
     # ── 模块对外接口 ──────────────────────────────────────
 
-    def chat(self, model: str | None = None, system: str | None = None,
-             messages: list[dict] | None = None, **kwargs) -> LLMResponse:
+    def chat(
+        self, model: str | None = None, system: str | None = None, messages: list[dict] | None = None, **kwargs
+    ) -> LLMResponse:
         """通用对话"""
         if messages is None:
             messages = []
@@ -61,31 +61,26 @@ class AIService:
             messages = [{'role': 'system', 'content': system}] + messages
         return self._call(model, messages, **kwargs)
 
-    def extract(self, model: str | None = None, text: str = '',
-                schema: str = '', **kwargs) -> list | dict | str:
+    def extract(self, model: str | None = None, text: str = '', schema: str = '', **kwargs) -> list | dict | str:
         """结构化提取 — 从文本中提取 JSON 数据"""
         prompt = f'{text}\n\n请根据以下要求提取结构化数据：\n{schema}\n\n只返回 JSON 格式结果，不要附加说明。'
         resp = self._call(model, [{'role': 'user', 'content': prompt}], **kwargs)
         return resp.json()
 
-    def analyze(self, model: str | None = None, prompt: str = '',
-                **kwargs) -> LLMResponse:
+    def analyze(self, model: str | None = None, prompt: str = '', **kwargs) -> LLMResponse:
         """分析推理"""
         return self._call(model, [{'role': 'user', 'content': prompt}], **kwargs)
 
-    def classify(self, model: str | None = None, text: str = '',
-                 categories: list[str] | None = None, **kwargs) -> str:
+    def classify(self, model: str | None = None, text: str = '', categories: list[str] | None = None, **kwargs) -> str:
         """智能分类"""
         cats = ', '.join(categories) if categories else ''
         prompt = (
-            f'对以下内容进行分类，只能从以下类别中选择一个：{cats}\n\n'
-            f'内容：{text}\n\n只返回类别名称，不要附加说明。'
+            f'对以下内容进行分类，只能从以下类别中选择一个：{cats}\n\n内容：{text}\n\n只返回类别名称，不要附加说明。'
         )
         resp = self._call(model, [{'role': 'user', 'content': prompt}], **kwargs)
         return resp.content.strip()
 
-    def summarize(self, model: str | None = None, text: str = '',
-                  max_length: int = 200, **kwargs) -> str:
+    def summarize(self, model: str | None = None, text: str = '', max_length: int = 200, **kwargs) -> str:
         """文本摘要"""
         prompt = f'请用中文对以下内容进行摘要，不超过{max_length}字：\n\n{text}'
         resp = self._call(model, [{'role': 'user', 'content': prompt}], **kwargs)
@@ -96,6 +91,7 @@ class AIService:
     def switch_model(self, model_key: str):
         """运行时切换模型"""
         from apps.core.models import SystemSetting
+
         SystemSetting.objects.update_or_create(
             key='ai_active_model',
             defaults={'value': json.dumps({'model': model_key}, ensure_ascii=False)},

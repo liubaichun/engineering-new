@@ -1,6 +1,4 @@
 from django.db import models
-from django.utils import timezone
-from datetime import date, timedelta
 
 
 class ExpenseAmortization(models.Model):
@@ -13,13 +11,21 @@ class ExpenseAmortization(models.Model):
     ]
 
     expense = models.ForeignKey(
-        'finance.Expense', on_delete=models.CASCADE, related_name='amortizations',
-        verbose_name='关联支出', null=True, blank=True,
+        'finance.Expense',
+        on_delete=models.CASCADE,
+        related_name='amortizations',
+        verbose_name='关联支出',
+        null=True,
+        blank=True,
         help_text='可选，关联到原始支出记录',
     )
     company = models.ForeignKey(
-        'finance.Company', on_delete=models.CASCADE, related_name='amortizations',
-        null=True, blank=True, verbose_name='所属公司',
+        'finance.Company',
+        on_delete=models.CASCADE,
+        related_name='amortizations',
+        null=True,
+        blank=True,
+        verbose_name='所属公司',
     )
     name = models.CharField('摊销名称', max_length=300, help_text='如"2026年办公室租金摊销"')
     total_amount = models.DecimalField('摊销总额', max_digits=15, decimal_places=2, default=0)
@@ -30,14 +36,19 @@ class ExpenseAmortization(models.Model):
     completed_periods = models.IntegerField('已完成期数', default=0)
     remaining_amount = models.DecimalField('剩余待摊金额', max_digits=15, decimal_places=2, default=0)
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='active')
-    category = models.CharField('费用类别', max_length=100, blank=True, default='',
-                                 help_text='如"租金""保险费""许可费"')
+    category = models.CharField(
+        '费用类别', max_length=100, blank=True, default='', help_text='如"租金""保险费""许可费"'
+    )
     remark = models.TextField('备注', blank=True, default='')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
     updated_at = models.DateTimeField('更新时间', auto_now=True)
     created_by = models.ForeignKey(
-        'core.User', on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='created_amortizations', verbose_name='创建人',
+        'core.User',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_amortizations',
+        verbose_name='创建人',
     )
 
     class Meta:
@@ -59,13 +70,14 @@ class AmortizationEntry(models.Model):
     """摊销明细 — 每一期的摊销记录"""
 
     amortization = models.ForeignKey(
-        ExpenseAmortization, on_delete=models.CASCADE, related_name='entries',
+        ExpenseAmortization,
+        on_delete=models.CASCADE,
+        related_name='entries',
         verbose_name='所属摊销',
     )
     period_date = models.DateField('摊销期间', help_text='如2026-01-01表示1月份')
     amount = models.DecimalField('摊销金额', max_digits=15, decimal_places=2, default=0)
-    is_generated = models.BooleanField('是否已生成', default=False,
-                                        help_text='是否已生成对应的支出/凭证记录')
+    is_generated = models.BooleanField('是否已生成', default=False, help_text='是否已生成对应的支出/凭证记录')
     created_at = models.DateTimeField('创建时间', auto_now_add=True)
 
     class Meta:

@@ -283,10 +283,9 @@ class Command(BaseCommand):
         near_deadline = today + timedelta(days=7)
 
         # 即将到期的应收/应付
-        due_soon_invoices = (
-            Invoice.objects.filter(due_date__gte=today, due_date__lte=near_deadline, status='pending')
-            .select_related('company', 'contract')
-        )
+        due_soon_invoices = Invoice.objects.filter(
+            due_date__gte=today, due_date__lte=near_deadline, status='pending'
+        ).select_related('company', 'contract')
 
         for inv in due_soon_invoices:
             days_left = (inv.due_date - today).days
@@ -305,9 +304,8 @@ class Command(BaseCommand):
                     self.stdout.write(f'  [发票到期] {inv.invoice_no} -> {admin.username}')
 
         # 已逾期的应收/应付
-        overdue_invoices = (
-            Invoice.objects.filter(due_date__lt=today, status='pending')
-            .select_related('company', 'contract')
+        overdue_invoices = Invoice.objects.filter(due_date__lt=today, status='pending').select_related(
+            'company', 'contract'
         )
 
         for inv in overdue_invoices:

@@ -52,6 +52,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'wage', 'read')
         if companies is None:
             qs = super().get_queryset()
@@ -125,6 +126,7 @@ class WageRecordViewSet(viewsets.ModelViewSet):
         # 发送工资发放通知
         try:
             from apps.tasks.notification_service import notify_wage_paid
+
             notify_wage_paid(wage_record, request.user)
         except Exception:
             pass  # 通知异常不影响主流程

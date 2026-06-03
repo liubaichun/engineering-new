@@ -45,15 +45,18 @@ class RepairRequestViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'repair', 'read')
         if companies is None:
             qs = RepairRequest.objects.select_related(
                 'equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by'
             ).prefetch_related('images', 'spare_parts')
         else:
-            qs = RepairRequest.objects.filter(company_id__in=companies).select_related(
-                'equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by'
-            ).prefetch_related('images', 'spare_parts')
+            qs = (
+                RepairRequest.objects.filter(company_id__in=companies)
+                .select_related('equipment', 'reporter', 'company', 'assigned_to', 'project', 'created_by')
+                .prefetch_related('images', 'spare_parts')
+            )
         # 前端可选参数过滤
         company_id = self.request.query_params.get('company_id')
         if company_id:
@@ -200,11 +203,14 @@ class RepairImageViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'repair', 'read')
         if companies is None:
             qs = RepairImage.objects.all().select_related('request', 'request__company')
         else:
-            qs = RepairImage.objects.filter(request__company_id__in=companies).select_related('request', 'request__company')
+            qs = RepairImage.objects.filter(request__company_id__in=companies).select_related(
+                'request', 'request__company'
+            )
         req_id = self.request.query_params.get('request_id')
         if req_id:
             qs = qs.filter(request_id=req_id)
@@ -226,11 +232,14 @@ class RepairSparePartViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'repair', 'read')
         if companies is None:
             qs = RepairSparePart.objects.select_related('material', 'request', 'request__company')
         else:
-            qs = RepairSparePart.objects.filter(request__company_id__in=companies).select_related('material', 'request', 'request__company')
+            qs = RepairSparePart.objects.filter(request__company_id__in=companies).select_related(
+                'material', 'request', 'request__company'
+            )
         req_id = self.request.query_params.get('request_id')
         if req_id:
             qs = qs.filter(request_id=req_id)

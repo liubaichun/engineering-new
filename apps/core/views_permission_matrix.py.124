@@ -22,7 +22,7 @@ from apps.finance.models import Company
 class PermissionMatrixView(APIView):
     """
     权限矩阵数据接口 - 基于UMP系统
-    
+
     GET: 获取用户在UMP中的权限矩阵
     POST: 批量更新UMP记录
     """
@@ -31,13 +31,13 @@ class PermissionMatrixView(APIView):
     def get(self, request):
         """获取用户权限矩阵数据"""
         user_id = request.GET.get('user_id')
-        
+
         if not user_id:
             return Response(
                 {'error': '缺少user_id参数'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             target_user = User.objects.get(id=user_id)
         except User.DoesNotExist:
@@ -45,28 +45,28 @@ class PermissionMatrixView(APIView):
                 {'error': '用户不存在'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
+
         # 获取所有公司（status='active'表示启用）
         companies = Company.objects.filter(status='active').order_by('name')
         modules = Module.objects.filter(is_active=True).order_by('category', 'sort_order')
-        
+
         # 获取目标用户的UMP记录
         user_perms = UserModulePermission.objects.filter(
             user=target_user
         ).select_related('module')
-        
+
         # 构建权限矩阵
         perm_map = {}
         for perm in user_perms:
             key = f"{perm.company_id}_{perm.module_id}"
             perm_map[key] = perm.granted_bits
-        
+
         # 构建模块列表（按分类分组）
         module_list = []
         for module in modules:
             # 获取该模块的所有action
             actions = ModuleAction.objects.filter(module=module).order_by('sort_order')
-            
+
             module_actions = []
             for action in actions:
                 module_actions.append({
@@ -74,13 +74,13 @@ class PermissionMatrixView(APIView):
                     'name': action.name,
                     'label': action.label or action.name,
                 })
-            
+
             # 获取该模块在每个公司的权限状态
             company_perms = []
             for company in companies:
                 key = f"{company.id}_{module.id}"
                 bits = perm_map.get(key, 0)
-                
+
                 # 判断三态：全部、部分、无
                 if bits == 0:
                     tri_state = 'none'
@@ -94,21 +94,21 @@ class PermissionMatrixView(APIView):
                             any_set = True
                         else:
                             all_set = False
-                    
+
                     if all_set:
                         tri_state = 'all'
                     elif any_set:
                         tri_state = 'part'
                     else:
                         tri_state = 'none'
-                
+
                 company_perms.append({
                     'company_id': company.id,
                     'company_name': company.name,
                     'bits': bits,
                     'tri_state': tri_state,
                 })
-            
+
             module_list.append({
                 'id': module.id,
                 'name': module.name,
@@ -118,7 +118,7 @@ class PermissionMatrixView(APIView):
                 'actions': module_actions,
                 'company_perms': company_perms,
             })
-        
+
         # 按分类分组
         category_map = {}
         for module in module_list:
@@ -126,7 +126,7 @@ class PermissionMatrixView(APIView):
             if cat not in category_map:
                 category_map[cat] = []
             category_map[cat].append(module)
-        
+
         # 构建分类列表
         categories = []
         for cat, mods in category_map.items():
@@ -148,7 +148,7 @@ class PermissionMatrixView(APIView):
                 'icon': icon,
                 'modules': mods,
             })
-        
+
         return Response({
             'user': {
                 'id': target_user.id,
@@ -168,13 +168,13 @@ class PermissionMatrixView(APIView):
         """批量更新UMP记录"""
         user_id = request.data.get('user_id')
         permissions = request.data.get('permissions', [])  # [{company_id, module_id, bits}, ...]
-        
+
         if not user_id:
             return Response(
                 {'error': '缺少user_id参数'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         try:
             target_user = User.objects.get(id=user_id)
         except User.DoesNotExist:
@@ -182,24 +182,24 @@ class PermissionMatrixView(APIView):
                 {'error': '用户不存在'},
                 status=status.HTTP_404_NOT_FOUND
             )
-        
+
         # 不允许修改超级用户
         if target_user.is_superuser:
             return Response(
                 {'error': '无法修改超级用户权限'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
+
         # 批量更新UMP记录
         updated_count = 0
         for perm in permissions:
             company_id = perm.get('company_id')
             module_id = perm.get('module_id')
             bits = perm.get('bits', 0)
-            
+
             if not company_id or not module_id:
                 continue
-            
+
             # 创建或更新UMP记录
             UserModulePermission.objects.update_or_create(
                 user=target_user,
@@ -208,7 +208,7 @@ class PermissionMatrixView(APIView):
                 defaults={'granted_bits': bits}
             )
             updated_count += 1
-        
+
         return Response({
             'success': True,
             'updated_count': updated_count,

@@ -139,7 +139,7 @@ rsync 8个文件到 ubuntu@124.222.227.28:/home/ubuntu/engineering-new/
 
 #### get_user_companies(user)
 - **功能**: 获取用户有权限的所有公司ID列表
-- **返回**: 
+- **返回**:
   - `None`: 超级用户，不限制
   - `[]`: 无权限用户
   - `[id,...]`: 普通用户有权限的公司列表

@@ -1,7 +1,5 @@
-import json
 import os
 import re
-from io import BytesIO
 
 from django.conf import settings
 from django.utils.decorators import method_decorator
@@ -155,7 +153,7 @@ class ClientViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def profile(self, request, pk=None):
         """客户360°视图 - 聚合客户全量数据"""
-        from django.db.models import Sum, Count, Q
+        from django.db.models import Sum
         from decimal import Decimal
 
         client = self.get_object()
@@ -166,88 +164,104 @@ class ClientViewSet(viewsets.ModelViewSet):
         total_paid = contracts.aggregate(total=Sum('total_paid'))['total'] or Decimal('0')
         contracts_data = []
         for c in contracts:
-            contracts_data.append({
-                'id': c.id,
-                'contract_no': c.contract_no,
-                'name': c.name,
-                'amount': float(c.amount or 0),
-                'total_paid': float(c.total_paid or 0),
-                'payment_status': c.payment_status,
-                'status': c.status,
-                'sign_date': c.sign_date.isoformat() if c.sign_date else None,
-                'expire_date': c.expire_date.isoformat() if c.expire_date else None,
-            })
+            contracts_data.append(
+                {
+                    'id': c.id,
+                    'contract_no': c.contract_no,
+                    'name': c.name,
+                    'amount': float(c.amount or 0),
+                    'total_paid': float(c.total_paid or 0),
+                    'payment_status': c.payment_status,
+                    'status': c.status,
+                    'sign_date': c.sign_date.isoformat() if c.sign_date else None,
+                    'expire_date': c.expire_date.isoformat() if c.expire_date else None,
+                }
+            )
 
         # 2. 发票汇总（通过合同关联）
         from apps.finance.models_invoice import Invoice
+
         invoices = Invoice.objects.filter(contract__client=client)
         total_invoice_amount = invoices.aggregate(total=Sum('amount'))['total'] or Decimal('0')
         invoices_data = []
         for inv in invoices:
-            invoices_data.append({
-                'id': inv.id,
-                'invoice_no': inv.invoice_no,
-                'type': inv.type,
-                'amount': float(inv.amount or 0),
-                'status': inv.status,
-                'issue_date': inv.issue_date.isoformat() if inv.issue_date else None,
-                'due_date': inv.due_date.isoformat() if inv.due_date else None,
-            })
+            invoices_data.append(
+                {
+                    'id': inv.id,
+                    'invoice_no': inv.invoice_no,
+                    'type': inv.type,
+                    'amount': float(inv.amount or 0),
+                    'status': inv.status,
+                    'issue_date': inv.issue_date.isoformat() if inv.issue_date else None,
+                    'due_date': inv.due_date.isoformat() if inv.due_date else None,
+                }
+            )
 
         # 3. 项目汇总（通过合同关联）
         from apps.tasks.models import Project
+
         project_ids = contracts.exclude(project__isnull=True).values_list('project_id', flat=True).distinct()
         projects = Project.objects.filter(id__in=project_ids)
         projects_data = []
         for p in projects:
-            projects_data.append({
-                'id': p.id,
-                'name': p.name,
-                'code': p.code,
-                'status': p.status,
-                'progress': float(p.progress or 0),
-                'start_date': p.start_date.isoformat() if p.start_date else None,
-                'end_date': p.end_date.isoformat() if p.end_date else None,
-            })
+            projects_data.append(
+                {
+                    'id': p.id,
+                    'name': p.name,
+                    'code': p.code,
+                    'status': p.status,
+                    'progress': float(p.progress or 0),
+                    'start_date': p.start_date.isoformat() if p.start_date else None,
+                    'end_date': p.end_date.isoformat() if p.end_date else None,
+                }
+            )
 
         # 4. 联系人
         contacts = Contact.objects.filter(client=client)
         contacts_data = []
         for c in contacts:
-            contacts_data.append({
-                'id': c.id,
-                'name': c.name,
-                'position': c.position,
-                'phone': c.phone,
-                'email': c.email,
-                'is_primary': c.is_primary,
-            })
+            contacts_data.append(
+                {
+                    'id': c.id,
+                    'name': c.name,
+                    'position': c.position,
+                    'phone': c.phone,
+                    'email': c.email,
+                    'is_primary': c.is_primary,
+                }
+            )
 
         # 5. 跟进记录（最近20条）
-        follow_ups = FollowUpRecord.objects.filter(client=client).select_related('created_by').order_by('-created_at')[:20]
+        follow_ups = (
+            FollowUpRecord.objects.filter(client=client).select_related('created_by').order_by('-created_at')[:20]
+        )
         follow_ups_data = []
         for f in follow_ups:
-            follow_ups_data.append({
-                'id': f.id,
-                'follow_type': f.follow_type,
-                'content': f.content,
-                'next_plan': f.next_plan,
-                'next_date': f.next_date.isoformat() if f.next_date else None,
-                'created_at': f.created_at.isoformat(),
-                'created_by': f.created_by.get_full_name() or f.created_by.username if f.created_by else '',
-            })
+            follow_ups_data.append(
+                {
+                    'id': f.id,
+                    'follow_type': f.follow_type,
+                    'content': f.content,
+                    'next_plan': f.next_plan,
+                    'next_date': f.next_date.isoformat() if f.next_date else None,
+                    'created_at': f.created_at.isoformat(),
+                    'created_by': f.created_by.get_full_name() or f.created_by.username if f.created_by else '',
+                }
+            )
 
         # 6. 商机
         opportunities = Opportunity.objects.filter(client=client)
         opps_data = []
         for o in opportunities:
-            opps_data.append({
-                'id': o.id,
-                'title': o.title,
-                'amount': float(o.amount or 0),
-                'stage': o.stage,
-                'status': o.status,
-            })
+            opps_data.append(
+                {
+                    'id': o.id,
+                    'title': o.title,
+                    'amount': float(o.amount or 0),
+                    'stage': o.stage,
+                    'status': o.status,
+                }
+            )
 
         # 7. 摘要
         receivable = float(total_contract_amount - total_paid)
@@ -262,28 +276,30 @@ class ClientViewSet(viewsets.ModelViewSet):
             'contacts_count': contacts.count(),
         }
 
-        return Response({
-            'client': {
-                'id': client.id,
-                'code': client.code,
-                'name': client.name,
-                'category': client.category,
-                'is_active': client.is_active,
-                'contact_person': client.contact_person,
-                'contact_phone': client.contact_phone,
-                'contact_email': client.contact_email,
-                'address': client.address,
-                'remark': client.remark,
-                'created_at': client.created_at.isoformat(),
-            },
-            'summary': summary,
-            'contracts': contracts_data,
-            'invoices': invoices_data,
-            'projects': projects_data,
-            'contacts': contacts_data,
-            'follow_ups': follow_ups_data,
-            'opportunities': opps_data,
-        })
+        return Response(
+            {
+                'client': {
+                    'id': client.id,
+                    'code': client.code,
+                    'name': client.name,
+                    'category': client.category,
+                    'is_active': client.is_active,
+                    'contact_person': client.contact_person,
+                    'contact_phone': client.contact_phone,
+                    'contact_email': client.contact_email,
+                    'address': client.address,
+                    'remark': client.remark,
+                    'created_at': client.created_at.isoformat(),
+                },
+                'summary': summary,
+                'contracts': contracts_data,
+                'invoices': invoices_data,
+                'projects': projects_data,
+                'contacts': contacts_data,
+                'follow_ups': follow_ups_data,
+                'opportunities': opps_data,
+            }
+        )
 
 
 class ContractViewSet(viewsets.ModelViewSet):
@@ -356,6 +372,7 @@ class ContractViewSet(viewsets.ModelViewSet):
             return Response({'detail': f'批准失败：{str(e)}'}, status=500)
         try:
             from apps.tasks.notification_service import notify_contract_approved
+
             notify_contract_approved(contract)
         except Exception:
             pass
@@ -536,47 +553,53 @@ class ContractViewSet(viewsets.ModelViewSet):
 
             # 金额后处理：如果金额明显偏小（<总金额的1%），可能是千分位逗号被误解析
             import logging
+
             _amt_logger = logging.getLogger('perm_debug')
             for plan in plans:
                 amt = plan.get('amount', 0)
                 pct = plan.get('percentage', 0)
-                _amt_logger.info(f'AMT_CHECK: raw_amt={amt}, pct={pct}, total={total}, threshold={total*0.01}, fix={0<amt<total*0.01 if total>0 else False}')
+                _amt_logger.info(
+                    f'AMT_CHECK: raw_amt={amt}, pct={pct}, total={total}, threshold={total * 0.01}, fix={0 < amt < total * 0.01 if total > 0 else False}'
+                )
                 if total > 0 and isinstance(amt, (int, float)) and 0 < amt < total * 0.01:
                     new_amt = round(amt * 1000, 2)
                     _amt_logger.info(f'AMT_FIX: {amt} -> {new_amt}')
                     plan['amount'] = new_amt
                 if plan.get('percentage') and not plan.get('condition'):
-                    plan['condition'] = f"第{plans.index(plan)+1}期"
+                    plan['condition'] = f'第{plans.index(plan) + 1}期'
         except Exception as e:
             logger.error(f'AI服务解析失败: {e}')
             # 降级：增强正则提取
             plans = self._enhanced_extract_plans(full_text, float(contract.amount or 0))
             total = float(contract.amount or 0)
 
-        return Response({
-            'ocr_text_preview': full_text[:500] + ('...' if len(full_text) > 500 else ''),
-            'payment_plans': plans or [],
-            'total_amount': total,
-            'count': len(plans or []),
-        })
+        return Response(
+            {
+                'ocr_text_preview': full_text[:500] + ('...' if len(full_text) > 500 else ''),
+                'payment_plans': plans or [],
+                'total_amount': total,
+                'count': len(plans or []),
+            }
+        )
 
     def _enhanced_extract_plans(self, text, total_amount):
         """增强正则提取：从中文合同的付款条款中提取分期付款计划"""
         plans = []
-        
+
         # 找"结算方式"、"付款"区域的文本
         sections = re.split(r'[（(][一二三四五六七八九十）)].*?[）)]', text)
         payment_section = ''
         for s in sections:
             if any(kw in s for kw in ['结算', '付款', '付清', '余款', '定金', '订金']):
                 payment_section += s + '\n'
-        
+
         if not payment_section:
             payment_section = text
-        
+
         # 提取所有金额（RMB/¥/￥/人民币）
         amount_pattern = r'(?:RMB|¥|￥|人?民币?)\s*([\d,]+\.?\d*)\s*(?:元)?'
         amounts = re.findall(amount_pattern, payment_section)
+
         # OCR常把"92,400"误识别为"92.400"，需补偿处理
         def _parse_ocr_amount(s):
             s = s.strip()
@@ -589,12 +612,13 @@ class ContractViewSet(viewsets.ModelViewSet):
                     # 去掉小数点当作完整数字：92.400 → 92400
                     s = s.replace('.', '')
             return float(s.replace(',', ''))
+
         amounts = [a for a in (_parse_ocr_amount(a) for a in amounts) if a is not None]
-        
+
         # 提取百分比
         pct_pattern = r'(\d+)\s*%'
         pcts = [float(p) for p in re.findall(pct_pattern, payment_section)]
-        
+
         # 提取付款条件（"合同签订后""货到现场""验收后"等）
         cond_patterns = [
             (r'(?:合同|本合[同约]).*?(?:签订|签[署订]|生效|盖章)[后时]', '合同签订后'),
@@ -609,15 +633,15 @@ class ContractViewSet(viewsets.ModelViewSet):
             (r'余[款额]', '余款'),
             (r'尾款', '尾款'),
         ]
-        
+
         # 提取日期
         date_pattern = r'(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日'
         dates = re.findall(date_pattern, payment_section)
-        
+
         # 用分隔符拆分付款条款（按 ①②③ 或 (1)(2)(3) 或 1、2、3、）
         lines = re.split(r'[（(]?\s*[①②③④⑤⑥⑦⑧⑨⑩\d+]+\s*[））\)\]》、,，.\s]', payment_section)
         lines = [l.strip() for l in lines if len(l.strip()) > 10]
-        
+
         # 提取每个阶段的金额和条件
         extracted_plans = []
         for line in lines:
@@ -625,15 +649,15 @@ class ContractViewSet(viewsets.ModelViewSet):
             line_amounts = re.findall(amount_pattern, line)
             if not line_amounts:
                 continue
-            
+
             amt = _parse_ocr_amount(line_amounts[0])
-            
+
             # 找百分比
             line_pct = 0
             pct_match = re.search(pct_pattern, line)
             if pct_match:
                 line_pct = float(pct_match.group(1))
-            
+
             # 找条件
             condition = ''
             for pat, desc in cond_patterns:
@@ -652,22 +676,24 @@ class ContractViewSet(viewsets.ModelViewSet):
                 elif '首批' in head:
                     condition = '首批款'
                 else:
-                    condition = f'第{len(extracted_plans)+1}期'
-            
-            extracted_plans.append({
-                'amount': amt,
-                'percentage': line_pct or (round(amt / total_amount * 100, 1) if total_amount > 0 else 0),
-                'condition': condition,
-                'remark': line.strip()[:100],
-            })
-        
+                    condition = f'第{len(extracted_plans) + 1}期'
+
+            extracted_plans.append(
+                {
+                    'amount': amt,
+                    'percentage': line_pct or (round(amt / total_amount * 100, 1) if total_amount > 0 else 0),
+                    'condition': condition,
+                    'remark': line.strip()[:100],
+                }
+            )
+
         # 如果上面的拆分没找到，用金额列表直接匹配
         if len(extracted_plans) < 2 and amounts:
             for i, amt in enumerate(amounts):
                 pct = pcts[i] if i < len(pcts) else 0
                 if not pct and total_amount > 0:
                     pct = round(amt / total_amount * 100, 1)
-                
+
                 # 从行判断条件
                 # 在原文中找包含这个金额的行
                 amt_str = f'{amt:,.2f}'
@@ -676,22 +702,24 @@ class ContractViewSet(viewsets.ModelViewSet):
                     if amt_str in line or str(int(amt)) in line:
                         matched_line = line
                         break
-                
+
                 condition = ''
                 for pat, desc in cond_patterns:
                     if re.search(pat, matched_line):
                         condition = desc
                         break
                 if not condition:
-                    condition = f'第{i+1}期'
-                
-                extracted_plans.append({
-                    'amount': amt,
-                    'percentage': pct,
-                    'condition': condition,
-                    'remark': matched_line[:100],
-                })
-        
+                    condition = f'第{i + 1}期'
+
+                extracted_plans.append(
+                    {
+                        'amount': amt,
+                        'percentage': pct,
+                        'condition': condition,
+                        'remark': matched_line[:100],
+                    }
+                )
+
         # 去重（按"金额+占比+条件"复合去重，防止不同期次同金额被误删）
         seen_keys = set()
         for plan in extracted_plans:
@@ -699,7 +727,7 @@ class ContractViewSet(viewsets.ModelViewSet):
             if key not in seen_keys:
                 seen_keys.add(key)
                 plans.append(plan)
-        
+
         # 如果没有提取到，尝试找简单模式
         if not plans:
             # 尝试找 "30%" "40%" "余款" 这类简单模式
@@ -707,17 +735,19 @@ class ContractViewSet(viewsets.ModelViewSet):
             if partials:
                 for pct_str, amt_str in partials:
                     amt = float(amt_str.replace(',', ''))
-                    plans.append({
-                        'amount': amt,
-                        'percentage': float(pct_str),
-                        'condition': f'占比{pct_str}%',
-                        'remark': '',
-                    })
-        
+                    plans.append(
+                        {
+                            'amount': amt,
+                            'percentage': float(pct_str),
+                            'condition': f'占比{pct_str}%',
+                            'remark': '',
+                        }
+                    )
+
         # 设置plan_date
         for plan in plans:
             plan['plan_date'] = '待定'
-        
+
         return plans
 
     @action(detail=True, methods=['post'])
@@ -728,6 +758,9 @@ class ContractViewSet(viewsets.ModelViewSet):
         plans_data = request.data.get('payment_plans', [])
         if not plans_data:
             return Response({'detail': '请提供付款计划数据', 'created': 0})
+
+        # 替换模式：先清空该合同所有现有付款计划，再插入新数据
+        PaymentPlan.objects.filter(contract=contract).delete()
 
         created = []
         errors = []
@@ -754,6 +787,7 @@ class ContractViewSet(viewsets.ModelViewSet):
         if created:
             # 同步合同实付总额和付款状态（内联_sync_contract_payment）
             from django.db.models import Sum
+
             agg = contract.payment_plans.aggregate(total=Sum('paid_amount'))
             total_paid = agg['total'] or 0
             total_amount = contract.amount or 0
@@ -770,13 +804,14 @@ class ContractViewSet(viewsets.ModelViewSet):
             except Exception as e:
                 logger.error(f'合同 {contract.id} 付款同步失败：{e}')
 
-        return Response({
-            'created': len(created),
-            'errors': errors,
-            'payment_plans': created,
-            'detail': f'成功保存 {len(created)} 条付款计划'
-            + (f'，{len(errors)} 条失败' if errors else ''),
-        })
+        return Response(
+            {
+                'created': len(created),
+                'errors': errors,
+                'payment_plans': created,
+                'detail': f'成功保存 {len(created)} 条付款计划' + (f'，{len(errors)} 条失败' if errors else ''),
+            }
+        )
 
     def _fallback_extract_plans(self, text):
         """降级方案：用正则从OCR文本中提取付款计划"""
@@ -1059,27 +1094,33 @@ class OpportunityViewSet(viewsets.ModelViewSet):
             total = items.aggregate(total=Sum('expected_amount'))['total'] or 0
             cards = []
             for opp in items:
-                cards.append({
-                    'id': opp.id,
-                    'name': opp.name,
-                    'client_name': opp.client.name if opp.client else '',
-                    'expected_amount': float(opp.expected_amount or 0),
-                    'probability': opp.probability,
-                    'priority': opp.priority,
-                    'priority_display': dict(Opportunity.PRIORITY_CHOICES).get(opp.priority, ''),
-                    'estimated_close_date': opp.estimated_close_date.isoformat() if opp.estimated_close_date else None,
-                    'product_lines': opp.product_lines,
-                    'project_id': opp.project_id,
-                    'project_name': opp.project.name if opp.project else '',
-                    'project_code': opp.project.code if opp.project else '',
-                })
-            columns.append({
-                'stage': stage,
-                'stage_display': dict(Opportunity.STAGE_CHOICES).get(stage, stage),
-                'count': len(cards),
-                'total_amount': float(total),
-                'cards': cards,
-            })
+                cards.append(
+                    {
+                        'id': opp.id,
+                        'name': opp.name,
+                        'client_name': opp.client.name if opp.client else '',
+                        'expected_amount': float(opp.expected_amount or 0),
+                        'probability': opp.probability,
+                        'priority': opp.priority,
+                        'priority_display': dict(Opportunity.PRIORITY_CHOICES).get(opp.priority, ''),
+                        'estimated_close_date': opp.estimated_close_date.isoformat()
+                        if opp.estimated_close_date
+                        else None,
+                        'product_lines': opp.product_lines,
+                        'project_id': opp.project_id,
+                        'project_name': opp.project.name if opp.project else '',
+                        'project_code': opp.project.code if opp.project else '',
+                    }
+                )
+            columns.append(
+                {
+                    'stage': stage,
+                    'stage_display': dict(Opportunity.STAGE_CHOICES).get(stage, stage),
+                    'count': len(cards),
+                    'total_amount': float(total),
+                    'cards': cards,
+                }
+            )
         return Response({'columns': columns})
 
     @action(detail=True, methods=['post'])
@@ -1133,6 +1174,7 @@ class OpportunityViewSet(viewsets.ModelViewSet):
     def convert_to_contract(self, request, pk=None):
         """商机成交后创建合同"""
         from datetime import date
+
         opp = self.get_object()
         if opp.stage != 'won':
             return Response({'detail': '只有已成交的商机才能创建合同'}, status=400)
@@ -1172,18 +1214,22 @@ class OpportunityViewSet(viewsets.ModelViewSet):
     def lost_reason_stats(self, request):
         """输单原因分析"""
         from django.db.models import Count, Sum
+
         qs = self.get_queryset().filter(stage='lost')
         reason_field = qs.exclude(lost_reason='')
-        stats = list(reason_field.values('lost_reason').annotate(
-            count=Count('id'),
-            total_amount=Sum('expected_amount')
-        ).order_by('-count'))
+        stats = list(
+            reason_field.values('lost_reason')
+            .annotate(count=Count('id'), total_amount=Sum('expected_amount'))
+            .order_by('-count')
+        )
         total_lost = qs.count()
-        return Response({
-            'total_lost': total_lost,
-            'no_reason': total_lost - sum(s['count'] for s in stats),
-            'by_reason': stats,
-        })
+        return Response(
+            {
+                'total_lost': total_lost,
+                'no_reason': total_lost - sum(s['count'] for s in stats),
+                'by_reason': stats,
+            }
+        )
 
 
 class ContractMilestoneViewSet(viewsets.ModelViewSet):
@@ -1239,8 +1285,8 @@ class ContractMilestoneViewSet(viewsets.ModelViewSet):
             ).first()
             if not existing_invoice:
                 invoice_type = 'income' if contract.counterparty_type == 'client' else 'expense'
-                counterparty_name = contract.client.name if contract.client else (
-                    contract.supplier.name if contract.supplier else ''
+                counterparty_name = (
+                    contract.client.name if contract.client else (contract.supplier.name if contract.supplier else '')
                 )
                 invoice_no = f'MS-{contract.contract_no}-{milestone.id}'
                 Invoice.objects.create(

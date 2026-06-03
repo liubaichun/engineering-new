@@ -22,7 +22,8 @@ class Channel(models.Model):
     is_active = models.BooleanField('是否启用', default=True)
 
     usage = models.CharField(
-        '用途', max_length=20,
+        '用途',
+        max_length=20,
         choices=[('broadcast', '群通知'), ('personal', '私信通知')],
         default='personal',
     )

@@ -58,12 +58,16 @@ class EquipmentViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'equipment', 'read')
         if companies is None:
             return super().get_queryset().select_related('project', 'project__company')
-        return super().get_queryset().filter(
-            models.Q(company_id__in=companies) | models.Q(project__company_id__in=companies)
-        ).select_related('project', 'project__company')
+        return (
+            super()
+            .get_queryset()
+            .filter(models.Q(company_id__in=companies) | models.Q(project__company_id__in=companies))
+            .select_related('project', 'project__company')
+        )
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -75,12 +79,13 @@ class EquipmentViewSet(viewsets.ModelViewSet):
             # 前端没传，从用户权限列表取第一个公司
             companies = get_user_companies(user)
             company_id = companies[0] if companies else None
-        
+
         project = serializer.validated_data.get('project')
         if project and company_id and project.company_id != company_id:
             from django.core.exceptions import PermissionDenied
+
             raise PermissionDenied('无权在此项目下创建设备')
-        
+
         # 保存时设置 company_id
         if company_id:
             serializer.save(company_id=company_id)
@@ -236,16 +241,21 @@ class EquipmentBOMRelationViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'equipment', 'read')
         if companies is None:
-            return super().get_queryset().select_related(
-                'equipment', 'equipment__project', 'material_bom', 'material_bom__material'
+            return (
+                super()
+                .get_queryset()
+                .select_related('equipment', 'equipment__project', 'material_bom', 'material_bom__material')
             )
-        return super().get_queryset().filter(
-            models.Q(equipment__company_id__in=companies)
-            | models.Q(equipment__project__company_id__in=companies)
-        ).select_related(
-            'equipment', 'equipment__project', 'material_bom', 'material_bom__material'
+        return (
+            super()
+            .get_queryset()
+            .filter(
+                models.Q(equipment__company_id__in=companies) | models.Q(equipment__project__company_id__in=companies)
+            )
+            .select_related('equipment', 'equipment__project', 'material_bom', 'material_bom__material')
         )
 
     @action(detail=True, methods=['delete'], url_path='remove_bom/(?P<bom_id>[^/.]+)')

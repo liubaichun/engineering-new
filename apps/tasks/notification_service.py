@@ -105,9 +105,7 @@ def _get_user_preference(user, event_type):
     """获取用户对某事件类型的通知偏好"""
     from apps.notifications.models import UserNotificationPreference
 
-    return UserNotificationPreference.objects.filter(
-        user=user, event_type=event_type
-    ).first()
+    return UserNotificationPreference.objects.filter(user=user, event_type=event_type).first()
 
 
 def _get_company_id(obj):
@@ -122,6 +120,7 @@ def _get_company_id(obj):
 # ================================================================
 # 13 个业务事件桥接函数
 # ================================================================
+
 
 def notify_equipment_action(equipment, action, user):
     """
@@ -146,6 +145,7 @@ def notify_equipment_action(equipment, action, user):
 
     # 设备没有保管人字段，通知项目负责人
     from apps.tasks.models import Project
+
     project = None
     if hasattr(equipment, 'project_id') and equipment.project_id:
         project = Project.objects.filter(id=equipment.project_id).first()

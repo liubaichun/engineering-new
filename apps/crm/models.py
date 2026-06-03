@@ -84,6 +84,7 @@ class Supplier(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             from apps.core.models import generate_code
+
             self.code = generate_code('supplier', Supplier)
         super().save(*args, **kwargs)
 
@@ -150,6 +151,7 @@ class Client(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             from apps.core.models import generate_code
+
             self.code = generate_code('client', Client)
         super().save(*args, **kwargs)
 
@@ -248,6 +250,43 @@ class Contract(models.Model):
             return 0
         paid = float(self.paid_amount or 0)
         return round(paid / float(self.amount) * 100, 1)
+
+    def save(self, *args, **kwargs):
+        """保存合同，并自动同步附件到文件管理"""
+        # 先判断是否已有旧附件（用于后续清理）
+        old_attachment = None
+        if self.pk:
+            try:
+                old_attachment = Contract.objects.only('attachment').get(pk=self.pk).attachment
+            except Contract.DoesNotExist:
+                pass
+        super().save(*args, **kwargs)
+        # 同步附件到 CompanyFile（文件管理）
+        if self.attachment:
+            from apps.files.models import CompanyFile, FileCategory
+            # 获取或创建合同文件分类
+            cat, _ = FileCategory.objects.get_or_create(name='合同文件', defaults={'description': '合同附件'})
+            # 检查是否已有同文件的 CompanyFile 记录
+            existing = CompanyFile.objects.filter(
+                contract=self,
+                file_name=self.attachment_name,
+                is_current=True,
+            ).first()
+            if not existing:
+                CompanyFile.objects.create(
+                    file=self.attachment,
+                    file_name=self.attachment_name,
+                    file_size=self.attachment.size if hasattr(self.attachment, 'size') else 0,
+                    category=cat,
+                    contract=self,
+                    company_id=self.company_id or 0,
+                    uploaded_by=self.created_by,
+                )
+        # 如果附件被移除，同步删除对应的 CompanyFile
+        elif old_attachment and not self.attachment:
+            from apps.files.models import CompanyFile
+            CompanyFile.objects.filter(contract=self, is_current=True).delete()
+
 
 
 class PaymentPlan(models.Model):
@@ -438,10 +477,20 @@ class Opportunity(models.Model):
         Contact, on_delete=models.SET_NULL, related_name='opportunities', verbose_name='联系人', null=True, blank=True
     )
     contract = models.ForeignKey(
-        Contract, on_delete=models.SET_NULL, related_name='opportunities', verbose_name='关联合同', null=True, blank=True
+        Contract,
+        on_delete=models.SET_NULL,
+        related_name='opportunities',
+        verbose_name='关联合同',
+        null=True,
+        blank=True,
     )
     project = models.ForeignKey(
-        'tasks.Project', on_delete=models.SET_NULL, related_name='opportunities', verbose_name='关联项目', null=True, blank=True
+        'tasks.Project',
+        on_delete=models.SET_NULL,
+        related_name='opportunities',
+        verbose_name='关联项目',
+        null=True,
+        blank=True,
     )
     name = models.CharField('商机名称', max_length=300)
     stage = models.CharField('销售阶段', max_length=20, choices=STAGE_CHOICES, default='lead')
@@ -488,15 +537,14 @@ class ContractMilestone(models.Model):
         ('delayed', '已延期'),
     ]
 
-    contract = models.ForeignKey(
-        Contract, on_delete=models.CASCADE, related_name='milestones', verbose_name='关联合同'
-    )
+    contract = models.ForeignKey(Contract, on_delete=models.CASCADE, related_name='milestones', verbose_name='关联合同')
     name = models.CharField('里程碑名称', max_length=200)
     description = models.TextField('描述', blank=True, null=True)
     plan_date = models.DateField('计划完成日期')
     actual_date = models.DateField('实际完成日期', null=True, blank=True)
-    amount = models.DecimalField('里程碑金额', max_digits=15, decimal_places=2, default=0,
-                                  help_text='该里程碑对应的收款/付款金额')
+    amount = models.DecimalField(
+        '里程碑金额', max_digits=15, decimal_places=2, default=0, help_text='该里程碑对应的收款/付款金额'
+    )
     status = models.CharField('状态', max_length=20, choices=STATUS_CHOICES, default='pending')
     sort_order = models.IntegerField('排序', default=0)
     remark = models.TextField('备注', blank=True, null=True)

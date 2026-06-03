@@ -159,36 +159,38 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         validated_data = serializer.validated_data
-        
+
         # 确定 company_id
         # 1. 优先使用前端传入的 company_id
         company_id = validated_data.get('company_id')
-        
+
         # 2. 前端没传，尝试从 project 推断
         if not company_id:
             project = validated_data.get('project')
             if project and hasattr(project, 'company_id') and project.company_id:
                 company_id = project.company_id
-        
+
         # 3. project 也没有，从用户权限列表取第一个公司
         if not company_id:
             companies = get_user_companies(self.request.user)
             company_id = companies[0] if companies else None
-        
+
         # 保存
         if company_id:
             instance = serializer.save(company_id=company_id)
         else:
             instance = serializer.save()
-        
+
         # 发送任务创建通知
         try:
             from apps.tasks.notification_service import notify_task_created
+
             notify_task_created(instance, created_by=self.request.user)
         except Exception as e:
             import logging
+
             logging.getLogger(__name__).warning(f'[TaskViewSet] notify_task_created failed: {e}')
-        
+
         return instance
 
     def get_queryset(self):

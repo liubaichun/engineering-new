@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """Check permission system state on 43"""
+
 import os, sys
+
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'config.settings.dev')
 sys.path.insert(0, '/root/engineering-new')
 
 import django
+
 django.setup()
 
 from apps.core.models import UserModulePermission, Module, ModuleAction

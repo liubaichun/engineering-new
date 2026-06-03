@@ -67,10 +67,7 @@ class ReportViewSet(viewsets.ViewSet):
             Income.objects.annotate(y=ExtractYear('date')).values_list('y', flat=True).distinct().exclude(y=None)
         )
         expense_years = (
-            Expense.objects.annotate(y=ExtractYear('date'))
-            .values_list('y', flat=True)
-            .distinct()
-            .exclude(y=None)
+            Expense.objects.annotate(y=ExtractYear('date')).values_list('y', flat=True).distinct().exclude(y=None)
         )
         from .models import Invoice
 

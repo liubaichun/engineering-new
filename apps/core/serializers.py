@@ -157,9 +157,8 @@ class UserSerializer(serializers.ModelSerializer):
             return '系统管理员'
         # 从UMP判断用户角色：有任一模块write→员工，只有read→只读
         from .models import UserModulePermission
-        has_write = UserModulePermission.objects.filter(
-            user=obj, granted_bits__gte=2
-        ).exists()
+
+        has_write = UserModulePermission.objects.filter(user=obj, granted_bits__gte=2).exists()
         return '员工' if has_write else '只读用户'
 
     def get_roles(self, obj) -> list:
@@ -167,11 +166,13 @@ class UserSerializer(serializers.ModelSerializer):
         roles = []
         try:
             for ump in obj.module_permissions.select_related('module', 'company').all():
-                roles.append({
-                    'module': ump.module.name,
-                    'company_name': ump.company.name if ump.company else '-',
-                    'bits': ump.granted_bits,
-                })
+                roles.append(
+                    {
+                        'module': ump.module.name,
+                        'company_name': ump.company.name if ump.company else '-',
+                        'bits': ump.granted_bits,
+                    }
+                )
         except Exception:
             pass
         return roles

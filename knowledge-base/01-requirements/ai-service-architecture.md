@@ -289,7 +289,7 @@ LLMClient (ABC)
 └── _build_headers() → dict
     _build_payload(messages, **kwargs) → dict
     _parse_response(raw) → LLMResponse
-    
+
     ├── OpenAICompatibleClient
     │   ├── 适用于: DeepSeek, OpenAI, Qwen, OpenRouter, vLLM, Ollama
     │   └── 协议: POST /v1/chat/completions, Bearer token
@@ -343,21 +343,21 @@ class ContractViewSet(ViewSet):
     @action(detail=True, methods=['post'])
     def extract_payment_plans(self, request, pk=None):
         contract = self.get_object()
-        
+
         # 1. OCR提取文本（不变）
         text = extract_text_from_pdf(contract.attachment.path)
-        
+
         # 2. 用AI服务提取结构化数据 ← 改这里
         schema_prompt = """从以下合同文本中提取付款计划，
         返回JSON数组：[{plan_date, amount, percentage, condition}]
         金额必须是完整数字（如92400而非92.4）"""
-        
+
         plans = ai.extract(
             text=text,
             schema=schema_prompt,
             model=None  # 使用当前活跃模型
         )
-        
+
         return Response({'payment_plans': plans})
 ```
 
@@ -378,7 +378,7 @@ class BankStatementViewSet(ViewSet):
             日期: {statement.transaction_date}
             候选收入: {list(incomes)}
             候选支出: {list(expenses)}
-            
+
             返回最匹配的ID和置信度。""",
             model='deepseek-chat'  # 显式指定模型
         )
@@ -397,7 +397,7 @@ class TaskViewSet(ViewSet):
             标题: {task.title}
             描述: {task.description}
             优先级: {task.priority}
-            
+
             返回 {{"estimated_hours": number, "confidence": "high/medium/low", "reason": "..."}}""",
         )
 ```

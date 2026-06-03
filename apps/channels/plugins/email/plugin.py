@@ -20,6 +20,7 @@ class EmailPlugin(BaseChannelPlugin):
 
     def __init__(self, config: dict):
         from django.conf import settings as dj_settings
+
         self.smtp_host = config.get('smtp_host') or dj_settings.EMAIL_HOST
         self.smtp_port = int(config.get('smtp_port') or dj_settings.EMAIL_PORT)
         self.smtp_user = config.get('smtp_user') or dj_settings.EMAIL_HOST_USER

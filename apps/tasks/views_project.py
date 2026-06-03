@@ -362,17 +362,20 @@ class ProjectViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def create_opportunity(self, request, pk=None):
         """从项目创建商机 — 项目驱动销售"""
-        from apps.crm.models import Opportunity, Client
+        from apps.crm.models import Opportunity
         from apps.crm.serializers import OpportunitySerializer
 
         project = self.get_object()
         # 检查是否已有关联商机
         existing = Opportunity.objects.filter(project=project).first()
         if existing:
-            return Response({
-                'detail': '该项目已有关联商机',
-                'opportunity': OpportunitySerializer(existing).data,
-            }, status=200)
+            return Response(
+                {
+                    'detail': '该项目已有关联商机',
+                    'opportunity': OpportunitySerializer(existing).data,
+                },
+                status=200,
+            )
 
         # 尝试通过关联合同找客户
         client = None
@@ -381,8 +384,7 @@ class ProjectViewSet(viewsets.ModelViewSet):
             client = contract.client
 
         if not client:
-            return api_error(ErrorCode.VALIDATION_ERROR,
-                             '项目没有关联客户，请先在合同中关联客户后再创建商机')
+            return api_error(ErrorCode.VALIDATION_ERROR, '项目没有关联客户，请先在合同中关联客户后再创建商机')
 
         opp = Opportunity.objects.create(
             company_id=project.company_id or getattr(request.user, 'company_id', None),

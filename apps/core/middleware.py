@@ -37,11 +37,7 @@ class CompanyContextMiddleware(MiddlewareMixin):
                     pass
 
         # 无 session 或 session 公司无效：从 UMP 取第一个有权限的公司
-        first_ump = (
-            UserModulePermission.objects.filter(user=request.user)
-            .order_by('company_id')
-            .first()
-        )
+        first_ump = UserModulePermission.objects.filter(user=request.user).order_by('company_id').first()
 
         if first_ump:
             try:

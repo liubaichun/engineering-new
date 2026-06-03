@@ -70,6 +70,7 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
         if not self.request.user.is_authenticated:
             return OperationAuditLog.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'audit_log', 'read')
         if companies is None:
             queryset = OperationAuditLog.objects.select_related('user')
@@ -127,10 +128,12 @@ class OperationAuditLogViewSet(viewsets.ReadOnlyModelViewSet):
 
         today_count = queryset.filter(created_at__gte=today_start).count()
 
-        return Response({
-            'total': total,
-            'create': stats['create'],
-            'update': stats['update'],
-            'delete': stats['delete'],
-            'today': today_count,
-        })
+        return Response(
+            {
+                'total': total,
+                'create': stats['create'],
+                'update': stats['update'],
+                'delete': stats['delete'],
+                'today': today_count,
+            }
+        )

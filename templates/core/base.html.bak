@@ -1,0 +1,431 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}企业信息化管理系统{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="{% static 'css/app.css' %}" rel="stylesheet">
+    {% block styles %}{% endblock %}
+    <script defer src="{% static 'js/app.js' %}"></script>
+</head>
+<body>
+
+<nav class="sidebar" id="sidebar">
+{% block sidebar_container %}
+<!-- Mobile Toggle -->
+<button class="mobile-nav-toggle" onclick="toggleSidebar()">
+    <i class="bi bi-list"></i>
+</button>
+
+<!-- Sidebar Overlay -->
+<div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
+        <i class="bi bi-grid-3x3-gap"></i>
+        <span>企业信息化管理系统</span>
+    </div>
+
+    <div class="sidebar-nav">
+        {% block sidebar_nav %}
+        <!-- ===== 简化侧边栏：9分组，20项 ===== -->
+        <!-- ===== 精简侧边栏：12项 ===== -->
+        <!-- 分组1：导航 -->
+        <div class="sidebar-section">
+            <a href="/dashboard/" class="nav-link {% if request.path == '/dashboard/' %}active{% endif %}">
+                <i class="bi bi-speedometer2"></i><span>控制台</span>
+            </a>
+        </div>
+
+        <!-- 分组2：项目 -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">项目</div>
+            <a href="/projects/" class="nav-link {% if '/projects' in request.path and '/gantt' not in request.path %}active{% endif %}">
+                <i class="bi bi-briefcase"></i><span>项目管理</span>
+            </a>
+            <a href="/projects/gantt/" class="nav-link {% if '/projects/gantt' in request.path %}active{% endif %}">
+                <i class="bi bi-bar-chart-fill"></i><span>甘特图</span>
+            </a>
+            <a href="/tasks/board/" class="nav-link {% if '/tasks' in request.path %}active{% endif %}">
+                <i class="bi bi-kanban"></i><span>任务看板</span>
+            </a>
+        </div>
+
+        <!-- 分组3：审批 -->
+        {% if user_has_approval_perm or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">审批</div>
+            <a href="/approvals/" class="nav-link {% if '/approvals' in request.path %}active{% endif %}">
+                <i class="bi bi-git-branch"></i><span>审批管理</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- 分组4：财务 -->
+        {% if user_has_finance_perm or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">财务</div>
+            {% if 'finance:wage:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/wages/" class="nav-link {% if '/finance/wages' in request.path %}active{% endif %}">
+                <i class="bi bi-wallet2"></i><span>工资管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:employee:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/employees/" class="nav-link {% if '/finance/employees' in request.path %}active{% endif %}">
+                <i class="bi bi-person-badge"></i><span>员工管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:social_security:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/social-records/" class="nav-link {% if '/finance/social-records' in request.path %}active{% endif %}">
+                <i class="bi bi-shield-check"></i><span>社保管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:income:read' in user_menu_codes or 'finance:expense:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/incomes/" class="nav-link {% if '/finance/incomes' in request.path or '/finance/expenses' in request.path %}active{% endif %}">
+                <i class="bi bi-cash-stack"></i><span>收支管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:invoice:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/invoices/" class="nav-link {% if '/finance/invoices' in request.path %}active{% endif %}">
+                <i class="bi bi-receipt"></i><span>发票管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:report:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/reports/" class="nav-link {% if '/finance/reports' in request.path %}active{% endif %}">
+                <i class="bi bi-bar-chart"></i><span>财务报表</span>
+            </a>
+            {% endif %}
+            {% if request.user.is_superuser or 'finance:budget:read' in user_menu_codes %}
+            <a href="/finance/budgets/" class="nav-link {% if '/finance/budgets' in request.path %}active{% endif %}">
+                <i class="bi bi-graph-up-arrow"></i><span>预算管理</span>
+            </a>
+            {% endif %}
+            {% if 'finance:bank:read' in user_menu_codes or request.user.is_superuser %}
+            <a href="/finance/bank-import/" class="nav-link {% if '/finance/bank-import' in request.path %}active{% endif %}">
+                <i class="bi bi-bank"></i><span>银行流水</span>
+            </a>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        <!-- 客户管理（Tab切换：客户|合同|供应商|商机） -->
+        {% if user_has_crm_perm or request.user.is_superuser %}
+        <a href="/crm/" class="nav-link {% if '/crm' in request.path %}active{% endif %}">
+            <i class="bi bi-people"></i><span>客户管理</span>
+        </a>
+        {% endif %}
+
+        <!-- 采购管理（Tab切换：申请|订单|入库） -->
+        {% if user_has_purchasing_perm or request.user.is_superuser %}
+        <a href="/purchasing/" class="nav-link {% if '/purchasing' in request.path %}active{% endif %}">
+            <i class="bi bi-cart"></i><span>采购管理</span>
+        </a>
+        {% endif %}
+
+        <!-- 运营管理（物料|设备|报修 Tab） -->
+        {% if user_has_operations_perm or request.user.is_superuser %}
+        <a href="/operations/" class="nav-link {% if '/operations' in request.path or '/materials' in request.path or '/equipment' in request.path and '/repair' not in request.path %}active{% endif %}">
+            <i class="bi bi-box-seam"></i><span>运营管理</span>
+        </a>
+        {% endif %}
+
+        <!-- 文件管理（独立） -->
+        {% if user_has_files_perm or request.user.is_superuser %}
+        <a href="/files/" class="nav-link {% if '/files' in request.path %}active{% endif %}">
+            <i class="bi bi-folder"></i><span>文件管理</span>
+        </a>
+        {% endif %}
+
+        <!-- 分组8：系统（统一入口：公司|用户|角色|权限|审计|API|参数|通知） -->
+        {% if user_has_system_perm or request.user.is_superuser %}
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">系统</div>
+            <a href="/system/" class="nav-link {% if '/system' in request.path %}active{% endif %}">
+                <i class="bi bi-gear"></i><span>系统管理</span>
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- 数据 -->
+        <div class="sidebar-section">
+            <div class="sidebar-section-title">数据</div>
+            {% if request.user.is_superuser %}
+            <a href="/stats/" class="nav-link {% if '/stats' in request.path %}active{% endif %}">
+                <i class="bi bi-pie-chart"></i><span>数据统计</span>
+            </a>
+            {% endif %}
+            <a href="/notifications/" class="nav-link {% if '/notifications' in request.path %}active{% endif %}">
+                <i class="bi bi-inbox"></i><span>我的通知</span>
+            </a>
+        </div>
+        {% endblock %}
+    </div>
+
+    <div class="sidebar-footer">
+        <a href="/profile/" class="nav-link">
+            <i class="bi bi-person-circle"></i>
+            <span>个人设置</span>
+        </a>
+        <a href="#" class="nav-link" onclick="logout()">
+            <i class="bi bi-box-arrow-right"></i>
+            <span>退出登录</span>
+        </a>
+    </div>
+</nav>
+
+<!-- Main Content -->
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+<!-- Bottom Tabs (Mobile) -->
+<nav class="bottom-tabs">
+    <a href="/dashboard/" class="tab-item {% if request.path == '/dashboard/' %}active{% endif %}">
+        <i class="bi bi-speedometer2"></i>
+        <span>首页</span>
+    </a>
+    <a href="/projects/" class="tab-item {% if '/projects' in request.path %}active{% endif %}">
+        <i class="bi bi-briefcase"></i>
+        <span>项目</span>
+    </a>
+    <a href="/tasks/board/" class="tab-item {% if '/tasks' in request.path %}active{% endif %}">
+        <i class="bi bi-kanban"></i>
+        <span>任务</span>
+    </a>
+    <a href="/finance/wages/" class="tab-item {% if '/finance' in request.path %}active{% endif %}">
+        <i class="bi bi-wallet2"></i>
+        <span>工资</span>
+    </a>
+    <a href="/profile/" class="tab-item {% if '/profile' in request.path %}active{% endif %}">
+        <i class="bi bi-person"></i>
+        <span>我的</span>
+    </a>
+</nav>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+function getCsrfToken() {
+    return getCookie('csrftoken') || '';
+}
+
+// 全局fetch超时保护：所有页面自动获得，3秒超时（超过则跳转登录，不让用户长时间等待）
+// 重要：所有需要全局取消的fetch必须用 _sharedControllers 数组注册
+var _sharedControllers = [];  // 共享AbortController列表，用于页面导航时批量中止
+function fetchWithTimeout(url, options, timeoutMs) {
+    if (typeof timeoutMs === 'object') { options = timeoutMs; timeoutMs = 3000; }
+    var controller = new AbortController();
+    _sharedControllers.push(controller);  // 注册，以便导航时能中止
+    var timeoutId = setTimeout(function() { controller.abort(); }, timeoutMs || 3000);
+    return fetch(url, Object.assign({}, options, { signal: controller.signal }))
+        .finally(function() {
+            clearTimeout(timeoutId);
+            var idx = _sharedControllers.indexOf(controller);
+            if (idx !== -1) _sharedControllers.splice(idx, 1);
+        });
+}
+
+// 页面导航时，中止所有进行中的fetch（防止旧请求的403把当前正在加载的页面拽到登录页）
+function abortAllFetches() {
+    _sharedControllers.forEach(function(c) { c.abort(); });
+    _sharedControllers = [];
+}
+document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') { abortAllFetches(); }
+});
+window.addEventListener('beforeunload', function() { abortAllFetches(); });
+
+</script>
+<script>
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('show');
+    document.querySelector('.sidebar-overlay').classList.toggle('show');
+}
+
+function logout() {
+    fetchWithTimeout('/api/core/auth/logout/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] || '' }
+    }, 5000)
+    .then(function() {
+        window.location.href = '/login/';
+    })
+    .catch(function() {
+        window.location.href = '/login/';
+    });
+}
+
+function showToast(msg, type, duration) {
+    type = type || 'info';
+    duration = duration || 3000;
+    var container = document.querySelector('.toast-container') || (function() {
+        var div = document.createElement('div');
+        div.className = 'toast-container';
+        document.body.appendChild(div);
+        return div;
+    })();
+    var toast = document.createElement('div');
+    toast.className = 'toast-msg ' + type;
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(100%)';
+    toast.style.transition = 'opacity 0.3s, transform 0.3s';
+    var icons = {
+        success: 'bi-check-circle-fill',
+        error: 'bi-x-circle-fill',
+        warning: 'bi-exclamation-triangle-fill',
+        info: 'bi-info-circle-fill'
+    };
+    toast.innerHTML = '<i class="bi ' + (icons[type] || icons.info) + '"></i><span>' + msg + '</span>';
+    container.appendChild(toast);
+    // 触发 reflow 然后加 show 类让它滑入
+    toast.offsetHeight;
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(0)';
+    setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(100%)';
+        setTimeout(function() { toast.remove(); }, 300);
+    }, duration);
+}
+
+// Sidebar active state
+var USER_PERMS = { codes: [], menu_codes: [], is_superuser: false };
+
+function loadPermissions() {
+    fetchWithTimeout('/api/core/auth/user/my-permissions/', {
+        credentials: 'include'
+    }, 3000)
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.status === 'success') {
+            USER_PERMS.codes = data.codes || [];
+            USER_PERMS.menu_codes = data.menu_codes || [];
+            USER_PERMS.is_superuser = data.is_superuser || false;
+            window.__userId = data.user_id || null;
+            window.__isSuperuserKnown = true;
+            window.__userIsSuperuser = data.is_superuser || false;
+            hideUnauthorizedButtons();
+        }
+        window.__loadPermsDone = true;
+    })
+    .catch(function() { window.__loadPermsDone = true; });
+}
+
+function hasPermission(permCode) {
+    if (!permCode) return true;
+    if (USER_PERMS.is_superuser) return true;
+    var codes = USER_PERMS.codes || [];
+    // 超级用户标记 '*' 放行所有
+    if (codes.length === 1 && codes[0] === '*') return true;
+    // 兼容.add↔.create, .remove↔.delete
+    var altCode = permCode.replace(/\.add$/, '.create').replace(/\.remove$/, '.delete');
+    return codes.includes(permCode) || codes.includes(altCode);
+}
+
+function hideUnauthorizedButtons() {
+    document.querySelectorAll('[data-perm]').forEach(function(el) {
+        var perms = el.getAttribute('data-perm').split(',').map(function(p) { return p.trim(); });
+        var allowed = perms.some(function(p) { return hasPermission(p); });
+        if (!allowed) {
+            el.style.display = 'none';
+        }
+    });
+}
+
+function waitForPermissions(callback) {
+    // 已知is_superuser，直接放行（无需等待API）
+    if (window.__isSuperuserKnown && window.__userIsSuperuser) {
+        callback();
+        return;
+    }
+    // 如果已有权限数据，直接回调（loadPermissions 已完成）
+    if (USER_PERMS.codes && USER_PERMS.codes.length > 0) {
+        callback();
+        return;
+    }
+    // 如果 is_superuser，直接回调（无需等待API返回）
+    if (USER_PERMS.is_superuser) {
+        window.__isSuperuserKnown = true;
+        window.__userIsSuperuser = true;
+        callback();
+        return;
+    }
+    // 标记is_superuser未知，等API返回后决定
+    window.__isSuperuserKnown = false;
+    // 非superuser才等待API权限数据（网络正常时通常毫秒级返回）
+    var attempts = 0;
+    var interval = setInterval(function() {
+        attempts++;
+        if (window.__loadPermsDone) {
+            clearInterval(interval);
+            // API返回后重新检查is_superuser
+            if (USER_PERMS.is_superuser) {
+                window.__isSuperuserKnown = true;
+                window.__userIsSuperuser = true;
+            } else {
+                window.__isSuperuserKnown = true;
+                window.__userIsSuperuser = false;
+            }
+            callback();
+        } else if (attempts >= 100) { // 最多10秒，网络异常时放弃等待
+            clearInterval(interval);
+            window.__isSuperuserKnown = true;
+            window.__userIsSuperuser = false;
+            callback();
+        }
+    }, 100);
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // 检查是否已登录（通过session cookie），同时获取is_superuser状态
+    fetchWithTimeout('/api/core/auth/user/', {
+        credentials: 'include'
+    }, 3000)
+    .then(function(response) {
+        if (!response.ok) {
+            window.location.href = '/login/';
+        } else {
+            // 立即从响应体获取is_superuser，不等loadPermissions API
+            response.json().then(function(data) {
+                window.__isSuperuserKnown = true;
+                window.__userId = data.user_id || data.user?.id || null;
+                window.__userIsSuperuser = data.is_superuser || false;
+                // admin(id=1)直接标记superuser，同时更新USER_PERMS让所有页面立即生效
+                if (data.user && data.user.id === 1) {
+                    window.__userIsSuperuser = true;
+                    if (typeof USER_PERMS !== 'undefined') {
+                        USER_PERMS.is_superuser = true;
+                    }
+                }
+            }).catch(function() {});
+            loadPermissions();
+        }
+    })
+    .catch(function(err) {
+        if (err.name === 'AbortError') return;  // 页面导航时中止，不跳登录
+        window.location.href = '/login/';
+    });
+});
+</script>
+{% block modal %}{% endblock %}
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -45,6 +45,7 @@ class ARAPViewSet(viewsets.ViewSet):
         company_id = request.query_params.get('company')
         if user.is_authenticated and not user.is_superuser:
             from apps.core.permissions import get_module_companies
+
             companies = get_module_companies(user, 'report', 'read')
             if companies is not None:
                 if company_id and int(company_id) in companies:
@@ -141,6 +142,7 @@ class ARAPViewSet(viewsets.ViewSet):
         user = request.user
         if user.is_authenticated and not user.is_superuser:
             from apps.core.permissions import get_module_companies
+
             companies = get_module_companies(user, 'report', 'read')
             if companies is not None:
                 qs = qs.filter(company_id__in=companies)
@@ -163,6 +165,7 @@ class ARAPViewSet(viewsets.ViewSet):
         user = request.user
         if user.is_authenticated and not user.is_superuser:
             from apps.core.permissions import get_module_companies
+
             companies = get_module_companies(user, 'report', 'read')
             if companies is not None:
                 qs = qs.filter(company_id__in=companies)

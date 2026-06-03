@@ -37,5 +37,6 @@ class Supplier(models.Model):
     def save(self, *args, **kwargs):
         if not self.code:
             from apps.core.models import generate_code
+
             self.code = generate_code('supplier', Supplier)
         super().save(*args, **kwargs)

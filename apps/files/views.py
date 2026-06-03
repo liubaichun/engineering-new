@@ -65,6 +65,7 @@ class CompanyFileViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'file', 'read')
         if companies is None:
             return super().get_queryset()

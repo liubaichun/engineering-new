@@ -8,7 +8,12 @@ from apps.core.permissions import RoleRequired
 from apps.core.exceptions import api_error, ErrorCode
 from django_filters.rest_framework import DjangoFilterBackend, FilterSet, CharFilter, NumberFilter
 from .models import Material, MaterialInboundLog, MaterialUsageLog, MaterialBOM, MaterialBOMNode
-from .serializers import MaterialSerializer, MaterialUsageLogSerializer, MaterialInboundLogSerializer, MaterialBOMSerializer
+from .serializers import (
+    MaterialSerializer,
+    MaterialUsageLogSerializer,
+    MaterialInboundLogSerializer,
+    MaterialBOMSerializer,
+)
 from .serializers import MaterialBOMDetailSerializer, MaterialBOMNodeSerializer, MaterialBOMTreeSerializer
 
 logger = logging.getLogger(__name__)
@@ -26,26 +31,30 @@ class MaterialFilter(FilterSet):
 
     def filter_stock_alert(self, queryset, name, value):
         if value:
-            return queryset.annotate(
-                _inbound_sum=models.Subquery(
-                    MaterialInboundLog.objects.filter(material=models.OuterRef('pk'))
-                    .values('material')
-                    .annotate(total=models.Sum('quantity'))
-                    .values('total')[:1],
-                    output_field=models.IntegerField(),
-                ),
-                _outbound_sum=models.Subquery(
-                    MaterialUsageLog.objects.filter(material=models.OuterRef('pk'))
-                    .values('material')
-                    .annotate(total=models.Sum('quantity'))
-                    .values('total')[:1],
-                    output_field=models.IntegerField(),
-                ),
-            ).annotate(
-                _calc_stock=models.F('init_stock')
-                + models.Coalesce('_inbound_sum', 0)
-                - models.Coalesce('_outbound_sum', 0),
-            ).filter(_calc_stock__lt=models.F('alert_threshold'))
+            return (
+                queryset.annotate(
+                    _inbound_sum=models.Subquery(
+                        MaterialInboundLog.objects.filter(material=models.OuterRef('pk'))
+                        .values('material')
+                        .annotate(total=models.Sum('quantity'))
+                        .values('total')[:1],
+                        output_field=models.IntegerField(),
+                    ),
+                    _outbound_sum=models.Subquery(
+                        MaterialUsageLog.objects.filter(material=models.OuterRef('pk'))
+                        .values('material')
+                        .annotate(total=models.Sum('quantity'))
+                        .values('total')[:1],
+                        output_field=models.IntegerField(),
+                    ),
+                )
+                .annotate(
+                    _calc_stock=models.F('init_stock')
+                    + models.Coalesce('_inbound_sum', 0)
+                    - models.Coalesce('_outbound_sum', 0),
+                )
+                .filter(_calc_stock__lt=models.F('alert_threshold'))
+            )
         return queryset
 
 
@@ -75,12 +84,16 @@ class MaterialViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'material', 'read')
         if companies is None:
             return super().get_queryset().select_related('supplier', 'project', 'project__company')
-        return super().get_queryset().filter(
-            models.Q(company_id__in=companies) | models.Q(project__company_id__in=companies)
-        ).select_related('supplier', 'project', 'project__company')
+        return (
+            super()
+            .get_queryset()
+            .filter(models.Q(company_id__in=companies) | models.Q(project__company_id__in=companies))
+            .select_related('supplier', 'project', 'project__company')
+        )
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -239,14 +252,20 @@ class MaterialBOMViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return self.queryset.model.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'material', 'read')
         if companies is None:
             return super().get_queryset().select_related('material', 'material__project')
-        return super().get_queryset().filter(
-            models.Q(company_id__in=companies)
-            | models.Q(material__company_id__in=companies)
-            | models.Q(material__project__company_id__in=companies)
-        ).select_related('material', 'material__project')
+        return (
+            super()
+            .get_queryset()
+            .filter(
+                models.Q(company_id__in=companies)
+                | models.Q(material__company_id__in=companies)
+                | models.Q(material__project__company_id__in=companies)
+            )
+            .select_related('material', 'material__project')
+        )
 
     def get_serializer_class(self):
         if self.action == 'retrieve':

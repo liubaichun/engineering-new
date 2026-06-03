@@ -133,7 +133,7 @@ class MenuGroup(models.Model):
     icon = models.CharField(max_length=50, default='bi-folder')  # Bootstrap Icon
     sort_order = models.IntegerField(default=0)
     is_active = models.BooleanField(default=True)
-    
+
     class Meta:
         ordering = ['sort_order']
         verbose_name = '菜单分组'
@@ -153,11 +153,11 @@ class MenuItem(models.Model):
     # url = models.CharField(max_length=200)  # 菜单URL
     # icon = models.CharField(max_length=50)
     # sort_order = models.IntegerField(default=0)
-    
+
     group = models.ForeignKey(MenuGroup, on_delete=models.CASCADE, related_name='menu_items')
     is_active = models.BooleanField(default=True)
     is_visible = models.BooleanField(default=True)  # 对所有用户可见（不检查权限）
-    
+
     class Meta:
         ordering = ['group__sort_order', 'module__sort_order']
         verbose_name = '菜单项'
@@ -173,7 +173,7 @@ class MenuItem(models.Model):
 
 class Module(models.Model):
     """扩展字段"""
-    url = models.CharField(max_length=200, blank=True, 
+    url = models.CharField(max_length=200, blank=True,
         help_text='菜单URL，如 /finance/wages/，留空则自动生成')
     icon = models.CharField(max_length=50, blank=True,
         help_text='菜单图标，如 bi-wallet2，留空用默认')
@@ -195,7 +195,7 @@ from .models import Module, ModuleAction, UserModulePermission, ACTION_BITS
 
 class MenuGenerator:
     """动态菜单生成器"""
-    
+
     # 默认图标映射
     DEFAULT_ICONS = {
         'income': 'bi-cash-stack',
@@ -219,7 +219,7 @@ class MenuGenerator:
         'company': 'bi-building',
         'setting': 'bi-sliders',
     }
-    
+
     # 默认URL模板
     DEFAULT_URLS = {
         'income': '/finance/income/',
@@ -239,13 +239,13 @@ class MenuGenerator:
         'material': '/operations/material/',
         'repair': '/operations/repair/',
     }
-    
+
     @classmethod
     def get_user_menu_codes(cls, user, company_id=None) -> List[str]:
         """获取用户有权限的菜单权限码列表"""
         if not user.is_authenticated:
             return []
-        
+
         if user.is_superuser:
             # 超管：返回所有启用的菜单权限码
             codes = []
@@ -254,12 +254,12 @@ class MenuGenerator:
                     if action.name == 'read':  # 只添加read权限码
                         codes.append(f'{module.category}:{module.name}:read')
             return list(set(codes))
-        
+
         # 普通用户：从UMP表获取
         filters = {'user': user, 'granted_bits__gt': 0}
         if company_id:
             filters['company_id'] = company_id
-        
+
         codes = []
         seen = set()
         for perm in UserModulePermission.objects.filter(**filters).select_related('module'):
@@ -271,14 +271,14 @@ class MenuGenerator:
                 if code not in seen:
                     seen.add(code)
                     codes.append(code)
-        
+
         return codes
-    
+
     @classmethod
     def generate_menu_html(cls, user, company_id=None) -> str:
         """生成侧边栏菜单HTML"""
         menu_codes = cls.get_user_menu_codes(user, company_id)
-        
+
         if user.is_superuser:
             # 超管：显示所有启用的菜单
             modules = Module.objects.filter(is_active=True, show_in_menu=True).select_related('actions')
@@ -287,7 +287,7 @@ class MenuGenerator:
             modules = Module.objects.filter(is_active=True, show_in_menu=True)
             # 进一步过滤（需要按模块名匹配）
             # 简化：前端判断即可，后端只返回codes
-        
+
         # 按category分组
         groups = {}
         for code in menu_codes:
@@ -300,31 +300,31 @@ class MenuGenerator:
                 'icon': cls.DEFAULT_ICONS.get(name, 'bi-folder'),
                 'label': cls.get_module_label(name),
             })
-        
+
         # 生成HTML
         html_parts = ['<div class="sidebar-nav">']
         html_parts.append(cls._render_dashboard_link())
-        
+
         for category in cls.CATEGORY_ORDER:
             if category not in groups:
                 continue
-            
+
             category_label = cls.CATEGORY_LABELS.get(category, category)
             category_icon = cls.CATEGORY_ICONS.get(category, 'bi-folder')
-            
+
             html_parts.append(f'<div class="sidebar-section">')
             html_parts.append(f'    <div class="sidebar-section-title">{category_label}</div>')
-            
+
             for item in sorted(groups[category], key=lambda x: x['name']):
                 html_parts.append(f'''    <a href="{item['url']}" class="nav-link">
                     <i class="bi {item['icon']}"></i><span>{item['label']}</span>
                 </a>''')
-            
+
             html_parts.append('</div>')
-        
+
         html_parts.append('</div>')
         return '\n'.join(html_parts)
-    
+
     CATEGORY_ORDER = ['project', 'approval', 'finance', 'crm', 'purchasing', 'operations', 'files', 'system', 'data']
     CATEGORY_LABELS = {
         'project': '项目',
@@ -348,7 +348,7 @@ class MenuGenerator:
         'system': 'bi-gear',
         'data': 'bi-bar-chart',
     }
-    
+
     @staticmethod
     def get_module_label(name: str) -> str:
         """获取模块显示名称"""
@@ -398,12 +398,12 @@ def menu_permissions(request):
     """注入用户有权限的菜单code列表 + HTML"""
     menu_codes = []
     menu_html = ''
-    
+
     if request.user.is_authenticated:
         company_id = request.session.get('current_company_id')
         menu_codes = MenuGenerator.get_user_menu_codes(request.user, company_id)
         menu_html = MenuGenerator.generate_menu_html(request.user, company_id)
-        
+
         # 分类权限判断（用于分组显示控制）
         has_finance_perm = any(c.startswith('finance:') for c in menu_codes)
         has_approval_perm = any(c.startswith('approval:') for c in menu_codes)
@@ -417,7 +417,7 @@ def menu_permissions(request):
         has_finance_perm = has_approval_perm = has_crm_perm = False
         has_project_perm = has_system_perm = has_purchasing_perm = False
         has_operations_perm = has_files_perm = False
-    
+
     return {
         'user_menu_codes': menu_codes,
         'user_menu_html': menu_html,  # 新增：预生成的菜单HTML
@@ -458,7 +458,7 @@ def menu_permissions(request):
     <a href="/dashboard/" class="nav-link {% if request.path == '/dashboard/' %}active{% endif %}">
         <i class="bi bi-speedometer2"></i><span>控制台</span>
     </a>
-    
+
     {{ user_menu_html|safe }}
 </div>
 ```
@@ -475,21 +475,21 @@ def menu_permissions(request):
 RULES = [
     # 1. 模块显式配置的URL
     ('module.url', '显式配置'),
-    
+
     # 2. category:name 模式
     ('finance:income', '/finance/income/'),
     ('finance:expense', '/finance/expense/'),
     ('crm:customer', '/crm/customers/'),
-    
+
     # 3. category:name 模式（带特定后缀）
     ('project:project', '/projects/'),
     ('project:gantt', '/projects/gantt/'),
     ('project:taskboard', '/tasks/board/'),
-    
+
     # 4. name 模式
     ('approval', '/approvals/'),
     ('budget', '/finance/budgets/'),
-    
+
     # 5. 默认
     (None, '/{category}/{name}/'),
 ]

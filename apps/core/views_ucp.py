@@ -69,6 +69,7 @@ class UserCompanyPermissionViewSet(viewsets.ViewSet):
         companies_qs = FinanceCompany.objects.filter(status='active').order_by('name')
         if not user.is_superuser:
             from apps.core.permissions import get_module_companies
+
             company_ids = get_module_companies(user, 'permission_matrix', 'read')
             if company_ids:
                 companies_qs = companies_qs.filter(id__in=company_ids)

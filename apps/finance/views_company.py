@@ -29,6 +29,7 @@ class CompanyViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return Company.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'company', 'read')
         if companies is None:
             return Company.objects.all()

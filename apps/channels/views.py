@@ -1,17 +1,13 @@
 """通知渠道视图 — 简化版"""
 
 import logging
-from urllib.parse import urlencode
-from django.conf import settings
 from django.core.signing import TimestampSigner
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
-from django.urls import reverse
 from django.views import View
-from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import IsAuthenticated
 
 from .models import Channel, ChannelBinding, NotificationLog
 from .base import ChannelRegistry
@@ -31,16 +27,18 @@ class ChannelListView(APIView):
             plugin = ChannelRegistry.get_plugin(ch.channel_type, ch.config)
             valid = plugin is not None
             icon_map = {'feishu': 'bi-send', 'wecom': 'bi-building', 'dingtalk': 'bi-chat-dots'}
-            data.append({
-                'id': ch.id,
-                'channel_type': ch.channel_type,
-                'channel_name': ch.get_channel_type_display(),
-                'name': ch.name,
-                'usage': ch.usage,
-                'is_active': ch.is_active,
-                'valid': valid,
-                'icon': icon_map.get(ch.channel_type, 'bi-bell'),
-            })
+            data.append(
+                {
+                    'id': ch.id,
+                    'channel_type': ch.channel_type,
+                    'channel_name': ch.get_channel_type_display(),
+                    'name': ch.name,
+                    'usage': ch.usage,
+                    'is_active': ch.is_active,
+                    'valid': valid,
+                    'icon': icon_map.get(ch.channel_type, 'bi-bell'),
+                }
+            )
         return Response(data)
 
     def post(self, request):
@@ -58,6 +56,7 @@ class ChannelListView(APIView):
         company_id = request.session.get('current_company_id')
         if not company_id:
             from apps.core.services import get_active_company_id
+
             company_id = get_active_company_id(request)
         if not company_id:
             return Response({'error': '无法确定公司'}, status=400)
@@ -65,7 +64,12 @@ class ChannelListView(APIView):
         channel, created = Channel.objects.update_or_create(
             company_id=company_id,
             channel_type=channel_type,
-            defaults={'name': name, 'config': config, 'usage': request.data.get('usage', 'personal'), 'is_active': True},
+            defaults={
+                'name': name,
+                'config': config,
+                'usage': request.data.get('usage', 'personal'),
+                'is_active': True,
+            },
         )
         return Response({'id': channel.id, 'channel_type': channel.channel_type}, status=201 if created else 200)
 
@@ -77,15 +81,17 @@ class ChannelDetailView(APIView):
 
     def get(self, request, pk):
         channel = get_object_or_404(Channel, id=pk)
-        return Response({
-            'id': channel.id,
-            'channel_type': channel.channel_type,
-            'channel_name': channel.get_channel_type_display(),
-            'name': channel.name,
-            'usage': channel.usage,
-            'is_active': channel.is_active,
-            'config': channel.config,
-        })
+        return Response(
+            {
+                'id': channel.id,
+                'channel_type': channel.channel_type,
+                'channel_name': channel.get_channel_type_display(),
+                'name': channel.name,
+                'usage': channel.usage,
+                'is_active': channel.is_active,
+                'config': channel.config,
+            }
+        )
 
     def patch(self, request, pk):
         channel = get_object_or_404(Channel, id=pk)
@@ -135,10 +141,16 @@ class SendTestView(APIView):
         # 邮件渠道：使用用户指定的收件人
         recipient = request.data.get('recipient', '')
         if channel.channel_type == 'email' and recipient:
-            success, msg = plugin.send_message(recipient, '测试通知', '这是一条来自企业信息化管理系统的测试消息，如果您收到了这条消息，说明邮件配置正确。')
+            success, msg = plugin.send_message(
+                recipient,
+                '测试通知',
+                '这是一条来自企业信息化管理系统的测试消息，如果您收到了这条消息，说明邮件配置正确。',
+            )
         else:
             # 广播测试：发到群
-            success, msg = plugin.send_message('', '测试通知', '这是一条来自企业信息化管理系统的测试消息，如果您收到了这条消息，说明通知渠道配置正确。')
+            success, msg = plugin.send_message(
+                '', '测试通知', '这是一条来自企业信息化管理系统的测试消息，如果您收到了这条消息，说明通知渠道配置正确。'
+            )
         return Response({'success': success, 'message': msg})
 
 
@@ -156,18 +168,20 @@ class BindingListCreateView(APIView):
         data = []
         for b in bindings:
             info = b.platform_user_info or {}
-            data.append({
-                'id': b.id,
-                'user_id': b.user.id,
-                'username': b.user.username,
-                'channel_id': b.channel.id,
-                'channel_type': b.channel.channel_type,
-                'channel_name': b.channel.get_channel_type_display(),
-                'platform_open_id': b.platform_open_id,
-                'user_name': info.get('name', ''),
-                'status': b.status,
-                'bound_at': b.bound_at,
-            })
+            data.append(
+                {
+                    'id': b.id,
+                    'user_id': b.user.id,
+                    'username': b.user.username,
+                    'channel_id': b.channel.id,
+                    'channel_type': b.channel.channel_type,
+                    'channel_name': b.channel.get_channel_type_display(),
+                    'platform_open_id': b.platform_open_id,
+                    'user_name': info.get('name', ''),
+                    'status': b.status,
+                    'bound_at': b.bound_at,
+                }
+            )
         return Response(data)
 
     def post(self, request):
@@ -234,18 +248,22 @@ class GenerateBindQRCodeView(APIView):
             binding_url = ''
 
         if binding_url:
-            return Response({
-                'binding_mode': 'oauth',
-                'binding_url': binding_url,
-                'channel_id': channel.id,
-                'channel_type': channel.channel_type,
-            })
+            return Response(
+                {
+                    'binding_mode': 'oauth',
+                    'binding_url': binding_url,
+                    'channel_id': channel.id,
+                    'channel_type': channel.channel_type,
+                }
+            )
         else:
-            return Response({
-                'binding_mode': 'manual',
-                'channel_id': channel.id,
-                'channel_type': channel.channel_type,
-            })
+            return Response(
+                {
+                    'binding_mode': 'manual',
+                    'channel_id': channel.id,
+                    'channel_type': channel.channel_type,
+                }
+            )
 
 
 class BindCallbackView(View):
@@ -275,6 +293,7 @@ class BindCallbackView(View):
 
         # 获取要绑定的系统用户
         from django.contrib.auth import get_user_model
+
         User = get_user_model()
         try:
             user = User.objects.get(id=user_id, is_active=True)
@@ -305,7 +324,8 @@ class BindCallbackView(View):
         return self._result_page(
             '绑定成功',
             f'系统用户「{user.username}」已成功绑定{channel.get_channel_type_display()}，可以接收通知了',
-            'success', channel,
+            'success',
+            channel,
         )
 
     def _result_page(self, title, message, level, channel=None):
@@ -323,7 +343,7 @@ class BindCallbackView(View):
         color = color_map.get(level, '#3b82f6')
         channel_name = channel.get_channel_type_display() if channel else ''
 
-        html = f'''<!DOCTYPE html>
+        html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
@@ -369,7 +389,7 @@ p {{ font-size: 14px; color: #64748b; line-height: 1.6; margin-bottom: 24px; }}
 if (window.opener) {{ setTimeout(function() {{ window.close(); }}, 3000); }}
 </script>
 </body>
-</html>'''
+</html>"""
         return HttpResponse(html, content_type='text/html; charset=utf-8')
 
 
@@ -389,6 +409,7 @@ class SendNotificationView(APIView):
             return Response({'error': '缺少标题或内容'}, status=400)
 
         from .services import send_notification
+
         result = send_notification(
             company_id=request.session.get('current_company_id'),
             title=title,
@@ -414,26 +435,30 @@ class NotificationLogView(APIView):
         page = int(request.GET.get('page', 1))
         page_size = int(request.GET.get('page_size', 50))
         total = qs.count()
-        logs = qs[(page - 1) * page_size:page * page_size]
+        logs = qs[(page - 1) * page_size : page * page_size]
 
         data = []
         for log in logs:
-            data.append({
-                'id': log.id,
-                'channel_type': log.channel.channel_type if log.channel else None,
-                'channel_name': log.channel.get_channel_type_display() if log.channel else None,
-                'username': log.user.username if log.user else None,
-                'title': log.title,
-                'notification_type': log.notification_type,
-                'status': log.status,
-                'error_message': log.error_message or '',
-                'sent_at': log.sent_at.isoformat() if log.sent_at else None,
-                'created_at': log.created_at.isoformat(),
-            })
+            data.append(
+                {
+                    'id': log.id,
+                    'channel_type': log.channel.channel_type if log.channel else None,
+                    'channel_name': log.channel.get_channel_type_display() if log.channel else None,
+                    'username': log.user.username if log.user else None,
+                    'title': log.title,
+                    'notification_type': log.notification_type,
+                    'status': log.status,
+                    'error_message': log.error_message or '',
+                    'sent_at': log.sent_at.isoformat() if log.sent_at else None,
+                    'created_at': log.created_at.isoformat(),
+                }
+            )
 
-        return Response({
-            'total': total,
-            'page': page,
-            'page_size': page_size,
-            'logs': data,
-        })
+        return Response(
+            {
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'logs': data,
+            }
+        )

@@ -125,7 +125,7 @@ VIEW_CATEGORY_MAP = {
     'OperationAuditLogViewSet': ('system', 'log'),
     'SystemSettingViewSet': ('system', 'setting'),
     'NotificationViewSet': ('notifications', 'channel'),
-    
+
     # finance app
     'FinanceCompanyViewSet': ('finance', 'company'),
     'EmployeeCompanyViewSet': ('finance', 'employee'),
@@ -135,26 +135,26 @@ VIEW_CATEGORY_MAP = {
     'BankAccountViewSet': ('finance', 'bank'),
     'BudgetViewSet': ('finance', 'budget'),
     'SocialRecordViewSet': ('finance', 'social_security'),
-    
+
     # approvals app
     'ApprovalFlowViewSet': ('approval', 'approval'),
     'ApprovalNodeViewSet': ('approval', 'approval'),
     'ApprovalTemplateViewSet': ('approval', 'approval'),
-    
+
     # crm app
     'ClientViewSet': ('crm', 'customer'),
-    
+
     # tasks app
     'TaskViewSet': ('project', 'taskboard'),
-    
+
     # operations app
     'MaterialViewSet': ('operations', 'material'),
-    
+
     # repair app
     'RepairRequestViewSet': ('repair', 'repair_request'),
     'RepairImageViewSet': ('repair', 'repair_request'),
     'RepairSparePartViewSet': ('repair', 'repair_request'),
-    
+
     # files app
     'FileCategoryViewSet': ('files', 'file'),
     'CompanyFileViewSet': ('files', 'file'),
@@ -237,16 +237,16 @@ register_module(
 
 def menu_permissions(request):
     """从数据库动态读取菜单，而非硬编码"""
-    
+
     # 获取用户有权限的模块
     user_modules = Module.objects.filter(
         is_active=True,
         userpermission__user=request.user,  # 需要关联查询
     ).distinct()
-    
+
     # 动态生成菜单HTML
     menu_html = render_menu_html(user_modules, request.user)
-    
+
     return {'menu_html': menu_html}
 ```
 

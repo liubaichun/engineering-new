@@ -119,6 +119,7 @@ class FinanceCompanyViewSet(viewsets.ModelViewSet):
         if not self.request.user.is_authenticated:
             return FinanceCompany.objects.none()
         from apps.core.permissions import get_module_companies
+
         companies = get_module_companies(self.request.user, 'company', 'read')
         if companies is None:
             queryset = FinanceCompany.objects.all()

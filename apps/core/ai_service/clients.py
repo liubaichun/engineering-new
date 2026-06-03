@@ -75,6 +75,7 @@ class OpenAICompatibleClient(LLMClient):
 
     def chat_completion(self, messages: list[dict], **kwargs) -> LLMResponse:
         import time
+
         t0 = time.time()
         payload = {
             'model': kwargs.get('model', self.model),
@@ -133,6 +134,7 @@ class AnthropicClient(LLMClient):
 
     def chat_completion(self, messages: list[dict], **kwargs) -> LLMResponse:
         import time
+
         t0 = time.time()
 
         # Anthropic 消息格式: system + messages
@@ -160,9 +162,7 @@ class AnthropicClient(LLMClient):
             )
             resp.raise_for_status()
             data = resp.json()
-            content = '\n'.join(
-                b['text'] for b in data.get('content', []) if b.get('type') == 'text'
-            )
+            content = '\n'.join(b['text'] for b in data.get('content', []) if b.get('type') == 'text')
             model = data.get('model', self.model)
             usage = data.get('usage', {})
             self._log_call(messages, content, time.time() - t0)
@@ -187,6 +187,7 @@ class AnthropicClient(LLMClient):
 
 
 # ── 错误体系 ─────────────────────────────────────────────
+
 
 class LLMErrorType:
     TIMEOUT = 'timeout'
@@ -218,6 +219,7 @@ class LLMError(Exception):
 
 
 # ── 工厂函数 ─────────────────────────────────────────────
+
 
 def create_client(provider: str, api_key: str, base_url: str | None = None, **kwargs) -> LLMClient:
     """创建对应的 LLM 客户端实例"""

@@ -11,7 +11,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, Dict, List, Optional, Set
 
-from django.db.models import QuerySet, Sum
+from django.db.models import Sum
 from .models import (
     Account,
     Income,

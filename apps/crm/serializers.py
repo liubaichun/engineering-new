@@ -436,9 +436,19 @@ class ContractMilestoneSerializer(serializers.ModelSerializer):
     class Meta:
         model = ContractMilestone
         fields = [
-            'id', 'contract', 'contract_name',
-            'name', 'description', 'plan_date', 'actual_date',
-            'amount', 'status', 'status_display',
-            'sort_order', 'remark', 'created_at', 'updated_at',
+            'id',
+            'contract',
+            'contract_name',
+            'name',
+            'description',
+            'plan_date',
+            'actual_date',
+            'amount',
+            'status',
+            'status_display',
+            'sort_order',
+            'remark',
+            'created_at',
+            'updated_at',
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']

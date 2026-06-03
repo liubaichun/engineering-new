@@ -4,7 +4,7 @@ Provider 注册表
 定义 ProviderSpec dataclass 和 PROVIDER_REGISTRY 内建厂商注册表。
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal, Optional
 
 
@@ -86,6 +86,7 @@ def resolve_provider(name: str) -> str:
     # 尝试从 AI_SERVICE.models 查找
     try:
         from django.conf import settings
+
         for model_key, model_cfg in settings.AI_SERVICE['models'].items():
             if model_key == name or model_cfg.get('provider', '').lower() == name:
                 return model_cfg['provider']

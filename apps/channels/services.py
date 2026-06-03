@@ -57,13 +57,15 @@ def send_notification(company_id, title, content, user_ids=None, notification_ty
                 sent_count += 1
             else:
                 failed_count += 1
-            results.append({
-                'channel_id': channel.id,
-                'channel_type': channel.channel_type,
-                'mode': 'broadcast',
-                'status': 'sent' if success else 'failed',
-                'message': msg,
-            })
+            results.append(
+                {
+                    'channel_id': channel.id,
+                    'channel_type': channel.channel_type,
+                    'mode': 'broadcast',
+                    'status': 'sent' if success else 'failed',
+                    'message': msg,
+                }
+            )
             continue
 
         # 私信模式：发给指定用户
@@ -93,13 +95,15 @@ def send_notification(company_id, title, content, user_ids=None, notification_ty
                 sent_at=timezone.now() if success else None,
             )
 
-            results.append({
-                'user_id': binding.user.id,
-                'username': binding.user.username,
-                'channel_type': channel.channel_type,
-                'status': 'sent' if success else 'failed',
-                'message': msg,
-            })
+            results.append(
+                {
+                    'user_id': binding.user.id,
+                    'username': binding.user.username,
+                    'channel_type': channel.channel_type,
+                    'status': 'sent' if success else 'failed',
+                    'message': msg,
+                }
+            )
 
     return {
         'total': len(results),

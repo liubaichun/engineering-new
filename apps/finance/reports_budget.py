@@ -8,7 +8,7 @@ from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, Expense, WageRecord
+from apps.finance.models import Expense, WageRecord
 from apps.finance.reports_common import get_user_report_companies, parse_date_range, agg
 
 
@@ -70,9 +70,7 @@ def budget_execution_report(request):
             elif cat_kw:
                 # 【P0-1 核心修复】改用 expense_category 关键词匹配（icontains）
                 total = agg(
-                    Expense.objects.filter(
-                        company=company, date__year=year, expense_category__icontains=cat_kw
-                    ),
+                    Expense.objects.filter(company=company, date__year=year, expense_category__icontains=cat_kw),
                     'amount',
                 )
             else:

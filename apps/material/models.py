@@ -83,6 +83,7 @@ class Material(models.Model):
     def stock(self):
         """当前库存 = 期初库存 + 入库合计 - 出库合计"""
         from django.db.models import Sum
+
         total_inbound = self.inbound_logs.aggregate(total=Sum('quantity'))['total'] or 0
         total_outbound = self.usage_logs.aggregate(total=Sum('quantity'))['total'] or 0
         return self.init_stock + total_inbound - total_outbound
@@ -90,11 +91,13 @@ class Material(models.Model):
     @property
     def total_inbound(self):
         from django.db.models import Sum
+
         return self.inbound_logs.aggregate(total=Sum('quantity'))['total'] or 0
 
     @property
     def total_outbound(self):
         from django.db.models import Sum
+
         return self.usage_logs.aggregate(total=Sum('quantity'))['total'] or 0
 
     def save(self, *args, **kwargs):
@@ -103,6 +106,7 @@ class Material(models.Model):
             self.company_id = getattr(self.project, 'company_id', None)
         if not self.code:
             from apps.core.models import generate_code
+
             self.code = generate_code('material', Material)
         super().save(*args, **kwargs)
 
@@ -142,24 +146,45 @@ class MaterialInboundLog(models.Model):
 
     material = models.ForeignKey(Material, verbose_name='物料', on_delete=models.CASCADE, related_name='inbound_logs')
     quantity = models.PositiveIntegerField('入库数量')
-    unit_price = models.DecimalField('入库单价', max_digits=12, decimal_places=2, null=True, blank=True,
-                                      help_text='本次入库的单价，用于计算加权平均成本')
+    unit_price = models.DecimalField(
+        '入库单价',
+        max_digits=12,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        help_text='本次入库的单价，用于计算加权平均成本',
+    )
     supplier = models.ForeignKey(
-        'crm.Supplier', verbose_name='供应商', on_delete=models.SET_NULL, null=True, blank=True,
+        'crm.Supplier',
+        verbose_name='供应商',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='material_inbound_logs',
     )
     project = models.ForeignKey(
-        'tasks.Project', verbose_name='入库项目', on_delete=models.SET_NULL, null=True, blank=True,
+        'tasks.Project',
+        verbose_name='入库项目',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='material_inbound_logs',
     )
     inbound_date = models.DateField('入库日期', auto_now_add=True)
     source_type = models.CharField(
-        '入库来源', max_length=20, blank=True, default='purchase',
+        '入库来源',
+        max_length=20,
+        blank=True,
+        default='purchase',
         help_text='purchase/bom/transfer/adjustment',
     )
     company_id = models.PositiveIntegerField('所属公司', null=True, blank=True, db_index=True)
     created_by = models.ForeignKey(
-        User, verbose_name='操作人', on_delete=models.SET_NULL, null=True, blank=True,
+        User,
+        verbose_name='操作人',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='material_inbound_logs',
     )
     remark = models.TextField('备注', blank=True, default='')

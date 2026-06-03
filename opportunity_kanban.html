@@ -1,0 +1,202 @@
+{% extends "base_content.html" %}
+{% load static %}
+
+{% block title %}商机看板 - 企业信息化管理系统{% endblock %}
+
+{% block styles %}
+<style>
+.kanban-board { display: flex; gap: 12px; overflow-x: auto; min-height: calc(100vh - 220px); padding-bottom: 20px; }
+.kanban-column {
+    min-width: 260px; max-width: 300px; flex: 1;
+    background: #f0f2f5; border-radius: 12px; display: flex; flex-direction: column;
+}
+.kanban-column-header {
+    padding: 12px 14px 10px; border-radius: 12px 12px 0 0;
+    display: flex; justify-content: space-between; align-items: center;
+}
+.kanban-column-body {
+    padding: 8px; overflow-y: auto; flex: 1;
+    min-height: 120px;
+}
+.kanban-card {
+    background: #fff; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+    cursor: grab; transition: box-shadow 0.15s, transform 0.1s;
+    border-left: 3px solid #dee2e6;
+}
+.kanban-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); transform: translateY(-1px); }
+.kanban-card.dragging { opacity: 0.5; }
+.kanban-card .card-title { font-size: 0.9rem; font-weight: 600; margin-bottom: 4px; }
+.kanban-card .card-client { font-size: 0.78rem; color: #6c757d; margin-bottom: 6px; }
+.kanban-card .card-meta { display: flex; justify-content: space-between; align-items: center; font-size: 0.75rem; }
+.kanban-card .card-amount { font-weight: 700; color: #0d6efd; }
+.kanban-card .card-prob { color: #198754; }
+.kanban-card .card-date { color: #fd7e14; }
+.kanban-card.card-lead { border-left-color: #6c757d; }
+.kanban-card.card-qualify { border-left-color: #0d6efd; }
+.kanban-card.card-proposal { border-left-color: #6610f2; }
+.kanban-card.card-negotiation { border-left-color: #fd7e14; }
+
+.col-header-lead { background: linear-gradient(135deg, #6c757d, #495057); color: #fff; }
+.col-header-qualify { background: linear-gradient(135deg, #0d6efd, #0a58ca); color: #fff; }
+.col-header-proposal { background: linear-gradient(135deg, #6610f2, #520dc2); color: #fff; }
+.col-header-negotiation { background: linear-gradient(135deg, #fd7e14, #e8590c); color: #fff; }
+
+.priority-urgent { color: #dc3545 !important; font-weight: 700; }
+.priority-high { color: #fd7e14 !important; font-weight: 600; }
+.priority-medium { color: #ffc107 !important; }
+.priority-low { color: #6c757d !important; }
+
+/* 导航切换按钮 */
+.nav-pills-kanban { margin-bottom: 12px; }
+.nav-pills-kanban .nav-link { font-size: 0.85rem; padding: 4px 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-2">
+    <h5 class="mb-0"><i class="bi bi-columns-gap me-2"></i>商机看板</h5>
+    <div>
+        <ul class="nav nav-pills nav-pills-kanban d-inline-flex">
+            <li class="nav-item">
+                <a class="nav-link" href="{% url 'opportunity_list' %}">
+                    <i class="bi bi-list-ul me-1"></i>列表视图
+                </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link active" href="#">
+                    <i class="bi bi-columns-gap me-1"></i>看板视图
+                </a>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<div class="kanban-board" id="kanbanBoard">
+    <div class="text-center text-muted py-5 w-100">
+        <div class="spinner-border text-primary mb-2" role="status"></div>
+        <div>加载中...</div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const API_BASE = '/api/crm/opportunities/';
+
+async function loadKanban() {
+    try {
+        const resp = await fetch(`${API_BASE}kanban/`);
+        const data = await resp.json();
+        renderKanban(data.columns);
+    } catch(e) {
+        document.getElementById('kanbanBoard').innerHTML =
+            '<div class="text-danger text-center py-5 w-100">加载看板数据失败</div>';
+    }
+}
+
+function renderKanban(columns) {
+    const board = document.getElementById('kanbanBoard');
+    board.innerHTML = '';
+    columns.forEach(col => {
+        const colEl = document.createElement('div');
+        colEl.className = 'kanban-column';
+        colEl.dataset.stage = col.stage;
+
+        // Header
+        const header = document.createElement('div');
+        header.className = `kanban-column-header col-header-${col.stage}`;
+        header.innerHTML = `
+            <span><strong>${col.stage_display}</strong></span>
+            <span class="badge bg-light text-dark">${col.count} · ¥${formatMoney(col.total_amount)}</span>
+        `;
+        colEl.appendChild(header);
+
+        // Body (cards container)
+        const body = document.createElement('div');
+        body.className = 'kanban-column-body';
+        body.dataset.stage = col.stage;
+
+        col.cards.forEach(card => {
+            const cardEl = document.createElement('div');
+            cardEl.className = `kanban-card card-${col.stage}`;
+            cardEl.draggable = true;
+            cardEl.dataset.id = card.id;
+            cardEl.dataset.stage = col.stage;
+
+            const prioClass = `priority-${card.priority}`;
+            const dateStr = card.estimated_close_date ? formatDate(card.estimated_close_date) : '';
+
+            cardEl.innerHTML = `
+                <div class="card-title">${escHtml(card.name)}</div>
+                <div class="card-client"><i class="bi bi-building me-1"></i>${escHtml(card.client_name || '无客户')}</div>
+                <div class="card-meta">
+                    <span class="card-amount">¥${formatMoney(card.expected_amount)}</span>
+                    <span class="card-prob"><i class="bi bi-graph-up me-1"></i>${card.probability}%</span>
+                </div>
+                ${dateStr ? `<div class="card-meta mt-1"><span class="card-date"><i class="bi bi-calendar3 me-1"></i>${dateStr}</span><span class="${prioClass}">${card.priority_display}</span></div>` : ''}
+            `;
+
+            // Drag events
+            cardEl.addEventListener('dragstart', e => {
+                cardEl.classList.add('dragging');
+                e.dataTransfer.setData('text/plain', JSON.stringify({id: card.id, from: col.stage}));
+            });
+            cardEl.addEventListener('dragend', e => {
+                cardEl.classList.remove('dragging');
+            });
+
+            body.appendChild(cardEl);
+        });
+
+        // Drop zone
+        colEl.addEventListener('dragover', e => {
+            e.preventDefault();
+        });
+        colEl.addEventListener('drop', e => {
+            e.preventDefault();
+            const data = JSON.parse(e.dataTransfer.getData('text/plain'));
+            if (data.from === col.stage) return;
+            moveCard(data.id, data.from, col.stage);
+        });
+
+        colEl.appendChild(body);
+        board.appendChild(colEl);
+    });
+}
+
+async function moveCard(id, fromStage, toStage) {
+    try {
+        const resp = await fetch(`${API_BASE}${id}/advance_stage/`, { method: 'POST' });
+        if (!resp.ok) {
+            const err = await resp.json();
+            alert('推进阶段失败：' + (err.detail || '未知错误'));
+            loadKanban();
+            return;
+        }
+        loadKanban();
+    } catch(e) {
+        alert('网络错误');
+        loadKanban();
+    }
+}
+
+// Utils
+function formatMoney(v) {
+    v = parseFloat(v) || 0;
+    return v.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+}
+function formatDate(d) {
+    if (!d) return '';
+    const parts = d.split('-');
+    return parts[0] + '年' + parseInt(parts[1]) + '月' + parseInt(parts[2]) + '日';
+}
+function escHtml(s) {
+    if (!s) return '';
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+}
+
+loadKanban();
+</script>
+{% endblock %}

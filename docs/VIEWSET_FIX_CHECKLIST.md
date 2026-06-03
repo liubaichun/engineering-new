@@ -163,7 +163,7 @@ cd /root/engineering-new && python3 scripts/test_permission_security.py
 
 ### Phase 1
 - [ ] Step 1.1 CompanyViewSet (views_company.py)
-- [ ] Step 1.2 EmployeeViewSet + EmployeeCompanyViewSet (views_employee.py)  
+- [ ] Step 1.2 EmployeeViewSet + EmployeeCompanyViewSet (views_employee.py)
 - [ ] Step 1.3 BankAccountViewSet (views_bank.py)
 - [ ] Step 1.4 CompanySocialConfigViewSet + SocialRecordViewSet (views_social.py)
 - [ ] Step 1.5 IncomeViewSet (views_income.py)

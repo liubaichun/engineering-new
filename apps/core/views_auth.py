@@ -146,9 +146,11 @@ class LoginView(APIView):
         company = None
         if user:
             from apps.core.models import UserModulePermission
+
             first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
             if first_ump:
                 from apps.finance.models import Company
+
                 try:
                     company = Company.objects.get(id=first_ump.company_id)
                 except Company.DoesNotExist:
@@ -171,6 +173,7 @@ class LoginView(APIView):
             login(request, user)
             # 登录时设置当前公司上下文
             from apps.core.models import UserModulePermission
+
             first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
             if first_ump:
                 request.session['current_company_id'] = first_ump.company_id
@@ -344,9 +347,7 @@ class CurrentUserView(APIView):
         from apps.core.models import UserModulePermission
 
         # 使用 UMP（权限矩阵）验证用户是否属于该公司
-        has_access = UserModulePermission.objects.filter(
-            user=request.user, company_id=company_id
-        ).exists()
+        has_access = UserModulePermission.objects.filter(user=request.user, company_id=company_id).exists()
         if not has_access:
             return Response(
                 {'status': 'error', 'message': '您不属于该公司，无权访问'}, status=status.HTTP_403_FORBIDDEN
@@ -377,9 +378,7 @@ class CurrentUserView(APIView):
         from apps.finance.models import Company
 
         ump_company_ids = (
-            UserModulePermission.objects.filter(user=request.user)
-            .values_list('company_id', flat=True)
-            .distinct()
+            UserModulePermission.objects.filter(user=request.user).values_list('company_id', flat=True).distinct()
         )
         companies = Company.objects.filter(id__in=list(ump_company_ids))
         current_company_id = request.session.get('current_company_id')
@@ -411,9 +410,7 @@ class SwitchCompanyView(APIView):
 
         from apps.core.models import UserModulePermission
 
-        has_access = UserModulePermission.objects.filter(
-            user=request.user, company_id=company_id
-        ).exists()
+        has_access = UserModulePermission.objects.filter(user=request.user, company_id=company_id).exists()
         if not has_access:
             return Response(
                 {'status': 'error', 'message': '您不属于该公司，无权访问'}, status=status.HTTP_403_FORBIDDEN
@@ -469,6 +466,7 @@ class MyPermissionsView(APIView):
         company_id = request.session.get('current_company_id')
         if not company_id:
             from apps.core.models import UserModulePermission
+
             first_ump = UserModulePermission.objects.filter(user=user).order_by('company_id').first()
             company_id = first_ump.company_id if first_ump else None
 

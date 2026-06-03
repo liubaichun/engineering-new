@@ -11,9 +11,9 @@
 from __future__ import annotations
 
 from functools import wraps
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Set, Tuple, Union
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
 
-from django.http import JsonResponse, HttpRequest
+from django.http import JsonResponse
 from rest_framework.permissions import BasePermission
 from rest_framework.request import Request
 

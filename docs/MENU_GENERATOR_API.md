@@ -98,7 +98,7 @@ codes = MenuGenerator.get_user_menu_codes(request.user, company_id=2)
 
 ```python
 html = MenuGenerator.generate_menu_html(
-    request.user, 
+    request.user,
     company_id=request.session.get('current_company_id'),
     current_path=request.path
 )
@@ -198,7 +198,7 @@ TEMPLATES = [
                 <i class="bi bi-speedometer2"></i><span>控制台</span>
             </a>
         </div>
-        
+
         <!-- 动态菜单（由 MenuGenerator 自动生成） -->
         {{ user_menu_html|safe }}
         {% endblock %}

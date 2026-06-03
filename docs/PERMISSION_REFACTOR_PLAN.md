@@ -62,7 +62,7 @@ class UserModulePermission(models.Model):
     company = ForeignKey(Company)
     module = ForeignKey(Module)
     granted_bits = IntegerField()  # 位掩码
-    
+
     # 唯一约束：(user, company, module)
 ```
 
@@ -85,7 +85,7 @@ ACTION_BITS = {
 ### 3.3 权限检查流程
 
 ```
-用户请求 → is_authenticated? 
+用户请求 → is_authenticated?
   ↓ YES
 is_superuser? → YES → bypass所有检查
   ↓ NO
@@ -121,12 +121,12 @@ def get_user_companies(user: User) -> List[int]:
         return []
     if user.is_superuser:
         return None  # 返回None表示不限制
-    
+
     # 从UMP表获取授权公司
     cids = list(UserModulePermission.objects.filter(
         user=user
     ).values_list('company_id', flat=True).distinct())
-    
+
     return cids if cids else []
 ```
 
@@ -136,7 +136,7 @@ def get_user_companies(user: User) -> List[int]:
 def migrate_ucp_to_ump():
     """迁移UCP表数据到UMP表"""
     from apps.core.models import UserModulePermission, ACTION_BITS
-    
+
     migrated = 0
     for ucp in UserCompanyPermission.objects.filter(is_granted=True):
         # 计算位掩码
@@ -144,7 +144,7 @@ def migrate_ucp_to_ump():
         bit = ACTION_BITS.get(action_name, 0)
         if not bit:
             continue
-        
+
         # 查找或创建UMP记录
         ump, created = UserModulePermission.objects.get_or_create(
             user=ucp.user,
@@ -152,14 +152,14 @@ def migrate_ucp_to_ump():
             module=ucp.module,
             defaults={'granted_bits': bit}
         )
-        
+
         if not created:
             # 累加位掩码
             ump.granted_bits |= bit
             ump.save()
-        
+
         migrated += 1
-    
+
     return migrated
 ```
 
@@ -182,7 +182,7 @@ def register_module(name, label, category, actions):
     注册模块 → 自动创建Module、ModuleAction、Permission记录
     """
     from apps.core.models import Module, ModuleAction, Permission
-    
+
     # 1. 创建或更新Module记录
     module, _ = Module.objects.get_or_create(
         name=name,
@@ -191,7 +191,7 @@ def register_module(name, label, category, actions):
             'category': category,
         }
     )
-    
+
     # 2. 为每个动作创建ModuleAction和Permission
     for action in actions:
         ma, _ = ModuleAction.objects.get_or_create(
@@ -202,14 +202,14 @@ def register_module(name, label, category, actions):
                 'bit_position': action.get('bit_position', 0),
             }
         )
-        
+
         # 3. 创建权限码
         perm_code = f"{name}:{action['name']}"
         Permission.objects.get_or_create(
             code=perm_code,
             defaults={'name': f'{label}-{action.get("label", action["name"])}'}
         )
-    
+
     _MODULE_REGISTRY[name] = {'module': module, 'actions': actions}
 ```
 
@@ -221,7 +221,7 @@ def register_module(name, label, category, actions):
 def ready():
     """Django启动时自动同步模块注册"""
     from apps.core.modules import sync_modules
-    
+
     # 首次启动时执行
     sync_modules()
 ```
@@ -240,32 +240,32 @@ class RoleRequired(BasePermission):
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
-        
+
         if request.user.is_superuser:
             return True
-        
+
         # 获取所需权限码
         action_perms = getattr(view, 'action_perms', {})
         required_perms = action_perms.get(request.action, [])
-        
+
         if not required_perms:
             return True
-        
+
         # 检查UMP表
         for perm_code in required_perms:
             module_name, action_name = perm_code.split(':')
             if not self._check_ump(request.user, module_name, action_name):
                 return False
-        
+
         return True
-    
+
     def _check_ump(self, user, module_name, action_name):
         from apps.core.models import UserModulePermission, ACTION_BITS
-        
+
         bit = ACTION_BITS.get(action_name, 0)
         if not bit:
             return False
-        
+
         return UserModulePermission.objects.filter(
             user=user,
             module__name=module_name,
@@ -284,14 +284,14 @@ def get_module_companies(user, module_name, action='read'):
     """
     if not user or not user.is_authenticated:
         return []
-    
+
     if user.is_superuser:
         return None  # 不过滤
-    
+
     bit = ACTION_BITS.get(action, 0)
     if not bit:
         return []
-    
+
     cids = list(UserModulePermission.objects.filter(
         user=user,
         module__name=module_name,
@@ -299,7 +299,7 @@ def get_module_companies(user, module_name, action='read'):
         where=['granted_bits & %s = %s'],
         params=[bit, bit]
     ).values_list('company_id', flat=True).distinct())
-    
+
     return cids if cids else []
 ```
 

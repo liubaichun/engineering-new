@@ -5,7 +5,7 @@ Failover 错误处理
 import time
 import logging
 
-from .clients import LLMError, LLMErrorType, RETRYABLE_ERRORS
+from .clients import LLMError, LLMErrorType
 
 logger = logging.getLogger('ai_service')
 

@@ -6,7 +6,7 @@ from rest_framework.decorators import api_view
 from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
-from apps.finance.models import Company, BankStatement
+from apps.finance.models import BankStatement
 from apps.finance.reports_common import get_user_report_companies, parse_date_range
 
 

@@ -87,16 +87,11 @@ def get_user_companies(user: Any) -> List[Tuple[int, str]]:
     按权限记录数降序（最常用优先）、company_id 升序排序。
     """
     from apps.finance.models import Company
-    from django.db.models import Count
 
     if user.is_superuser:
         return [(c.id, c.name) for c in Company.objects.all()]
 
-    ump_company_ids = (
-        UserModulePermission.objects.filter(user=user)
-        .values_list('company_id', flat=True)
-        .distinct()
-    )
+    ump_company_ids = UserModulePermission.objects.filter(user=user).values_list('company_id', flat=True).distinct()
     return [(c.id, c.name) for c in Company.objects.filter(id__in=list(ump_company_ids))]
 
 
@@ -123,9 +118,13 @@ def get_user_module_perm(user: Any, company_id: int, module_name: str, action_na
     if not bit:
         return False
 
-    return UserModulePermission.objects.filter(
-        user=user,
-        company_id=company_id,
-        module__name=module_name,
-        granted_bits__gte=bit,
-    ).extra(where=['granted_bits & %s = %s'], params=[bit, bit]).exists()
+    return (
+        UserModulePermission.objects.filter(
+            user=user,
+            company_id=company_id,
+            module__name=module_name,
+            granted_bits__gte=bit,
+        )
+        .extra(where=['granted_bits & %s = %s'], params=[bit, bit])
+        .exists()
+    )

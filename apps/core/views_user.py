@@ -47,9 +47,11 @@ class UserViewSet(viewsets.ModelViewSet):
         if not user.is_superuser:
             company_ids = get_module_companies(user, 'user', 'read')
             if company_ids:
-                same_company_user_ids = UserModulePermission.objects.filter(
-                    company_id__in=company_ids
-                ).values_list('user_id', flat=True).distinct()
+                same_company_user_ids = (
+                    UserModulePermission.objects.filter(company_id__in=company_ids)
+                    .values_list('user_id', flat=True)
+                    .distinct()
+                )
                 queryset = queryset.filter(id__in=same_company_user_ids)
                 # 非超管也不能看到其他超管账号
                 queryset = queryset.exclude(is_superuser=True)
@@ -273,7 +275,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 # 给新用户分配UMP权限
                 for mod in Module.objects.all():
                     UserModulePermission.objects.create(
-                        user=user, company=company, module=mod, granted_bits=1,
+                        user=user,
+                        company=company,
+                        module=mod,
+                        granted_bits=1,
                     )
                 PermissionAuditLog.objects.create(
                     user=request.user if request.user.is_authenticated else None,

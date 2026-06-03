@@ -1,13 +1,12 @@
-from rest_framework import viewsets, filters, permissions, status
+from rest_framework import viewsets, filters, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from .models_amortization import ExpenseAmortization, AmortizationEntry
-from .serializers import ExpenseAmortizationSerializer, AmortizationEntrySerializer
+from .serializers import ExpenseAmortizationSerializer
 from apps.core.auth import CSRFExemptSessionAuthentication
 from apps.core.permissions import RoleRequired, get_module_companies
 from apps.core.exceptions import api_error, ErrorCode
-from datetime import date, timedelta
 from calendar import monthrange
 
 
@@ -50,7 +49,6 @@ class ExpenseAmortizationViewSet(viewsets.ModelViewSet):
 
     def _auto_generate_entries(self, instance):
         """根据摊销参数自动生成各期明细"""
-        from calendar import monthrange
         current = instance.start_date
         entries = []
         period_count = 0
@@ -62,11 +60,13 @@ class ExpenseAmortizationViewSet(viewsets.ModelViewSet):
                 amount = instance.remaining_amount
             else:
                 amount = instance.monthly_amount
-            entries.append(AmortizationEntry(
-                amortization=instance,
-                period_date=current,
-                amount=amount,
-            ))
+            entries.append(
+                AmortizationEntry(
+                    amortization=instance,
+                    period_date=current,
+                    amount=amount,
+                )
+            )
             period_count += 1
             # 下个月
             if current.month == 12:
