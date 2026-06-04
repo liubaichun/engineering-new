@@ -9,7 +9,7 @@ from apps.core.permissions import require_perms
 from rest_framework.response import Response
 
 from apps.finance.models import Income, Expense
-from apps.finance.reports_common import get_user_report_companies, parse_date_range, build_qs, INTERNAL_COMPANY_NAMES
+from apps.finance.reports_common import get_user_report_companies, parse_date_range, build_qs, get_internal_company_names_cached
 
 
 @api_view(['GET'])
@@ -32,7 +32,7 @@ def customer_revenue_report(request):
     internal_stats = {'total': 0.0, 'count': 0}
     for inc in inc_qs.select_related('company', 'client_ref'):
         # 内部公司转账不计入外部客户收入
-        if inc.customer in INTERNAL_COMPANY_NAMES:
+        if inc.customer in get_internal_company_names_cached():
             internal_stats['total'] += float(inc.amount or 0)
             internal_stats['count'] += 1
             continue

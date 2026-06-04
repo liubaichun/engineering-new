@@ -15,7 +15,11 @@ def get_internal_company_names():
     return set(Company.objects.values_list('name', flat=True))
 
 
-INTERNAL_COMPANY_NAMES = get_internal_company_names()
+def get_internal_company_names_cached():
+    # 惰性加载，避免模块加载时查数据库（空库时无法migrate）
+    if not hasattr(get_internal_company_names_cached, '_cache'):
+        get_internal_company_names_cached._cache = get_internal_company_names()
+    return get_internal_company_names_cached._cache
 
 
 def get_user_report_companies(request):
